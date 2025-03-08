@@ -108,10 +108,9 @@ uint64_t get_utc_milliseconds() {
     // Emscripten:  emscripten_get_now
     double now_ms = emscripten_get_now();
     if (now_ms < 0) {
-        // 理错误
         return 0;
     }
-    ms = (uint64_t)now_ms; // 秒
+    ms = (uint64_t)now_ms; // sec
 
 #endif
 

@@ -38,7 +38,7 @@ void lineArray_free(LineArray* array) {
 	lineArray_init(array);
 }
 
-//获取行信息 bin search
+//getline info bin search
 uint32_t getLine(LineArray* array, uint32_t offset) {
 	uint32_t low = 0, high = array->count, mid;
 
