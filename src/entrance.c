@@ -1,0 +1,162 @@
+#include "entrance.h"
+#include "version.h"
+#include "vm.h"
+
+void repl() {
+	printf("%s %s  Copyright (C) %s, %s\n", INTERPRETER_NAME, INTERPRETER_VERSION, INTERPRETER_COPYRIGHT, INTERPRETER_OWNER);
+
+	vm_init();
+
+	char line[256];
+	STR fullLine = (STR)malloc(512);
+	STR result = NULL;
+
+	uint32_t fullLineLength = 0;
+	uint32_t fullLineCapacity = 512;
+	uint32_t lineLen = 0;
+
+	bool isContinued;
+
+	Chunk chunk;
+	chuck_init(&chunk);
+
+#define match_string(a,b) ((strncmp(a,b,strlen(b)) == 0) && (a[strlen(b)] == '\0' || a[strlen(b)] == '\n'))
+
+	/*
+	* input '\' to enter next line
+	* input "/exit" to exit
+	*/
+
+	while (true) {
+		printf("> ");
+
+		// get one line
+		if (!fgets(line, sizeof(line), stdin)) {
+			printf("\n");
+			break;
+		}
+
+		lineLen = (uint32_t)strlen(line);
+		if (lineLen > 1 && line[lineLen - 2] == '\\') {
+			line[lineLen - 2] = '\n';
+			line[lineLen - 1] = '\0';
+
+			isContinued = true;
+		}
+		else if (lineLen > 0) {
+			if (line[0] == '\n') continue;
+			isContinued = false;
+
+			//check '/exit'
+			if (line[0] == '/') {
+				if (match_string(line, "/exit")) {
+					break;
+				}
+				else if (match_string(line, "/memory")) {
+					log_malloc_info();
+					continue;
+				}
+				else if (match_string(line, "/help")) {
+					printf("Commands:\n");
+					printf("/exit  - Exit the interpreter.\n");
+					printf("/memory  - Print memory statistics.\n");
+					printf("/help  - Print this help message.\n");
+					printf("\nAbout:\n");
+					printf("input \'\\\' to enter next line, with 512 characters maximum per line.\n");
+					continue;
+				}
+			}
+		}
+		else {
+			continue;
+		}
+
+		if ((fullLineLength + lineLen + 1) >= fullLineCapacity) {
+			result = (STR)realloc(fullLine, fullLineCapacity += 1024);
+			if (result == NULL) {
+				fprintf(stderr, "Memory reallocation failed!\n");
+				exit(1);
+			}
+			fullLine = result;
+			result = NULL;
+		}
+
+		//be safe
+		if ((fullLine + fullLineLength) == NULL) {
+			exit(1);
+		}
+
+		memcpy(fullLine + fullLineLength, line, lineLen);
+		fullLineLength += (lineLen - 1);
+		fullLine[fullLineLength] = '\0';
+
+		if (!isContinued) {
+#if DEBUG_MODE
+			printf("CODE TEXT:\n%s\n", fullLine);
+#endif
+
+			eval(fullLine, &chunk);
+			fullLine[0] = '\0';
+			fullLineLength = 0;
+		}
+	}
+
+	chunk_free(&chunk);
+	free(fullLine);
+
+	vm_free();
+
+#if LOG_MALLOC_INFO
+	log_malloc_info();
+#endif
+#undef match_string
+}
+
+static STR readFile(C_STR path) {
+	FILE* file = fopen(path, "rb");
+
+	if (file == NULL) {
+		fprintf(stderr, "Could not open file \"%s\".\n", path);
+		exit(74);
+	}
+
+	fseek(file, 0L, SEEK_END);
+	size_t fileSize = ftell(file);
+	rewind(file);
+
+	STR buffer = (STR)malloc(fileSize + 1);
+
+	if (buffer == NULL) {
+		fprintf(stderr, "Not enough memory to read \"%s\".\n", path);
+		exit(74);
+	}
+
+	size_t bytesRead = fread(buffer, sizeof(char), fileSize, file);
+
+	if (bytesRead < fileSize) {
+		fprintf(stderr, "Could not read file \"%s\".\n", path);
+		exit(74);
+	}
+
+	buffer[bytesRead] = '\0';
+
+	fclose(file);
+	return buffer;
+}
+
+void runFile(C_STR path) {
+	vm_init();
+
+	STR source = readFile(path);
+	InterpretResult result = interpret(source);
+	free(source);
+
+	if (result == INTERPRET_COMPILE_ERROR) exit(65);
+	if (result == INTERPRET_RUNTIME_ERROR) exit(70);
+
+	vm_free();
+
+#if LOG_MALLOC_INFO
+	log_malloc_info();
+#endif
+}
