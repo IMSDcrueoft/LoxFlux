@@ -133,13 +133,13 @@ static TokenType identifierType() {
 	case 'b': return checkKeyword(1, 4, "reak", TOKEN_BREAK);
 	case 'c': if (scanner.current - scanner.start > 1) {
 		switch (scanner.start[1]) {
-		case 'l':return checkKeyword(2, 3, "ass", TOKEN_CLASS);
+		case 'l': return checkKeyword(2, 3, "ass", TOKEN_CLASS);
 		case 'o': {
 			if ((scanner.current - scanner.start > 3) && (scanner.start[2] == 'n')) {
 				switch (scanner.start[3])
 				{
-				case 's':return checkKeyword(4, 1, "t", TOKEN_CONST);
-				case 't':return checkKeyword(4, 4, "inue", TOKEN_CONTINUE);
+				case 's': return checkKeyword(4, 1, "t", TOKEN_CONST);
+				case 't': return checkKeyword(4, 4, "inue", TOKEN_CONTINUE);
 				}
 			}
 		}
@@ -163,7 +163,7 @@ static TokenType identifierType() {
 	case 'p': return checkKeyword(1, 4, "rint", TOKEN_PRINT);
 	case 'r': return checkKeyword(1, 5, "eturn", TOKEN_RETURN);
 	case 's': return checkKeyword(1, 4, "uper", TOKEN_SUPER);
-	case 't':{
+	case 't': {
 		if (scanner.current - scanner.start > 1) {
 			switch (scanner.start[1]) {
 			case 'h': return checkKeyword(2, 2, "is", TOKEN_THIS);
@@ -253,7 +253,7 @@ static Token number() {
 		do {
 			advance();
 		} while (isBinDigit(peek()));
-		
+
 		return makeToken(TOKEN_NUMBER_BIN);
 	case 'x':
 	case 'X':
@@ -377,6 +377,7 @@ Token scanToken()
 	case '[': return makeToken(TOKEN_RIGHT_SQUARE_BRACKET);
 	case ']': return makeToken(TOKEN_RIGHT_SQUARE_BRACKET);
 	case ';': return makeToken(TOKEN_SEMICOLON);
+	case ':': return makeToken(TOKEN_COLON);
 	case ',': return makeToken(TOKEN_COMMA);
 	case '.': return makeToken(TOKEN_DOT);
 	case '-': return makeToken(TOKEN_MINUS);

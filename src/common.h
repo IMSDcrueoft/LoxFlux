@@ -23,7 +23,7 @@ typedef double float64_t;
 #define UINT24_COUNT 0x1000000
 
 // to use debug mode open this
-#define DEBUG_MODE 0
+#define DEBUG_MODE 1
 #define DEBUG_TRACE_EXECUTION 1
 #define DEBUG_PRINT_CODE 1
 

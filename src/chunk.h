@@ -55,6 +55,9 @@ typedef enum {
 	OP_DEBUGGER,
 } OpCode;
 
+#define OP_JUMP_IF_FALSE_POP (OP_JUMP_IF_FALSE | 0b01000000)
+#define OP_JUMP_IF_TRUE_POP (OP_JUMP_IF_TRUE | 0b01000000)
+
 typedef struct {
 	uint32_t count;    //limit to 4GB
 	uint32_t capacity; //limit to 4GB

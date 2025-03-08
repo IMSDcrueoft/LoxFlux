@@ -50,11 +50,11 @@ static uint32_t byteInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
 	return offset + 2;
 }
 
-static uint32_t jumpInstruction(C_STR name, int32_t sign, Chunk* chunk, uint32_t offset) {
+static uint32_t jumpInstruction(C_STR name, int32_t sign, Chunk* chunk, uint32_t offset, uint32_t high2bit) {
 	uint16_t jump = (uint16_t)chunk->code[offset + 1];
 	jump |= (chunk->code[offset + 2] << 8);
 
-	printf("%-16s %4d -> %d\n", name, offset, offset + 3 + sign * jump);
+	printf("%-16s %4d -> %d  %-8s\n", name, offset, offset + 3 + sign * jump, high2bit ? "POP" : "");
 	return offset + 3;
 }
 
@@ -202,13 +202,13 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 		return modifyLocalInstruction("OP_POP_N", chunk, offset, high2bit);
 
 	case OP_JUMP:
-		return jumpInstruction("OP_JUMP", 1, chunk, offset);
+		return jumpInstruction("OP_JUMP", 1, chunk, offset, high2bit);
 	case OP_JUMP_IF_FALSE:
-		return jumpInstruction("OP_JUMP_IF_FALSE", 1, chunk, offset);
+		return jumpInstruction("OP_JUMP_IF_FALSE", 1, chunk, offset, high2bit);
 	case OP_JUMP_IF_TRUE:
-		return jumpInstruction("OP_JUMP_IF_TRUE", 1, chunk, offset);
+		return jumpInstruction("OP_JUMP_IF_TRUE", 1, chunk, offset, high2bit);
 	case OP_LOOP:
-		return jumpInstruction("OP_LOOP", -1, chunk, offset);
+		return jumpInstruction("OP_LOOP", -1, chunk, offset, high2bit);
 
 	case OP_IMM:
 		return immidiateIstruction("OP_IMM", offset, high2bit);

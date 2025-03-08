@@ -336,11 +336,13 @@ static InterpretResult run()
 		case OP_JUMP_IF_FALSE: {
 			uint16_t offset = READ_SHORT();
 			if (isFalsey(vm.stackTop[-1])) vm.ip += offset;
+			vm.stackTop -= high2bit;
 			break;
 		}
 		case OP_JUMP_IF_TRUE: {
 			uint16_t offset = READ_SHORT();
 			if (isTruthy(vm.stackTop[-1])) vm.ip += offset;
+			vm.stackTop -= high2bit;
 			break;
 		}
 		case OP_RETURN: {

@@ -458,8 +458,7 @@ static void forStatement() {
 		consume(TOKEN_SEMICOLON, "Expect ';' after loop condition.");
 
 		// Jump out of the loop if the condition is false.
-		exitJump = emitJump(OP_JUMP_IF_FALSE);
-		emitByte(OP_POP); // Condition.
+		exitJump = emitJump(OP_JUMP_IF_FALSE_POP);
 	}
 
 	//the code is: init,condition,increase,body,loop_to_increase
@@ -492,7 +491,6 @@ static void forStatement() {
 	//if there is no exitJump,this is an infinite loop
 	if (exitJump != -1) {
 		patchJump(exitJump);
-		emitByte(OP_POP); // Condition.
 	}
 
 	while (loop.breakJumpCount > 0) {
@@ -510,13 +508,11 @@ static void ifStatement() {
 	expression();
 	consume(TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
 
-	int32_t thenJump = emitJump(OP_JUMP_IF_FALSE);
-	emitByte(OP_POP);
+	int32_t thenJump = emitJump(OP_JUMP_IF_FALSE_POP);
 	statement();
 
 	int32_t elseJump = emitJump(OP_JUMP);
 	patchJump(thenJump);
-	emitByte(OP_POP);
 
 	if (match(TOKEN_ELSE)) statement();
 	patchJump(elseJump);
@@ -535,8 +531,7 @@ static void whileStatement() {
 	expression();
 	consume(TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
 
-	int32_t exitJump = emitJump(OP_JUMP_IF_FALSE);
-	emitByte(OP_POP);
+	int32_t exitJump = emitJump(OP_JUMP_IF_FALSE_POP);
 
 	//record the loop
 	LoopContext loop = (LoopContext){ .start = loopStart, .upper = currentLoop,.breakJumps = NULL,.breakJumpCount = 0 };
@@ -549,7 +544,6 @@ static void whileStatement() {
 	emitLoop(loopStart);
 
 	patchJump(exitJump);
-	emitByte(OP_POP);
 
 	while (loop.breakJumpCount > 0) {
 		patchJump(loop.breakJumps[--loop.breakJumpCount]);
