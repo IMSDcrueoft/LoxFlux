@@ -17,6 +17,56 @@ Please note that this project has not yet completed its basic functionalities, t
 
 此项目“Loxed”是基于 cLox 版本(栈型字节码虚拟机)进行学习和开发的。请注意，该项目目前尚未完成基础功能，因此请勿将其用于实际应用中。
 
+## Features
+
+### Numbers
+
+- **Binary literal**: Use `0b` or `0B` prefix, e.g., `0b1010`.
+- **Hexadecimal literal**: Use `0x` or `0X` prefix, e.g., `0xFF`.
+- **Scientific notation**: Supports formats like `1.2e+3` and `123E-2`.
+
+### String
+
+- **Escape characters**: Supports escaping with backslash `\`, such as `\"` for double quotes; Example: `"\"hello world\""` renders as `"hello world"`.
+
+### Constants
+
+- **Constant range**: Expands to `0x00ffffff` (16,777,215).
+- **Constant deduplication**: For numbers and strings.
+
+### Global Variable
+
+- **Optimized global variable access**: Achieves O(1) time complexity.
+
+### Local Variable
+
+- **Local variable range**: Expands to support up to 1024 variables.
+- **'const' keyword support**: Supported within blocks.
+
+### Loop
+
+- **'break' and 'continue' keywords**: Supported within loops.
+
+### Random Generator
+
+- **WellRng1024a implementation**: Provided for random number generation.
+
+### Timer
+
+- **Cross-platform interface**: Includes `get_nanoseconds()` and `get_utc_milliseconds()`.
+
+### Comment
+
+- **Block comment support**: Using `/* */`.
+
+### REPL
+
+- **Support for line break input**: Use `\` for multi-line input in REPL.
+- **Commands**:
+  - `/help`: Print help information.
+  - `/exit`: Exit the REPL.
+  - `/memory`: Print memory information (using mimalloc).
+
 ## Licenses
 The project is based on the [MIT license] and uses two third-party projects.LLVM may be used as a JIT in the future.
 
