@@ -188,6 +188,7 @@
     <ClInclude Include="src\memory.h" />
     <ClInclude Include="src\object.h" />
     <ClInclude Include="src\entrance.h" />
+    <ClInclude Include="src\options.h" />
     <ClInclude Include="src\scanner.h" />
     <ClInclude Include="src\table.h" />
     <ClInclude Include="src\timer.h" />

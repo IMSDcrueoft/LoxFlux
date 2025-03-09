@@ -1,3 +1,8 @@
+/*
+ * MIT License
+ * Copyright (c) 2025 IM&SD (https://github.com/IMSDcrueoft)
+ * See LICENSE file in the root directory for full license text.
+*/
 #pragma once
 #include "vm.h"
 #include "scanner.h"
@@ -50,6 +55,7 @@ typedef struct {
 
 typedef struct LoopContext{
 	int32_t start;
+	uint32_t enterParamCount;
 	uint16_t breakJumpCount;
 	uint16_t breakJumpCapacity;
 	int32_t* breakJumps;

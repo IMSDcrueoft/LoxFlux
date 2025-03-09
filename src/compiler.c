@@ -1,3 +1,8 @@
+/*
+ * MIT License
+ * Copyright (c) 2025 IM&SD (https://github.com/IMSDcrueoft)
+ * See LICENSE file in the root directory for full license text.
+*/
 #include "compiler.h"
 #include "builtinModule.h"
 
@@ -229,6 +234,17 @@ static void beginScope() {
 	current->scopeDepth++;
 }
 
+static void emitPopCount(uint16_t popCount) {
+	if (popCount == 0) return;
+	if (popCount > 1) { // 10-bit index (8 + 2 bits)
+		--popCount;     // the limit is 1024, but 10 bit can only expressed [0 to 1023] ,so i expand it to [1,1024]
+		emitBytes(2, OP_POP_N | (uint8_t)((popCount >> 8) << 6), (uint8_t)popCount);
+	}
+	else {
+		emitByte(OP_POP);
+	}
+}
+
 static void endScope() {
 	current->scopeDepth--;
 
@@ -239,15 +255,7 @@ static void endScope() {
 		current->localCount--;
 	}
 
-	if (popCount == 0) return;
-
-	if (popCount > 1) { // 10-bit index (8 + 2 bits)
-		--popCount;     // the limit is 1024, but 10 bit can only expressed [0 to 1023] ,so i expand it to [1,1024]
-		emitBytes(2, OP_POP_N | (uint8_t)((popCount >> 8) << 6), (uint8_t)popCount);
-	}
-	else {
-		emitByte(OP_POP);
-	}
+	emitPopCount(popCount);
 }
 
 //need to define first
@@ -480,7 +488,7 @@ static void forStatement() {
 	}
 
 	//record the loop
-	LoopContext loop = (LoopContext){ .start = loopStart, .upper = currentLoop,.breakJumps = NULL,.breakJumpCount = 0 };
+	LoopContext loop = (LoopContext){ .start = loopStart, .upper = currentLoop,.breakJumps = NULL,.breakJumpCount = 0 ,.enterParamCount = current->localCount};
 	loop.breakJumpCapacity = 8;
 	loop.breakJumps = ALLOCATE(int32_t, loop.breakJumpCapacity);
 	currentLoop = &loop;
@@ -534,7 +542,7 @@ static void whileStatement() {
 	int32_t exitJump = emitJump(OP_JUMP_IF_FALSE_POP);
 
 	//record the loop
-	LoopContext loop = (LoopContext){ .start = loopStart, .upper = currentLoop,.breakJumps = NULL,.breakJumpCount = 0 };
+	LoopContext loop = (LoopContext){ .start = loopStart, .upper = currentLoop,.breakJumps = NULL,.breakJumpCount = 0 ,.enterParamCount = current->localCount};
 	loop.breakJumpCapacity = 8;
 	loop.breakJumps = ALLOCATE(int32_t, loop.breakJumpCapacity);
 	currentLoop = &loop;
@@ -560,6 +568,8 @@ static void breakStatement() {
 		return;
 	}
 
+	uint16_t offsetParam = current->localCount - currentLoop->enterParamCount;
+	emitPopCount(offsetParam);
 	int32_t jump = emitJump(OP_JUMP);
 
 	if (currentLoop->breakJumpCount == currentLoop->breakJumpCapacity) {
@@ -586,6 +596,8 @@ static void continueStatement() {
 		return;
 	}
 
+	uint16_t offsetParam = current->localCount - currentLoop->enterParamCount;
+	emitPopCount(offsetParam);
 	emitLoop(currentLoop->start);
 	consume(TOKEN_SEMICOLON, "Expect ';' after 'continue'.");
 }

@@ -1,3 +1,8 @@
+/*
+ * MIT License
+ * Copyright (c) 2025 IM&SD (https://github.com/IMSDcrueoft)
+ * See LICENSE file in the root directory for full license text.
+*/
 #include "vm.h"
 #include "object.h"
 #include "builtinModule.h"
@@ -253,6 +258,9 @@ static InterpretResult run()
 			break;
 		}
 		case OP_PRINT: {
+#if DEBUG_MODE
+			printf("[Print] ");
+#endif
 			printValue(stack_pop());
 			printf("\n");
 			break;

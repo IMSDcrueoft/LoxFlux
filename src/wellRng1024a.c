@@ -1,3 +1,8 @@
+/*
+ * MIT License
+ * Copyright (c) 2025 IM&SD (https://github.com/IMSDcrueoft)
+ * See LICENSE file in the root directory for full license text.
+*/
 #include "wellRng1024a.h"
 
 #define STATE_SIZE 32

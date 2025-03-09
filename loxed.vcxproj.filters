@@ -118,5 +118,8 @@
     <ClInclude Include="src\entrance.h">
       <Filter>loxed\header</Filter>
     </ClInclude>
+    <ClInclude Include="src\options.h">
+      <Filter>loxed\header</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

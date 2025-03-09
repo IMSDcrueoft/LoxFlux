@@ -1,3 +1,8 @@
+/*
+ * MIT License
+ * Copyright (c) 2025 IM&SD (https://github.com/IMSDcrueoft)
+ * See LICENSE file in the root directory for full license text.
+*/
 #pragma once
 #include <stddef.h>
 #include <stdio.h>
@@ -9,6 +14,7 @@
 #include <stdarg.h>
 //check the type
 #include "check.h"
+#include "options.h"
 
 typedef char* STR;
 typedef const char* C_STR;
@@ -21,33 +27,6 @@ typedef double float64_t;
 #define UINT18_MAX 0x3ffff
 #define UINT24_MAX 0xffffff
 #define UINT24_COUNT 0x1000000
-
-// to use debug mode open this
-#define DEBUG_MODE 1
-#define DEBUG_TRACE_EXECUTION 1
-#define DEBUG_PRINT_CODE 1
-
-//to use the logs
-#define LOG_MODE 1
-#define LOG_COMPILE_TIMING 1
-#define LOG_EXECUTE_TIMING 1
-#define LOG_MALLOC_INFO 1
-#define LOG_BIPMS 1
-
-#if !DEBUG_MODE
-#undef DEBUG_PRINT_CODE
-#undef DEBUG_TRACE_EXECUTION
-#elif !DEBUG_TRACE_EXECUTION
-//print require trace
-#undef DEBUG_PRINT_CODE
-#endif
-
-#if !LOG_MODE
-#undef LOG_COMPILE_TIMING
-#undef LOG_EXECUTE_TIMING
-#undef LOG_MALLOC_INFO
-#undef LOG_BIPMS
-#endif
 
 #define min_2(x,y) (((x) < (y)) ? (x): (y))
 #define max_2(x,y) (((x) > (y)) ? (x): (y))
