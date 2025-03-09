@@ -61,7 +61,7 @@ static uint32_t jumpInstruction(C_STR name, int32_t sign, Chunk* chunk, uint32_t
 static uint32_t modifyLocalInstruction(C_STR name, Chunk* chunk, uint32_t offset, uint32_t high2bit) {
 	uint32_t slot = chunk->code[offset + 1];
 	slot |= (high2bit << 8);
-	printf("%-16s %4d\n", name, slot);
+	printf("%-16s %4d\n", name, slot + 1);
 	return offset + 2;
 }
 

@@ -253,6 +253,9 @@ static InterpretResult run()
 			break;
 		}
 		case OP_PRINT: {
+#if DEBUG_MODE
+			printf("[Print] ");
+#endif
 			printValue(stack_pop());
 			printf("\n");
 			break;

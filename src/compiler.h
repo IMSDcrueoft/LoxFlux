@@ -50,6 +50,7 @@ typedef struct {
 
 typedef struct LoopContext{
 	int32_t start;
+	uint32_t enterParamCount;
 	uint16_t breakJumpCount;
 	uint16_t breakJumpCapacity;
 	int32_t* breakJumps;
