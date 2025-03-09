@@ -22,6 +22,7 @@ typedef void* Unknown_ptr;
 typedef float float32_t;
 typedef double float64_t;
 
+#define UINT8_COUNT 0x100
 #define UINT10_MAX 0x3ff
 #define UINT10_COUNT 0x400
 #define UINT18_MAX 0x3ffff

@@ -11,7 +11,6 @@ void chuck_init(Chunk* chunk) {
 	chunk->code = NULL;
 
 	lineArray_init(&chunk->lines);
-	valueArray_init(&chunk->constants);
 }
 
 void chunk_write(Chunk* chunk, uint8_t byte, uint32_t line) {
@@ -30,7 +29,6 @@ void chunk_write(Chunk* chunk, uint8_t byte, uint32_t line) {
 
 void chunk_free(Chunk* chunk) {
 	FREE_ARRAY(uint8_t, chunk->code, chunk->capacity);
-	valueArray_free(&chunk->constants);
 	lineArray_free(&chunk->lines);
 	chuck_init(chunk);
 }
@@ -45,14 +43,4 @@ void chunk_free_errorCode(Chunk* chunk, uint32_t beginError) {
 
 		chunk->count = beginError;
 	}
-}
-
-//get the size of constants
-uint32_t getConstantSize(Chunk* chunk) {
-	return chunk->constants.count;
-}
-
-uint32_t addConstant(Chunk* chunk, Value value) {
-	valueArray_write(&chunk->constants, value);
-	return chunk->constants.count - 1;
 }

@@ -62,6 +62,9 @@
     <ClCompile Include="src\entrance.c">
       <Filter>loxed\source</Filter>
     </ClCompile>
+    <ClCompile Include="src\native.c">
+      <Filter>loxed\source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\chunk.h">
@@ -119,6 +122,9 @@
       <Filter>loxed\header</Filter>
     </ClInclude>
     <ClInclude Include="src\options.h">
+      <Filter>loxed\header</Filter>
+    </ClInclude>
+    <ClInclude Include="src\native.h">
       <Filter>loxed\header</Filter>
     </ClInclude>
   </ItemGroup>

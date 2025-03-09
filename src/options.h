@@ -13,8 +13,11 @@
 #define LOG_MODE 1
 #define LOG_COMPILE_TIMING 1
 #define LOG_EXECUTE_TIMING 1
+// memory allocate and leak
+#define LOG_EACH_MALLOC_INFO 0
 #define LOG_MALLOC_INFO 1
-#define LOG_BIPMS 1
+// kilo instructions per second
+#define LOG_KIPS 1
 
 #if !DEBUG_MODE
 #undef DEBUG_PRINT_CODE
@@ -27,6 +30,7 @@
 #if !LOG_MODE
 #undef LOG_COMPILE_TIMING
 #undef LOG_EXECUTE_TIMING
+#undef LOG_EACH_MALLOC_INFO
 #undef LOG_MALLOC_INFO
-#undef LOG_BIPMS
+#undef LOG_KIPS
 #endif

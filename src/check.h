@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <float.h>
 
+_Static_assert(sizeof(void*) == 8, "This platform does not have 8-byte pointers. The program requires a 64-bit environment.");
+
 #ifndef INT8_MIN
 #error "int8_t type is not supported."
 #endif

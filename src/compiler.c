@@ -16,11 +16,9 @@
 //shared parser
 Parser parser;
 Compiler* current = NULL;
-Chunk* compilingChunk = NULL;
-LoopContext* currentLoop = NULL;
 
 static Chunk* currentChunk() {
-	return compilingChunk;
+	return &current->function->chunk;
 }
 
 static void errorAt(Token* token, C_STR message) {
@@ -123,6 +121,7 @@ static void emitLoop(int32_t loopStart) {
 }
 
 static void emitReturn() {
+	emitByte(OP_NIL);
 	emitByte(OP_RETURN);
 }
 
@@ -133,7 +132,7 @@ static uint32_t makeConstant(Value value) {
 		NumberEntry* entry = getNumberEntryInPool(&value);
 
 		if (entry->index == UINT32_MAX) {
-			return (entry->index = addConstant(currentChunk(), value) & UINT24_MAX);//set value and return
+			return (entry->index = addConstant(value) & UINT24_MAX);//set value and return
 		}
 		else {
 			return entry->index;
@@ -146,7 +145,7 @@ static uint32_t makeConstant(Value value) {
 			Entry* entry = getStringEntryInPool(AS_STRING(value));
 
 			if (IS_BOOL(entry->value)) {
-				uint32_t index = addConstant(currentChunk(), value) & UINT24_MAX;
+				uint32_t index = addConstant(value) & UINT24_MAX;
 				entry->value.type = VAL_NIL;
 				AS_BINARY(entry->value) = AS_BINARY(NIL_VAL) | index;
 				return index;
@@ -157,12 +156,12 @@ static uint32_t makeConstant(Value value) {
 			break;
 		}
 		default:
-			return addConstant(currentChunk(), value);
+			return addConstant(value);
 		}
 		break;
 	}
 	default://won't be here, there is only num,bool,nil,obj
-		return addConstant(currentChunk(), value);
+		return addConstant(value);
 	}
 }
 
@@ -199,14 +198,39 @@ static void patchJump(int32_t offset) {
 	currentChunk()->code[offset + 1] = (jump >> 8) & 0xff;
 }
 
-static void compiler_init(Compiler* compiler) {
+static void compiler_init(Compiler* compiler, FunctionType type) {
+	compiler->enclosing = current;
+
+	//init
+	compiler->currentLoop = NULL;
+
+	compiler->function = NULL;
+	compiler->type = type;
+
 	compiler->localCount = 0;
 	compiler->scopeDepth = 0;
 	//init with 256 slots
 	compiler->locals = ALLOCATE(Local, UINT10_COUNT);
 	compiler->capacity = UINT10_COUNT;
 
+	compiler->function = newFunction(true);
 	current = compiler;
+
+	//it's a function
+	if (type != TYPE_SCRIPT) {
+		current->function->name = copyString(parser.previous.start, parser.previous.length, false);
+	}
+
+	Local* local = &current->locals[current->localCount++];
+	local->depth = 0;
+	local->name.start = "";
+	local->name.length = 0;
+}
+
+static void compiler_free_locals(Compiler* compiler) {
+	FREE_ARRAY(Local, compiler->locals, compiler->capacity);
+	compiler->locals = NULL;
+	compiler->capacity = 0;
 }
 
 static void compiler_free(Compiler* compiler) {
@@ -219,15 +243,18 @@ static void compiler_free(Compiler* compiler) {
 	current = compiler;
 }
 
-
-static void endCompiler() {
+static ObjFunction* endCompiler() {
 	emitReturn();
 
+	ObjFunction* function = current->function;
 #if DEBUG_PRINT_CODE
 	if (!parser.hadError) {
-		disassembleChunk(currentChunk(), "code");
+		disassembleChunk(currentChunk(), function->name != NULL
+			? function->name->chars : "<script>");
 	}
 #endif
+	current = current->enclosing;
+	return function;
 }
 
 static void beginScope() {
@@ -359,6 +386,7 @@ static uint32_t parseVariable(C_STR errorMessage) {
 }
 
 static void markInitialized(bool isConst) {
+	if (current->scopeDepth == 0) return;
 	//only defined local vars could be used
 	current->locals[current->localCount - 1].depth = current->scopeDepth;
 	current->locals[current->localCount - 1].isConst = isConst;
@@ -386,6 +414,24 @@ static void defineConst(uint32_t global) {
 	}
 }
 
+static void expression();
+static uint8_t argumentList() {
+	uint8_t argCount = 0;
+	if (!check(TOKEN_RIGHT_PAREN)) {
+		do {
+			expression();
+
+			if (argCount == 255) {
+				error("Can't have more than 255 arguments.");
+			}
+
+			argCount++;
+		} while (match(TOKEN_COMMA));
+	}
+	consume(TOKEN_RIGHT_PAREN, "Expect ')' after arguments.");
+	return argCount;
+}
+
 static void and_(bool canAssign) {
 	int32_t endJump = emitJump(OP_JUMP_IF_FALSE);
 
@@ -406,6 +452,43 @@ static void block() {
 	}
 
 	consume(TOKEN_RIGHT_BRACE, "Expect '}' after block.");
+}
+
+static void function(FunctionType type) {
+	Compiler compiler;
+	compiler_init(&compiler, type);
+	beginScope();
+
+	consume(TOKEN_LEFT_PAREN, "Expect '(' after function name.");
+
+	if (!check(TOKEN_RIGHT_PAREN)) {
+    do {
+      current->function->arity++;
+      if (current->function->arity > 255) {
+        errorAtCurrent("Can't have more than 255 parameters.");
+      }
+
+	  uint32_t constant = parseVariable("Expect parameter name.");
+	  defineVariable(constant);
+
+    } while (match(TOKEN_COMMA));
+  }
+
+	consume(TOKEN_RIGHT_PAREN, "Expect ')' after parameters.");
+	consume(TOKEN_LEFT_BRACE, "Expect '{' before function body.");
+	block();
+
+	ObjFunction* function = endCompiler();
+	emitConstant(OBJ_VAL(function));
+
+	compiler_free_locals(&compiler);
+}
+
+static void funDeclaration() {
+	uint32_t global = parseVariable("Expect function name.");
+	markInitialized(false);
+	function(TYPE_FUNCTION);
+	defineVariable(global);
 }
 
 static void varDeclaration() {
@@ -488,10 +571,10 @@ static void forStatement() {
 	}
 
 	//record the loop
-	LoopContext loop = (LoopContext){ .start = loopStart, .upper = currentLoop,.breakJumps = NULL,.breakJumpCount = 0 ,.enterParamCount = current->localCount};
+	LoopContext loop = (LoopContext){ .start = loopStart, .enclosing = current->currentLoop,.breakJumps = NULL,.breakJumpCount = 0 ,.enterParamCount = current->localCount};
 	loop.breakJumpCapacity = 8;
 	loop.breakJumps = ALLOCATE(int32_t, loop.breakJumpCapacity);
-	currentLoop = &loop;
+	current->currentLoop = &loop;
 
 	statement();
 	emitLoop(loopStart);
@@ -506,7 +589,7 @@ static void forStatement() {
 	}
 
 	FREE_ARRAY(int32_t, loop.breakJumps, loop.breakJumpCapacity);
-	currentLoop = currentLoop->upper;
+	current->currentLoop = current->currentLoop->enclosing;
 	//end block
 	endScope();
 }
@@ -532,6 +615,21 @@ static void printStatement() {
 	emitByte(OP_PRINT);
 }
 
+static void returnStatement() {
+	if (current->type == TYPE_SCRIPT) {
+		error("Can't return from top-level code.");
+	}
+
+	if (match(TOKEN_SEMICOLON)) {
+		emitReturn();
+	}
+	else {
+		expression();
+		consume(TOKEN_SEMICOLON, "Expect ';' after return value.");
+		emitByte(OP_RETURN);
+	}
+}
+
 static void whileStatement() {
 	int32_t loopStart = currentChunk()->count;
 
@@ -542,10 +640,10 @@ static void whileStatement() {
 	int32_t exitJump = emitJump(OP_JUMP_IF_FALSE_POP);
 
 	//record the loop
-	LoopContext loop = (LoopContext){ .start = loopStart, .upper = currentLoop,.breakJumps = NULL,.breakJumpCount = 0 ,.enterParamCount = current->localCount};
+	LoopContext loop = (LoopContext){ .start = loopStart, .enclosing = current->currentLoop,.breakJumps = NULL,.breakJumpCount = 0 ,.enterParamCount = current->localCount};
 	loop.breakJumpCapacity = 8;
 	loop.breakJumps = ALLOCATE(int32_t, loop.breakJumpCapacity);
-	currentLoop = &loop;
+	current->currentLoop = &loop;
 
 	statement();
 
@@ -558,47 +656,47 @@ static void whileStatement() {
 	}
 
 	FREE_ARRAY(int32_t, loop.breakJumps, loop.breakJumpCapacity);
-	currentLoop = currentLoop->upper;
+	current->currentLoop = current->currentLoop->enclosing;
 }
 
 //only the loop itself can fix the jump position
 static void breakStatement() {
-	if (currentLoop == NULL) {
+	if (current->currentLoop == NULL) {
 		error("Cannot use 'break' outside of a loop.");
 		return;
 	}
 
-	uint16_t offsetParam = current->localCount - currentLoop->enterParamCount;
+	uint16_t offsetParam = current->localCount - current->currentLoop->enterParamCount;
 	emitPopCount(offsetParam);
 	int32_t jump = emitJump(OP_JUMP);
 
-	if (currentLoop->breakJumpCount == currentLoop->breakJumpCapacity) {
-		if (currentLoop->breakJumpCapacity == UINT16_MAX) {
+	if (current->currentLoop->breakJumpCount == current->currentLoop->breakJumpCapacity) {
+		if (current->currentLoop->breakJumpCapacity == UINT16_MAX) {
 			error("Too many break statements in one loop.");
 			return;
 		}
 
-		uint32_t oldCapacity = currentLoop->breakJumpCapacity;
-		currentLoop->breakJumpCapacity = GROW_CAPACITY(oldCapacity);
+		uint32_t oldCapacity = current->currentLoop->breakJumpCapacity;
+		current->currentLoop->breakJumpCapacity = GROW_CAPACITY(oldCapacity);
 
-		uint16_t newCapacity = GROW_CAPACITY(currentLoop->breakJumpCapacity);
-		currentLoop->breakJumps = GROW_ARRAY(int32_t, currentLoop->breakJumps, oldCapacity, currentLoop->breakJumpCapacity);
+		uint16_t newCapacity = GROW_CAPACITY(current->currentLoop->breakJumpCapacity);
+		current->currentLoop->breakJumps = GROW_ARRAY(int32_t, current->currentLoop->breakJumps, oldCapacity, current->currentLoop->breakJumpCapacity);
 	}
 
-	currentLoop->breakJumps[currentLoop->breakJumpCount++] = jump;
+	current->currentLoop->breakJumps[current->currentLoop->breakJumpCount++] = jump;
 
 	consume(TOKEN_SEMICOLON, "Expect ';' after 'break'.");
 }
 
 static void continueStatement() {
-	if (currentLoop == NULL) {
+	if (current->currentLoop == NULL) {
 		error("Cannot use 'continue' outside of a loop.");
 		return;
 	}
 
-	uint16_t offsetParam = current->localCount - currentLoop->enterParamCount;
+	uint16_t offsetParam = current->localCount - current->currentLoop->enterParamCount;
 	emitPopCount(offsetParam);
-	emitLoop(currentLoop->start);
+	emitLoop(current->currentLoop->start);
 	consume(TOKEN_SEMICOLON, "Expect ';' after 'continue'.");
 }
 
@@ -634,6 +732,9 @@ static void statement() {
 	else if (match(TOKEN_IF)) {
 		ifStatement();
 	}
+	else if (match(TOKEN_RETURN)) {
+		returnStatement();
+	}
 	else if (match(TOKEN_WHILE)) {
 		whileStatement();
 	}
@@ -660,7 +761,10 @@ static void declaration() {
 	//might went panicMode
 	if (parser.panicMode) synchronize();
 
-	if (match(TOKEN_VAR)) {
+	if (match(TOKEN_FUN)) {
+		funDeclaration();
+	}
+	else if (match(TOKEN_VAR)) {
 		varDeclaration();
 	}
 	else if (match(TOKEN_CONST)) {
@@ -693,6 +797,11 @@ static void binary(bool canAssign) {
 	case TOKEN_LESS_EQUAL: emitByte(OP_LESS_EQUAL); break;
 	default: return; // Unreachable.
 	}
+}
+
+static void call(bool canAssign) {
+	uint8_t argCount = argumentList();
+	emitBytes(2,OP_CALL, argCount);
 }
 
 //check builtin
@@ -849,7 +958,7 @@ static void unary(bool canAssign) {
 }
 
 ParseRule rules[] = {
-	[TOKEN_LEFT_PAREN] = {grouping, NULL,   PREC_NONE    },
+	[TOKEN_LEFT_PAREN] = {grouping, call,   PREC_CALL},
 	[TOKEN_RIGHT_PAREN] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_LEFT_BRACE] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_RIGHT_BRACE] = {NULL,     NULL,   PREC_NONE},
@@ -910,17 +1019,14 @@ static ParseRule* getRule(TokenType type) {
 	return &rules[type];
 }
 
-bool compile(C_STR source, Chunk* chunk) {
+ObjFunction* compile(C_STR source) {
 #if LOG_COMPILE_TIMING
 	uint64_t time_compile = get_nanoseconds();
 #endif
 	Compiler compiler;
 
 	scanner_init(source);
-	compiler_init(&compiler);
-
-	//set pointer
-	compilingChunk = chunk;
+	compiler_init(&compiler, TYPE_SCRIPT);
 
 	//init flags
 	parser.hadError = false;
@@ -933,13 +1039,12 @@ bool compile(C_STR source, Chunk* chunk) {
 		declaration();
 	}
 
-	//end
-	endCompiler();
-	compiler_free(&compiler);
-
 #if LOG_COMPILE_TIMING
 	double time_ms = (get_nanoseconds() - time_compile) * 1e-6;
 	printf("Log: Finished compiling in %g ms.\n", time_ms);
 #endif
-	return !parser.hadError;
+
+	ObjFunction* function = endCompiler();
+	compiler_free(&compiler);
+	return parser.hadError ? NULL : function;
 }

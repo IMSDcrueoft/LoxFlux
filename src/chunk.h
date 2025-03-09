@@ -42,6 +42,7 @@ typedef enum {
 	OP_JUMP_IF_FALSE,   // condition jump if false
 	OP_JUMP_IF_TRUE,    // condition jump if true
 	OP_LOOP,			// loop
+	OP_CALL,			// callFn
 	OP_RETURN,          // 1 byte
 
 	//simple imm
@@ -69,7 +70,6 @@ typedef struct {
 
 	uint8_t* code;
 	LineArray lines; //codes are nearby,so it's based on offset
-	ValueArray constants; //values
 } Chunk;
 
 void chuck_init(Chunk* chunk);
@@ -78,6 +78,3 @@ void chunk_free(Chunk* chunk);
 
 //free the error complied code
 void chunk_free_errorCode(Chunk* chunk, uint32_t beginError);
-
-uint32_t getConstantSize(Chunk* chunk);
-uint32_t addConstant(Chunk* chunk, Value value);

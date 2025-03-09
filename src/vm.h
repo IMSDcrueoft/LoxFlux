@@ -7,15 +7,22 @@
 #include "chunk.h"
 #include "compiler.h"
 #include "table.h"
+#include "object.h"
 
-//customed vm stack begin size
-#define STACK_MAX 256u
+//the depth of call frames
+#define FRAMES_MAX 1024
+//customed vm stack begin size,the real limit is localLimit(1024) * frameLimit(1024)
+#define STACK_INITIAL_SIZE (16 * UINT10_COUNT)
 
 typedef struct {
-	Chunk* chunk;
-
-	//code pointer
+	ObjFunction* function;
 	uint8_t* ip;
+	Value* slots; //first avilable slot
+} CallFrame;
+
+typedef struct {
+	CallFrame frames[FRAMES_MAX];
+	uint32_t frameCount;
 
 	//a cache
 	Value* stack;
@@ -23,6 +30,12 @@ typedef struct {
 	//the edge of stack
 	Value* stackBoundary;
 	
+	// deduplicated global constant table
+	ValueArray constants;
+	// In order to repurpose the voids caused by GC
+	// create a constant void table to record and reuse
+	ValueHoles constantHoles;
+
 	//pool
 	Table strings;
 	//pool
@@ -47,6 +60,10 @@ extern VM vm;
 void vm_init();
 void vm_free();
 
+//get the size of constants (including the holes)
+uint32_t getConstantSize();
+//add a constant and get the index of it,i will handle it later
+uint32_t addConstant(Value value);
+
 InterpretResult interpret(C_STR source);
-InterpretResult require(C_STR source, Chunk* chunk);
-InterpretResult eval(C_STR source, Chunk* chunk);
+InterpretResult interpret_repl(C_STR source);

@@ -5,18 +5,19 @@
 */
 #include "debug.h"
 #include "builtinModule.h"
+#include "vm.h"
 
 #if  DEBUG_TRACE_EXECUTION
 
 static uint32_t simpleInstruction(C_STR name, uint32_t offset) {
 	printf("%s\n", name);
-	//OP_RETURN 有1字节
+	//OP_RETURN 1
 	return offset + 1;
 }
 
 static uint32_t immidiateIstruction(C_STR name, uint32_t offset, uint32_t high2bit) {
 	printf("%-16s %4d\n", name, (high2bit == 0b11) ? 10 : high2bit);
-	//OP_RETURN 有1字节
+	//OP_RETURN 1
 	return offset + 1;
 }
 
@@ -79,19 +80,19 @@ static uint32_t modifyGlobalInstruction(C_STR name, Chunk* chunk, uint32_t offse
 	case 0:
 		constant = chunk->code[offset + 1];
 		printf("%-16s %4d '", name, constant);
-		printValue(chunk->constants.values[constant]);
+		printValue(vm.constants.values[constant]);
 		printf("'\n");
 		return offset + 2;
 	case 1:
 		constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8);
 		printf("%-16s %4d '", name, constant);
-		printValue(chunk->constants.values[constant]);
+		printValue(vm.constants.values[constant]);
 		printf("'\n");
 		return offset + 3;
 	case 2:
 		constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8) | ((uint32_t)chunk->code[offset + 3] << 16);
 		printf("%-16s %4d '", name, constant);
-		printValue(chunk->constants.values[constant]);
+		printValue(vm.constants.values[constant]);
 		printf("'\n");
 		return offset + 4;
 	default:
@@ -102,34 +103,34 @@ static uint32_t modifyGlobalInstruction(C_STR name, Chunk* chunk, uint32_t offse
 static uint32_t constantInstruction(C_STR name, Chunk* chunk, uint32_t offset, uint32_t high2bit) {
 	uint32_t constant = chunk->code[offset + 1] | (high2bit << 8);
 	printf("%-16s %4d '", name, constant);
-	printValue(chunk->constants.values[constant]);
+	printValue(vm.constants.values[constant]);
 	printf("'\n");
 
-	//OP_CONSTANT 有2字节
+	//OP_CONSTANT 2
 	return offset + 2;
 }
 
 static uint32_t constantInstruction_short(C_STR name, Chunk* chunk, uint32_t offset, uint32_t high2bit) {
-	//合18bit index
+	//18bit index
 	uint16_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8) | (high2bit << 16);
 
 	printf("%-16s %4d '", name, constant);
-	printValue(chunk->constants.values[constant]);
+	printValue(vm.constants.values[constant]);
 	printf("'\n");
 
-	//OP_CONSTANT_SHORT 有3字节
+	//OP_CONSTANT_SHORT 3
 	return offset + 3;
 }
 
 static uint32_t constantInstruction_long(C_STR name, Chunk* chunk, uint32_t offset) {
-	//合24bit index
+	//24bit index
 	uint32_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8) | ((uint32_t)chunk->code[offset + 3] << 16);
 
 	printf("%-16s %4d '", name, constant);
-	printValue(chunk->constants.values[constant]);
+	printValue(vm.constants.values[constant]);
 	printf("'\n");
 
-	//OP_CONSTANT_LONG 有4字节
+	//OP_CONSTANT_LONG 4
 	return offset + 4;
 }
 
@@ -147,6 +148,8 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 	uint8_t high2bit = instruction >> 6;
 
 	switch (instruction & 0b00111111) {
+	case OP_CALL:
+		return byteInstruction("OP_CALL", chunk, offset);
 	case OP_RETURN:
 		return simpleInstruction("OP_RETURN", offset);
 	case OP_POP:

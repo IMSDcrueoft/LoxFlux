@@ -46,20 +46,32 @@ typedef struct {
 	bool isConst;
 } Local;
 
-typedef struct {
-	uint16_t localCount;
-	uint16_t scopeDepth;
-	uint32_t capacity;
-	Local* locals;
-} Compiler;
-
 typedef struct LoopContext{
 	int32_t start;
 	uint32_t enterParamCount;
 	uint16_t breakJumpCount;
 	uint16_t breakJumpCapacity;
 	int32_t* breakJumps;
-	struct LoopContext* upper;
+	struct LoopContext* enclosing;
 } LoopContext;
 
-bool compile(C_STR source, Chunk* chunk);
+typedef enum {
+	TYPE_FUNCTION,
+	TYPE_SCRIPT
+} FunctionType;
+
+typedef struct Compiler {
+	struct Compiler* enclosing;
+
+	ObjFunction* function;
+	FunctionType type;
+
+	uint16_t localCount;
+	uint16_t scopeDepth;
+	uint32_t capacity;
+	Local* locals;
+
+	LoopContext* currentLoop;
+} Compiler;
+
+ObjFunction* compile(C_STR source);

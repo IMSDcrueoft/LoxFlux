@@ -123,7 +123,7 @@
       <LanguageStandard_C>stdc17</LanguageStandard_C>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <AdditionalIncludeDirectories>third-party/xxHash;third-party/mimalloc/include</AdditionalIncludeDirectories>
-      <CompileAs>CompileAsC</CompileAs>
+      <CompileAs>Default</CompileAs>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ExceptionHandling>false</ExceptionHandling>
     </ClCompile>
@@ -146,7 +146,7 @@
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <AdditionalIncludeDirectories>third-party/xxHash;third-party/mimalloc/include</AdditionalIncludeDirectories>
-      <CompileAs>CompileAsC</CompileAs>
+      <CompileAs>Default</CompileAs>
       <Optimization>MaxSpeed</Optimization>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
       <ExceptionHandling>false</ExceptionHandling>
@@ -168,6 +168,7 @@
     <ClCompile Include="src\entrance.c" />
     <ClCompile Include="src\lineArray.c" />
     <ClCompile Include="src\memory.c" />
+    <ClCompile Include="src\native.c" />
     <ClCompile Include="src\object.c" />
     <ClCompile Include="src\scanner.c" />
     <ClCompile Include="src\table.c" />
@@ -186,6 +187,7 @@
     <ClInclude Include="src\hash.h" />
     <ClInclude Include="src\lineArray.h" />
     <ClInclude Include="src\memory.h" />
+    <ClInclude Include="src\native.h" />
     <ClInclude Include="src\object.h" />
     <ClInclude Include="src\entrance.h" />
     <ClInclude Include="src\options.h" />

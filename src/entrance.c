@@ -22,9 +22,6 @@ void repl() {
 
 	bool isContinued;
 
-	Chunk chunk;
-	chuck_init(&chunk);
-
 #define match_string(a,b) ((strncmp(a,b,strlen(b)) == 0) && (a[strlen(b)] == '\0' || a[strlen(b)] == '\n'))
 
 	/*
@@ -57,14 +54,14 @@ void repl() {
 				if (match_string(line, "/exit")) {
 					break;
 				}
-				else if (match_string(line, "/memory")) {
+				else if (match_string(line, "/mem")) {
 					log_malloc_info();
 					continue;
 				}
 				else if (match_string(line, "/help")) {
 					printf("Commands:\n");
 					printf("/exit  - Exit the interpreter.\n");
-					printf("/memory  - Print memory statistics.\n");
+					printf("/mem   - Print memory statistics.\n");
 					printf("/help  - Print this help message.\n");
 					printf("\nAbout:\n");
 					printf("input \'\\\' to enter next line, with 512 characters maximum per line.\n");
@@ -100,13 +97,12 @@ void repl() {
 			printf("CODE TEXT:\n%s\n", fullLine);
 #endif
 
-			eval(fullLine, &chunk);
+			interpret_repl(fullLine);
 			fullLine[0] = '\0';
 			fullLineLength = 0;
 		}
 	}
 
-	chunk_free(&chunk);
 	free(fullLine);
 
 	vm_free();

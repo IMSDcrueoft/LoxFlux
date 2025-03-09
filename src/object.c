@@ -23,6 +23,22 @@ static Obj* allocateObject(size_t size, ObjType type) {
     return object;
 }
 
+ObjFunction* newFunction(bool isFixed) {
+    ObjFunction* function = ALLOCATE_OBJ(ObjFunction, OBJ_FUNCTION);
+    function->isFixed = isFixed;
+    function->arity = 0;
+    function->name = NULL;
+    chuck_init(&function->chunk);
+    return function;
+}
+
+//create native function
+ObjNative* newNative(NativeFn function) {
+    ObjNative* native = ALLOCATE_OBJ(ObjNative, OBJ_NATIVE);
+    native->function = function;
+    return native;
+}
+
 //if find deduplicate one return it else null
 static inline ObjString* deduplicateString(C_STR chars, uint32_t length, uint64_t hash) {
 	return tableFindString(&vm.strings, chars, length, hash);
@@ -160,8 +176,23 @@ ObjString* connectString(ObjString* strA, ObjString* strB) {
 	}
 }
 
+static void printFunction(ObjFunction* function) {
+    if (function->name == NULL) {
+        printf("<script>");
+        return;
+    }
+
+    printf("<fn %s>", function->name->chars);
+}
+
 void printObject(Value value) {
     switch (OBJ_TYPE(value)) {
+    case OBJ_FUNCTION:
+        printFunction(AS_FUNCTION(value));
+        break;
+    case OBJ_NATIVE:
+        printf("<native fn>");
+        break;
     case OBJ_STRING:
         printf("%s", AS_CSTRING(value));
         break;

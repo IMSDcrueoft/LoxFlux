@@ -8,10 +8,14 @@
 #include "value.h"
 #include "memory.h"
 #include "table.h"
+#include "chunk.h"
 
 typedef enum {
+	OBJ_FUNCTION,
+	OBJ_NATIVE,
 	//char array
 	OBJ_STRING,
+	OBJ_STRING_BUFFER,
 	//any type array
 	OBJ_ARRAY,
 	OBJ_ARRAY_U8,
@@ -29,8 +33,23 @@ struct Obj {
 	struct Obj* next;
 };
 
-#define INVALID_OBJ_STRING_SYMBOL UINT32_MAX
+typedef struct {
+	Obj obj;
+	uint16_t arity;
+	uint16_t isFixed;
+	Chunk chunk;
+	ObjString* name;
+} ObjFunction;
 
+//argCount and argValues
+typedef Value(*NativeFn)(int argCount, Value* args);
+
+typedef struct {
+	Obj obj;
+	NativeFn function;
+} ObjNative;
+
+#define INVALID_OBJ_STRING_SYMBOL UINT32_MAX
 struct ObjString {
 	Obj obj;
 
@@ -39,6 +58,13 @@ struct ObjString {
 	uint32_t length;
 	uint64_t hash;
 	char chars[]; // flexible array members FAM
+};
+
+struct ObjStringBuffer {
+	Obj obj;
+	uint32_t capacity;
+	uint32_t length;
+	char chars[];
 };
 
 struct ObjArray {
@@ -104,12 +130,15 @@ struct ObjArrayF64 {
 	float64_t elements[];
 };
 
-#define OBJ_TYPE(value)        (AS_OBJ(value)->type)
-#define IS_STRING(value)		isObjType(value, OBJ_STRING)
-#define IS_ARRAY(value)			isObjType(value, OBJ_ARRAY)
+#define OBJ_TYPE(value)				(AS_OBJ(value)->type)
+#define IS_FUNCTION(value)			isObjType(value, OBJ_FUNCTION)
+#define IS_NATIVE(value)			isObjType(value, OBJ_NATIVE)
+#define IS_STRING(value)			isObjType(value, OBJ_STRING)
+#define IS_STRING_BUFFER(value)		isObjType(value, OBJ_STRING_BUFFER)
+#define IS_ARRAY(value)				isObjType(value, OBJ_ARRAY)
 
-#define IS_ARRAY_U8(value)       isObjType(value, OBJ_ARRAY_U8)
-#define IS_ARRAY_I8(value)       isObjType(value, OBJ_ARRAY_I8)
+#define IS_ARRAY_U8(value)        isObjType(value, OBJ_ARRAY_U8)
+#define IS_ARRAY_I8(value)        isObjType(value, OBJ_ARRAY_I8)
 #define IS_ARRAY_U16(value)       isObjType(value, OBJ_ARRAY_U16)
 #define IS_ARRAY_I16(value)       isObjType(value, OBJ_ARRAY_I16)
 #define IS_ARRAY_U32(value)       isObjType(value, OBJ_ARRAY_U32)
@@ -117,8 +146,10 @@ struct ObjArrayF64 {
 #define IS_ARRAY_F32(value)       isObjType(value, OBJ_ARRAY_F32)
 #define IS_ARRAY_F64(value)       isObjType(value, OBJ_ARRAY_F64)
 
-#define AS_STRING(value)       ((ObjString*)AS_OBJ(value))
-#define AS_CSTRING(value)      (((ObjString*)AS_OBJ(value))->chars)
+#define AS_FUNCTION(value)	((ObjFunction*)AS_OBJ(value))
+#define AS_NATIVE(value)	(((ObjNative*)AS_OBJ(value))->function)
+#define AS_STRING(value)	((ObjString*)AS_OBJ(value))
+#define AS_CSTRING(value)	(((ObjString*)AS_OBJ(value))->chars)
 
 static inline bool isObjType(Value value, ObjType type) {
 	return IS_OBJ(value) && AS_OBJ(value)->type == type;
@@ -135,3 +166,6 @@ void printObject(Value value);
 
 Entry* getStringEntryInPool(ObjString* string);
 NumberEntry* getNumberEntryInPool(Value* value);
+
+ObjFunction* newFunction(bool isFixed);
+ObjNative* newNative(NativeFn function);
