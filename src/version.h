@@ -4,6 +4,6 @@
  * See LICENSE file in the root directory for full license text.
 */
 #define INTERPRETER_VERSION "0.7.3 Dev"
-#define INTERPRETER_NAME "Loxed"
+#define INTERPRETER_NAME "LoxFlux"
 #define INTERPRETER_COPYRIGHT "2025"
 #define INTERPRETER_OWNER "IMSDcrueoft"

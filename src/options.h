@@ -6,7 +6,7 @@
 #pragma once
 // to use debug mode open this
 #define DEBUG_MODE 1
-#define DEBUG_TRACE_EXECUTION 1
+#define DEBUG_TRACE_EXECUTION 0
 #define DEBUG_PRINT_CODE 1
 
 //to use the logs

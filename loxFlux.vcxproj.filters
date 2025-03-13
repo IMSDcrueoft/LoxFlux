@@ -5,13 +5,13 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-    <Filter Include="loxed">
+    <Filter Include="loxFlux">
       <UniqueIdentifier>{a768b8f9-3969-4cc7-966f-5b01ce277359}</UniqueIdentifier>
     </Filter>
-    <Filter Include="loxed\source">
+    <Filter Include="loxFlux\source">
       <UniqueIdentifier>{841c747c-4284-4b08-b505-11e08dbee120}</UniqueIdentifier>
     </Filter>
-    <Filter Include="loxed\header">
+    <Filter Include="loxFlux\header">
       <UniqueIdentifier>{1e11b769-24d5-4b08-aa50-e9595555c191}</UniqueIdentifier>
     </Filter>
     <Filter Include="source">
@@ -24,108 +24,108 @@
       <Filter>source</Filter>
     </ClCompile>
     <ClCompile Include="src\wellRng1024a.c">
-      <Filter>loxed\source</Filter>
+      <Filter>loxFlux\source</Filter>
     </ClCompile>
     <ClCompile Include="src\chunk.c">
-      <Filter>loxed\source</Filter>
+      <Filter>loxFlux\source</Filter>
     </ClCompile>
     <ClCompile Include="src\compiler.c">
-      <Filter>loxed\source</Filter>
+      <Filter>loxFlux\source</Filter>
     </ClCompile>
     <ClCompile Include="src\debug.c">
-      <Filter>loxed\source</Filter>
+      <Filter>loxFlux\source</Filter>
     </ClCompile>
     <ClCompile Include="src\lineArray.c">
-      <Filter>loxed\source</Filter>
+      <Filter>loxFlux\source</Filter>
     </ClCompile>
     <ClCompile Include="src\memory.c">
-      <Filter>loxed\source</Filter>
+      <Filter>loxFlux\source</Filter>
     </ClCompile>
     <ClCompile Include="src\object.c">
-      <Filter>loxed\source</Filter>
+      <Filter>loxFlux\source</Filter>
     </ClCompile>
     <ClCompile Include="src\scanner.c">
-      <Filter>loxed\source</Filter>
+      <Filter>loxFlux\source</Filter>
     </ClCompile>
     <ClCompile Include="src\timer.c">
-      <Filter>loxed\source</Filter>
+      <Filter>loxFlux\source</Filter>
     </ClCompile>
     <ClCompile Include="src\value.c">
-      <Filter>loxed\source</Filter>
+      <Filter>loxFlux\source</Filter>
     </ClCompile>
     <ClCompile Include="src\vm.c">
-      <Filter>loxed\source</Filter>
+      <Filter>loxFlux\source</Filter>
     </ClCompile>
     <ClCompile Include="src\table.c">
-      <Filter>loxed\source</Filter>
+      <Filter>loxFlux\source</Filter>
     </ClCompile>
     <ClCompile Include="src\entrance.c">
-      <Filter>loxed\source</Filter>
+      <Filter>loxFlux\source</Filter>
     </ClCompile>
     <ClCompile Include="src\native.c">
-      <Filter>loxed\source</Filter>
+      <Filter>loxFlux\source</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\chunk.h">
-      <Filter>loxed\header</Filter>
+      <Filter>loxFlux\header</Filter>
     </ClInclude>
     <ClInclude Include="src\common.h">
-      <Filter>loxed\header</Filter>
+      <Filter>loxFlux\header</Filter>
     </ClInclude>
     <ClInclude Include="src\compiler.h">
-      <Filter>loxed\header</Filter>
+      <Filter>loxFlux\header</Filter>
     </ClInclude>
     <ClInclude Include="src\debug.h">
-      <Filter>loxed\header</Filter>
+      <Filter>loxFlux\header</Filter>
     </ClInclude>
     <ClInclude Include="src\lineArray.h">
-      <Filter>loxed\header</Filter>
+      <Filter>loxFlux\header</Filter>
     </ClInclude>
     <ClInclude Include="src\memory.h">
-      <Filter>loxed\header</Filter>
+      <Filter>loxFlux\header</Filter>
     </ClInclude>
     <ClInclude Include="src\object.h">
-      <Filter>loxed\header</Filter>
+      <Filter>loxFlux\header</Filter>
     </ClInclude>
     <ClInclude Include="src\scanner.h">
-      <Filter>loxed\header</Filter>
+      <Filter>loxFlux\header</Filter>
     </ClInclude>
     <ClInclude Include="src\timer.h">
-      <Filter>loxed\header</Filter>
+      <Filter>loxFlux\header</Filter>
     </ClInclude>
     <ClInclude Include="src\value.h">
-      <Filter>loxed\header</Filter>
+      <Filter>loxFlux\header</Filter>
     </ClInclude>
     <ClInclude Include="src\vm.h">
-      <Filter>loxed\header</Filter>
+      <Filter>loxFlux\header</Filter>
     </ClInclude>
     <ClInclude Include="src\wellRng1024a.h">
-      <Filter>loxed\header</Filter>
+      <Filter>loxFlux\header</Filter>
     </ClInclude>
     <ClInclude Include="src\check.h">
-      <Filter>loxed\header</Filter>
+      <Filter>loxFlux\header</Filter>
     </ClInclude>
     <ClInclude Include="src\table.h">
-      <Filter>loxed\header</Filter>
+      <Filter>loxFlux\header</Filter>
     </ClInclude>
     <ClInclude Include="src\version.h">
-      <Filter>loxed\header</Filter>
+      <Filter>loxFlux\header</Filter>
     </ClInclude>
     <ClInclude Include="src\builtinModule.h">
-      <Filter>loxed\header</Filter>
+      <Filter>loxFlux\header</Filter>
     </ClInclude>
     <ClInclude Include="src\hash.h">
-      <Filter>loxed\header</Filter>
+      <Filter>loxFlux\header</Filter>
     </ClInclude>
     <ClInclude Include="src\entrance.h">
-      <Filter>loxed\header</Filter>
+      <Filter>loxFlux\header</Filter>
     </ClInclude>
     <ClInclude Include="src\options.h">
-      <Filter>loxed\header</Filter>
+      <Filter>loxFlux\header</Filter>
     </ClInclude>
     <ClInclude Include="src\native.h">
-      <Filter>loxed\header</Filter>
+      <Filter>loxFlux\header</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
