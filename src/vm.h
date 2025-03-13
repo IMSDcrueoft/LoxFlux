@@ -67,3 +67,6 @@ uint32_t addConstant(Value value);
 
 InterpretResult interpret(C_STR source);
 InterpretResult interpret_repl(C_STR source);
+
+//for vm
+void defineNative(C_STR name, NativeFn function);

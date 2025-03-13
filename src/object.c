@@ -23,9 +23,8 @@ static Obj* allocateObject(size_t size, ObjType type) {
     return object;
 }
 
-ObjFunction* newFunction(bool isFixed) {
+ObjFunction* newFunction() {
     ObjFunction* function = ALLOCATE_OBJ(ObjFunction, OBJ_FUNCTION);
-    function->isFixed = isFixed;
     function->arity = 0;
     function->name = NULL;
     chuck_init(&function->chunk);

@@ -213,7 +213,7 @@ static void compiler_init(Compiler* compiler, FunctionType type) {
 	compiler->locals = ALLOCATE(Local, UINT10_COUNT);
 	compiler->capacity = UINT10_COUNT;
 
-	compiler->function = newFunction(true);
+	compiler->function = newFunction();
 	current = compiler;
 
 	//it's a function
