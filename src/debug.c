@@ -67,6 +67,13 @@ static uint32_t jumpInstruction(C_STR name, int32_t sign, Chunk* chunk, uint32_t
 static uint32_t modifyLocalInstruction(C_STR name, Chunk* chunk, uint32_t offset, uint32_t high2bit) {
 	uint32_t slot = chunk->code[offset + 1];
 	slot |= (high2bit << 8);
+	printf("%-16s %4d\n", name, slot);
+	return offset + 2;
+}
+
+static uint32_t popLocalInstruction(C_STR name, Chunk* chunk, uint32_t offset, uint32_t high2bit) {
+	uint32_t slot = chunk->code[offset + 1];
+	slot |= (high2bit << 8);
 	printf("%-16s %4d\n", name, slot + 1);
 	return offset + 2;
 }
@@ -207,7 +214,7 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 	case OP_SET_LOCAL:
 		return modifyLocalInstruction("OP_SET_LOCAL", chunk, offset, high2bit);
 	case OP_POP_N:
-		return modifyLocalInstruction("OP_POP_N", chunk, offset, high2bit);
+		return popLocalInstruction("OP_POP_N", chunk, offset, high2bit);
 
 	case OP_JUMP:
 		return jumpInstruction("OP_JUMP", 1, chunk, offset, high2bit);
@@ -226,7 +233,7 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 	case OP_MODULE_BUILTIN:
 		return builtinStruction("OP_MODULE", chunk, offset);
 	default:
-		printf("Unknown opcode %d\n", instruction);
+		printf("Unknown opcode %d offset = %d\n", instruction, offset);
 		return offset + 1;
 	}
 }

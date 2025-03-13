@@ -1,0 +1,49 @@
+//how to use
+/*
+   hello!
+*/
+{
+    var a1;
+    var a2;
+    a2 = 1.0;
+}
+fun add(arg0,arg1){
+    //var res;
+    var res = arg1 + arg1 + arg0;
+    return res;
+}
+
+print "begin";
+var a = 234.13;
+var b = 0b1101;
+var c = 0xffe1;
+var d = 2.34e-2;
+var f = c + d;
+
+print add(c,d);
+
+//+= not supported
+print f;
+
+var str = "\"hello world!\"
+    secondline.
+";
+print str;
+
+if(true){
+    var e = nil and "aa" or "bb";
+    print e;
+} else {//else if ? not supported
+
+}
+
+var g_i = 3;
+while(g_i<10){
+    g_i = g_i + 1;
+}
+
+for(var i = g_i;i>=0;i=i-1){
+    break;
+}
+
+print "done";

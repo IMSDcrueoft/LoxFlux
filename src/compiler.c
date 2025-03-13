@@ -233,16 +233,6 @@ static void compiler_free_locals(Compiler* compiler) {
 	compiler->capacity = 0;
 }
 
-static void compiler_free(Compiler* compiler) {
-	compiler->localCount = 0;
-	compiler->scopeDepth = 0;
-	FREE_ARRAY(Local, compiler->locals, compiler->capacity);
-	compiler->locals = NULL;
-	compiler->capacity = 0;
-
-	current = compiler;
-}
-
 static ObjFunction* endCompiler() {
 	emitReturn();
 
@@ -1039,12 +1029,12 @@ ObjFunction* compile(C_STR source) {
 		declaration();
 	}
 
+	ObjFunction* function = endCompiler();
+	compiler_free_locals(&compiler);
+
 #if LOG_COMPILE_TIMING
 	double time_ms = (get_nanoseconds() - time_compile) * 1e-6;
 	printf("Log: Finished compiling in %g ms.\n", time_ms);
 #endif
-
-	ObjFunction* function = endCompiler();
-	compiler_free(&compiler);
 	return parser.hadError ? NULL : function;
 }

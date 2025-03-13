@@ -66,6 +66,5 @@ while (object != NULL) {
 
 void log_malloc_info()  
 {  
-mi_version();  
 mi_stats_print(NULL);  
 }
