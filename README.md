@@ -1,4 +1,4 @@
-# Loxed(clox enhanced) Project Introduction
+# LoxFlux(a clox based interpreter) Project Introduction
 
 ## Introduction
 
@@ -12,10 +12,10 @@ Lox 是一种专为学习设计的编程语言。它被设计成一门精简且�
 - [Crafting Interpreters - Official Github](https://github.com/munificent/craftinginterpreters)
   
 ## Project Status
-This project "Loxed" is being developed based on the cLox version (A bytecode-virtual-machine based on stack) for learning and development purposes. 
+This project "LoxFlux" is being developed based on the cLox version (A bytecode-virtual-machine based on stack) for learning and development purposes. 
 Please note that this project has not yet completed its basic functionalities, thus it should not be used for practical applications.
 
-此项目“Loxed”是基于 cLox 版本(栈型字节码虚拟机)进行学习和开发的。请注意，该项目目前尚未完成基础功能，因此请勿将其用于实际应用中。
+此项目“LoxFlux”是基于 cLox 版本(栈型字节码虚拟机)进行学习和开发的。请注意，该项目目前尚未完成基础功能，因此请勿将其用于实际应用中。
 
 ## Features
 
