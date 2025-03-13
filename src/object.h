@@ -35,14 +35,13 @@ struct Obj {
 
 typedef struct {
 	Obj obj;
-	uint16_t arity;
-	uint16_t isFixed;
+	uint32_t arity;
 	Chunk chunk;
 	ObjString* name;
 } ObjFunction;
 
 //argCount and argValues
-typedef Value(*NativeFn)(int argCount, Value* args);
+typedef Value(*NativeFn)(int argCount, Value* args, C_STR* errorInfo);
 
 typedef struct {
 	Obj obj;
@@ -167,5 +166,5 @@ void printObject(Value value);
 Entry* getStringEntryInPool(ObjString* string);
 NumberEntry* getNumberEntryInPool(Value* value);
 
-ObjFunction* newFunction(bool isFixed);
+ObjFunction* newFunction();
 ObjNative* newNative(NativeFn function);

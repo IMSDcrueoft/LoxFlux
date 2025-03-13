@@ -28,6 +28,3 @@ typedef double float64_t;
 #define UINT18_MAX 0x3ffff
 #define UINT24_MAX 0xffffff
 #define UINT24_COUNT 0x1000000
-
-#define min_2(x,y) (((x) < (y)) ? (x): (y))
-#define max_2(x,y) (((x) > (y)) ? (x): (y))

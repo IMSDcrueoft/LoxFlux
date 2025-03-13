@@ -38,30 +38,6 @@ static void stack_reset()
 	vm.frameCount = 0;
 }
 
-static void runtimeWarn(C_STR format, ...) {
-	va_list args;
-	va_start(args, format);
-	vfprintf(stderr, format, args);
-	va_end(args);
-	fputs("\n", stderr);
-
-	for (int32_t i = vm.frameCount - 1; i >= 0; i--) {
-		CallFrame* frame = &vm.frames[i];
-		ObjFunction* function = frame->function;
-		size_t instruction = frame->ip - function->chunk.code - 1;
-
-		uint32_t line = getLine(&frame->function->chunk.lines, (uint32_t)instruction);
-
-		fprintf(stderr, "[line %d] in ", line);
-		if (function->name == NULL) {
-			fprintf(stderr, "script\n");
-		}
-		else {
-			fprintf(stderr, "%s()\n", function->name->chars);
-		}
-	}
-}
-
 static void runtimeError(C_STR format, ...) {
 	va_list args;
 	va_start(args, format);
@@ -115,17 +91,12 @@ static inline Value stack_pop()
 
 #define STACK_PEEK(distance) (vm.stackTop[-1 - distance])
 
-static void defineNative(C_STR name, NativeFn function) {
+void defineNative(C_STR name, NativeFn function) {
 	stack_push(OBJ_VAL(copyString(name, (uint32_t)strlen(name), false)));
 	stack_push(OBJ_VAL(newNative(function)));
 	tableSet(&vm.globals, AS_STRING(vm.stack[0]), vm.stack[1]);
 	stack_pop();
 	stack_pop();
-}
-
-//define natives
-static void vm_define_native() {
-	defineNative("clock", clockNative);
 }
 
 void vm_init()
@@ -151,7 +122,8 @@ void vm_init()
 
 	vm.objects = NULL;
 
-	vm_define_native();
+	//import native funcs
+	importNative();
 }
 
 void vm_free()
@@ -192,34 +164,21 @@ uint32_t addConstant(Value value)
 	}
 }
 
-static bool call(ObjFunction* function, uint8_t argCount) {
-	if (argCount != function->arity) {
-		//add argCount check
-		if (function->isFixed) {
-			runtimeError("Expected %d arguments but got %d.",
-				function->arity, argCount);
-			return false;
-		}
-		else if (argCount < function->arity) {//less
-			while (argCount < function->arity) {
-				stack_push(NIL_VAL);
-				++argCount;
-			}
-		}
-		else {//more
-			runtimeWarn("Expected <= %d arguments but got %d.",
-				function->arity, argCount);
-
-			while (argCount > function->arity) {
-				stack_pop();
-				--argCount;
-			}
-		}
+static bool call(ObjFunction* function, int argCount) {
+	if (argCount > function->arity) {
+		runtimeError("Expected %d arguments but got %d.",
+			function->arity, argCount);
+		return false;
 	}
 
 	if (vm.frameCount == FRAMES_MAX) {
 		runtimeError("Stack overflow.");
 		return false;
+	}
+
+	while (argCount < function->arity) {
+		stack_push(NIL_VAL);
+		++argCount;
 	}
 
 	CallFrame* frame = &vm.frames[vm.frameCount++];
@@ -230,22 +189,26 @@ static bool call(ObjFunction* function, uint8_t argCount) {
 	return true;
 }
 
-static bool callValue(Value callee, uint8_t argCount) {
+static bool call_native(NativeFn native, int argCount) {
+	C_STR errorInfo = NULL;
+	Value result = native(argCount, vm.stackTop - argCount, &errorInfo);
+	if (errorInfo != NULL) {
+		runtimeError("Error in Native -> %s.", errorInfo);
+		return false;
+	}
+	vm.stackTop -= argCount + 1;
+	stack_push(result);
+	return true;
+}
+
+static bool callValue(Value callee, int argCount) {
 	if (IS_OBJ(callee)) {
 		switch (OBJ_TYPE(callee)) {
-		case OBJ_FUNCTION:
-			return call(AS_FUNCTION(callee), argCount);
-		case OBJ_NATIVE: {
-			NativeFn native = AS_NATIVE(callee);
-			Value result = native(argCount, vm.stackTop - argCount);
-			vm.stackTop -= argCount + 1;
-			stack_push(result);
-			return true;
-		}
-		default:
-			break; // Non-callable object type.
+		case OBJ_FUNCTION: return call(AS_FUNCTION(callee), argCount);
+		case OBJ_NATIVE: return call_native(AS_NATIVE(callee), argCount);
 		}
 	}
+
 	runtimeError("Can only call functions and classes.");
 	return false;
 }
@@ -270,10 +233,11 @@ static const Value imm[] = {
 static InterpretResult run()
 {
 	CallFrame* frame = &vm.frames[vm.frameCount - 1];
+	uint8_t* ip = frame->ip;
 
-#define READ_BYTE() (*(frame->ip++))
-#define READ_SHORT() (frame->ip += 2, (uint16_t)(frame->ip[-2] | (frame->ip[-1] << 8)))
-#define READ_24bits() (frame->ip += 3, (uint32_t)(frame->ip[-3] | (frame->ip[-2] << 8) | (frame->ip[-1] << 16)))
+#define READ_BYTE() (*(ip++))
+#define READ_SHORT() (ip += 2, (uint16_t)(ip[-2] | (ip[-1] << 8)))
+#define READ_24bits() (ip += 3, (uint32_t)(ip[-3] | (ip[-2] << 8) | (ip[-1] << 16)))
 #define READ_CONSTANT(index) (vm.constants.values[(index)])
 
 	// push(pop() op pop())
@@ -317,7 +281,7 @@ static InterpretResult run()
 		printf("\n");
 
 		//current ptr - begin ptr = offset value
-		disassembleInstruction(&frame->function->chunk, (uint32_t)(frame->ip - frame->function->chunk.code));
+		disassembleInstruction(&frame->function->chunk, (uint32_t)(ip - frame->function->chunk.code));
 #endif // DEBUG_TRACE_EXECUTION
 
 		uint8_t instruction = READ_BYTE();
@@ -472,33 +436,35 @@ static InterpretResult run()
 		}
 		case OP_JUMP: {
 			uint16_t offset = READ_SHORT();
-			frame->ip += offset;
+			ip += offset;
 			break;
 		}
 		case OP_LOOP: {
 			uint16_t offset = READ_SHORT();
-			frame->ip -= offset;
+			ip -= offset;
 			break;
 		}
 		case OP_JUMP_IF_FALSE: {
 			uint16_t offset = READ_SHORT();
-			if (isFalsey(vm.stackTop[-1])) frame->ip += offset;
+			if (isFalsey(vm.stackTop[-1])) ip += offset;
 			vm.stackTop -= high2bit;
 			break;
 		}
 		case OP_JUMP_IF_TRUE: {
 			uint16_t offset = READ_SHORT();
-			if (isTruthy(vm.stackTop[-1])) frame->ip += offset;
+			if (isTruthy(vm.stackTop[-1])) ip += offset;
 			vm.stackTop -= high2bit;
 			break;
 		}
 		case OP_CALL: {
 			uint8_t argCount = READ_BYTE();
+			frame->ip = ip;//change before call
 			if (!callValue(STACK_PEEK(argCount), argCount)) {
 				return INTERPRET_RUNTIME_ERROR;
 			}
 			//we entered the function
 			frame = &vm.frames[vm.frameCount - 1];
+			ip = frame->ip;//restore after call
 			break;
 		}
 		case OP_RETURN: {
@@ -515,6 +481,7 @@ static InterpretResult run()
 			vm.stackTop = frame->slots + 1;
 
 			frame = &vm.frames[vm.frameCount - 1];
+			ip = frame->ip;
 			break;
 		}
 		case OP_IMM: stack_push(imm[high2bit]); break;
