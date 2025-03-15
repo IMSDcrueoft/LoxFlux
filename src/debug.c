@@ -7,7 +7,7 @@
 #include "builtinModule.h"
 #include "vm.h"
 
-#if  DEBUG_TRACE_EXECUTION
+#if  DEBUG_TRACE_EXECUTION || DEBUG_PRINT_CODE
 
 static uint32_t simpleInstruction(C_STR name, uint32_t offset) {
 	printf("%s\n", name);
@@ -237,9 +237,7 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 		return offset + 1;
 	}
 }
-#endif //  DEBUG_TRACE_EXECUTION
 
-#if DEBUG_PRINT_CODE
 void disassembleChunk(Chunk* chunk, C_STR name) {
 	printf("== %s ==\n", name);
 

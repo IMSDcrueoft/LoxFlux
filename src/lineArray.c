@@ -13,7 +13,7 @@ void lineArray_init(LineArray* array) {
 void lineArray_write(LineArray* array, uint32_t line, uint32_t offset) {
 	uint32_t count = array->count;
 
-	if (count + 1 > array->capacity) {
+	if ((count + 1) >= array->capacity) {
 		uint32_t oldCapacity = array->capacity;
 		array->capacity = GROW_CAPACITY(oldCapacity);
 		array->ranges = GROW_ARRAY(RangeLine, array->ranges, oldCapacity, array->capacity);

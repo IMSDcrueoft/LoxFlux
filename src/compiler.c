@@ -121,8 +121,7 @@ static void emitLoop(int32_t loopStart) {
 }
 
 static void emitReturn() {
-	emitByte(OP_NIL);
-	emitByte(OP_RETURN);
+	emitBytes(2, OP_NIL, OP_RETURN);
 }
 
 static uint32_t makeConstant(Value value) {
@@ -198,7 +197,7 @@ static void patchJump(int32_t offset) {
 	currentChunk()->code[offset + 1] = (jump >> 8) & 0xff;
 }
 
-static void compiler_init(Compiler* compiler, FunctionType type) {
+static void initCompiler(Compiler* compiler, FunctionType type) {
 	compiler->enclosing = current;
 
 	//init
@@ -214,20 +213,21 @@ static void compiler_init(Compiler* compiler, FunctionType type) {
 	compiler->capacity = UINT10_COUNT;
 
 	compiler->function = newFunction();
-	current = compiler;
-
+	
 	//it's a function
 	if (type != TYPE_SCRIPT) {
-		current->function->name = copyString(parser.previous.start, parser.previous.length, false);
+		compiler->function->name = copyString(parser.previous.start, parser.previous.length, false);
 	}
 
-	Local* local = &current->locals[current->localCount++];
+	Local* local = &compiler->locals[compiler->localCount++];
 	local->depth = 0;
 	local->name.start = "";
 	local->name.length = 0;
+
+	current = compiler;
 }
 
-static void compiler_free_locals(Compiler* compiler) {
+static void freeLocals(Compiler* compiler) {
 	FREE_ARRAY(Local, compiler->locals, compiler->capacity);
 	compiler->locals = NULL;
 	compiler->capacity = 0;
@@ -446,7 +446,7 @@ static void block() {
 
 static void function(FunctionType type) {
 	Compiler compiler;
-	compiler_init(&compiler, type);
+	initCompiler(&compiler, type);
 	beginScope();
 
 	consume(TOKEN_LEFT_PAREN, "Expect '(' after function name.");
@@ -471,7 +471,7 @@ static void function(FunctionType type) {
 	ObjFunction* function = endCompiler();
 	emitConstant(OBJ_VAL(function));
 
-	compiler_free_locals(&compiler);
+	freeLocals(&compiler);
 }
 
 static void funDeclaration() {
@@ -1016,7 +1016,7 @@ ObjFunction* compile(C_STR source) {
 	Compiler compiler;
 
 	scanner_init(source);
-	compiler_init(&compiler, TYPE_SCRIPT);
+	initCompiler(&compiler, TYPE_SCRIPT);
 
 	//init flags
 	parser.hadError = false;
@@ -1030,7 +1030,7 @@ ObjFunction* compile(C_STR source) {
 	}
 
 	ObjFunction* function = endCompiler();
-	compiler_free_locals(&compiler);
+	freeLocals(&compiler);
 
 #if LOG_COMPILE_TIMING
 	double time_ms = (get_nanoseconds() - time_compile) * 1e-6;
