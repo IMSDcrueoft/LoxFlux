@@ -43,7 +43,8 @@ typedef enum {
 	OP_JUMP_IF_TRUE,    // condition jump if true
 	OP_LOOP,			// loop
 	OP_CALL,			// callFn
-	OP_RETURN,          // 1 byte
+	OP_RETURN,          // ret
+	OP_THROW,			// throw
 
 	//simple imm
 	OP_IMM,

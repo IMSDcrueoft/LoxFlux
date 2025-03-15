@@ -213,7 +213,7 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	compiler->capacity = UINT10_COUNT;
 
 	compiler->function = newFunction();
-	
+
 	//it's a function
 	if (type != TYPE_SCRIPT) {
 		compiler->function->name = copyString(parser.previous.start, parser.previous.length, false);
@@ -225,6 +225,17 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	local->name.length = 0;
 
 	current = compiler;
+
+	if (compiler->enclosing == NULL) {
+		compiler->nestingDepth = 0;
+	}
+	else {
+		compiler->nestingDepth = compiler->enclosing->nestingDepth + 1;
+
+		if (compiler->nestingDepth == 8) {
+			error("Can't compile more than 8 nesting function.");
+		}
+	}
 }
 
 static void freeLocals(Compiler* compiler) {
@@ -605,6 +616,12 @@ static void printStatement() {
 	emitByte(OP_PRINT);
 }
 
+static void throwStatement() {
+	expression();
+	consume(TOKEN_SEMICOLON, "Expect ';' after value.");
+	emitByte(OP_THROW);
+}
+
 static void returnStatement() {
 	if (current->type == TYPE_SCRIPT) {
 		error("Can't return from top-level code.");
@@ -705,6 +722,7 @@ static void synchronize() {
 		case TOKEN_WHILE:
 		case TOKEN_PRINT:
 		case TOKEN_RETURN:
+		case TOKEN_THROW:
 			return;
 
 		default:
@@ -741,6 +759,9 @@ static void statement() {
 		beginScope();
 		block();
 		endScope();
+	}
+	else if (match(TOKEN_THROW)) {
+		throwStatement();
 	}
 	else {
 		expressionStatement();
@@ -992,6 +1013,7 @@ ParseRule rules[] = {
 	[TOKEN_NIL] = {literal,     NULL,   PREC_NONE},
 	[TOKEN_OR] = {NULL,     or_,   PREC_OR},
 	[TOKEN_PRINT] = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_THROW] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_RETURN] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_SUPER] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_THIS] = {NULL,     NULL,   PREC_NONE},
