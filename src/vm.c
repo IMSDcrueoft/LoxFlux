@@ -50,10 +50,10 @@ static bool throwError(Value error) {
 
 	for (int32_t i = vm.frameCount - 1; i >= 0; i--) {
 		CallFrame* frame = &vm.frames[i];
-		ObjFunction* function = frame->function;
+		ObjFunction* function = frame->closure->function;
 		size_t instruction = frame->ip - function->chunk.code - 1;
 
-		uint32_t line = getLine(&frame->function->chunk.lines, (uint32_t)instruction);
+		uint32_t line = getLine(&function->chunk.lines, (uint32_t)instruction);
 
 		fprintf(stderr, "[line %d] in ", line);
 		if (function->name == NULL) {
@@ -83,10 +83,10 @@ static void runtimeError(C_STR format, ...) {
 
 	for (int32_t i = vm.frameCount - 1; i >= 0; i--) {
 		CallFrame* frame = &vm.frames[i];
-		ObjFunction* function = frame->function;
+		ObjFunction* function = frame->closure->function;
 		size_t instruction = frame->ip - function->chunk.code - 1;
 
-		uint32_t line = getLine(&frame->function->chunk.lines, (uint32_t)instruction);
+		uint32_t line = getLine(&function->chunk.lines, (uint32_t)instruction);
 
 		fprintf(stderr, "[line %d] in ", line);
 		if (function->name == NULL) {
@@ -117,6 +117,10 @@ static inline void stack_push(Value value)
 		vm.stackBoundary = vm.stack + capacity;		//need fresh
 		vm.stackTop = vm.stack + oldCapacity;		//need fresh
 	}
+}
+
+static inline Value stack_replace(Value val) {
+	vm.stackTop[-1] = val;
 }
 
 static inline Value stack_pop()
@@ -200,10 +204,10 @@ uint32_t addConstant(Value value)
 	}
 }
 
-static bool call(ObjFunction* function, int argCount) {
-	if (argCount > function->arity) {
+static bool call(ObjClosure* closure, int argCount) {
+	if (argCount > closure->function->arity) {
 		runtimeError("Expected %d arguments but got %d.",
-			function->arity, argCount);
+			closure->function->arity, argCount);
 		return false;
 	}
 
@@ -212,14 +216,14 @@ static bool call(ObjFunction* function, int argCount) {
 		return false;
 	}
 
-	while (argCount < function->arity) {
+	while (argCount < closure->function->arity) {
 		stack_push(NIL_VAL);
 		++argCount;
 	}
 
 	CallFrame* frame = &vm.frames[vm.frameCount++];
-	frame->function = function;
-	frame->ip = function->chunk.code;
+	frame->closure = closure;
+	frame->ip = closure->function->chunk.code;
 	//-1 is for function itself
 	frame->slots = vm.stackTop - argCount - 1;
 	return true;
@@ -240,7 +244,7 @@ static bool call_native(NativeFn native, int argCount) {
 static bool callValue(Value callee, int argCount) {
 	if (IS_OBJ(callee)) {
 		switch (OBJ_TYPE(callee)) {
-		case OBJ_FUNCTION: return call(AS_FUNCTION(callee), argCount);
+		case OBJ_CLOSURE: return call(AS_CLOSURE(callee), argCount);
 		case OBJ_NATIVE: return call_native(AS_NATIVE(callee), argCount);
 		}
 	}
@@ -256,14 +260,6 @@ static inline bool isFalsey(Value value) {
 static inline bool isTruthy(Value value) {
 	return !IS_NIL(value) && (!IS_BOOL(value) || AS_BOOL(value));
 }
-
-//for op_const
-static const Value imm[] = {
-	{.type = VAL_NUMBER,.as.number = 0 },
-	{.type = VAL_NUMBER,.as.number = 1 },
-	{.type = VAL_NUMBER,.as.number = 2 },
-	{.type = VAL_NUMBER,.as.number = 10 }
-};
 
 //to run code in vm
 static InterpretResult run()
@@ -319,32 +315,97 @@ static InterpretResult run()
 		printf("\n");
 
 		//current ptr - begin ptr = offset value
-		disassembleInstruction(&frame->function->chunk, (uint32_t)(ip - frame->function->chunk.code));
+		disassembleInstruction(&frame->closure->function->chunk, (uint32_t)(ip - frame->closure->function->chunk.code));
 #endif // DEBUG_TRACE_EXECUTION
 
 		uint8_t instruction = READ_BYTE();
-		uint8_t high2bit = instruction >> 6;
-		uint32_t index;
-		Value constant;
 
-		switch (instruction & 0b00111111)
+		switch (instruction)
 		{
 		case OP_CONSTANT: {
-			index = READ_BYTE() | (high2bit << 8);
-			constant = READ_CONSTANT(index);
-			stack_push(constant);
-			break;
-		}
-		case OP_CONSTANT_SHORT: {
-			index = READ_SHORT() | (high2bit << 16);
-			constant = READ_CONSTANT(index);
+			uint32_t index = READ_SHORT();
+			Value constant = READ_CONSTANT(index);
 			stack_push(constant);
 			break;
 		}
 		case OP_CONSTANT_LONG: {
-			index = READ_24bits();
-			constant = READ_CONSTANT(index);
+			uint32_t index = READ_24bits();
+			Value constant = READ_CONSTANT(index);
 			stack_push(constant);
+			break;
+		}
+		case OP_CLOSURE: {
+			uint32_t index = READ_SHORT();
+			Value constant = READ_CONSTANT(index);
+			ObjFunction* function = AS_FUNCTION(constant);
+			ObjClosure* closure = newClosure(function);
+			stack_push(OBJ_VAL(closure));
+			break;
+		}
+		case OP_CLOSURE_LONG: {
+			uint32_t index = READ_24bits();
+			Value constant = READ_CONSTANT(index);
+			ObjFunction* function = AS_FUNCTION(constant);
+			ObjClosure* closure = newClosure(function);
+			stack_push(OBJ_VAL(closure));
+			break;
+		}
+		case OP_DEFINE_GLOBAL: {
+			Value constant = READ_CONSTANT(READ_SHORT());
+			ObjString* name = AS_STRING(constant);
+			--vm.stackTop;
+			tableSet(&vm.globals, name, *vm.stackTop);
+			break;
+		}
+		case OP_DEFINE_GLOBAL_LONG: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			ObjString* name = AS_STRING(constant);
+			--vm.stackTop;
+			tableSet(&vm.globals, name, *vm.stackTop);
+			break;
+		}
+		case OP_GET_GLOBAL: {
+			Value constant = READ_CONSTANT(READ_SHORT());
+			ObjString* name = AS_STRING(constant);
+			Value value;
+			if (!tableGet(&vm.globals, name, &value)) {
+				runtimeError("Undefined variable '%s'.", name->chars);
+				return INTERPRET_RUNTIME_ERROR;
+			}
+			stack_push(value);
+			break;
+		}
+		case OP_GET_GLOBAL_LONG: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			ObjString* name = AS_STRING(constant);
+			Value value;
+			if (!tableGet(&vm.globals, name, &value)) {
+				runtimeError("Undefined variable '%s'.", name->chars);
+				return INTERPRET_RUNTIME_ERROR;
+			}
+			stack_push(value);
+			break;
+		}
+		case OP_SET_GLOBAL: {
+			Value constant = READ_CONSTANT(READ_SHORT());
+			ObjString* name = AS_STRING(constant);
+			if (tableSet(&vm.globals, name, vm.stackTop[-1])) {
+				//lox dont allow setting undefined one
+				tableDelete(&vm.globals, name);
+				runtimeError("Undefined variable '%s'.", name->chars);
+				return INTERPRET_RUNTIME_ERROR;
+			}
+			break;
+		}
+		case OP_SET_GLOBAL_LONG: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			ObjString* name = AS_STRING(constant);
+			if (tableSet(&vm.globals, name, vm.stackTop[-1])) {
+				//lox dont allow setting undefined one
+				tableDelete(&vm.globals, name);
+				runtimeError("Undefined variable '%s'.", name->chars);
+				return INTERPRET_RUNTIME_ERROR;
+			}
 			break;
 		}
 		case OP_NIL: stack_push(NIL_VAL); break;
@@ -413,60 +474,13 @@ static InterpretResult run()
 			}
 			return INTERPRET_RUNTIME_ERROR;
 		}
-		case OP_DEFINE_GLOBAL: {
-			switch (high2bit)
-			{
-			case 0: constant = READ_CONSTANT(READ_BYTE()); break;
-			case 1: constant = READ_CONSTANT(READ_SHORT()); break;
-			case 2: constant = READ_CONSTANT(READ_24bits()); break;
-			}
-			ObjString* name = AS_STRING(constant);
-			--vm.stackTop;
-			tableSet(&vm.globals, name, *vm.stackTop);
-			break;
-		}
-		case OP_GET_GLOBAL: {
-			switch (high2bit)
-			{
-			case 0: constant = READ_CONSTANT(READ_BYTE()); break;
-			case 1: constant = READ_CONSTANT(READ_SHORT()); break;
-			case 2: constant = READ_CONSTANT(READ_24bits()); break;
-			}
-
-			ObjString* name = AS_STRING(constant);
-			Value value;
-			if (!tableGet(&vm.globals, name, &value)) {
-				runtimeError("Undefined variable '%s'.", name->chars);
-				return INTERPRET_RUNTIME_ERROR;
-			}
-			stack_push(value);
-			break;
-		}
-		case OP_SET_GLOBAL: {
-			switch (high2bit)
-			{
-			case 0: constant = READ_CONSTANT(READ_BYTE()); break;
-			case 1: constant = READ_CONSTANT(READ_SHORT()); break;
-			case 2: constant = READ_CONSTANT(READ_24bits()); break;
-			}
-
-			ObjString* name = AS_STRING(constant);
-			if (tableSet(&vm.globals, name, vm.stackTop[-1])) {
-				//lox dont allow setting undefined one
-				tableDelete(&vm.globals, name);
-				runtimeError("Undefined variable '%s'.", name->chars);
-				return INTERPRET_RUNTIME_ERROR;
-			}
-			break;
-		}
-
 		case OP_GET_LOCAL: {
-			index = READ_BYTE() | (high2bit << 8);
+			uint32_t index = READ_SHORT();
 			stack_push(frame->slots[index]);
 			break;
 		}
 		case OP_SET_LOCAL: {
-			index = READ_BYTE() | (high2bit << 8);
+			uint32_t index = READ_SHORT();
 			frame->slots[index] = vm.stackTop[-1];
 			break;
 		}
@@ -475,7 +489,7 @@ static InterpretResult run()
 			break;
 		}
 		case OP_POP_N: {
-			index = (READ_BYTE() | (high2bit << 8)) + 1;
+			uint32_t index = READ_SHORT();
 			vm.stackTop -= index;
 			break;
 		}
@@ -492,13 +506,23 @@ static InterpretResult run()
 		case OP_JUMP_IF_FALSE: {
 			uint16_t offset = READ_SHORT();
 			if (isFalsey(vm.stackTop[-1])) ip += offset;
-			vm.stackTop -= high2bit;
+			break;
+		}
+		case OP_JUMP_IF_FALSE_POP: {
+			uint16_t offset = READ_SHORT();
+			if (isFalsey(vm.stackTop[-1])) ip += offset;
+			--vm.stackTop;
 			break;
 		}
 		case OP_JUMP_IF_TRUE: {
 			uint16_t offset = READ_SHORT();
 			if (isTruthy(vm.stackTop[-1])) ip += offset;
-			vm.stackTop -= high2bit;
+			break;
+		}
+		case OP_JUMP_IF_TRUE_POP: {
+			uint16_t offset = READ_SHORT();
+			if (isTruthy(vm.stackTop[-1])) ip += offset;
+			--vm.stackTop;
 			break;
 		}
 		case OP_CALL: {
@@ -529,7 +553,6 @@ static InterpretResult run()
 			ip = frame->ip;
 			break;
 		}
-		case OP_IMM: stack_push(imm[high2bit]); break;
 
 		case OP_MODULE_GLOBAL:
 			//Not implemented
@@ -563,11 +586,9 @@ InterpretResult interpret(C_STR source)
 	if (function == NULL) return INTERPRET_COMPILE_ERROR;
 
 	stack_push(OBJ_VAL(function));
-	/*CallFrame* frame = &vm.frames[vm.frameCount++];
-	frame->function = function;
-	frame->ip = function->chunk.code;
-	frame->slots = vm.stack;*/
-	call(function, 0);
+	ObjClosure* closure = newClosure(function);
+	stack_replace(OBJ_VAL(closure));
+	call(closure, 0);
 
 #if LOG_EXECUTE_TIMING
 	uint64_t time_run = get_nanoseconds();

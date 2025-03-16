@@ -15,7 +15,7 @@
 #define STACK_INITIAL_SIZE (16 * UINT10_COUNT)
 
 typedef struct {
-	ObjFunction* function;
+	ObjClosure* closure;
 	uint8_t* ip;
 	Value* slots; //first avilable slot
 } CallFrame;

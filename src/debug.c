@@ -15,12 +15,6 @@ static uint32_t simpleInstruction(C_STR name, uint32_t offset) {
 	return offset + 1;
 }
 
-static uint32_t immidiateIstruction(C_STR name, uint32_t offset, uint32_t high2bit) {
-	printf("%-16s %4d\n", name, (high2bit == 0b11) ? 10 : high2bit);
-	//OP_RETURN 1
-	return offset + 1;
-}
-
 static uint32_t builtinStruction(C_STR name, Chunk* chunk, uint32_t offset) {
 	uint32_t slot = chunk->code[offset + 1];
 	switch (slot)
@@ -56,70 +50,39 @@ static uint32_t byteInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
 	return offset + 2;
 }
 
-static uint32_t jumpInstruction(C_STR name, int32_t sign, Chunk* chunk, uint32_t offset, uint32_t high2bit) {
+static uint32_t jumpInstruction(C_STR name, int32_t sign, Chunk* chunk, uint32_t offset) {
 	uint16_t jump = (uint16_t)chunk->code[offset + 1];
 	jump |= (chunk->code[offset + 2] << 8);
 
-	printf("%-16s %4d -> %d  %-8s\n", name, offset, offset + 3 + sign * jump, high2bit ? "POP" : "");
+	printf("%-16s %4d -> %d\n", name, offset, offset + 3 + sign * jump);
 	return offset + 3;
 }
 
-static uint32_t modifyLocalInstruction(C_STR name, Chunk* chunk, uint32_t offset, uint32_t high2bit) {
-	uint32_t slot = chunk->code[offset + 1];
-	slot |= (high2bit << 8);
+static uint32_t modifyLocalInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
+	uint32_t slot = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8);
 	printf("%-16s %4d\n", name, slot);
-	return offset + 2;
-}
-
-static uint32_t popLocalInstruction(C_STR name, Chunk* chunk, uint32_t offset, uint32_t high2bit) {
-	uint32_t slot = chunk->code[offset + 1];
-	slot |= (high2bit << 8);
-	printf("%-16s %4d\n", name, slot + 1);
-	return offset + 2;
+	return offset + 3;
 }
 
 static uint32_t modifyGlobalInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
-	uint32_t constant;
-	uint32_t high2bit = chunk->code[offset] >> 6;
-
-	switch (high2bit)
-	{
-	case 0:
-		constant = chunk->code[offset + 1];
-		printf("%-16s %4d '", name, constant);
-		printValue(vm.constants.values[constant]);
-		printf("'\n");
-		return offset + 2;
-	case 1:
-		constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8);
-		printf("%-16s %4d '", name, constant);
-		printValue(vm.constants.values[constant]);
-		printf("'\n");
-		return offset + 3;
-	case 2:
-		constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8) | ((uint32_t)chunk->code[offset + 3] << 16);
-		printf("%-16s %4d '", name, constant);
-		printValue(vm.constants.values[constant]);
-		printf("'\n");
-		return offset + 4;
-	default:
-		return offset + 1;
-	}
-}
-
-static uint32_t constantInstruction(C_STR name, Chunk* chunk, uint32_t offset, uint32_t high2bit) {
-	uint32_t constant = chunk->code[offset + 1] | (high2bit << 8);
+	uint32_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8);
 	printf("%-16s %4d '", name, constant);
 	printValue(vm.constants.values[constant]);
 	printf("'\n");
-
-	//OP_CONSTANT 2
-	return offset + 2;
+	return offset + 3;
 }
 
-static uint32_t constantInstruction_short(C_STR name, Chunk* chunk, uint32_t offset, uint32_t high2bit) {
+static uint32_t modifyGlobalLongInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
+	uint32_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8) | ((uint32_t)chunk->code[offset + 3] << 16);
+	printf("%-16s %4d '", name, constant);
+	printValue(vm.constants.values[constant]);
+	printf("'\n");
+	return offset + 4;
+}
+
+static uint32_t constantInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
 	//18bit index
-	uint16_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8) | (high2bit << 16);
+	uint16_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8);
 
 	printf("%-16s %4d '", name, constant);
 	printValue(vm.constants.values[constant]);
@@ -152,9 +115,8 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 	}
 
 	uint8_t instruction = chunk->code[offset];
-	uint8_t high2bit = instruction >> 6;
 
-	switch (instruction & 0b00111111) {
+	switch (instruction) {
 	case OP_CALL:
 		return byteInstruction("OP_CALL", chunk, offset);
 	case OP_RETURN:
@@ -177,12 +139,17 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 		return simpleInstruction("OP_MODULUS", offset);
 	case OP_NEGATE:
 		return simpleInstruction("OP_NEGATE", offset);
+
 	case OP_CONSTANT:
-		return constantInstruction("OP_CONSTANT", chunk, offset, high2bit);
-	case OP_CONSTANT_SHORT:
-		return constantInstruction_short("OP_CONSTANT_SHORT", chunk, offset, high2bit);
+		return constantInstruction("OP_CONSTANT", chunk, offset);
 	case OP_CONSTANT_LONG:
 		return constantInstruction_long("OP_CONSTANT_LONG", chunk, offset);
+
+	case OP_CLOSURE:
+		return constantInstruction("OP_CLOSURE", chunk, offset);
+	case OP_CLOSURE_LONG:
+		return constantInstruction_long("OP_CLOSURE_LONG", chunk, offset);
+
 	case OP_NIL:
 		return simpleInstruction("OP_NIL", offset);
 	case OP_TRUE:
@@ -206,29 +173,34 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 
 	case OP_DEFINE_GLOBAL:
 		return modifyGlobalInstruction("OP_DEFINE_GLOBAL", chunk, offset);
+	case OP_DEFINE_GLOBAL_LONG:
+		return modifyGlobalLongInstruction("OP_DEFINE_GLOBAL_LONG", chunk, offset);
 	case OP_GET_GLOBAL:
 		return modifyGlobalInstruction("OP_GET_GLOBAL", chunk, offset);
+	case OP_GET_GLOBAL_LONG:
+		return modifyGlobalLongInstruction("OP_GET_GLOBAL_LONG", chunk, offset);
 	case OP_SET_GLOBAL:
 		return modifyGlobalInstruction("OP_SET_GLOBAL", chunk, offset);
+	case OP_SET_GLOBAL_LONG:
+		return modifyGlobalLongInstruction("OP_SET_GLOBAL_LONG", chunk, offset);
 
 	case OP_GET_LOCAL:
-		return modifyLocalInstruction("OP_GET_LOCAL", chunk, offset, high2bit);
+		return modifyLocalInstruction("OP_GET_LOCAL", chunk, offset);
 	case OP_SET_LOCAL:
-		return modifyLocalInstruction("OP_SET_LOCAL", chunk, offset, high2bit);
+		return modifyLocalInstruction("OP_SET_LOCAL", chunk, offset);
 	case OP_POP_N:
-		return popLocalInstruction("OP_POP_N", chunk, offset, high2bit);
+		return modifyLocalInstruction("OP_POP_N", chunk, offset);
 
 	case OP_JUMP:
-		return jumpInstruction("OP_JUMP", 1, chunk, offset, high2bit);
+		return jumpInstruction("OP_JUMP", 1, chunk, offset);
 	case OP_JUMP_IF_FALSE:
-		return jumpInstruction("OP_JUMP_IF_FALSE", 1, chunk, offset, high2bit);
+	case OP_JUMP_IF_FALSE_POP:
+		return jumpInstruction("OP_JUMP_IF_FALSE", 1, chunk, offset);
 	case OP_JUMP_IF_TRUE:
-		return jumpInstruction("OP_JUMP_IF_TRUE", 1, chunk, offset, high2bit);
+	case OP_JUMP_IF_TRUE_POP:
+		return jumpInstruction("OP_JUMP_IF_TRUE", 1, chunk, offset);
 	case OP_LOOP:
-		return jumpInstruction("OP_LOOP", -1, chunk, offset, high2bit);
-
-	case OP_IMM:
-		return immidiateIstruction("OP_IMM", offset, high2bit);
+		return jumpInstruction("OP_LOOP", -1, chunk, offset);
 
 	case OP_MODULE_GLOBAL:
 		return simpleInstruction("OP_MODULE_GLOBAL", offset);

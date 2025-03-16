@@ -159,21 +159,31 @@ static uint32_t makeConstant(Value value) {
 		}
 		break;
 	}
-	default://won't be here, there is only num,bool,nil,obj
+	default://object type
 		return addConstant(value);
 	}
 }
 
 //we got very big range
 static void emitConstantCommond(uint32_t index) {
-	if (index <= UINT10_MAX) {  // 10-bit index (8 + 2 bits)
-		emitBytes(2, OP_CONSTANT | (uint8_t)((index >> 8) << 6), (uint8_t)index);
-	}
-	else if (index <= UINT18_MAX) { // 18-bit index (16 + 2 bits)
-		emitBytes(3, OP_CONSTANT_SHORT | (uint8_t)((index >> 16) << 6), (uint8_t)index, (uint8_t)(index >> 8));
+	if (index <= UINT16_MAX) { // 18-bit index (16 + 2 bits)
+		emitBytes(3, OP_CONSTANT, (uint8_t)index, (uint8_t)(index >> 8));
 	}
 	else if (index <= UINT24_MAX) { // 24-bit index
 		emitBytes(4, OP_CONSTANT_LONG, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
+	}
+	else {
+		error("Too many constants in chunk.");
+	}
+}
+
+//we got very big range
+static void emitClosureCommond(uint32_t index) {
+	if (index <= UINT16_MAX) { // 18-bit index (16 + 2 bits)
+		emitBytes(3, OP_CLOSURE, (uint8_t)index, (uint8_t)(index >> 8));
+	}
+	else if (index <= UINT24_MAX) { // 24-bit index
+		emitBytes(4, OP_CLOSURE_LONG, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
 	}
 	else {
 		error("Too many constants in chunk.");
@@ -264,9 +274,8 @@ static void beginScope() {
 
 static void emitPopCount(uint16_t popCount) {
 	if (popCount == 0) return;
-	if (popCount > 1) { // 10-bit index (8 + 2 bits)
-		--popCount;     // the limit is 1024, but 10 bit can only expressed [0 to 1023] ,so i expand it to [1,1024]
-		emitBytes(2, OP_POP_N | (uint8_t)((popCount >> 8) << 6), (uint8_t)popCount);
+	if (popCount > 1) { // 16-bit index
+		emitBytes(3, OP_POP_N, (uint8_t)popCount, (uint8_t)(popCount >> 8));
 	}
 	else {
 		emitByte(OP_POP);
@@ -393,7 +402,9 @@ static void markInitialized(bool isConst) {
 	current->locals[current->localCount - 1].isConst = isConst;
 }
 
-static void emitGlobalCommond(OpCode commond, uint32_t index);
+static void emitGlobalDefineCommond(uint32_t index);
+static void emitGlobalGetCommond(uint32_t index);
+static void emitGlobalSetCommond(uint32_t index);
 static void defineVariable(uint32_t global) {
 	//it is a local one
 	if (current->scopeDepth > 0) {
@@ -401,7 +412,7 @@ static void defineVariable(uint32_t global) {
 		return;
 	}
 
-	emitGlobalCommond(OP_DEFINE_GLOBAL, global);
+	emitGlobalDefineCommond(global);
 }
 
 static void defineConst(uint32_t global) {
@@ -480,7 +491,9 @@ static void function(FunctionType type) {
 	block();
 
 	ObjFunction* function = endCompiler();
-	emitConstant(OBJ_VAL(function));
+
+	//create a closure
+	emitClosureCommond(makeConstant(OBJ_VAL(function)));
 
 	freeLocals(&compiler);
 }
@@ -846,21 +859,7 @@ static void grouping(bool canAssign) {
 }
 
 static void emitNumber(double value) {
-	if (value == 0.0) {
-		emitByte(OP_IMM | 0b00000000);
-	}
-	else if (value == 1.0) {
-		emitByte(OP_IMM | 0b01000000);
-	}
-	else if (value == 2.0) {
-		emitByte(OP_IMM | 0b10000000);
-	}
-	else if (value == 10.0) {
-		emitByte(OP_IMM | 0b11000000);
-	}
-	else {
-		emitConstant(NUMBER_VAL(value));
-	}
+	emitConstant(NUMBER_VAL(value));
 }
 
 static void number(bool canAssign) {
@@ -897,15 +896,36 @@ static void string(bool canAssign) {
 	emitConstant(OBJ_VAL(copyString(parser.previous.start + 1, parser.previous.length - 2, false)));
 }
 
-static void emitGlobalCommond(OpCode commond, uint32_t index) {
-	if (index <= UINT8_MAX) {
-		emitBytes(2, commond | 0b00000000, (uint8_t)index);
-	}
-	else if (index <= UINT16_MAX) {
-		emitBytes(3, commond | 0b01000000, (uint8_t)index, (uint8_t)(index >> 8));
+static void emitGlobalDefineCommond(uint32_t index) {
+	if (index <= UINT16_MAX) {
+		emitBytes(3, OP_DEFINE_GLOBAL, (uint8_t)index, (uint8_t)(index >> 8));
 	}
 	else if (index <= UINT24_MAX) {
-		emitBytes(4, commond | 0b10000000, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
+		emitBytes(4, OP_DEFINE_GLOBAL_LONG, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
+	}
+	else {
+		error("Too many constants in chunk.");
+	}
+}
+
+static void emitGlobalGetCommond(uint32_t index) {
+	if (index <= UINT16_MAX) {
+		emitBytes(3, OP_GET_GLOBAL, (uint8_t)index, (uint8_t)(index >> 8));
+	}
+	else if (index <= UINT24_MAX) {
+		emitBytes(4, OP_GET_GLOBAL_LONG, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
+	}
+	else {
+		error("Too many constants in chunk.");
+	}
+}
+
+static void emitGlobalSetCommond(uint32_t index) {
+	if (index <= UINT16_MAX) {
+		emitBytes(3, OP_SET_GLOBAL, (uint8_t)index, (uint8_t)(index >> 8));
+	}
+	else if (index <= UINT24_MAX) {
+		emitBytes(4, OP_SET_GLOBAL_LONG, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
 	}
 	else {
 		error("Too many constants in chunk.");
@@ -925,11 +945,11 @@ static void namedVariable(Token name, bool canAssign) {
 				errorAtCurrent("Assignment to constant variable.");
 				return;
 			}
-			// 10-bit index (8 + 2 bits)
-			emitBytes(2, OP_SET_LOCAL | (uint8_t)((arg >> 8) << 6), (uint8_t)arg);
+			// 16-bit index
+			emitBytes(3, OP_SET_LOCAL, (uint8_t)arg,(uint8_t)(arg >> 8));
 		}
-		else { // 10-bit index (8 + 2 bits)
-			emitBytes(2, OP_GET_LOCAL | (uint8_t)((arg >> 8) << 6), (uint8_t)arg);
+		else { // 16-bit index
+			emitBytes(3, OP_GET_LOCAL, (uint8_t)arg,(uint8_t)(arg >> 8));
 		}
 	}
 	else {//its global var
@@ -938,10 +958,10 @@ static void namedVariable(Token name, bool canAssign) {
 		if (canAssign && match(TOKEN_EQUAL)) {
 			expression();
 
-			emitGlobalCommond(OP_SET_GLOBAL,arg);
+			emitGlobalSetCommond(arg);
 		}
 		else {
-			emitGlobalCommond(OP_GET_GLOBAL,arg);
+			emitGlobalGetCommond(arg);
 		}
 	}
 }

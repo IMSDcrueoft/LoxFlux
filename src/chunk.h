@@ -10,17 +10,19 @@
 #include "lineArray.h"
 
 typedef enum {
-	OP_CONSTANT,        // 1 + 1 byte
-	OP_CONSTANT_SHORT,  // 1 + 2 byte
+	OP_CONSTANT,        // 1 + 2 byte
 	OP_CONSTANT_LONG,   // 1 + 3 byte
 
 	OP_NIL,
 	OP_TRUE,
 	OP_FALSE,
 
-	OP_DEFINE_GLOBAL,		  //define global
+	OP_DEFINE_GLOBAL,		//define global
+	OP_DEFINE_GLOBAL_LONG,	//define global
 	OP_GET_GLOBAL,
+	OP_GET_GLOBAL_LONG,
 	OP_SET_GLOBAL,
+	OP_SET_GLOBAL_LONG,
 
 	OP_EQUAL,			//==
 	OP_GREATER,			//>
@@ -40,14 +42,17 @@ typedef enum {
 	OP_POP_N,			// pop multiple stack
 	OP_JUMP,			// no condition jump
 	OP_JUMP_IF_FALSE,   // condition jump if false
+	OP_JUMP_IF_FALSE_POP,
 	OP_JUMP_IF_TRUE,    // condition jump if true
+	OP_JUMP_IF_TRUE_POP,
 	OP_LOOP,			// loop
 	OP_CALL,			// callFn
+
+	OP_CLOSURE,			// getFn
+	OP_CLOSURE_LONG,	// getFn
+
 	OP_RETURN,          // ret
 	OP_THROW,			// throw
-
-	//simple imm
-	OP_IMM,
 
 	//load local
 	OP_GET_LOCAL,
@@ -61,9 +66,6 @@ typedef enum {
 	//for debugger
 	OP_DEBUGGER,
 } OpCode;
-
-#define OP_JUMP_IF_FALSE_POP (OP_JUMP_IF_FALSE | 0b01000000)
-#define OP_JUMP_IF_TRUE_POP (OP_JUMP_IF_TRUE | 0b01000000)
 
 typedef struct {
 	uint32_t count;    //limit to 4GB
