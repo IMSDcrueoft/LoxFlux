@@ -581,11 +581,11 @@ InterpretResult interpret(C_STR source)
 
 #if LOG_COMPILE_TIMING
 	double time_ms = (get_nanoseconds() - time_run) * 1e-6;
-	printf("Log: Finished executing in %g ms.\n", time_ms);
+	printf("[Log] Finished executing in %g ms.\n", time_ms);
 #endif
 
 #if LOG_KIPS
-	printf("Log: Finished executing at %g kips.\n", byteCodeCount / time_ms);
+	printf("[Log] Finished executing at %g kips.\n", byteCodeCount / time_ms);
 	byteCodeCount = 0;
 #endif
 

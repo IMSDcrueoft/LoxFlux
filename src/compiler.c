@@ -1056,7 +1056,7 @@ ObjFunction* compile(C_STR source) {
 
 #if LOG_COMPILE_TIMING
 	double time_ms = (get_nanoseconds() - time_compile) * 1e-6;
-	printf("Log: Finished compiling in %g ms.\n", time_ms);
+	printf("[Log] Finished compiling in %g ms.\n", time_ms);
 #endif
 	return parser.hadError ? NULL : function;
 }
