@@ -65,6 +65,7 @@ typedef struct Compiler {
 
 	ObjFunction* function;
 	FunctionType type;
+	uint32_t nestingDepth;
 
 	uint16_t localCount;
 	uint16_t scopeDepth;

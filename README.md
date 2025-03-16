@@ -63,9 +63,11 @@ Please note that this project has not yet completed its basic functionalities, t
 
 - **Support for line break input**: Use `\` for multi-line input in REPL.
 - **Commands**:
-  - `/help`: Print help information.
-  - `/exit`: Exit the REPL.
-  - `/mem` : Print memory information (using mimalloc).
+  - `/help` : Print help information.
+  - `/exit` : Exit the REPL.
+  - `/clear`: Clean the console.
+  - `/eval` : Load file and Run.
+  - `/mem`  : Print memory information (using mimalloc).
 
 ## Licenses
 The project is based on the [MIT license] and uses two third-party projects.LLVM may be used as a JIT in the future.
