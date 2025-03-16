@@ -7,6 +7,106 @@
 #include "version.h"
 #include "vm.h"
 
+static void print_help() {
+	printf("Commands:\n");
+	printf("/exit  - Exit the interpreter.\n");
+	printf("/eval  - Load file and run.\n");
+	printf("/mem   - Print memory statistics.\n");
+	printf("/help  - Print this help message.\n");
+	printf("/clear - Clean console.\n");
+	printf("\nAbout:\n");
+	printf("input \'\\\' to enter next line, with 512 characters maximum per line.\n");
+}
+
+static void clear_console() {
+#ifdef _WIN32
+	system("cls"); // Windows
+#elif defined(__unix__) || defined(__linux__) || defined(__APPLE__)
+	printf("\033[2J\033[1;1H"); // ANSI Unix like
+#else
+	for (uint32_t i = 0; i < 5; i++) {
+		printf("\n\n\n\n\n\n\n\n\n\n");
+	}
+#endif
+}
+
+static STR readFile(C_STR path) {
+	FILE* file = fopen(path, "rb");
+
+	if (file == NULL) {
+		fprintf(stderr, "Could not open file \"%s\".\n", path);
+		exit(74);
+	}
+
+	fseek(file, 0L, SEEK_END);
+	size_t fileSize = ftell(file);
+	rewind(file);
+
+	STR buffer = (STR)malloc(fileSize + 1);
+
+	if (buffer == NULL) {
+		fprintf(stderr, "Not enough memory to read \"%s\".\n", path);
+		exit(74);
+	}
+
+	size_t bytesRead = fread(buffer, sizeof(char), fileSize, file);
+
+	if (bytesRead < fileSize) {
+		fprintf(stderr, "Could not read file \"%s\".\n", path);
+		exit(74);
+	}
+
+	buffer[bytesRead] = '\0';
+
+	fclose(file);
+	return buffer;
+}
+
+static STR dealWithFilePath(STR line) {
+	STR begin = line;
+	// skip whiteSpace and tab
+	while (*begin == ' ' || *begin == '\t') {
+		++begin;
+	}
+
+	if (*begin == '"') {
+		++begin;
+	}
+
+	STR back = begin;
+
+	while (*back != '\0') {
+		if (*back == '"' || *back == '\n') {
+			*back = '\0';
+			break;
+		}
+		++back;
+	}
+
+	//no '"'
+	if (*begin == '\0') {
+		begin = line;
+
+		while (*begin == ' ' || *begin == '\t') {
+			++begin;
+		}
+
+		back = begin;
+		while (*back != '\0' && *back != '\n') {
+			++back;
+		}
+		*back = '\0';
+	}
+
+	back = begin + strlen(begin) - 1;
+	while (back >= begin && (*back == ' ' || *back == '\t')) {
+		*back = '\0';
+		--back;
+	}
+
+	return begin;
+}
+
 void repl() {
 	printf("%s %s  Copyright (C) %s, %s\n", INTERPRETER_NAME, INTERPRETER_VERSION, INTERPRETER_COPYRIGHT, INTERPRETER_OWNER);
 
@@ -22,7 +122,8 @@ void repl() {
 
 	bool isContinued;
 
-#define match_string(a,b) ((strncmp(a,b,strlen(b)) == 0) && (a[strlen(b)] == '\0' || a[strlen(b)] == '\n'))
+#define startsWith_string(a,b) (strncmp(a,b,strlen(b)) == 0)
+#define match_string(a,b) (startsWith_string(a,b) && (a[strlen(b)] == '\0' || a[strlen(b)] == '\n'))
 
 	/*
 	* input '\' to enter next line
@@ -59,12 +160,18 @@ void repl() {
 					continue;
 				}
 				else if (match_string(line, "/help")) {
-					printf("Commands:\n");
-					printf("/exit  - Exit the interpreter.\n");
-					printf("/mem   - Print memory statistics.\n");
-					printf("/help  - Print this help message.\n");
-					printf("\nAbout:\n");
-					printf("input \'\\\' to enter next line, with 512 characters maximum per line.\n");
+					print_help();
+					continue;
+				}
+				else if (match_string(line, "/clear")) {
+					clear_console();
+					continue;
+				}
+				else if (startsWith_string(line, "/eval ")) {
+					STR path = dealWithFilePath(line + 6);
+					STR source = readFile(path);
+					interpret_repl(source);
+					free(source);
 					continue;
 				}
 			}
@@ -111,38 +218,6 @@ void repl() {
 	log_malloc_info();
 #endif
 #undef match_string
-}
-
-static STR readFile(C_STR path) {
-	FILE* file = fopen(path, "rb");
-
-	if (file == NULL) {
-		fprintf(stderr, "Could not open file \"%s\".\n", path);
-		exit(74);
-	}
-
-	fseek(file, 0L, SEEK_END);
-	size_t fileSize = ftell(file);
-	rewind(file);
-
-	STR buffer = (STR)malloc(fileSize + 1);
-
-	if (buffer == NULL) {
-		fprintf(stderr, "Not enough memory to read \"%s\".\n", path);
-		exit(74);
-	}
-
-	size_t bytesRead = fread(buffer, sizeof(char), fileSize, file);
-
-	if (bytesRead < fileSize) {
-		fprintf(stderr, "Could not read file \"%s\".\n", path);
-		exit(74);
-	}
-
-	buffer[bytesRead] = '\0';
-
-	fclose(file);
-	return buffer;
 }
 
 void runFile(C_STR path) {

@@ -20,7 +20,8 @@
 VM vm;
 //the builtin modules
 Table builtinModules[BUILTIN_MODULE_COUNT];
-
+//ip for debug
+uint8_t** ip_error = NULL;
 #if LOG_KIPS
 uint64_t byteCodeCount;
 #endif
@@ -38,12 +39,47 @@ static void stack_reset()
 	vm.frameCount = 0;
 }
 
+static bool throwError(Value error) {
+	printf("[ThrowError] ");
+	printValue(error);
+	printf("\n");
+
+	if ((vm.frameCount - 1) >= 0) {
+		vm.frames[vm.frameCount - 1].ip = *ip_error;
+	}
+
+	for (int32_t i = vm.frameCount - 1; i >= 0; i--) {
+		CallFrame* frame = &vm.frames[i];
+		ObjFunction* function = frame->function;
+		size_t instruction = frame->ip - function->chunk.code - 1;
+
+		uint32_t line = getLine(&frame->function->chunk.lines, (uint32_t)instruction);
+
+		fprintf(stderr, "[line %d] in ", line);
+		if (function->name == NULL) {
+			fprintf(stderr, "script\n");
+		}
+		else {
+			fprintf(stderr, "%s()\n", function->name->chars);
+		}
+	}
+
+	stack_reset();
+	return false;
+}
+
 static void runtimeError(C_STR format, ...) {
+	printf("[RuntimeError] ");
+
 	va_list args;
 	va_start(args, format);
 	vfprintf(stderr, format, args);
 	va_end(args);
 	fputs("\n", stderr);
+
+	if ((vm.frameCount - 1) >= 0) {
+		vm.frames[vm.frameCount - 1].ip = *ip_error;
+	}
 
 	for (int32_t i = vm.frameCount - 1; i >= 0; i--) {
 		CallFrame* frame = &vm.frames[i];
@@ -234,6 +270,8 @@ static InterpretResult run()
 {
 	CallFrame* frame = &vm.frames[vm.frameCount - 1];
 	uint8_t* ip = frame->ip;
+	//if error,use this to print
+	ip_error = &ip;
 
 #define READ_BYTE() (*(ip++))
 #define READ_SHORT() (ip += 2, (uint16_t)(ip[-2] | (ip[-1] << 8)))
@@ -367,6 +405,13 @@ static InterpretResult run()
 			printValue(stack_pop());
 			printf("\n");
 			break;
+		}
+		case OP_THROW: {
+			//if solved break else error
+			if (throwError(stack_pop())) {
+				break;
+			}
+			return INTERPRET_RUNTIME_ERROR;
 		}
 		case OP_DEFINE_GLOBAL: {
 			switch (high2bit)
@@ -536,11 +581,11 @@ InterpretResult interpret(C_STR source)
 
 #if LOG_COMPILE_TIMING
 	double time_ms = (get_nanoseconds() - time_run) * 1e-6;
-	printf("Log: Finished executing in %g ms.\n", time_ms);
+	printf("[Log] Finished executing in %g ms.\n", time_ms);
 #endif
 
 #if LOG_KIPS
-	printf("Log: Finished executing at %g kips.\n", byteCodeCount / time_ms);
+	printf("[Log] Finished executing at %g kips.\n", byteCodeCount / time_ms);
 	byteCodeCount = 0;
 #endif
 
