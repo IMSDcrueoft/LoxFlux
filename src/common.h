@@ -25,6 +25,5 @@ typedef double float64_t;
 #define UINT8_COUNT 0x100
 #define UINT10_MAX 0x3ff
 #define UINT10_COUNT 0x400
-#define UINT18_MAX 0x3ffff
 #define UINT24_MAX 0xffffff
 #define UINT24_COUNT 0x1000000
