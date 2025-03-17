@@ -44,7 +44,6 @@ typedef enum {
 	OP_JUMP_IF_FALSE,   // condition jump if false
 	OP_JUMP_IF_FALSE_POP,
 	OP_JUMP_IF_TRUE,    // condition jump if true
-	OP_JUMP_IF_TRUE_POP,
 	OP_LOOP,			// loop
 	OP_CALL,			// callFn
 

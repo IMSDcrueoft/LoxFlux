@@ -50,6 +50,7 @@ static bool throwError(Value error) {
 
 	for (int32_t i = vm.frameCount - 1; i >= 0; i--) {
 		CallFrame* frame = &vm.frames[i];
+    
 		ObjFunction* function = frame->closure->function;
 		size_t instruction = frame->ip - function->chunk.code - 1;
 
@@ -517,12 +518,6 @@ static InterpretResult run()
 		case OP_JUMP_IF_TRUE: {
 			uint16_t offset = READ_SHORT();
 			if (isTruthy(vm.stackTop[-1])) ip += offset;
-			break;
-		}
-		case OP_JUMP_IF_TRUE_POP: {
-			uint16_t offset = READ_SHORT();
-			if (isTruthy(vm.stackTop[-1])) ip += offset;
-			--vm.stackTop;
 			break;
 		}
 		case OP_CALL: {
