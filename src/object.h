@@ -16,8 +16,8 @@ typedef enum {
 	OBJ_NATIVE,
 	//char array
 	OBJ_STRING,
+	//string buffer and array are typed arrays
 	OBJ_STRING_BUFFER,
-	//any type array
 	OBJ_ARRAY,
 	OBJ_ARRAY_U8,
 	OBJ_ARRAY_I8,
@@ -65,74 +65,11 @@ struct ObjString {
 	char chars[]; // flexible array members FAM
 };
 
-struct ObjStringBuffer {
-	Obj obj;
-	uint32_t capacity;
-	uint32_t length;
-	char chars[];
-};
-
 struct ObjArray {
 	Obj obj;
 	uint32_t capacity;
 	uint32_t length;
-	Value elements[];
-};
-
-struct ObjArrayU8 {
-	Obj obj;
-	uint32_t capacity;
-	uint32_t length;
-	uint8_t elements[];
-};
-
-struct ObjArrayI8 {
-	Obj obj;
-	uint32_t capacity;
-	uint32_t length;
-	int8_t elements[];
-};
-
-struct ObjArrayU16 {
-	Obj obj;
-	uint32_t capacity;
-	uint32_t length;
-	uint16_t elements[];
-};
-
-struct ObjArrayI16 {
-	Obj obj;
-	uint32_t capacity;
-	uint32_t length;
-	int16_t elements[];
-};
-
-struct ObjArrayU32 {
-	Obj obj;
-	uint32_t capacity;
-	uint32_t length;
-	uint32_t elements[];
-};
-
-struct ObjArrayI32 {
-	Obj obj;
-	uint32_t capacity;
-	uint32_t length;
-	int32_t elements[];
-};
-
-struct ObjArrayF32 {
-	Obj obj;
-	uint32_t capacity;
-	uint32_t length;
-	float32_t elements[];
-};
-
-struct ObjArrayF64 {
-	Obj obj;
-	uint32_t capacity;
-	uint32_t length;
-	float64_t elements[];
+	char payload[];
 };
 
 #define OBJ_TYPE(value)				(AS_OBJ(value)->type)
