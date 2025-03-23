@@ -16,8 +16,8 @@ typedef enum {
 	OBJ_NATIVE,
 	//char array
 	OBJ_STRING,
-	//string buffer and array are typed arrays
-	OBJ_STRING_BUFFER,
+	//string builder and array are typed arrays
+	OBJ_STRING_BUILDER,
 	OBJ_ARRAY,
 	OBJ_ARRAY_U8,
 	OBJ_ARRAY_I8,
@@ -77,7 +77,7 @@ struct ObjArray {
 #define IS_FUNCTION(value)			isObjType(value, OBJ_FUNCTION)
 #define IS_NATIVE(value)			isObjType(value, OBJ_NATIVE)
 #define IS_STRING(value)			isObjType(value, OBJ_STRING)
-#define IS_STRING_BUFFER(value)		isObjType(value, OBJ_STRING_BUFFER)
+#define IS_STRING_BUILDER(value)	isObjType(value, OBJ_STRING_BUILDER)
 #define IS_ARRAY(value)				isObjType(value, OBJ_ARRAY)
 
 #define IS_ARRAY_U8(value)        isObjType(value, OBJ_ARRAY_U8)
