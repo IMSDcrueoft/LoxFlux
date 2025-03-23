@@ -127,5 +127,8 @@
     <ClInclude Include="src\native.h">
       <Filter>loxFlux\header</Filter>
     </ClInclude>
+    <ClInclude Include="src\allocator.h">
+      <Filter>loxFlux\header</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
