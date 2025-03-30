@@ -16,7 +16,7 @@ Lox 是一种专为学习设计的编程语言。它被设计成一门精简且�
 - [Crafting Interpreters - Official Website](https://craftinginterpreters.com/)
 - [Crafting Interpreters - Official Github](https://github.com/munificent/craftinginterpreters)
 
-## Features outside lox standard
+## Features beyond lox standard
 
 ### Numbers
 

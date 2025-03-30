@@ -120,7 +120,7 @@ static inline void stack_push(Value value)
 	}
 }
 
-static inline Value stack_replace(Value val) {
+static inline void stack_replace(Value val) {
 	vm.stackTop[-1] = val;
 }
 
@@ -254,6 +254,11 @@ static bool callValue(Value callee, int argCount) {
 	return false;
 }
 
+static inline ObjUpvalue* captureUpvalue(Value* local) {
+	ObjUpvalue* createdUpvalue = newUpvalue(local);
+	return createdUpvalue;
+}
+
 static inline bool isFalsey(Value value) {
 	return IS_NIL(value) || (IS_BOOL(value) && !AS_BOOL(value));
 }
@@ -341,6 +346,17 @@ static InterpretResult run()
 			ObjFunction* function = AS_FUNCTION(constant);
 			ObjClosure* closure = newClosure(function);
 			stack_push(OBJ_VAL(closure));
+
+			for (int32_t i = 0; i < closure->upvalueCount; i++) {
+				uint8_t isLocal = READ_BYTE();
+				uint16_t index = READ_SHORT();
+				if (isLocal) {
+					closure->upvalues[i] = captureUpvalue(frame->slots + index);
+				}
+				else {
+					closure->upvalues[i] = frame->closure->upvalues[index];
+				}
+			}
 			break;
 		}
 		case OP_CLOSURE_LONG: {
@@ -349,27 +365,38 @@ static InterpretResult run()
 			ObjFunction* function = AS_FUNCTION(constant);
 			ObjClosure* closure = newClosure(function);
 			stack_push(OBJ_VAL(closure));
+
+			for (int32_t i = 0; i < closure->upvalueCount; i++) {
+				uint8_t isLocal = READ_BYTE();
+				uint16_t index = READ_SHORT();
+				if (isLocal) {
+					closure->upvalues[i] = captureUpvalue(frame->slots + index);
+				}
+				else {
+					closure->upvalues[i] = frame->closure->upvalues[index];
+				}
+			}
 			break;
 		}
 		case OP_DEFINE_GLOBAL: {
 			Value constant = READ_CONSTANT(READ_SHORT());
 			ObjString* name = AS_STRING(constant);
 			--vm.stackTop;
-			tableSet(&vm.globals, name, *vm.stackTop);
+			tableSet_g(&vm.globals, name, *vm.stackTop);
 			break;
 		}
 		case OP_DEFINE_GLOBAL_LONG: {
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			--vm.stackTop;
-			tableSet(&vm.globals, name, *vm.stackTop);
+			tableSet_g(&vm.globals, name, *vm.stackTop);
 			break;
 		}
 		case OP_GET_GLOBAL: {
 			Value constant = READ_CONSTANT(READ_SHORT());
 			ObjString* name = AS_STRING(constant);
 			Value value;
-			if (!tableGet(&vm.globals, name, &value)) {
+			if (!tableGet_g(&vm.globals, name, &value)) {
 				runtimeError("Undefined variable '%s'.", name->chars);
 				return INTERPRET_RUNTIME_ERROR;
 			}
@@ -380,7 +407,7 @@ static InterpretResult run()
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			Value value;
-			if (!tableGet(&vm.globals, name, &value)) {
+			if (!tableGet_g(&vm.globals, name, &value)) {
 				runtimeError("Undefined variable '%s'.", name->chars);
 				return INTERPRET_RUNTIME_ERROR;
 			}
@@ -390,9 +417,9 @@ static InterpretResult run()
 		case OP_SET_GLOBAL: {
 			Value constant = READ_CONSTANT(READ_SHORT());
 			ObjString* name = AS_STRING(constant);
-			if (tableSet(&vm.globals, name, vm.stackTop[-1])) {
+			if (tableSet_g(&vm.globals, name, vm.stackTop[-1])) {
 				//lox dont allow setting undefined one
-				tableDelete(&vm.globals, name);
+				tableDelete_g(&vm.globals, name);
 				runtimeError("Undefined variable '%s'.", name->chars);
 				return INTERPRET_RUNTIME_ERROR;
 			}
@@ -401,12 +428,22 @@ static InterpretResult run()
 		case OP_SET_GLOBAL_LONG: {
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
-			if (tableSet(&vm.globals, name, vm.stackTop[-1])) {
+			if (tableSet_g(&vm.globals, name, vm.stackTop[-1])) {
 				//lox dont allow setting undefined one
-				tableDelete(&vm.globals, name);
+				tableDelete_g(&vm.globals, name);
 				runtimeError("Undefined variable '%s'.", name->chars);
 				return INTERPRET_RUNTIME_ERROR;
 			}
+			break;
+		}
+		case OP_GET_UPVALUE: {
+			uint8_t slot = READ_BYTE();
+			stack_push(*frame->closure->upvalues[slot]->location);
+			break;
+		}
+		case OP_SET_UPVALUE: {
+			uint8_t slot = READ_BYTE();
+			*frame->closure->upvalues[slot]->location = vm.stackTop[-1];
 			break;
 		}
 		case OP_NIL: stack_push(NIL_VAL); break;

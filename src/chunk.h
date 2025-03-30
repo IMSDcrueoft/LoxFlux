@@ -57,6 +57,10 @@ typedef enum {
 	OP_GET_LOCAL,
 	OP_SET_LOCAL,
 
+	//up value
+	OP_GET_UPVALUE,
+	OP_SET_UPVALUE,
+
 	//load builtin module
 	OP_MODULE_BUILTIN,
 	//allow user to get the global object

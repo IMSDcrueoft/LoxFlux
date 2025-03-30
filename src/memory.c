@@ -38,6 +38,9 @@ Unknown_ptr reallocate(Unknown_ptr pointer, size_t oldSize, size_t newSize)
 static void freeObject(Obj* object) {
 	switch (object->type) {
 	case OBJ_CLOSURE: {
+		ObjClosure* closure = (ObjClosure*)object;
+		FREE_ARRAY(ObjUpvalue*, closure->upvalues, closure->upvalueCount);
+
 		FREE(ObjClosure, object);
 		break;
 	}
@@ -52,7 +55,10 @@ static void freeObject(Obj* object) {
 		break;
 	case OBJ_STRING: {
 		ObjString* string = (ObjString*)object;
-		FREE(ObjString, object);//FAM object  
+		FREE(ObjString, string);//FAM object  
+		break;
+	case OBJ_UPVALUE:
+		FREE(ObjUpvalue, object);
 		break;
 	}
 	}

@@ -14,6 +14,7 @@ typedef enum {
 	OBJ_CLOSURE,
 	OBJ_FUNCTION,
 	OBJ_NATIVE,
+	OBJ_UPVALUE,
 	//char array
 	OBJ_STRING,
 	//string builder and array are typed arrays
@@ -37,12 +38,22 @@ struct Obj {
 typedef struct {
 	Obj obj;
 	uint32_t arity;
+	uint32_t upvalueCount;
 	Chunk chunk;
 	ObjString* name;
 } ObjFunction;
 
+typedef struct ObjUpvalue {
+	Obj obj;
+	Value* location;
+} ObjUpvalue;
+
 typedef struct {
 	Obj obj;
+
+	int32_t upvalueCount;
+	ObjUpvalue** upvalues;
+
 	ObjFunction* function;
 } ObjClosure;
 
@@ -111,6 +122,7 @@ void printObject(Value value);
 Entry* getStringEntryInPool(ObjString* string);
 NumberEntry* getNumberEntryInPool(Value* value);
 
+ObjUpvalue* newUpvalue(Value* slot);
 ObjFunction* newFunction();
 ObjClosure* newClosure(ObjFunction* function);
 ObjNative* newNative(NativeFn function);

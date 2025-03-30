@@ -60,6 +60,11 @@ typedef enum {
 	TYPE_SCRIPT
 } FunctionType;
 
+typedef struct {
+	bool isLocal;
+	uint16_t index;
+} Upvalue;
+
 typedef struct Compiler {
 	struct Compiler* enclosing;
 
@@ -71,6 +76,8 @@ typedef struct Compiler {
 	uint16_t scopeDepth;
 	uint32_t capacity;
 	Local* locals;
+
+	Upvalue upvalues[UINT8_COUNT];
 
 	LoopContext* currentLoop;
 } Compiler;
