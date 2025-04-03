@@ -231,6 +231,7 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 
 	Local* local = &compiler->locals[compiler->localCount++];
 	local->depth = 0;
+	local->isCaptured = false;
 	local->name.start = "";
 	local->name.length = 0;
 
@@ -288,11 +289,23 @@ static void endScope() {
 	uint32_t popCount = 0;
 
 	while ((current->localCount > 0) && (current->locals[current->localCount - 1].depth > current->scopeDepth)) {
-		++popCount;
+		if (current->locals[current->localCount - 1].isCaptured) {
+			if (popCount > 0) {
+				emitPopCount(popCount);
+				popCount = 0;
+			}
+
+			emitByte(OP_CLOSE_UPVALUE);
+		}
+		else {
+			++popCount;
+		}
 		current->localCount--;
 	}
 
-	emitPopCount(popCount);
+	if (popCount > 0) {
+		emitPopCount(popCount);
+	}
 }
 
 //need to define first
@@ -335,6 +348,7 @@ static void addLocal(Token name) {
 	Local* local = &current->locals[current->localCount++];
 	local->name = name;
 	local->depth = -1;// var a = a;??? avoid this
+	local->isCaptured = false;
 	local->isConst = false;
 }
 
@@ -412,6 +426,7 @@ static LocalInfo resolveUpvalue(Compiler* compiler, Token* name) {
 	//local
 	LocalInfo localInfo = resolveLocal(compiler->enclosing, name);
 	if (localInfo.arg != -1) {
+		compiler->enclosing->locals[localInfo.arg].isCaptured = true;//mark it as captured
 		localInfo.arg = addUpvalue(compiler, localInfo.arg, true);
 		return localInfo;
 	}

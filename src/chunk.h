@@ -49,6 +49,7 @@ typedef enum {
 
 	OP_CLOSURE,			// getFn
 	OP_CLOSURE_LONG,	// getFn
+	OP_CLOSE_UPVALUE,   // close upvalue
 
 	OP_RETURN,          // ret
 	OP_THROW,			// throw

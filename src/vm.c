@@ -37,6 +37,7 @@ static void stack_reset()
 	}
 
 	vm.frameCount = 0;
+	vm.openUpvalues = NULL;
 }
 
 static bool throwError(Value error) {
@@ -254,9 +255,43 @@ static bool callValue(Value callee, int argCount) {
 	return false;
 }
 
-static inline ObjUpvalue* captureUpvalue(Value* local) {
+static ObjUpvalue* captureUpvalue(Value* local) {
+	ObjUpvalue* prevUpvalue = NULL;
+	ObjUpvalue* upvalue = vm.openUpvalues;
+
+	//compare stack ptr(search from deepest,so [next] is upper)
+	while (upvalue != NULL && upvalue->location > local) {
+		prevUpvalue = upvalue;
+		upvalue = upvalue->next;
+	}
+
+	if (upvalue != NULL && upvalue->location == local) {
+		return upvalue;
+	}
+
 	ObjUpvalue* createdUpvalue = newUpvalue(local);
+
+	//insert it
+	createdUpvalue->next = upvalue;
+	if (prevUpvalue == NULL) {
+		vm.openUpvalues = createdUpvalue;
+	}
+	else {
+		prevUpvalue->next = createdUpvalue;
+	}
+
 	return createdUpvalue;
+}
+
+static void closeUpvalues(Value* last) { 
+	while (vm.openUpvalues != NULL && vm.openUpvalues->location >= last) {
+		ObjUpvalue* upvalue = vm.openUpvalues;
+
+		//if one upValue closed,it's location is it's closed's pointer
+		upvalue->closed = *upvalue->location;
+		upvalue->location = &upvalue->closed;
+		vm.openUpvalues = upvalue->next;
+	}
 }
 
 static inline bool isFalsey(Value value) {
@@ -522,6 +557,10 @@ static InterpretResult run()
 			frame->slots[index] = vm.stackTop[-1];
 			break;
 		}
+		case OP_CLOSE_UPVALUE:
+			closeUpvalues(vm.stackTop - 1);
+			stack_pop();
+			break;
 		case OP_POP: {
 			stack_pop();
 			break;
@@ -570,6 +609,8 @@ static InterpretResult run()
 		}
 		case OP_RETURN: {
 			Value result = stack_pop();
+			//close all remaining upValues of function
+			closeUpvalues(frame->slots);
 			if (--vm.frameCount == 0) {
 				stack_pop();
 				return INTERPRET_OK;

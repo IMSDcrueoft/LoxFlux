@@ -43,7 +43,8 @@ typedef struct {
 typedef struct {
 	Token name;
 	int32_t depth;
-	bool isConst;
+	bool isCaptured; //captured by upvalue
+	bool isConst; //is a const
 } Local;
 
 typedef struct LoopContext{
