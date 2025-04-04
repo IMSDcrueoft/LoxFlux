@@ -5,7 +5,6 @@
 */
 #pragma once
 #include "common.h"
-#include "memory.h"
 
 typedef enum {
 	VAL_BOOL,
@@ -77,3 +76,5 @@ void valueHoles_free(ValueHoles* holes);
 void valueHoles_push(ValueHoles* holes, uint32_t index);
 void valueHoles_pop(ValueHoles* holes);
 uint32_t valueHoles_get(ValueHoles* holes);
+
+#define GET_VALUE_CONTAINER(obj) ((Value*)((char*)(obj) - offsetof(Value, as)))

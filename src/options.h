@@ -10,6 +10,10 @@
 #define DEBUG_PRINT_CODE 1
 // this is too slow and print too much.
 #define DEBUG_TRACE_EXECUTION 0
+// stress gc
+#define DEBUG_STRESS_GC 0
+// log gc info
+#define DEBUG_LOG_GC 0
 
 // switch on this to use log
 #define LOG_MODE 1
@@ -27,6 +31,8 @@
 #if !DEBUG_MODE
 #undef DEBUG_PRINT_CODE
 #undef DEBUG_TRACE_EXECUTION
+#undef DEBUG_STRESS_GC
+#undef DEBUG_LOG_GC
 #endif
 
 #if !LOG_MODE

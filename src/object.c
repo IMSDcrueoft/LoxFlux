@@ -6,6 +6,7 @@
 #include "object.h"
 #include "vm.h"
 #include "hash.h"
+#include "memory.h"
 
 #define ALLOCATE_OBJ(type, objectType) \
     (type*)allocateObject(sizeof(type), objectType)
@@ -19,7 +20,13 @@ static Obj* allocateObject(size_t size, ObjType type) {
 
     //link the objects
     object->next = vm.objects;
+    object->isMarked = false;
     vm.objects = object;
+
+#if DEBUG_LOG_GC
+    printf("[gc] %p allocate %zu for type-%d\n", (Unknown_ptr)object, size, type);
+#endif
+
     return object;
 }
 
@@ -91,7 +98,9 @@ ObjString* copyString(C_STR chars, uint32_t length, bool escapeChars)
 			string->hash = hash;
             string->symbol = INVALID_OBJ_STRING_SYMBOL;
 
+            stack_push(OBJ_VAL(string));
             tableSet(&vm.strings, string, BOOL_VAL(true));
+            stack_pop();
         }
 
         return string;
@@ -162,7 +171,9 @@ ObjString* copyString(C_STR chars, uint32_t length, bool escapeChars)
         //find deduplicate one
         ObjString* interned = deduplicateString(string->chars, string->length, string->hash);
         if (interned == NULL) {
+            stack_push(OBJ_VAL(string));
             tableSet(&vm.strings, string, BOOL_VAL(true));
+            stack_pop();
             return string;
         }
         else {
@@ -189,7 +200,9 @@ ObjString* connectString(ObjString* strA, ObjString* strB) {
     //do deduplicate
     ObjString* interned = deduplicateString(string->chars, string->length, string->hash);
 	if (interned == NULL) {
+        stack_push(OBJ_VAL(string));
 		tableSet(&vm.strings, string, BOOL_VAL(true));
+        stack_pop();
 		return string;
 	}
 	else {

@@ -171,6 +171,7 @@
     <ClCompile Include="src\compiler.c" />
     <ClCompile Include="src\debug.c" />
     <ClCompile Include="src\entrance.c" />
+    <ClCompile Include="src\gc.c" />
     <ClCompile Include="src\lineArray.c" />
     <ClCompile Include="src\memory.c" />
     <ClCompile Include="src\native.c" />
@@ -189,6 +190,7 @@
     <ClInclude Include="src\common.h" />
     <ClInclude Include="src\compiler.h" />
     <ClInclude Include="src\debug.h" />
+    <ClInclude Include="src\gc.h" />
     <ClInclude Include="src\hash.h" />
     <ClInclude Include="src\lineArray.h" />
     <ClInclude Include="src\memory.h" />

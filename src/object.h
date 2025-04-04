@@ -6,7 +6,6 @@
 #pragma once
 #include "common.h"
 #include "value.h"
-#include "memory.h"
 #include "table.h"
 #include "chunk.h"
 
@@ -32,6 +31,7 @@ typedef enum {
 
 struct Obj {
 	ObjType type;
+	bool isMarked;
 	struct Obj* next;
 };
 

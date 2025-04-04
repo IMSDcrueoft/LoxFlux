@@ -47,6 +47,14 @@ typedef struct {
 	//upvalues
 	ObjUpvalue* openUpvalues;
 
+	//gc gray objects
+	uint32_t grayCount;
+	uint32_t grayCapacity;
+	Obj** grayStack;
+
+	uint64_t bytesAllocated;
+	uint64_t nextGC;
+
 	//frames
 	uint64_t frameCount;
 	CallFrame frames[FRAMES_MAX];
@@ -63,6 +71,9 @@ extern VM vm;
 
 void vm_init();
 void vm_free();
+
+void stack_push(Value value);
+Value stack_pop();
 
 //get the size of constants (including the holes)
 uint32_t getConstantSize();

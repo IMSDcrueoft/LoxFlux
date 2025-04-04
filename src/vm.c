@@ -102,12 +102,12 @@ static void runtimeError(C_STR format, ...) {
 	stack_reset();
 }
 
-static inline void stack_push(Value value)
+void stack_push(Value value)
 {
 	*vm.stackTop = value;
 
 	if (++vm.stackTop == vm.stackBoundary) {
-		uint32_t oldCapacity = (uint32_t)(vm.stackBoundary - vm.stack);
+		ptrdiff_t oldCapacity = vm.stackBoundary - vm.stack;
 		uint32_t capacity = GROW_CAPACITY(oldCapacity);
 
 		if (capacity > UINT24_COUNT) {
@@ -115,7 +115,7 @@ static inline void stack_push(Value value)
 			return;
 		}
 
-		vm.stack = (Value*)reallocate(vm.stack, sizeof(Value) * (oldCapacity), sizeof(Value) * (capacity));
+		vm.stack = GROW_ARRAY_NO_GC(Value, vm.stack, oldCapacity, capacity);
 		vm.stackBoundary = vm.stack + capacity;		//need fresh
 		vm.stackTop = vm.stack + oldCapacity;		//need fresh
 	}
@@ -125,7 +125,7 @@ static inline void stack_replace(Value val) {
 	vm.stackTop[-1] = val;
 }
 
-static inline Value stack_pop()
+Value stack_pop()
 {
 	vm.stackTop--;
 	return *vm.stackTop;
@@ -151,7 +151,7 @@ void vm_init()
 	valueArray_init(&vm.constants);
 	valueHoles_init(&vm.constantHoles);
 
-	vm.stack = (Value*)reallocate(NULL, 0, sizeof(Value) * (STACK_INITIAL_SIZE));
+	vm.stack = GROW_ARRAY_NO_GC(Value, NULL, 0, STACK_INITIAL_SIZE);
 	vm.stackBoundary = vm.stack + STACK_INITIAL_SIZE;
 
 	stack_reset();
@@ -163,6 +163,15 @@ void vm_init()
 	numberTable_init(&vm.numbers);
 
 	vm.objects = NULL;
+
+	//init gray stack
+	vm.grayCount = 0;
+	vm.grayCapacity = 0;
+	vm.grayStack = NULL;
+
+	//set
+	vm.bytesAllocated = 0;
+	vm.nextGC = 1024 * 1024;
 
 	//import native funcs
 	importNative();
@@ -180,7 +189,8 @@ void vm_free()
 	freeObjects();
 
 	//realease the stack
-	FREE_ARRAY(Value, vm.stack, vm.stackBoundary - vm.stack);
+	ptrdiff_t capacity = vm.stackBoundary - vm.stack;
+	FREE_ARRAY_NO_GC(Value, vm.stack, capacity);
 	vm.stack = NULL;
 	vm.stackTop = NULL;
 	vm.stackBoundary = NULL;
@@ -196,7 +206,9 @@ uint32_t addConstant(Value value)
 {
 	uint32_t index = valueHoles_get(&vm.constantHoles);
 	if (index == VALUEHOLES_EMPTY) {
+		stack_push(value);//prevent GC errors
 		valueArray_write(&vm.constants, value);
+		stack_pop();
 		return vm.constants.count - 1;
 	}
 	else {
@@ -506,14 +518,16 @@ static InterpretResult run()
 		case OP_LESS_EQUAL:     BINARY_OP(BOOL_VAL, <= ); break;
 
 		case OP_ADD: {
-			vm.stackTop--;
-			if (IS_STRING(vm.stackTop[0]) && IS_STRING(vm.stackTop[-1])) {
-				ObjString* result = connectString(AS_STRING(vm.stackTop[-1]), AS_STRING(vm.stackTop[0]));
-				vm.stackTop[-1] = OBJ_VAL(result);
+			// might cause gc,so can't decrease first
+			if (IS_STRING(vm.stackTop[-2]) && IS_STRING(vm.stackTop[-1])) {
+				ObjString* result = connectString(AS_STRING(vm.stackTop[-2]), AS_STRING(vm.stackTop[-1]));
+				vm.stackTop[-2] = OBJ_VAL(result);
+				vm.stackTop--;
 				break;
 			}
-			else if (IS_NUMBER(vm.stackTop[0]) && IS_NUMBER(vm.stackTop[-1])) {
-				vm.stackTop[-1] = NUMBER_VAL(AS_NUMBER(vm.stackTop[-1]) + AS_NUMBER(vm.stackTop[0]));
+			else if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
+				vm.stackTop[-2] = NUMBER_VAL(AS_NUMBER(vm.stackTop[-2]) + AS_NUMBER(vm.stackTop[-1]));
+				vm.stackTop--;
 				break;
 			}
 			else {

@@ -7,8 +7,9 @@
 #include "object.h"  
 #include "vm.h"
 #include "allocator.h"
+#include "gc.h"
 
-Unknown_ptr reallocate(Unknown_ptr pointer, size_t oldSize, size_t newSize)
+Unknown_ptr reallocate_no_gc(Unknown_ptr pointer, size_t oldSize, size_t newSize)
 {
 	if (newSize == 0) {
 		if (pointer != NULL) {
@@ -35,7 +36,49 @@ Unknown_ptr reallocate(Unknown_ptr pointer, size_t oldSize, size_t newSize)
 	return result;
 }
 
-static void freeObject(Obj* object) {
+Unknown_ptr reallocate(Unknown_ptr pointer, size_t oldSize, size_t newSize)
+{
+	vm.bytesAllocated += newSize - oldSize;
+
+	if (newSize > oldSize) {
+#if DEBUG_STRESS_GC
+		collectGarbage();
+#endif
+		if (vm.bytesAllocated > vm.nextGC) {
+			collectGarbage();
+		}
+	}
+
+	if (newSize == 0) {
+		if (pointer != NULL) {
+#if LOG_EACH_MALLOC_INFO
+			printf("[mem_free] %p\n", pointer);
+#endif
+			mem_free(pointer);
+		}
+
+		return NULL;
+	}
+
+	Unknown_ptr result = mem_realloc(pointer, newSize);
+
+#if LOG_EACH_MALLOC_INFO
+	printf("[mem_realloc] %p -> %p, %zu\n", pointer, result, newSize);
+#endif
+
+	if (result == NULL) {
+		fprintf(stderr, "Memory reallocation failed!\n");
+		exit(1);
+	}
+
+	return result;
+}
+
+void freeObject(Obj* object) {
+#if DEBUG_LOG_GC
+	printf("[gc] %p free type-%d\n", (Unknown_ptr)object, object->type);
+#endif
+
 	switch (object->type) {
 	case OBJ_CLOSURE: {
 		ObjClosure* closure = (ObjClosure*)object;
@@ -71,6 +114,10 @@ void freeObjects()
 		Obj* next = object->next;
 		freeObject(object);
 		object = next;
+	}
+
+	if (vm.grayStack != NULL) {
+		mem_free(vm.grayStack);
 	}
 }
 
