@@ -1,0 +1,25 @@
+var fun1;
+var fun2;
+var fun3;
+{
+  var a = 1;
+  fun f() {
+    print a;
+  }
+  var b = 2;
+  fun g() {
+    print b;
+  }
+  var c = 3;
+  fun h() {
+    print c;
+  }
+
+  fun1 = f;
+  fun2 = g;
+  fun3 = h;
+}
+
+fun1();
+fun2();
+fun3();

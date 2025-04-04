@@ -51,12 +51,18 @@ typedef enum {
 	OP_CLOSURE,			// getFn
 	OP_CLOSURE_LONG,	// getFn
 
+	OP_CLOSE_UPVALUE,   // close upvalue
+
 	OP_RETURN,          // ret
 	OP_THROW,			// throw
 
 	//load local
 	OP_GET_LOCAL,
 	OP_SET_LOCAL,
+
+	//up value
+	OP_GET_UPVALUE,
+	OP_SET_UPVALUE,
 
 	//load builtin module
 	OP_MODULE_BUILTIN,

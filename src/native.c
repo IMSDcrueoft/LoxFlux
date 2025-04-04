@@ -5,7 +5,7 @@
 */
 #include "native.h"
 #include "vm.h"
-#include <time.h>
+#include "timer.h"
 
 //return second
 static Value clockNative(int argCount, Value* args, C_STR* errorInfo)
@@ -14,7 +14,7 @@ static Value clockNative(int argCount, Value* args, C_STR* errorInfo)
 		*errorInfo = "clock(): Expected 0 arguments but got some";
 		return NIL_VAL;
 	}
-	return NUMBER_VAL((double)clock() / CLOCKS_PER_SEC);
+	return NUMBER_VAL((double)get_nanoseconds() * 1e-9);
 }
 
 //max with multiple input

@@ -126,6 +126,8 @@
       <CompileAs>Default</CompileAs>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ExceptionHandling>false</ExceptionHandling>
+      <FloatingPointModel>Strict</FloatingPointModel>
+      <EnableEnhancedInstructionSet>NotSet</EnableEnhancedInstructionSet>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -150,6 +152,9 @@
       <Optimization>MaxSpeed</Optimization>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
       <ExceptionHandling>false</ExceptionHandling>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <FloatingPointModel>Strict</FloatingPointModel>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -198,6 +203,7 @@
     <ClInclude Include="src\version.h" />
     <ClInclude Include="src\vm.h" />
     <ClInclude Include="src\wellRng1024a.h" />
+    <ClInclude Include="src\allocator.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

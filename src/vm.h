@@ -21,9 +21,6 @@ typedef struct {
 } CallFrame;
 
 typedef struct {
-	CallFrame frames[FRAMES_MAX];
-	uint32_t frameCount;
-
 	//a cache
 	Value* stack;
 	Value* stackTop;
@@ -46,6 +43,13 @@ typedef struct {
 
 	//the root
 	Obj* objects;
+
+	//upvalues
+	ObjUpvalue* openUpvalues;
+
+	//frames
+	uint64_t frameCount;
+	CallFrame frames[FRAMES_MAX];
 } VM;
 
 typedef enum {

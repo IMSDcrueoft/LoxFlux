@@ -81,7 +81,7 @@ static uint32_t modifyGlobalLongInstruction(C_STR name, Chunk* chunk, uint32_t o
 }
 
 static uint32_t constantInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
-	//18bit index
+	//16bit index
 	uint16_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8);
 
 	printf("%-16s %4d '", name, constant);
@@ -145,11 +145,55 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 	case OP_CONSTANT_LONG:
 		return constantInstruction_long("OP_CONSTANT_LONG", chunk, offset);
 
-	case OP_CLOSURE:
-		return constantInstruction("OP_CLOSURE", chunk, offset);
-	case OP_CLOSURE_LONG:
-		return constantInstruction_long("OP_CLOSURE_LONG", chunk, offset);
+	case OP_CLOSURE:{
+		uint16_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8);
 
+		printf("%-16s %4d '", "OP_CLOSURE", constant);
+		printValue(vm.constants.values[constant]);
+		printf("'\n");
+
+		//OP_CONSTANT_SHORT 3
+		offset += 3;
+
+		ObjFunction* function = AS_FUNCTION(vm.constants.values[constant]);
+		for (int32_t j = 0; j < function->upvalueCount; j++) {
+			int32_t isLocal = chunk->code[offset++];
+			uint16_t index = chunk->code[offset++];
+			index |= (chunk->code[offset++] << 8);
+
+			printf("%04d      |                     %s %d\n",
+				offset - 3, isLocal ? "local" : "upvalue", index);
+		}
+		return offset;
+	}
+	case OP_CLOSURE_LONG:{
+		//24bit index
+		uint32_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8) | ((uint32_t)chunk->code[offset + 3] << 16);
+
+		printf("%-16s %4d '", "OP_CLOSURE_LONG", constant);
+		printValue(vm.constants.values[constant]);
+		printf("'\n");
+
+		//OP_CONSTANT_LONG 4
+		offset += 4;
+
+		ObjFunction* function = AS_FUNCTION(vm.constants.values[constant]);
+		for (int32_t j = 0; j < function->upvalueCount; j++) {
+			int32_t isLocal = chunk->code[offset++];
+			uint16_t index = chunk->code[offset++];
+			index |= (chunk->code[offset++] << 8);
+
+			printf("%04d      |                     %s %d\n",
+				offset - 3, isLocal ? "local" : "upvalue", index);
+		}
+		return offset;
+	}
+	case OP_GET_UPVALUE:
+		return byteInstruction("OP_GET_UPVALUE", chunk, offset);
+	case OP_SET_UPVALUE:
+		return byteInstruction("OP_SET_UPVALUE", chunk, offset);
+	case OP_CLOSE_UPVALUE:
+		return simpleInstruction("OP_CLOSE_UPVALUE", offset);
 	case OP_NIL:
 		return simpleInstruction("OP_NIL", offset);
 	case OP_TRUE:
@@ -197,7 +241,6 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 	case OP_JUMP_IF_FALSE_POP:
 		return jumpInstruction("OP_JUMP_IF_FALSE", 1, chunk, offset);
 	case OP_JUMP_IF_TRUE:
-	case OP_JUMP_IF_TRUE_POP:
 		return jumpInstruction("OP_JUMP_IF_TRUE", 1, chunk, offset);
 	case OP_LOOP:
 		return jumpInstruction("OP_LOOP", -1, chunk, offset);

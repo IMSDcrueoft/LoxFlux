@@ -43,7 +43,8 @@ typedef struct {
 typedef struct {
 	Token name;
 	int32_t depth;
-	bool isConst;
+	bool isCaptured; //captured by upvalue
+	bool isConst; //is a const
 } Local;
 
 typedef struct LoopContext{
@@ -60,6 +61,11 @@ typedef enum {
 	TYPE_SCRIPT
 } FunctionType;
 
+typedef struct {
+	bool isLocal;
+	uint16_t index;
+} Upvalue;
+
 typedef struct Compiler {
 	struct Compiler* enclosing;
 
@@ -71,6 +77,8 @@ typedef struct Compiler {
 	uint16_t scopeDepth;
 	uint32_t capacity;
 	Local* locals;
+
+	Upvalue upvalues[UINT8_COUNT];
 
 	LoopContext* currentLoop;
 } Compiler;

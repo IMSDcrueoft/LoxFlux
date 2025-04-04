@@ -231,6 +231,7 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 
 	Local* local = &compiler->locals[compiler->localCount++];
 	local->depth = 0;
+	local->isCaptured = false;
 	local->name.start = "";
 	local->name.length = 0;
 
@@ -288,11 +289,23 @@ static void endScope() {
 	uint32_t popCount = 0;
 
 	while ((current->localCount > 0) && (current->locals[current->localCount - 1].depth > current->scopeDepth)) {
-		++popCount;
+		if (current->locals[current->localCount - 1].isCaptured) {
+			if (popCount > 0) {
+				emitPopCount(popCount);
+				popCount = 0;
+			}
+
+			emitByte(OP_CLOSE_UPVALUE);
+		}
+		else {
+			++popCount;
+		}
 		current->localCount--;
 	}
 
-	emitPopCount(popCount);
+	if (popCount > 0) {
+		emitPopCount(popCount);
+	}
 }
 
 //need to define first
@@ -335,6 +348,7 @@ static void addLocal(Token name) {
 	Local* local = &current->locals[current->localCount++];
 	local->name = name;
 	local->depth = -1;// var a = a;??? avoid this
+	local->isCaptured = false;
 	local->isConst = false;
 }
 
@@ -382,6 +396,48 @@ static LocalInfo resolveLocal(Compiler* compiler, Token* name) {
 	}
 
 	//it is a global defined var
+	return (LocalInfo) { .arg = -1, .isConst = false };
+}
+
+static int32_t addUpvalue(Compiler* compiler, int32_t index, bool isLocal) {
+	int32_t upvalueCount = compiler->function->upvalueCount;
+
+	//deduplicate
+	for (uint32_t i = 0; i < upvalueCount; i++) {
+		Upvalue* upvalue = &compiler->upvalues[i];
+		if (upvalue->index == index && upvalue->isLocal == isLocal) {
+			return i;
+		}
+	}
+
+	if (upvalueCount == UINT8_COUNT) {
+		error("Too many closure variables in function.");
+		return 0;
+	}
+
+	compiler->upvalues[upvalueCount].isLocal = isLocal;
+	compiler->upvalues[upvalueCount].index = index;
+	return compiler->function->upvalueCount++;
+}
+
+static LocalInfo resolveUpvalue(Compiler* compiler, Token* name) {
+	if (compiler->enclosing == NULL) return (LocalInfo) { .arg = -1, .isConst = false };
+
+	//local
+	LocalInfo localInfo = resolveLocal(compiler->enclosing, name);
+	if (localInfo.arg != -1) {
+		compiler->enclosing->locals[localInfo.arg].isCaptured = true;//mark it as captured
+		localInfo.arg = addUpvalue(compiler, localInfo.arg, true);
+		return localInfo;
+	}
+
+	//recursion
+	LocalInfo upvalue = resolveUpvalue(compiler->enclosing, name);
+	if (upvalue.arg != -1) {
+		upvalue.arg = addUpvalue(compiler, upvalue.arg, false);
+		return upvalue;
+	}
+
 	return (LocalInfo) { .arg = -1, .isConst = false };
 }
 
@@ -494,6 +550,12 @@ static void function(FunctionType type) {
 
 	//create a closure
 	emitClosureCommond(makeConstant(OBJ_VAL(function)));
+  
+	//insert upValue index
+	for (int32_t i = 0; i < function->upvalueCount; i++) {
+		emitByte(compiler.upvalues[i].isLocal ? 1 : 0);
+		emitBytes(2, (uint8_t)(compiler.upvalues[i].index), (uint8_t)(compiler.upvalues[i].index >> 8));
+	}
 
 	freeLocals(&compiler);
 }
@@ -946,22 +1008,42 @@ static void namedVariable(Token name, bool canAssign) {
 				return;
 			}
 			// 16-bit index
-			emitBytes(3, OP_SET_LOCAL, (uint8_t)arg,(uint8_t)(arg >> 8));
+			emitBytes(3, OP_SET_LOCAL, (uint8_t)arg, (uint8_t)(arg >> 8));
 		}
 		else { // 16-bit index
-			emitBytes(3, OP_GET_LOCAL, (uint8_t)arg,(uint8_t)(arg >> 8));
+			emitBytes(3, OP_GET_LOCAL, (uint8_t)arg, (uint8_t)(arg >> 8));
 		}
 	}
-	else {//its global var
-		arg = identifierConstant(&name);
+	else {
+		args = resolveUpvalue(current, &name);
+		arg = args.arg;
 
-		if (canAssign && match(TOKEN_EQUAL)) {
-			expression();
+		if (arg != -1) {//it's an upvalue
+			if (canAssign && match(TOKEN_EQUAL)) {
+				expression();
 
-			emitGlobalSetCommond(arg);
+				if (args.isConst) {
+					errorAtCurrent("Assignment to constant variable.");
+					return;
+				}
+				// 16-bit index
+				emitBytes(2, OP_SET_UPVALUE, (uint8_t)arg);
+			}
+			else { // 16-bit index
+				emitBytes(2, OP_GET_UPVALUE, (uint8_t)arg);
+			}
 		}
-		else {
-			emitGlobalGetCommond(arg);
+		else {//it's a global var
+			arg = identifierConstant(&name);
+
+			if (canAssign && match(TOKEN_EQUAL)) {
+				expression();
+
+				emitGlobalSetCommond(arg);
+			}
+			else {
+				emitGlobalGetCommond(arg);
+			}
 		}
 	}
 }

@@ -37,6 +37,7 @@ static void stack_reset()
 	}
 
 	vm.frameCount = 0;
+	vm.openUpvalues = NULL;
 }
 
 static bool throwError(Value error) {
@@ -120,7 +121,7 @@ static inline void stack_push(Value value)
 	}
 }
 
-static inline Value stack_replace(Value val) {
+static inline void stack_replace(Value val) {
 	vm.stackTop[-1] = val;
 }
 
@@ -254,6 +255,45 @@ static bool callValue(Value callee, int argCount) {
 	return false;
 }
 
+static ObjUpvalue* captureUpvalue(Value* local) {
+	ObjUpvalue* prevUpvalue = NULL;
+	ObjUpvalue* upvalue = vm.openUpvalues;
+
+	//compare stack ptr(search from deepest,so [next] is upper)
+	while (upvalue != NULL && upvalue->location > local) {
+		prevUpvalue = upvalue;
+		upvalue = upvalue->next;
+	}
+
+	if (upvalue != NULL && upvalue->location == local) {
+		return upvalue;
+	}
+
+	ObjUpvalue* createdUpvalue = newUpvalue(local);
+
+	//insert it
+	createdUpvalue->next = upvalue;
+	if (prevUpvalue == NULL) {
+		vm.openUpvalues = createdUpvalue;
+	}
+	else {
+		prevUpvalue->next = createdUpvalue;
+	}
+
+	return createdUpvalue;
+}
+
+static void closeUpvalues(Value* last) { 
+	while (vm.openUpvalues != NULL && vm.openUpvalues->location >= last) {
+		ObjUpvalue* upvalue = vm.openUpvalues;
+
+		//if one upValue closed,it's location is it's closed's pointer
+		upvalue->closed = *upvalue->location;
+		upvalue->location = &upvalue->closed;
+		vm.openUpvalues = upvalue->next;
+	}
+}
+
 static inline bool isFalsey(Value value) {
 	return IS_NIL(value) || (IS_BOOL(value) && !AS_BOOL(value));
 }
@@ -341,6 +381,17 @@ static InterpretResult run()
 			ObjFunction* function = AS_FUNCTION(constant);
 			ObjClosure* closure = newClosure(function);
 			stack_push(OBJ_VAL(closure));
+
+			for (int32_t i = 0; i < closure->upvalueCount; i++) {
+				uint8_t isLocal = READ_BYTE();
+				uint16_t index = READ_SHORT();
+				if (isLocal) {
+					closure->upvalues[i] = captureUpvalue(frame->slots + index);
+				}
+				else {
+					closure->upvalues[i] = frame->closure->upvalues[index];
+				}
+			}
 			break;
 		}
 		case OP_CLOSURE_LONG: {
@@ -349,27 +400,41 @@ static InterpretResult run()
 			ObjFunction* function = AS_FUNCTION(constant);
 			ObjClosure* closure = newClosure(function);
 			stack_push(OBJ_VAL(closure));
+
+			for (int32_t i = 0; i < closure->upvalueCount; i++) {
+				uint8_t isLocal = READ_BYTE();
+				uint16_t index = READ_SHORT();
+				if (isLocal) {
+					closure->upvalues[i] = captureUpvalue(frame->slots + index);
+				}
+				else {
+					closure->upvalues[i] = frame->closure->upvalues[index];
+				}
+			}
 			break;
 		}
 		case OP_DEFINE_GLOBAL: {
 			Value constant = READ_CONSTANT(READ_SHORT());
 			ObjString* name = AS_STRING(constant);
 			--vm.stackTop;
-			tableSet(&vm.globals, name, *vm.stackTop);
+      
+			tableSet_g(&vm.globals, name, *vm.stackTop);
 			break;
 		}
 		case OP_DEFINE_GLOBAL_LONG: {
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			--vm.stackTop;
-			tableSet(&vm.globals, name, *vm.stackTop);
+
+			tableSet_g(&vm.globals, name, *vm.stackTop);
 			break;
 		}
 		case OP_GET_GLOBAL: {
 			Value constant = READ_CONSTANT(READ_SHORT());
 			ObjString* name = AS_STRING(constant);
 			Value value;
-			if (!tableGet(&vm.globals, name, &value)) {
+
+			if (!tableGet_g(&vm.globals, name, &value)) {
 				runtimeError("Undefined variable '%s'.", name->chars);
 				return INTERPRET_RUNTIME_ERROR;
 			}
@@ -380,7 +445,8 @@ static InterpretResult run()
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			Value value;
-			if (!tableGet(&vm.globals, name, &value)) {
+
+			if (!tableGet_g(&vm.globals, name, &value)) {
 				runtimeError("Undefined variable '%s'.", name->chars);
 				return INTERPRET_RUNTIME_ERROR;
 			}
@@ -390,9 +456,10 @@ static InterpretResult run()
 		case OP_SET_GLOBAL: {
 			Value constant = READ_CONSTANT(READ_SHORT());
 			ObjString* name = AS_STRING(constant);
-			if (tableSet(&vm.globals, name, vm.stackTop[-1])) {
+
+			if (tableSet_g(&vm.globals, name, vm.stackTop[-1])) {
 				//lox dont allow setting undefined one
-				tableDelete(&vm.globals, name);
+				tableDelete_g(&vm.globals, name);
 				runtimeError("Undefined variable '%s'.", name->chars);
 				return INTERPRET_RUNTIME_ERROR;
 			}
@@ -401,12 +468,23 @@ static InterpretResult run()
 		case OP_SET_GLOBAL_LONG: {
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
-			if (tableSet(&vm.globals, name, vm.stackTop[-1])) {
+
+			if (tableSet_g(&vm.globals, name, vm.stackTop[-1])) {
 				//lox dont allow setting undefined one
-				tableDelete(&vm.globals, name);
+				tableDelete_g(&vm.globals, name);
 				runtimeError("Undefined variable '%s'.", name->chars);
 				return INTERPRET_RUNTIME_ERROR;
 			}
+			break;
+		}
+		case OP_GET_UPVALUE: {
+			uint8_t slot = READ_BYTE();
+			stack_push(*frame->closure->upvalues[slot]->location);
+			break;
+		}
+		case OP_SET_UPVALUE: {
+			uint8_t slot = READ_BYTE();
+			*frame->closure->upvalues[slot]->location = vm.stackTop[-1];
 			break;
 		}
 		case OP_NIL: stack_push(NIL_VAL); break;
@@ -485,6 +563,10 @@ static InterpretResult run()
 			frame->slots[index] = vm.stackTop[-1];
 			break;
 		}
+		case OP_CLOSE_UPVALUE:
+			closeUpvalues(vm.stackTop - 1);
+			stack_pop();
+			break;
 		case OP_POP: {
 			stack_pop();
 			break;
@@ -520,12 +602,6 @@ static InterpretResult run()
 			if (isTruthy(vm.stackTop[-1])) ip += offset;
 			break;
 		}
-		case OP_JUMP_IF_TRUE_POP: {
-			uint16_t offset = READ_SHORT();
-			if (isTruthy(vm.stackTop[-1])) ip += offset;
-			--vm.stackTop;
-			break;
-		}
 		case OP_CALL: {
 			uint8_t argCount = READ_BYTE();
 			frame->ip = ip;//change before call
@@ -539,6 +615,8 @@ static InterpretResult run()
 		}
 		case OP_RETURN: {
 			Value result = stack_pop();
+			//close all remaining upValues of function
+			closeUpvalues(frame->slots);
 			if (--vm.frameCount == 0) {
 				stack_pop();
 				return INTERPRET_OK;

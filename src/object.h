@@ -14,10 +14,11 @@ typedef enum {
 	OBJ_CLOSURE,
 	OBJ_FUNCTION,
 	OBJ_NATIVE,
+	OBJ_UPVALUE,
 	//char array
 	OBJ_STRING,
-	OBJ_STRING_BUFFER,
-	//any type array
+	//string builder and array are typed arrays
+	OBJ_STRING_BUILDER,
 	OBJ_ARRAY,
 	OBJ_ARRAY_U8,
 	OBJ_ARRAY_I8,
@@ -37,12 +38,23 @@ struct Obj {
 typedef struct {
 	Obj obj;
 	uint32_t arity;
+	uint32_t upvalueCount;
 	Chunk chunk;
 	ObjString* name;
 } ObjFunction;
 
+typedef struct ObjUpvalue {
+	Obj obj;
+	Value* location;
+	Value closed; //closed value
+	struct ObjUpvalue* next;
+} ObjUpvalue;
+
 typedef struct {
 	Obj obj;
+
+	int32_t upvalueCount;
+	ObjUpvalue** upvalues;
 	ObjFunction* function;
 } ObjClosure;
 
@@ -65,74 +77,11 @@ struct ObjString {
 	char chars[]; // flexible array members FAM
 };
 
-struct ObjStringBuffer {
-	Obj obj;
-	uint32_t capacity;
-	uint32_t length;
-	char chars[];
-};
-
 struct ObjArray {
 	Obj obj;
 	uint32_t capacity;
 	uint32_t length;
-	Value elements[];
-};
-
-struct ObjArrayU8 {
-	Obj obj;
-	uint32_t capacity;
-	uint32_t length;
-	uint8_t elements[];
-};
-
-struct ObjArrayI8 {
-	Obj obj;
-	uint32_t capacity;
-	uint32_t length;
-	int8_t elements[];
-};
-
-struct ObjArrayU16 {
-	Obj obj;
-	uint32_t capacity;
-	uint32_t length;
-	uint16_t elements[];
-};
-
-struct ObjArrayI16 {
-	Obj obj;
-	uint32_t capacity;
-	uint32_t length;
-	int16_t elements[];
-};
-
-struct ObjArrayU32 {
-	Obj obj;
-	uint32_t capacity;
-	uint32_t length;
-	uint32_t elements[];
-};
-
-struct ObjArrayI32 {
-	Obj obj;
-	uint32_t capacity;
-	uint32_t length;
-	int32_t elements[];
-};
-
-struct ObjArrayF32 {
-	Obj obj;
-	uint32_t capacity;
-	uint32_t length;
-	float32_t elements[];
-};
-
-struct ObjArrayF64 {
-	Obj obj;
-	uint32_t capacity;
-	uint32_t length;
-	float64_t elements[];
+	char payload[];
 };
 
 #define OBJ_TYPE(value)				(AS_OBJ(value)->type)
@@ -140,7 +89,7 @@ struct ObjArrayF64 {
 #define IS_FUNCTION(value)			isObjType(value, OBJ_FUNCTION)
 #define IS_NATIVE(value)			isObjType(value, OBJ_NATIVE)
 #define IS_STRING(value)			isObjType(value, OBJ_STRING)
-#define IS_STRING_BUFFER(value)		isObjType(value, OBJ_STRING_BUFFER)
+#define IS_STRING_BUILDER(value)	isObjType(value, OBJ_STRING_BUILDER)
 #define IS_ARRAY(value)				isObjType(value, OBJ_ARRAY)
 
 #define IS_ARRAY_U8(value)        isObjType(value, OBJ_ARRAY_U8)
@@ -174,6 +123,7 @@ void printObject(Value value);
 Entry* getStringEntryInPool(ObjString* string);
 NumberEntry* getNumberEntryInPool(Value* value);
 
+ObjUpvalue* newUpvalue(Value* slot);
 ObjFunction* newFunction();
 ObjClosure* newClosure(ObjFunction* function);
 ObjNative* newNative(NativeFn function);
