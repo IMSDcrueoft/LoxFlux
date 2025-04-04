@@ -550,7 +550,7 @@ static void function(FunctionType type) {
 
 	//create a closure
 	emitClosureCommond(makeConstant(OBJ_VAL(function)));
-
+  
 	//insert upValue index
 	for (int32_t i = 0; i < function->upvalueCount; i++) {
 		emitByte(compiler.upvalues[i].isLocal ? 1 : 0);

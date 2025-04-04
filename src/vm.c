@@ -417,6 +417,7 @@ static InterpretResult run()
 			Value constant = READ_CONSTANT(READ_SHORT());
 			ObjString* name = AS_STRING(constant);
 			--vm.stackTop;
+      
 			tableSet_g(&vm.globals, name, *vm.stackTop);
 			break;
 		}
@@ -424,6 +425,7 @@ static InterpretResult run()
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			--vm.stackTop;
+
 			tableSet_g(&vm.globals, name, *vm.stackTop);
 			break;
 		}
@@ -431,6 +433,7 @@ static InterpretResult run()
 			Value constant = READ_CONSTANT(READ_SHORT());
 			ObjString* name = AS_STRING(constant);
 			Value value;
+
 			if (!tableGet_g(&vm.globals, name, &value)) {
 				runtimeError("Undefined variable '%s'.", name->chars);
 				return INTERPRET_RUNTIME_ERROR;
@@ -442,6 +445,7 @@ static InterpretResult run()
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			Value value;
+
 			if (!tableGet_g(&vm.globals, name, &value)) {
 				runtimeError("Undefined variable '%s'.", name->chars);
 				return INTERPRET_RUNTIME_ERROR;
@@ -452,6 +456,7 @@ static InterpretResult run()
 		case OP_SET_GLOBAL: {
 			Value constant = READ_CONSTANT(READ_SHORT());
 			ObjString* name = AS_STRING(constant);
+
 			if (tableSet_g(&vm.globals, name, vm.stackTop[-1])) {
 				//lox dont allow setting undefined one
 				tableDelete_g(&vm.globals, name);
@@ -463,6 +468,7 @@ static InterpretResult run()
 		case OP_SET_GLOBAL_LONG: {
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
+
 			if (tableSet_g(&vm.globals, name, vm.stackTop[-1])) {
 				//lox dont allow setting undefined one
 				tableDelete_g(&vm.globals, name);

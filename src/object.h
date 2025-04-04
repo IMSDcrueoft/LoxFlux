@@ -55,7 +55,6 @@ typedef struct {
 
 	int32_t upvalueCount;
 	ObjUpvalue** upvalues;
-
 	ObjFunction* function;
 } ObjClosure;
 

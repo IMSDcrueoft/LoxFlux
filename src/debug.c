@@ -194,7 +194,6 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 		return byteInstruction("OP_SET_UPVALUE", chunk, offset);
 	case OP_CLOSE_UPVALUE:
 		return simpleInstruction("OP_CLOSE_UPVALUE", offset);
-
 	case OP_NIL:
 		return simpleInstruction("OP_NIL", offset);
 	case OP_TRUE:
