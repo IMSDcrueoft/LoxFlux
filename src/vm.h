@@ -41,8 +41,10 @@ typedef struct {
 	//global hash table
 	Table globals;
 
-	//the root
+	//the root for dynamic objects
 	Obj* objects;
+	//the root for static objects
+	Obj* objects_no_gc;
 
 	//upvalues
 	ObjUpvalue* openUpvalues;

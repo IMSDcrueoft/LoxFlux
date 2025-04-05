@@ -73,10 +73,34 @@ static Value minNative(int argCount, Value* args, C_STR* errorInfo)
 //force do gc
 static Value gcNative(int argCount, Value* args, C_STR* errorInfo) {
 	if (argCount != 0) {
-		*errorInfo = "clock(): Expected 0 arguments but got some";
+		*errorInfo = "gc(): Expected 0 arguments but got some";
 		return NIL_VAL;
 	}
 	garbageCollect();
+	return NIL_VAL;
+}
+
+//change gc next
+static Value gcNextNative(int argCount, Value* args, C_STR* errorInfo) {
+	if (argCount != 1) {
+		*errorInfo = (argCount == 0)
+			? "gcNext(): Expected 1 argument but got none"
+			: "gcNext(): Expected 1 argument but got more";
+		return NIL_VAL;
+	}
+
+	if (args[0].type != VAL_NUMBER) {
+		*errorInfo = "gcNext(): The parameter must be a number";
+		return NIL_VAL;
+	}
+	double nextGC = AS_NUMBER(args[0]);
+	if (nextGC < 1024) {
+		nextGC = 1024;
+	}
+	else if (nextGC > (1024 * 1024 * 1024)) {
+		nextGC = (1024 * 1024 * 1024);
+	}
+	changeNextGC((uint64_t)nextGC);
 	return NIL_VAL;
 }
 
@@ -86,4 +110,5 @@ void importNative()
 	defineNative("max", maxNative);
 	defineNative("min", minNative);
 	defineNative("gc", gcNative);
+	defineNative("gcNext", gcNextNative);
 }

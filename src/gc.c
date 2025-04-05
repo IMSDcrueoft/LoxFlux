@@ -8,6 +8,7 @@
 #include "compiler.h"
 #include "allocator.h"
 #include "memory.h"
+#include "timer.h"
 
 static void blackenObject(Obj* object);
 void markValue(Value value)
@@ -46,7 +47,7 @@ static void markRoots() {
 
 	markTable(&vm.globals);
 	//the shared constants don't gc
-	markConstants(&vm.constants);//bug here
+	//markConstants(&vm.constants);
 
 	markCompilerRoots();
 }
@@ -59,10 +60,11 @@ void markObject(Obj* object)
 	if (object->isMarked) return;
 
 	switch (object->type) {
+	case OBJ_FUNCTION:
 	case OBJ_NATIVE:
 	case OBJ_STRING:
-		//set black(marked and not in gray stack)
-		object->isMarked = true;
+		//don't join gc
+		//object->isMarked = true;
 		return;
 	}
 
@@ -93,25 +95,27 @@ static void blackenObject(Obj* object) {
 	switch (object->type) {
 	case OBJ_CLOSURE: {
 		ObjClosure* closure = (ObjClosure*)object;
-		markObject((Obj*)closure->function);
+		//no need
+		//markObject((Obj*)closure->function);
 
 		for (int32_t i = 0; i < closure->upvalueCount; i++) {
 			markObject((Obj*)closure->upvalues[i]);
 		}
 		break;
 	}
-	case OBJ_FUNCTION: {
-		ObjFunction* function = (ObjFunction*)object;
-		markObject((Obj*)function->name);
-
-		//I don't have this field in design
-		//markArray(&function->chunk.constants);
-		break;
-	}
 	case OBJ_UPVALUE:
 		//When an upvalue is closed, it contains a reference to the closed-over value
 		markValue(((ObjUpvalue*)object)->closed);
 		break;
+		//won't be here
+	//case OBJ_FUNCTION: {
+	//	ObjFunction* function = (ObjFunction*)object;
+	//	markObject((Obj*)function->name);
+
+	//	//I don't have this field in design
+	//	//markArray(&function->chunk.constants);
+	//	break;
+	//}
 	}
 }
 
@@ -126,8 +130,8 @@ static void sweep() {
 	Obj* previous = NULL;
 	Obj* object = vm.objects;
 
-	const Value* constantBegin = vm.constants.values;
-	const Value* constantEnd = vm.constants.values + vm.constants.capacity;
+	//const Value* constantBegin = vm.constants.values;
+	//const Value* constantEnd = vm.constants.values + vm.constants.capacity;
 
 	while (object != NULL) {
 		if (object->isMarked) {
@@ -170,18 +174,31 @@ void garbageCollect()
 {
 #if DEBUG_LOG_GC
 	printf("-- gc begin\n");
+#endif
+
+#if DEBUG_LOG_GC || LOG_GC_RESULT
+	uint64_t time_gc = get_nanoseconds();
 	uint64_t before = vm.bytesAllocated;
 #endif
 	markRoots();
 	traceReferences();
-	tableRemoveWhite(&vm.strings);
+	//tableRemoveWhite(&vm.strings);
 	sweep();
 
 	vm.nextGC = vm.bytesAllocated * GC_HEAP_GROW_FACTOR;
 
 #if DEBUG_LOG_GC
 	printf("-- gc end\n");
-	printf("[gc] collected %zu bytes (from %zu to %zu) next at %zu\n",
-		before - vm.bytesAllocated, before, vm.bytesAllocated, vm.nextGC);
 #endif
+
+#if DEBUG_LOG_GC || LOG_GC_RESULT
+	double time_ms = (get_nanoseconds() - time_gc) * 1e-6;
+	printf("[gc] collected %zu bytes (from %zu to %zu) next at %zu, in %g ms\n",
+		before - vm.bytesAllocated, before, vm.bytesAllocated, vm.nextGC, time_ms);
+#endif
+}
+
+void changeNextGC(uint64_t newSize)
+{
+	vm.nextGC = newSize;
 }

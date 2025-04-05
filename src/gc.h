@@ -13,3 +13,4 @@
 void markObject(Obj* object);
 void markValue(Value value);
 void garbageCollect();
+void changeNextGC(uint64_t newSize);

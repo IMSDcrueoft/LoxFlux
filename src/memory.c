@@ -109,6 +109,10 @@ void freeObject(Obj* object) {
 
 void freeObjects()
 {
+
+#if DEBUG_LOG_GC
+	printf("-- free dynamic objects\n");
+#endif
 	Obj* object = vm.objects;
 	while (object != NULL) {
 		Obj* next = object->next;
@@ -118,6 +122,16 @@ void freeObjects()
 
 	if (vm.grayStack != NULL) {
 		mem_free(vm.grayStack);
+	}
+
+#if DEBUG_LOG_GC
+	printf("-- free static objects\n");
+#endif
+	Obj* object_no_gc = vm.objects_no_gc;
+	while (object_no_gc != NULL) {
+		Obj* next = object_no_gc->next;
+		freeObject(object_no_gc);
+		object_no_gc = next;
 	}
 }
 

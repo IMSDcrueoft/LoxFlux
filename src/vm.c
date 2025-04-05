@@ -135,11 +135,16 @@ Value stack_pop()
 #define STACK_PEEK(distance) (vm.stackTop[-1 - distance])
 
 void defineNative(C_STR name, NativeFn function) {
-	stack_push(OBJ_VAL(copyString(name, (uint32_t)strlen(name), false)));
-	stack_push(OBJ_VAL(newNative(function)));
-	tableSet(&vm.globals, AS_STRING(vm.stack[0]), vm.stack[1]);
-	stack_pop();
-	stack_pop();
+	//stack_push(OBJ_VAL(copyString(name, (uint32_t)strlen(name), false)));
+	//stack_push(OBJ_VAL(newNative(function)));
+	//tableSet(&vm.globals, AS_STRING(vm.stack[0]), vm.stack[1]);
+	//stack_pop();
+	//stack_pop();
+
+	tableSet(&vm.globals,
+		copyString(name, (uint32_t)strlen(name), false),
+		OBJ_VAL(newNative(function))
+	);
 }
 
 void vm_init()
@@ -164,6 +169,7 @@ void vm_init()
 	numberTable_init(&vm.numbers);
 
 	vm.objects = NULL;
+	vm.objects_no_gc = NULL;
 
 	//init gray stack
 	vm.grayCount = 0;
@@ -679,12 +685,13 @@ InterpretResult interpret(C_STR source)
 	ObjFunction* function = compile(source);
 	if (function == NULL) return INTERPRET_COMPILE_ERROR;
 
-	stack_push(OBJ_VAL(function));
+	//stack_push(OBJ_VAL(function));
 	ObjClosure* closure = newClosure(function);
-	stack_replace(OBJ_VAL(closure));
+	//stack_replace(OBJ_VAL(closure));
+	stack_push(OBJ_VAL(closure));
 	call(closure, 0);
 
-#if LOG_EXECUTE_TIMING
+#if LOG_EXECUTE_TIMING || LOG_KIPS
 	uint64_t time_run = get_nanoseconds();
 #endif
 
@@ -694,7 +701,7 @@ InterpretResult interpret(C_STR source)
 
 	InterpretResult result = run();
 
-#if LOG_COMPILE_TIMING
+#if LOG_EXECUTE_TIMING
 	double time_ms = (get_nanoseconds() - time_run) * 1e-6;
 	printf("[Log] Finished executing in %g ms.\n", time_ms);
 #endif

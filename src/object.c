@@ -29,11 +29,21 @@ const C_STR objTypeInfo[] = {
 static Obj* allocateObject(size_t size, ObjType type) {
     Obj* object = (Obj*)reallocate(NULL, 0, size);
     object->type = type;
+    object->isMarked = false;
 
     //link the objects
-    object->next = vm.objects;
-    object->isMarked = false;
-    vm.objects = object;
+    switch (type) {
+    case OBJ_FUNCTION:
+    case OBJ_NATIVE:
+    case OBJ_STRING:
+        object->next = vm.objects_no_gc;
+        vm.objects_no_gc = object;
+        break;
+    default:
+        object->next = vm.objects;
+        vm.objects = object;
+        break;
+    }
 
 #if DEBUG_LOG_GC
     printf("[gc] %p allocate %zu for \$%s\n", (Unknown_ptr)object, size, objTypeInfo[type]);
@@ -110,9 +120,9 @@ ObjString* copyString(C_STR chars, uint32_t length, bool escapeChars)
 			string->hash = hash;
             string->symbol = INVALID_OBJ_STRING_SYMBOL;
 
-            stack_push(OBJ_VAL(string));
+            //stack_push(OBJ_VAL(string));
             tableSet(&vm.strings, string, BOOL_VAL(true));
-            stack_pop();
+            //stack_pop();
         }
 
         return string;
@@ -183,9 +193,9 @@ ObjString* copyString(C_STR chars, uint32_t length, bool escapeChars)
         //find deduplicate one
         ObjString* interned = deduplicateString(string->chars, string->length, string->hash);
         if (interned == NULL) {
-            stack_push(OBJ_VAL(string));
+            //stack_push(OBJ_VAL(string));
             tableSet(&vm.strings, string, BOOL_VAL(true));
-            stack_pop();
+            //stack_pop();
             return string;
         }
         else {
@@ -212,9 +222,9 @@ ObjString* connectString(ObjString* strA, ObjString* strB) {
     //do deduplicate
     ObjString* interned = deduplicateString(string->chars, string->length, string->hash);
 	if (interned == NULL) {
-        stack_push(OBJ_VAL(string));
+        //stack_push(OBJ_VAL(string));
 		tableSet(&vm.strings, string, BOOL_VAL(true));
-        stack_pop();
+        //stack_pop();
 		return string;
 	}
 	else {
