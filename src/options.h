@@ -24,7 +24,7 @@
 // use this to check memory allocate and leak
 #define LOG_EACH_MALLOC_INFO 0
 // use this to log gc info
-#define LOG_GC_RESULT 1
+#define LOG_GC_RESULT 0
 // log memory info after execute
 #define LOG_MALLOC_INFO 1
 // kilo instructions per second
