@@ -7,6 +7,7 @@
 #include "object.h"
 #include "table.h"
 #include "hash.h"
+#include "gc.h"
 
 #define TABLE_MAX_LOAD 0.75 // 3/4
 #define MUL_3_DIV_4(x) (((x << 1) + (x)) >> 2)
@@ -253,6 +254,24 @@ ObjString* tableFindString(Table* table, C_STR chars, uint32_t length, uint64_t 
 		}
 
 		index = (index + 1) & (table->capacity - 1);
+	}
+}
+
+void tableRemoveWhite(Table* table)
+{
+	for (uint32_t i = 0; i < table->capacity; i++) {
+		Entry* entry = &table->entries[i];
+		if (entry->key != NULL && !entry->key->obj.isMarked) {
+			tableDelete(table, entry->key);
+		}
+	}
+}
+
+void markTable(Table* table) {
+	for (uint32_t i = 0; i < table->capacity; i++) {
+		Entry* entry = &table->entries[i];
+		markObject((Obj*)entry->key);
+		markValue(entry->value);
 	}
 }
 

@@ -4,6 +4,8 @@
  * See LICENSE file in the root directory for full license text.
 */
 #include "lineArray.h"
+#include "memory.h"
+
 void lineArray_init(LineArray* array) {
 	array->ranges = NULL;
 	array->capacity = 0u;
@@ -16,7 +18,7 @@ void lineArray_write(LineArray* array, uint32_t line, uint32_t offset) {
 	if ((count + 1) >= array->capacity) {
 		uint32_t oldCapacity = array->capacity;
 		array->capacity = GROW_CAPACITY(oldCapacity);
-		array->ranges = GROW_ARRAY(RangeLine, array->ranges, oldCapacity, array->capacity);
+		array->ranges = GROW_ARRAY_NO_GC(RangeLine, array->ranges, oldCapacity, array->capacity);
 
 		//init
 		if (oldCapacity == 0) {
@@ -39,7 +41,7 @@ void lineArray_write(LineArray* array, uint32_t line, uint32_t offset) {
 }
 
 void lineArray_free(LineArray* array) {
-	FREE_ARRAY(RangeLine, array->ranges, array->capacity);
+	FREE_ARRAY_NO_GC(RangeLine, array->ranges, array->capacity);
 	lineArray_init(array);
 }
 

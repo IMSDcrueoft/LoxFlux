@@ -58,6 +58,10 @@ Lox 是一种专为学习设计的编程语言。它被设计成一门精简且�
 
 - **Block comment support**: Using `/* */`.
 
+### GC
+
+- **Detached static objects and dynamic objects**: Static objects such as strings/functions, they don't usually bloat very much, so I think it's a viable option not to recycle them.
+
 ### REPL
 
 - **Support for line break input**: Use `\` for multi-line input in REPL.

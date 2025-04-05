@@ -18,7 +18,7 @@ void chunk_write(Chunk* chunk, uint8_t byte, uint32_t line) {
 		uint32_t oldCapacity = chunk->capacity;
 
 		chunk->capacity = GROW_CAPACITY(oldCapacity);
-		chunk->code = GROW_ARRAY(uint8_t, chunk->code, oldCapacity, chunk->capacity);
+		chunk->code = GROW_ARRAY_NO_GC(uint8_t, chunk->code, oldCapacity, chunk->capacity);
 	}
 
 	lineArray_write(&chunk->lines, line, chunk->count);
@@ -28,7 +28,7 @@ void chunk_write(Chunk* chunk, uint8_t byte, uint32_t line) {
 }
 
 void chunk_free(Chunk* chunk) {
-	FREE_ARRAY(uint8_t, chunk->code, chunk->capacity);
+	FREE_ARRAY_NO_GC(uint8_t, chunk->code, chunk->capacity);
 	lineArray_free(&chunk->lines);
 	chuck_init(chunk);
 }

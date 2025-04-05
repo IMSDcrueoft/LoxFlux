@@ -65,6 +65,9 @@
     <ClCompile Include="src\native.c">
       <Filter>loxFlux\source</Filter>
     </ClCompile>
+    <ClCompile Include="src\gc.c">
+      <Filter>loxFlux\source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\chunk.h">
@@ -128,6 +131,9 @@
       <Filter>loxFlux\header</Filter>
     </ClInclude>
     <ClInclude Include="src\allocator.h">
+      <Filter>loxFlux\header</Filter>
+    </ClInclude>
+    <ClInclude Include="src\gc.h">
       <Filter>loxFlux\header</Filter>
     </ClInclude>
   </ItemGroup>

@@ -5,7 +5,6 @@
 */
 #pragma once
 #include "common.h"
-#include "memory.h"
 
 typedef struct {
 	uint32_t line;      //the code line

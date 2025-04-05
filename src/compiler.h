@@ -84,3 +84,4 @@ typedef struct Compiler {
 } Compiler;
 
 ObjFunction* compile(C_STR source);
+void markCompilerRoots();

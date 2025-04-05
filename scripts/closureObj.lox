@@ -1,0 +1,36 @@
+fun createPoint(x,y){
+    fun addPoint(p){
+        return createPoint(x + p("x"), y + p("y"));
+    }
+
+    fun pointerFuc(funName){
+        if(funName == "x"){
+            return x;
+        } else if(funName == "y"){
+            return y;
+        } else if(funName == "add"){
+            return addPoint;
+        }
+    }
+
+    return pointerFuc;
+}
+
+var a = createPoint(1,2);
+var b = createPoint(3,4);
+
+print a("x"); // 1
+print a("y"); // 2
+
+print b("x"); // 3
+print b("y"); // 4
+
+var c = a("add")(b);
+a = nil;
+gc();
+b = nil;
+gc();
+print c("x"); // 4
+print c("y"); // 6
+c = nil;
+gc();
