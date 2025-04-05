@@ -166,7 +166,7 @@ static void sweep() {
 	}
 }
 
-void collectGarbage()
+void garbageCollect()
 {
 #if DEBUG_LOG_GC
 	printf("-- gc begin\n");

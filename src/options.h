@@ -9,7 +9,7 @@
 // log the compiled codes
 #define DEBUG_PRINT_CODE 1
 // this is too slow and print too much.
-#define DEBUG_TRACE_EXECUTION 0
+#define DEBUG_TRACE_EXECUTION 1
 // stress gc
 #define DEBUG_STRESS_GC 0
 // log gc info

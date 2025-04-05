@@ -6,6 +6,7 @@
 #include "native.h"
 #include "vm.h"
 #include "timer.h"
+#include "gc.h"
 
 //return second
 static Value clockNative(int argCount, Value* args, C_STR* errorInfo)
@@ -69,9 +70,20 @@ static Value minNative(int argCount, Value* args, C_STR* errorInfo)
 	return NUMBER_VAL(val);
 }
 
+//force do gc
+static Value gcNative(int argCount, Value* args, C_STR* errorInfo) {
+	if (argCount != 0) {
+		*errorInfo = "clock(): Expected 0 arguments but got some";
+		return NIL_VAL;
+	}
+	garbageCollect();
+	return NIL_VAL;
+}
+
 void importNative()
 {
 	defineNative("clock", clockNative);
 	defineNative("max", maxNative);
 	defineNative("min", minNative);
+	defineNative("gc", gcNative);
 }

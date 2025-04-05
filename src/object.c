@@ -8,6 +8,18 @@
 #include "hash.h"
 #include "memory.h"
 
+#if DEBUG_LOG_GC
+const C_STR objTypeInfo[] = {
+	[OBJ_CLOSURE] = {"closure"},
+	[OBJ_FUNCTION] = {"function"},
+	[OBJ_NATIVE] = {"native"},
+	[OBJ_UPVALUE] = {"upValue"},
+	[OBJ_STRING] = {"string"},
+	[OBJ_STRING_BUILDER] = {"stringBuilder"},
+	[OBJ_ARRAY] = {"array"},
+};
+#endif
+
 #define ALLOCATE_OBJ(type, objectType) \
     (type*)allocateObject(sizeof(type), objectType)
 
@@ -24,7 +36,7 @@ static Obj* allocateObject(size_t size, ObjType type) {
     vm.objects = object;
 
 #if DEBUG_LOG_GC
-    printf("[gc] %p allocate %zu for type-%d\n", (Unknown_ptr)object, size, type);
+    printf("[gc] %p allocate %zu for \$%s\n", (Unknown_ptr)object, size, objTypeInfo[type]);
 #endif
 
     return object;

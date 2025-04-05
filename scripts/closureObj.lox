@@ -26,5 +26,11 @@ print b("x"); // 3
 print b("y"); // 4
 
 var c = a("add")(b);
+a = nil;
+gc();
+b = nil;
+gc();
 print c("x"); // 4
 print c("y"); // 6
+c = nil;
+gc();

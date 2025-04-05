@@ -29,6 +29,10 @@ typedef enum {
 	OBJ_ARRAY_F64,
 } ObjType;
 
+#if DEBUG_LOG_GC
+extern const C_STR objTypeInfo[];
+#endif
+
 struct Obj {
 	ObjType type;
 	bool isMarked;

@@ -42,10 +42,10 @@ Unknown_ptr reallocate(Unknown_ptr pointer, size_t oldSize, size_t newSize)
 
 	if (newSize > oldSize) {
 #if DEBUG_STRESS_GC
-		collectGarbage();
+		garbageCollect();
 #endif
 		if (vm.bytesAllocated > vm.nextGC) {
-			collectGarbage();
+			garbageCollect();
 		}
 	}
 
@@ -76,7 +76,7 @@ Unknown_ptr reallocate(Unknown_ptr pointer, size_t oldSize, size_t newSize)
 
 void freeObject(Obj* object) {
 #if DEBUG_LOG_GC
-	printf("[gc] %p free type-%d\n", (Unknown_ptr)object, object->type);
+	printf("[gc] %p free \$%s\n", (Unknown_ptr)object, objTypeInfo[object->type]);
 #endif
 
 	switch (object->type) {
