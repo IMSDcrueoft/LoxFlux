@@ -88,7 +88,7 @@ void valueArray_write(ValueArray* array, Value value) {
 	if (array->capacity < array->count + 1) {
 		uint32_t oldCapacity = array->capacity;
 		array->capacity = GROW_CAPACITY(oldCapacity);
-		array->values = GROW_ARRAY(Value, array->values, oldCapacity, array->capacity);
+		array->values = GROW_ARRAY_NO_GC(Value, array->values, oldCapacity, array->capacity);
 	}
 
 	array->values[array->count] = value;
@@ -101,7 +101,7 @@ void valueArray_writeAt(ValueArray* array, Value value, uint32_t index)
 }
 
 void valueArray_free(ValueArray* array) {
-	FREE_ARRAY(Value, array->values, array->capacity);
+	FREE_ARRAY_NO_GC(Value, array->values, array->capacity);
 	valueArray_init(array);
 }
 
@@ -112,7 +112,7 @@ void valueHoles_init(ValueHoles* holes) {
 }
 
 void valueHoles_free(ValueHoles* holes) {
-	FREE_ARRAY(uint32_t, holes->holes, holes->capacity);
+	FREE_ARRAY_NO_GC(uint32_t, holes->holes, holes->capacity);
 	holes->holes = NULL;
 	holes->count = 0;
 	holes->capacity = 0;
@@ -122,7 +122,7 @@ void valueHoles_push(ValueHoles* holes, uint32_t index) {
 	if (holes->count == holes->capacity) {
 		uint32_t oldCapacity = holes->capacity;
 		holes->capacity = GROW_CAPACITY(oldCapacity);
-		holes->holes = GROW_ARRAY(uint32_t, holes->holes, oldCapacity, holes->capacity);
+		holes->holes = GROW_ARRAY_NO_GC(uint32_t, holes->holes, oldCapacity, holes->capacity);
 	}
 	holes->holes[holes->count++] = index;
 }

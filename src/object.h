@@ -6,17 +6,19 @@
 #pragma once
 #include "common.h"
 #include "value.h"
-#include "memory.h"
 #include "table.h"
 #include "chunk.h"
 
 typedef enum {
-	OBJ_CLOSURE,
+	//constants
 	OBJ_FUNCTION,
 	OBJ_NATIVE,
-	OBJ_UPVALUE,
-	//char array
 	OBJ_STRING,
+
+	//gc objs
+	OBJ_CLOSURE,
+	OBJ_UPVALUE,
+	
 	//string builder and array are typed arrays
 	OBJ_STRING_BUILDER,
 	OBJ_ARRAY,
@@ -30,8 +32,13 @@ typedef enum {
 	OBJ_ARRAY_F64,
 } ObjType;
 
+#if DEBUG_LOG_GC
+extern const C_STR objTypeInfo[];
+#endif
+
 struct Obj {
 	ObjType type;
+	bool isMarked;
 	struct Obj* next;
 };
 

@@ -4,6 +4,7 @@
  * See LICENSE file in the root directory for full license text.
 */
 #include "compiler.h"
+#include "gc.h"
 #include "builtinModule.h"
 
 #if DEBUG_PRINT_CODE
@@ -209,6 +210,7 @@ static void patchJump(int32_t offset) {
 
 static void initCompiler(Compiler* compiler, FunctionType type) {
 	compiler->enclosing = current;
+	current = compiler;//must set now
 
 	//init
 	compiler->currentLoop = NULL;
@@ -218,8 +220,8 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 
 	compiler->localCount = 0;
 	compiler->scopeDepth = 0;
-	//init with 256 slots
-	compiler->locals = ALLOCATE(Local, UINT10_COUNT);
+	//init with 1024 slots
+	compiler->locals = ALLOCATE_NO_GC(Local, UINT10_COUNT);
 	compiler->capacity = UINT10_COUNT;
 
 	compiler->function = newFunction();
@@ -235,8 +237,6 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	local->name.start = "";
 	local->name.length = 0;
 
-	current = compiler;
-
 	if (compiler->enclosing == NULL) {
 		compiler->nestingDepth = 0;
 	}
@@ -250,7 +250,7 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 }
 
 static void freeLocals(Compiler* compiler) {
-	FREE_ARRAY(Local, compiler->locals, compiler->capacity);
+	FREE_ARRAY_NO_GC(Local, compiler->locals, compiler->capacity);
 	compiler->locals = NULL;
 	compiler->capacity = 0;
 }
@@ -647,9 +647,9 @@ static void forStatement() {
 	}
 
 	//record the loop
-	LoopContext loop = (LoopContext){ .start = loopStart, .enclosing = current->currentLoop,.breakJumps = NULL,.breakJumpCount = 0 ,.enterParamCount = current->localCount};
+	LoopContext loop = (LoopContext){ .start = loopStart, .enclosing = current->currentLoop,.breakJumps = NULL,.breakJumpCount = 0 ,.enterParamCount = current->localCount };
 	loop.breakJumpCapacity = 8;
-	loop.breakJumps = ALLOCATE(int32_t, loop.breakJumpCapacity);
+	loop.breakJumps = ALLOCATE_NO_GC(int32_t, loop.breakJumpCapacity);
 	current->currentLoop = &loop;
 
 	statement();
@@ -664,7 +664,7 @@ static void forStatement() {
 		patchJump(loop.breakJumps[--loop.breakJumpCount]);
 	}
 
-	FREE_ARRAY(int32_t, loop.breakJumps, loop.breakJumpCapacity);
+	FREE_ARRAY_NO_GC(int32_t, loop.breakJumps, loop.breakJumpCapacity);
 	current->currentLoop = current->currentLoop->enclosing;
 	//end block
 	endScope();
@@ -722,9 +722,9 @@ static void whileStatement() {
 	int32_t exitJump = emitJump(OP_JUMP_IF_FALSE_POP);
 
 	//record the loop
-	LoopContext loop = (LoopContext){ .start = loopStart, .enclosing = current->currentLoop,.breakJumps = NULL,.breakJumpCount = 0 ,.enterParamCount = current->localCount};
+	LoopContext loop = (LoopContext){ .start = loopStart, .enclosing = current->currentLoop,.breakJumps = NULL,.breakJumpCount = 0 ,.enterParamCount = current->localCount };
 	loop.breakJumpCapacity = 8;
-	loop.breakJumps = ALLOCATE(int32_t, loop.breakJumpCapacity);
+	loop.breakJumps = ALLOCATE_NO_GC(int32_t, loop.breakJumpCapacity);
 	current->currentLoop = &loop;
 
 	statement();
@@ -762,7 +762,7 @@ static void breakStatement() {
 		current->currentLoop->breakJumpCapacity = GROW_CAPACITY(oldCapacity);
 
 		uint16_t newCapacity = GROW_CAPACITY(current->currentLoop->breakJumpCapacity);
-		current->currentLoop->breakJumps = GROW_ARRAY(int32_t, current->currentLoop->breakJumps, oldCapacity, current->currentLoop->breakJumpCapacity);
+		current->currentLoop->breakJumps = GROW_ARRAY_NO_GC(int32_t, current->currentLoop->breakJumps, oldCapacity, current->currentLoop->breakJumpCapacity);
 	}
 
 	current->currentLoop->breakJumps[current->currentLoop->breakJumpCount++] = jump;
@@ -1161,4 +1161,13 @@ ObjFunction* compile(C_STR source) {
 	printf("[Log] Finished compiling in %g ms.\n", time_ms);
 #endif
 	return parser.hadError ? NULL : function;
+}
+
+void markCompilerRoots()
+{
+	Compiler* compiler = current;
+	while (compiler != NULL) {
+		markObject((Obj*)compiler->function);
+		compiler = compiler->enclosing;
+	}
 }

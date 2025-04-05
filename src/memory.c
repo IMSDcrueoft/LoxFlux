@@ -7,13 +7,14 @@
 #include "object.h"  
 #include "vm.h"
 #include "allocator.h"
+#include "gc.h"
 
-Unknown_ptr reallocate(Unknown_ptr pointer, size_t oldSize, size_t newSize)
+Unknown_ptr reallocate_no_gc(Unknown_ptr pointer, size_t oldSize, size_t newSize)
 {
 	if (newSize == 0) {
 		if (pointer != NULL) {
 #if LOG_EACH_MALLOC_INFO
-			printf("[mem_free] %p\n", pointer);
+			printf("[mem] free %p\n", pointer);
 #endif
 			mem_free(pointer);
 		}
@@ -24,7 +25,7 @@ Unknown_ptr reallocate(Unknown_ptr pointer, size_t oldSize, size_t newSize)
 	Unknown_ptr result = mem_realloc(pointer, newSize);
 
 #if LOG_EACH_MALLOC_INFO
-	printf("[mem_realloc] %p -> %p, %zu\n", pointer, result, newSize);
+	printf("[mem] realloc %p -> %p, %zu\n", pointer, result, newSize);
 #endif
 
 	if (result == NULL) {
@@ -35,7 +36,49 @@ Unknown_ptr reallocate(Unknown_ptr pointer, size_t oldSize, size_t newSize)
 	return result;
 }
 
-static void freeObject(Obj* object) {
+Unknown_ptr reallocate(Unknown_ptr pointer, size_t oldSize, size_t newSize)
+{
+	vm.bytesAllocated += newSize - oldSize;
+
+	if (newSize > oldSize) {
+#if DEBUG_STRESS_GC
+		garbageCollect();
+#endif
+		if (vm.bytesAllocated > vm.nextGC) {
+			garbageCollect();
+		}
+	}
+
+	if (newSize == 0) {
+		if (pointer != NULL) {
+#if LOG_EACH_MALLOC_INFO
+			printf("[mem] free %p\n", pointer);
+#endif
+			mem_free(pointer);
+		}
+
+		return NULL;
+	}
+
+	Unknown_ptr result = mem_realloc(pointer, newSize);
+
+#if LOG_EACH_MALLOC_INFO
+	printf("[mem] realloc %p -> %p, %zu\n", pointer, result, newSize);
+#endif
+
+	if (result == NULL) {
+		fprintf(stderr, "Memory reallocation failed!\n");
+		exit(1);
+	}
+
+	return result;
+}
+
+void freeObject(Obj* object) {
+#if DEBUG_LOG_GC
+	printf("[gc] %p free \$%s\n", (Unknown_ptr)object, objTypeInfo[object->type]);
+#endif
+
 	switch (object->type) {
 	case OBJ_CLOSURE: {
 		ObjClosure* closure = (ObjClosure*)object;
@@ -55,7 +98,7 @@ static void freeObject(Obj* object) {
 		break;
 	case OBJ_STRING: {
 		ObjString* string = (ObjString*)object;
-		FREE(ObjString, string);//FAM object  
+		FREE_FLEX(ObjString, string, char, string->length);//FAM object  
 		break;
 	case OBJ_UPVALUE:
 		FREE(ObjUpvalue, object);
@@ -66,11 +109,29 @@ static void freeObject(Obj* object) {
 
 void freeObjects()
 {
+
+#if DEBUG_LOG_GC
+	printf("-- free dynamic objects\n");
+#endif
 	Obj* object = vm.objects;
 	while (object != NULL) {
 		Obj* next = object->next;
 		freeObject(object);
 		object = next;
+	}
+
+	if (vm.grayStack != NULL) {
+		mem_free(vm.grayStack);
+	}
+
+#if DEBUG_LOG_GC
+	printf("-- free static objects\n");
+#endif
+	Obj* object_no_gc = vm.objects_no_gc;
+	while (object_no_gc != NULL) {
+		Obj* next = object_no_gc->next;
+		freeObject(object_no_gc);
+		object_no_gc = next;
 	}
 }
 
