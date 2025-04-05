@@ -1,0 +1,15 @@
+var fun1;
+{
+  const a = 1;
+  fun f() {
+    fun changeA(){
+        a = a + 1; //An error should be thrown
+        print a;
+    }
+    return changeA;
+  }
+
+  fun1 = f;
+}
+
+fun1();
