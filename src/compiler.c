@@ -760,8 +760,6 @@ static void breakStatement() {
 
 		uint32_t oldCapacity = current->currentLoop->breakJumpCapacity;
 		current->currentLoop->breakJumpCapacity = GROW_CAPACITY(oldCapacity);
-
-		uint16_t newCapacity = GROW_CAPACITY(current->currentLoop->breakJumpCapacity);
 		current->currentLoop->breakJumps = GROW_ARRAY_NO_GC(int32_t, current->currentLoop->breakJumps, oldCapacity, current->currentLoop->breakJumpCapacity);
 	}
 

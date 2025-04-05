@@ -155,7 +155,6 @@ void vm_init()
 
 	//init global
 	valueArray_init(&vm.constants);
-	valueHoles_init(&vm.constantHoles);
 
 	vm.stack = ALLOCATE_NO_GC(Value, STACK_INITIAL_SIZE);
 	vm.stackBoundary = vm.stack + STACK_INITIAL_SIZE;
@@ -187,7 +186,6 @@ void vm_init()
 void vm_free()
 {
 	valueArray_free(&vm.constants);
-	valueHoles_free(&vm.constantHoles);
 
 	table_free(&vm.globals);
 	table_free(&vm.strings);
@@ -211,18 +209,10 @@ uint32_t getConstantSize()
 //return the constant index
 uint32_t addConstant(Value value)
 {
-	uint32_t index = valueHoles_get(&vm.constantHoles);
-	if (index == VALUEHOLES_EMPTY) {
-		stack_push(value);//prevent GC errors
-		valueArray_write(&vm.constants, value);
-		stack_pop();
-		return vm.constants.count - 1;
-	}
-	else {
-		valueArray_writeAt(&vm.constants, value, index);
-		valueHoles_pop(&vm.constantHoles);
-		return index;
-	}
+	stack_push(value);//prevent GC errors
+	valueArray_write(&vm.constants, value);
+	stack_pop();
+	return vm.constants.count - 1;
 }
 
 static bool call(ObjClosure* closure, int argCount) {

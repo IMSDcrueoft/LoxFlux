@@ -68,13 +68,6 @@ void printValue(Value value);
 
 void valueArray_init(ValueArray* array);
 void valueArray_write(ValueArray* array, Value value);
-void valueArray_writeAt(ValueArray* array, Value value, uint32_t index);
 void valueArray_free(ValueArray* array);
-
-void valueHoles_init(ValueHoles* holes);
-void valueHoles_free(ValueHoles* holes);
-void valueHoles_push(ValueHoles* holes, uint32_t index);
-void valueHoles_pop(ValueHoles* holes);
-uint32_t valueHoles_get(ValueHoles* holes);
 
 #define GET_VALUE_CONTAINER(obj) ((Value*)((char*)(obj) - offsetof(Value, as)))
