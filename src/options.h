@@ -13,7 +13,7 @@
 // stress gc
 #define DEBUG_STRESS_GC 0
 // log gc info
-#define DEBUG_LOG_GC 0
+#define DEBUG_LOG_GC 1
 
 // switch on this to use log
 #define LOG_MODE 1

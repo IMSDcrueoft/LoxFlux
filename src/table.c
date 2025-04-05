@@ -118,7 +118,7 @@ static Entry* findEntry_g(Entry* entries, uint32_t capacity, ObjString* key, Tab
 
 static void adjustCapacity(Table* table, uint32_t capacity) {
 	//we need re input, so don't reallocate
-	Entry* entries = GROW_ARRAY(Entry, NULL, 0, capacity);
+	Entry* entries = ALLOCATE(Entry, capacity);
 
 	for (uint32_t i = 0; i < capacity; ++i) {
 		entries[i].key = NULL;
@@ -332,7 +332,7 @@ static NumberEntry* findNumberEntry(NumberEntry* entries, uint32_t capacity, uin
 
 static void adjustNumberCapacity(NumberTable* table, uint32_t capacity) {
 	//we need re input, so don't reallocate
-	NumberEntry* entries = GROW_ARRAY(NumberEntry, NULL, 0, capacity);
+	NumberEntry* entries = ALLOCATE(NumberEntry, capacity);
 
 	for (uint32_t i = 0; i < capacity; ++i) {
 		entries[i].binary = 0;

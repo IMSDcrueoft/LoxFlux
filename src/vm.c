@@ -7,6 +7,7 @@
 #include "object.h"
 #include "builtinModule.h"
 #include "native.h"
+#include "gc.h"
 
 #if DEBUG_TRACE_EXECUTION
 #include "debug.h"
@@ -151,7 +152,7 @@ void vm_init()
 	valueArray_init(&vm.constants);
 	valueHoles_init(&vm.constantHoles);
 
-	vm.stack = GROW_ARRAY_NO_GC(Value, NULL, 0, STACK_INITIAL_SIZE);
+	vm.stack = ALLOCATE_NO_GC(Value, STACK_INITIAL_SIZE);
 	vm.stackBoundary = vm.stack + STACK_INITIAL_SIZE;
 
 	stack_reset();
@@ -171,7 +172,7 @@ void vm_init()
 
 	//set
 	vm.bytesAllocated = 0;
-	vm.nextGC = 1024 * 1024;
+	vm.nextGC = GC_HEAP_BEGIN;
 
 	//import native funcs
 	importNative();

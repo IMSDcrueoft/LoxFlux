@@ -8,6 +8,7 @@
 #include "value.h"
 
 #define GC_HEAP_GROW_FACTOR 2
+#define GC_HEAP_BEGIN 1024 * 1024
 
 void markObject(Obj* object);
 void markValue(Value value);

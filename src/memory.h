@@ -23,6 +23,8 @@ Unknown_ptr reallocate(Unknown_ptr pointer, size_t oldSize, size_t newSize);
 
 //used to free single object
 #define FREE(type, pointer) reallocate(pointer, sizeof(type), 0)
+//used to free flex object
+#define FREE_FLEX(type,pointer,flexType,count) reallocate(pointer, sizeof(type) + sizeof(flexType) * count, 0)
 
 Unknown_ptr reallocate_no_gc(Unknown_ptr pointer, size_t oldSize, size_t newSize);
 
@@ -31,6 +33,9 @@ Unknown_ptr reallocate_no_gc(Unknown_ptr pointer, size_t oldSize, size_t newSize
 
 #define FREE_ARRAY_NO_GC(type, pointer, oldCount) \
 	reallocate_no_gc(pointer, sizeof(type) * (oldCount), 0)
+
+#define ALLOCATE_NO_GC(type, count) \
+	(type*)reallocate_no_gc(NULL, 0, sizeof(type) * (count))
 
 void freeObject(Obj* object);
 void freeObjects();

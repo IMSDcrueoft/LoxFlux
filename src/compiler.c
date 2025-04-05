@@ -221,7 +221,7 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	compiler->localCount = 0;
 	compiler->scopeDepth = 0;
 	//init with 1024 slots
-	compiler->locals = GROW_ARRAY_NO_GC(Local, NULL, 0, UINT10_COUNT);
+	compiler->locals = ALLOCATE_NO_GC(Local, UINT10_COUNT);
 	compiler->capacity = UINT10_COUNT;
 
 	compiler->function = newFunction();
@@ -647,9 +647,9 @@ static void forStatement() {
 	}
 
 	//record the loop
-	LoopContext loop = (LoopContext){ .start = loopStart, .enclosing = current->currentLoop,.breakJumps = NULL,.breakJumpCount = 0 ,.enterParamCount = current->localCount};
+	LoopContext loop = (LoopContext){ .start = loopStart, .enclosing = current->currentLoop,.breakJumps = NULL,.breakJumpCount = 0 ,.enterParamCount = current->localCount };
 	loop.breakJumpCapacity = 8;
-	loop.breakJumps = GROW_ARRAY_NO_GC(int32_t, NULL, 0, loop.breakJumpCapacity);
+	loop.breakJumps = ALLOCATE_NO_GC(int32_t, loop.breakJumpCapacity);
 	current->currentLoop = &loop;
 
 	statement();
@@ -722,9 +722,9 @@ static void whileStatement() {
 	int32_t exitJump = emitJump(OP_JUMP_IF_FALSE_POP);
 
 	//record the loop
-	LoopContext loop = (LoopContext){ .start = loopStart, .enclosing = current->currentLoop,.breakJumps = NULL,.breakJumpCount = 0 ,.enterParamCount = current->localCount};
+	LoopContext loop = (LoopContext){ .start = loopStart, .enclosing = current->currentLoop,.breakJumps = NULL,.breakJumpCount = 0 ,.enterParamCount = current->localCount };
 	loop.breakJumpCapacity = 8;
-	loop.breakJumps = GROW_ARRAY_NO_GC(int32_t, NULL, 0, loop.breakJumpCapacity);
+	loop.breakJumps = ALLOCATE_NO_GC(int32_t, loop.breakJumpCapacity);
 	current->currentLoop = &loop;
 
 	statement();

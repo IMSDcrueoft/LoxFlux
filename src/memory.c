@@ -14,7 +14,7 @@ Unknown_ptr reallocate_no_gc(Unknown_ptr pointer, size_t oldSize, size_t newSize
 	if (newSize == 0) {
 		if (pointer != NULL) {
 #if LOG_EACH_MALLOC_INFO
-			printf("[mem_free] %p\n", pointer);
+			printf("[mem] free %p\n", pointer);
 #endif
 			mem_free(pointer);
 		}
@@ -25,7 +25,7 @@ Unknown_ptr reallocate_no_gc(Unknown_ptr pointer, size_t oldSize, size_t newSize
 	Unknown_ptr result = mem_realloc(pointer, newSize);
 
 #if LOG_EACH_MALLOC_INFO
-	printf("[mem_realloc] %p -> %p, %zu\n", pointer, result, newSize);
+	printf("[mem] realloc %p -> %p, %zu\n", pointer, result, newSize);
 #endif
 
 	if (result == NULL) {
@@ -52,7 +52,7 @@ Unknown_ptr reallocate(Unknown_ptr pointer, size_t oldSize, size_t newSize)
 	if (newSize == 0) {
 		if (pointer != NULL) {
 #if LOG_EACH_MALLOC_INFO
-			printf("[mem_free] %p\n", pointer);
+			printf("[mem] free %p\n", pointer);
 #endif
 			mem_free(pointer);
 		}
@@ -63,7 +63,7 @@ Unknown_ptr reallocate(Unknown_ptr pointer, size_t oldSize, size_t newSize)
 	Unknown_ptr result = mem_realloc(pointer, newSize);
 
 #if LOG_EACH_MALLOC_INFO
-	printf("[mem_realloc] %p -> %p, %zu\n", pointer, result, newSize);
+	printf("[mem] realloc %p -> %p, %zu\n", pointer, result, newSize);
 #endif
 
 	if (result == NULL) {
@@ -98,7 +98,7 @@ void freeObject(Obj* object) {
 		break;
 	case OBJ_STRING: {
 		ObjString* string = (ObjString*)object;
-		FREE(ObjString, string);//FAM object  
+		FREE_FLEX(ObjString, string, char, string->length);//FAM object  
 		break;
 	case OBJ_UPVALUE:
 		FREE(ObjUpvalue, object);
