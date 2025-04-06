@@ -134,6 +134,9 @@ static void sweep() {
 	Obj* previous = NULL;
 	Obj* object = vm.objects;
 
+	const Value* constantBegin = vm.constants.values;
+	const Value* constantEnd = vm.constants.values + vm.constants.capacity;
+
 	while (object != NULL) {
 		if (object->isMarked == usingMark) {
 			//object->isMarked = false;//clear the mark
@@ -151,7 +154,21 @@ static void sweep() {
 				vm.objects = object;
 			}
 
-			freeObject(unreached);
+			Value* value = GET_VALUE_CONTAINER(unreached);
+			// if its in constants, we need remove it and mark the hole for reuse
+			if ((constantBegin <= value) && (value < constantEnd)) {
+				// calculate the index,ptrdiff_t is unit count
+				ptrdiff_t index = value - constantBegin;
+#if DEBUG_LOG_GC
+				printf("[gc] constants %td\n", index);
+#endif
+				valueHoles_push(&vm.constantHoles, index);
+				freeObject(unreached);
+				*value = NIL_VAL;//set to nil
+			}
+			else {
+				freeObject(unreached);
+			}
 		}
 	}
 }

@@ -29,6 +29,9 @@ typedef struct {
 	
 	// deduplicated global constant table
 	ValueArray constants;
+	// In order to repurpose the voids caused by GC
+	// create a constant void table to record and reuse
+	ValueHoles constantHoles;
 
 	//pool
 	Table strings;
