@@ -504,7 +504,12 @@ static InterpretResult run()
 			ObjInstance* instance = AS_INSTANCE(vm.stackTop[-2]);
 			Value constant = READ_CONSTANT(READ_SHORT());
 			ObjString* name = AS_STRING(constant);
-			tableSet(&instance->fields, name, vm.stackTop[-1]);
+			if (NOT_NIL(vm.stackTop[-1])) {
+				tableSet(&instance->fields, name, vm.stackTop[-1]);
+			}
+			else {
+				tableDelete(&instance->fields, name);
+			}
 			Value value = stack_pop();
 			stack_replace(value);
 			break;
@@ -518,7 +523,12 @@ static InterpretResult run()
 			ObjInstance* instance = AS_INSTANCE(vm.stackTop[-2]);
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
-			tableSet(&instance->fields, name, vm.stackTop[-1]);
+			if (NOT_NIL(vm.stackTop[-1])) {
+				tableSet(&instance->fields, name, vm.stackTop[-1]);
+			}
+			else {
+				tableDelete(&instance->fields, name);
+			}
 			Value value = stack_pop();
 			stack_replace(value);
 			break;
