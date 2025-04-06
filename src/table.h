@@ -54,7 +54,7 @@ bool tableDelete_g(Table* table, ObjString* key);
 
 ObjString* tableFindString(Table* table, C_STR chars,uint32_t length, uint64_t hash);
 
-void tableRemoveWhite(Table* table);
+//void tableRemoveWhite(Table* table);
 void markTable(Table* table);
 
 Entry* tableGetStringEntry(Table* table, ObjString* string);

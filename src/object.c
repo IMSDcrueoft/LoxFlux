@@ -7,6 +7,7 @@
 #include "vm.h"
 #include "hash.h"
 #include "memory.h"
+#include "gc.h"
 
 #if DEBUG_LOG_GC
 const C_STR objTypeInfo[] = {
@@ -29,7 +30,7 @@ const C_STR objTypeInfo[] = {
 static Obj* allocateObject(size_t size, ObjType type) {
     Obj* object = (Obj*)reallocate(NULL, 0, size);
     object->type = type;
-    object->isMarked = false;
+    object->isMarked = !usingMark;
 
     //link the objects
     switch (type) {

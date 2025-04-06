@@ -12,7 +12,7 @@ fun createPoint(x,y){
 
 fun stress() {
     //change gc limit
-    gcNext(1024 * 1024 * 32);
+    gcNext(1024 * 1024 * 256);
 
     var count = 1e6;
     while (count > 0) {

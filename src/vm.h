@@ -47,10 +47,11 @@ typedef struct {
 	ObjUpvalue* openUpvalues;
 
 	//gc gray objects
-	uint32_t grayCount;
-	uint32_t grayCapacity;
+	uint64_t grayCount;
+	uint64_t grayCapacity;
 	Obj** grayStack;
 
+	//Excludes space used by stacks/constants/compilations
 	uint64_t bytesAllocated;
 	uint64_t nextGC;
 
