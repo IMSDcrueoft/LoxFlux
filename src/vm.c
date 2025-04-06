@@ -5,7 +5,6 @@
 */
 #include "vm.h"
 #include "object.h"
-#include "builtinModule.h"
 #include "native.h"
 #include "gc.h"
 
@@ -17,11 +16,10 @@
 #include "timer.h"
 #endif
 
-//the global shared vm
+//the global
 const ObjClass globalClass = { .obj = {.type = OBJ_CLASS,.next = NULL,.isMarked = true},.name = NULL };
-//the builtin modules
+//the builtins
 const ObjClass builtinClass = { .obj = {.type = OBJ_CLASS,.next = NULL,.isMarked = true},.name = NULL };
-ObjInstance builtinModules[BUILTIN_MODULE_COUNT];
 //the global shared vm
 VM vm;
 //ip for debug
@@ -150,6 +148,23 @@ void defineNative(C_STR name, NativeFn function) {
 	);
 }
 
+void defineBuiltins() {
+	for (uint32_t i = 0; i < BUILTIN_MODULE_COUNT; ++i) {
+		vm.builtins[i] = (ObjInstance){
+		.obj = {.type = OBJ_INSTANCE,.next = NULL,.isMarked = true},
+		.klass = &builtinClass,
+		.fields = {.type = TABLE_MODULE}//remind this
+		};
+		table_init(&vm.builtins[i].fields);
+	}
+}
+
+void removeBuiltins() {
+	for (uint32_t i = 0; i < BUILTIN_MODULE_COUNT; ++i) {
+		table_free(&vm.builtins[i].fields);
+	}
+}
+
 void vm_init()
 {
 	vm.stack = NULL;
@@ -188,6 +203,9 @@ void vm_init()
 	vm.bytesAllocated = 0;
 	vm.nextGC = GC_HEAP_BEGIN;
 
+	//import the builtins
+	defineBuiltins();
+
 	//import native funcs
 	importNative();
 }
@@ -209,6 +227,8 @@ void vm_free()
 	vm.stack = NULL;
 	vm.stackTop = NULL;
 	vm.stackBoundary = NULL;
+
+	removeBuiltins();
 }
 
 uint32_t getConstantSize()
@@ -446,7 +466,7 @@ static InterpretResult run()
 			ObjString* name = AS_STRING(constant);
 			stack_push(OBJ_VAL(newClass(name)));
 			break;
-		}	
+		}
 		case OP_CLASS_LONG: {
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
@@ -537,7 +557,7 @@ static InterpretResult run()
 			Value constant = READ_CONSTANT(READ_SHORT());
 			ObjString* name = AS_STRING(constant);
 			--vm.stackTop;
-      
+
 			tableSet_g(&vm.globals.fields, name, *vm.stackTop);
 			break;
 		}
@@ -758,9 +778,11 @@ static InterpretResult run()
 		case OP_MODULE_GLOBAL:
 			stack_push(OBJ_VAL(&vm.globals));
 			break;
-		case OP_MODULE_BUILTIN:
-			stack_push(NUMBER_VAL(READ_BYTE()));
+		case OP_MODULE_BUILTIN: {
+			uint8_t moduleIndex = READ_BYTE();
+			stack_push(OBJ_VAL(&vm.builtins[moduleIndex]));
 			break;
+		}
 		case OP_DEBUGGER: {
 			//no op
 #if DEBUG_MODE

@@ -89,14 +89,13 @@ typedef struct {
 #define INVALID_OBJ_STRING_SYMBOL UINT32_MAX
 struct ObjString {
 	Obj obj;
-
 	uint32_t symbol; // used to boost global hash table
-
-	uint32_t length;
+	uint32_t length; // the real length,not include '\0'
 	uint64_t hash;
 	char chars[]; // flexible array members FAM
 };
 
+//begin at 8 not 16
 struct ObjArray {
 	Obj obj;
 	uint32_t capacity;

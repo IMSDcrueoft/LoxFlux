@@ -111,7 +111,7 @@ void freeObject(Obj* object) {
 		break;
 	case OBJ_STRING: {
 		ObjString* string = (ObjString*)object;
-		FREE_FLEX(ObjString, string, char, string->length);//FAM object  
+		FREE_FLEX(ObjString, string, char, string->length + 1);//FAM object include'\0
 		break;
 	}
 	}

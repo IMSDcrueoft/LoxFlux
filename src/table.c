@@ -14,6 +14,7 @@
 
 void table_init(Table* table)
 {
+	table->inlineCaching = 0;
 	table->count = 0;
 	table->capacity = 0;
 	table->entries = NULL;
@@ -156,6 +157,8 @@ bool tableGet(Table* table, ObjString* key, Value* value) {
 
 bool tableSet(Table* table, ObjString* key, Value value)
 {
+	if (table->type == TABLE_MODULE) return false;// not allowed
+
 	//if (table->count + 1 > table->capacity * TABLE_MAX_LOAD) {
 	if ((table->count + 1) > MUL_3_DIV_4((uint64_t)(table->capacity))) {
 		uint32_t capacity = GROW_CAPACITY(table->capacity);
@@ -172,6 +175,8 @@ bool tableSet(Table* table, ObjString* key, Value value)
 }
 
 bool tableDelete(Table* table, ObjString* key) {
+	if (table->type == TABLE_MODULE) return false;// not allowed
+
 	if (table->count == 0) return false;
 
 	// Find the entry.

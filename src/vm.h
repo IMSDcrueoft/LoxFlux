@@ -8,6 +8,7 @@
 #include "compiler.h"
 #include "table.h"
 #include "object.h"
+#include "builtinModule.h"
 
 //the depth of call frames
 #define FRAMES_MAX 1024
@@ -37,9 +38,10 @@ typedef struct {
 	Table strings;
 	//pool
 	NumberTable numbers;
-
 	//global hash table
 	ObjInstance globals;
+	//builtins
+	ObjInstance builtins[BUILTIN_MODULE_COUNT];
 
 	//the root for dynamic objects
 	Obj* objects;

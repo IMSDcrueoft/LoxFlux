@@ -12,8 +12,8 @@ typedef struct {
 } RangeLine;
 
 typedef struct {
-	uint32_t count;    //limit to 4GB
-	uint32_t capacity; //limit to 4GB
+	uint32_t count;    //limit to 4G
+	uint32_t capacity; //limit to 4G
 	RangeLine* ranges;
 } LineArray;
 
