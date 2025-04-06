@@ -92,6 +92,21 @@ ObjNative* newNative(NativeFn function) {
     return native;
 }
 
+ObjClass* newClass(ObjString* name)
+{
+    ObjClass* klass = ALLOCATE_OBJ(ObjClass, OBJ_CLASS);
+    klass->name = name;
+    return klass;
+}
+
+ObjInstance* newInstance(ObjClass* klass) {
+    ObjInstance* instance = ALLOCATE_OBJ(ObjInstance, OBJ_INSTANCE);
+    instance->klass = klass;
+    instance->fields.type = TABLE_NORMAL;
+    table_init(&instance->fields);
+    return instance;
+}
+
 //if find deduplicate one return it else null
 static inline ObjString* deduplicateString(C_STR chars, uint32_t length, uint64_t hash) {
 	return tableFindString(&vm.strings, chars, length, hash);
@@ -246,6 +261,26 @@ static void printFunction(ObjFunction* function) {
 
 void printObject(Value value) {
     switch (OBJ_TYPE(value)) {
+    case OBJ_CLASS: {
+        ObjString* name = AS_CLASS(value)->name;
+        if (name != NULL) {
+            printf("%s (class)", name->chars);
+        }
+        else {
+            printf("$anonymous (class)");
+        }
+        break;
+    }
+    case OBJ_INSTANCE: {
+        ObjString* name = AS_INSTANCE(value)->klass->name;
+        if (name != NULL) {
+            printf("%s (instance)", name->chars);
+        }
+        else {
+            printf("$anonymous (instance)");
+        }
+        break;
+    }
     case OBJ_CLOSURE:
         printFunction(AS_CLOSURE(value)->function);
         break;
@@ -256,7 +291,7 @@ void printObject(Value value) {
         printf("<native fn>");
         break;
     case OBJ_STRING:
-        printf("%s", AS_CSTRING(value));
+        printf("%s", AS_STRING(value)->chars);
         break;
     case OBJ_UPVALUE:
         printf("upvalue");

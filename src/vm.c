@@ -18,12 +18,15 @@
 #endif
 
 //the global shared vm
-VM vm;
+const ObjClass globalClass = { .obj = {.type = OBJ_CLASS,.next = NULL,.isMarked = true},.name = NULL };
 //the builtin modules
-Table builtinModules[BUILTIN_MODULE_COUNT];
+const ObjClass builtinClass = { .obj = {.type = OBJ_CLASS,.next = NULL,.isMarked = true},.name = NULL };
+ObjInstance builtinModules[BUILTIN_MODULE_COUNT];
+//the global shared vm
+VM vm;
 //ip for debug
 uint8_t** ip_error = NULL;
-#if LOG_KIPS
+#if LOG_MIPS
 uint64_t byteCodeCount;
 #endif
 
@@ -137,11 +140,11 @@ Value stack_pop()
 void defineNative(C_STR name, NativeFn function) {
 	//stack_push(OBJ_VAL(copyString(name, (uint32_t)strlen(name), false)));
 	//stack_push(OBJ_VAL(newNative(function)));
-	//tableSet(&vm.globals, AS_STRING(vm.stack[0]), vm.stack[1]);
+	//tableSet(&vm.globals.fields, AS_STRING(vm.stack[0]), vm.stack[1]);
 	//stack_pop();
 	//stack_pop();
 
-	tableSet(&vm.globals,
+	tableSet(&vm.globals.fields,
 		copyString(name, (uint32_t)strlen(name), false),
 		OBJ_VAL(newNative(function))
 	);
@@ -162,8 +165,13 @@ void vm_init()
 
 	stack_reset();
 
-	table_init(&vm.globals);
-	vm.globals.type = TABLE_GLOBAL;//remind this
+	vm.globals = (ObjInstance){
+		.obj = {.type = OBJ_INSTANCE,.next = NULL,.isMarked = true},
+		.klass = &globalClass,
+		.fields = {.type = TABLE_GLOBAL}//remind this
+	};
+	table_init(&vm.globals.fields);
+
 	table_init(&vm.strings);
 	vm.strings.type = TABLE_NORMAL;
 	numberTable_init(&vm.numbers);
@@ -189,7 +197,7 @@ void vm_free()
 	valueArray_free(&vm.constants);
 	valueHoles_free(&vm.constantHoles);
 
-	table_free(&vm.globals);
+	table_free(&vm.globals.fields);
 	table_free(&vm.strings);
 	numberTable_free(&vm.numbers);
 
@@ -267,6 +275,11 @@ static bool callValue(Value callee, int argCount) {
 		switch (OBJ_TYPE(callee)) {
 		case OBJ_CLOSURE: return call(AS_CLOSURE(callee), argCount);
 		case OBJ_NATIVE: return call_native(AS_NATIVE(callee), argCount);
+		case OBJ_CLASS: {
+			ObjClass* klass = AS_CLASS(callee);
+			vm.stackTop[-argCount - 1] = OBJ_VAL(newInstance(klass));
+			return true;
+		}
 		}
 	}
 
@@ -361,7 +374,7 @@ static InterpretResult run()
 
 	while (true) //let it loop
 	{
-#if LOG_KIPS
+#if LOG_MIPS
 		++byteCodeCount;
 #endif
 
@@ -383,20 +396,17 @@ static InterpretResult run()
 		switch (instruction)
 		{
 		case OP_CONSTANT: {
-			uint32_t index = READ_SHORT();
-			Value constant = READ_CONSTANT(index);
+			Value constant = READ_CONSTANT(READ_SHORT());
 			stack_push(constant);
 			break;
 		}
 		case OP_CONSTANT_LONG: {
-			uint32_t index = READ_24bits();
-			Value constant = READ_CONSTANT(index);
+			Value constant = READ_CONSTANT(READ_24bits());
 			stack_push(constant);
 			break;
 		}
 		case OP_CLOSURE: {
-			uint32_t index = READ_SHORT();
-			Value constant = READ_CONSTANT(index);
+			Value constant = READ_CONSTANT(READ_SHORT());
 			ObjFunction* function = AS_FUNCTION(constant);
 			ObjClosure* closure = newClosure(function);
 			stack_push(OBJ_VAL(closure));
@@ -414,8 +424,7 @@ static InterpretResult run()
 			break;
 		}
 		case OP_CLOSURE_LONG: {
-			uint32_t index = READ_24bits();
-			Value constant = READ_CONSTANT(index);
+			Value constant = READ_CONSTANT(READ_24bits());
 			ObjFunction* function = AS_FUNCTION(constant);
 			ObjClosure* closure = newClosure(function);
 			stack_push(OBJ_VAL(closure));
@@ -432,12 +441,94 @@ static InterpretResult run()
 			}
 			break;
 		}
+		case OP_CLASS: {
+			Value constant = READ_CONSTANT(READ_SHORT());
+			ObjString* name = AS_STRING(constant);
+			stack_push(OBJ_VAL(newClass(name)));
+			break;
+		}	
+		case OP_CLASS_LONG: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			ObjString* name = AS_STRING(constant);
+			stack_push(OBJ_VAL(newClass(name)));
+			break;
+		}
+		case OP_GET_PROPERTY: {
+			if (!IS_INSTANCE(vm.stackTop[-1])) {
+				runtimeError("Only instances have properties.");
+				return INTERPRET_RUNTIME_ERROR;
+			}
+
+			ObjInstance* instance = AS_INSTANCE(vm.stackTop[-1]);
+			Value constant = READ_CONSTANT(READ_SHORT());
+			ObjString* name = AS_STRING(constant);
+
+			Value value;
+			if (tableGet(&instance->fields, name, &value)) {
+				stack_replace(value);
+				break;
+			}
+
+			//runtimeError("Undefined property '%s'.", name->chars);
+			//return INTERPRET_RUNTIME_ERROR;
+			stack_replace(NIL_VAL);//don't throw error
+			break;
+		}
+		case OP_GET_PROPERTY_LONG: {
+			if (!IS_INSTANCE(vm.stackTop[-1])) {
+				runtimeError("Only instances have properties.");
+				return INTERPRET_RUNTIME_ERROR;
+			}
+
+			ObjInstance* instance = AS_INSTANCE(vm.stackTop[-1]);
+			Value constant = READ_CONSTANT(READ_24bits());
+			ObjString* name = AS_STRING(constant);
+
+			Value value;
+			if (tableGet(&instance->fields, name, &value)) {
+				stack_replace(value);
+				break;
+			}
+
+			//runtimeError("Undefined property '%s'.", name->chars);
+			//return INTERPRET_RUNTIME_ERROR;
+			stack_replace(NIL_VAL);//don't throw error
+			break;
+		}
+		case OP_SET_PROPERTY: {
+			if (!IS_INSTANCE(vm.stackTop[-2])) {
+				runtimeError("Only instances have fields.");
+				return INTERPRET_RUNTIME_ERROR;
+			}
+
+			ObjInstance* instance = AS_INSTANCE(vm.stackTop[-2]);
+			Value constant = READ_CONSTANT(READ_SHORT());
+			ObjString* name = AS_STRING(constant);
+			tableSet(&instance->fields, name, vm.stackTop[-1]);
+			Value value = stack_pop();
+			stack_replace(value);
+			break;
+		}
+		case OP_SET_PROPERTY_LONG: {
+			if (!IS_INSTANCE(vm.stackTop[-2])) {
+				runtimeError("Only instances have fields.");
+				return INTERPRET_RUNTIME_ERROR;
+			}
+
+			ObjInstance* instance = AS_INSTANCE(vm.stackTop[-2]);
+			Value constant = READ_CONSTANT(READ_24bits());
+			ObjString* name = AS_STRING(constant);
+			tableSet(&instance->fields, name, vm.stackTop[-1]);
+			Value value = stack_pop();
+			stack_replace(value);
+			break;
+		}
 		case OP_DEFINE_GLOBAL: {
 			Value constant = READ_CONSTANT(READ_SHORT());
 			ObjString* name = AS_STRING(constant);
 			--vm.stackTop;
       
-			tableSet_g(&vm.globals, name, *vm.stackTop);
+			tableSet_g(&vm.globals.fields, name, *vm.stackTop);
 			break;
 		}
 		case OP_DEFINE_GLOBAL_LONG: {
@@ -445,7 +536,7 @@ static InterpretResult run()
 			ObjString* name = AS_STRING(constant);
 			--vm.stackTop;
 
-			tableSet_g(&vm.globals, name, *vm.stackTop);
+			tableSet_g(&vm.globals.fields, name, *vm.stackTop);
 			break;
 		}
 		case OP_GET_GLOBAL: {
@@ -453,7 +544,7 @@ static InterpretResult run()
 			ObjString* name = AS_STRING(constant);
 			Value value;
 
-			if (!tableGet_g(&vm.globals, name, &value)) {
+			if (!tableGet_g(&vm.globals.fields, name, &value)) {
 				runtimeError("Undefined variable '%s'.", name->chars);
 				return INTERPRET_RUNTIME_ERROR;
 			}
@@ -465,7 +556,7 @@ static InterpretResult run()
 			ObjString* name = AS_STRING(constant);
 			Value value;
 
-			if (!tableGet_g(&vm.globals, name, &value)) {
+			if (!tableGet_g(&vm.globals.fields, name, &value)) {
 				runtimeError("Undefined variable '%s'.", name->chars);
 				return INTERPRET_RUNTIME_ERROR;
 			}
@@ -476,9 +567,9 @@ static InterpretResult run()
 			Value constant = READ_CONSTANT(READ_SHORT());
 			ObjString* name = AS_STRING(constant);
 
-			if (tableSet_g(&vm.globals, name, vm.stackTop[-1])) {
+			if (tableSet_g(&vm.globals.fields, name, vm.stackTop[-1])) {
 				//lox dont allow setting undefined one
-				tableDelete_g(&vm.globals, name);
+				tableDelete_g(&vm.globals.fields, name);
 				runtimeError("Undefined variable '%s'.", name->chars);
 				return INTERPRET_RUNTIME_ERROR;
 			}
@@ -488,9 +579,9 @@ static InterpretResult run()
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 
-			if (tableSet_g(&vm.globals, name, vm.stackTop[-1])) {
+			if (tableSet_g(&vm.globals.fields, name, vm.stackTop[-1])) {
 				//lox dont allow setting undefined one
-				tableDelete_g(&vm.globals, name);
+				tableDelete_g(&vm.globals.fields, name);
 				runtimeError("Undefined variable '%s'.", name->chars);
 				return INTERPRET_RUNTIME_ERROR;
 			}
@@ -655,8 +746,7 @@ static InterpretResult run()
 		}
 
 		case OP_MODULE_GLOBAL:
-			//Not implemented
-			stack_push(NUMBER_VAL(OP_MODULE_GLOBAL));
+			stack_push(OBJ_VAL(&vm.globals));
 			break;
 		case OP_MODULE_BUILTIN:
 			stack_push(NUMBER_VAL(READ_BYTE()));
@@ -691,11 +781,11 @@ InterpretResult interpret(C_STR source)
 	stack_push(OBJ_VAL(closure));
 	call(closure, 0);
 
-#if LOG_EXECUTE_TIMING || LOG_KIPS
+#if LOG_EXECUTE_TIMING || LOG_MIPS
 	uint64_t time_run = get_nanoseconds();
 #endif
 
-#if LOG_KIPS
+#if LOG_MIPS
 	byteCodeCount = 0;
 #endif
 
@@ -706,8 +796,8 @@ InterpretResult interpret(C_STR source)
 	printf("[Log] Finished executing in %g ms.\n", time_ms);
 #endif
 
-#if LOG_KIPS
-	printf("[Log] Finished executing at %g kips.\n", byteCodeCount / time_ms);
+#if LOG_MIPS
+	printf("[Log] Finished executing at %g mips.\n", byteCodeCount / time_ms * 1e-3);
 	byteCodeCount = 0;
 #endif
 

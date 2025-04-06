@@ -76,10 +76,20 @@ Unknown_ptr reallocate(Unknown_ptr pointer, size_t oldSize, size_t newSize)
 
 void freeObject(Obj* object) {
 #if DEBUG_LOG_GC
-	printf("[gc] %p free \$%s\n", (Unknown_ptr)object, objTypeInfo[object->type]);
+	printf("[gc] %p free (%s)\n", (Unknown_ptr)object, objTypeInfo[object->type]);
 #endif
 
 	switch (object->type) {
+	case OBJ_CLASS: {
+		FREE(ObjClass, object);
+		break;
+	}
+	case OBJ_INSTANCE: {
+		ObjInstance* instance = (ObjInstance*)object;
+		table_free(&instance->fields);
+		FREE(ObjInstance, object);
+		break;
+	}
 	case OBJ_CLOSURE: {
 		ObjClosure* closure = (ObjClosure*)object;
 		FREE_ARRAY(ObjUpvalue*, closure->upvalues, closure->upvalueCount);
@@ -87,6 +97,9 @@ void freeObject(Obj* object) {
 		FREE(ObjClosure, object);
 		break;
 	}
+	case OBJ_UPVALUE:
+		FREE(ObjUpvalue, object);
+		break;
 	case OBJ_FUNCTION: {
 		ObjFunction* function = (ObjFunction*)object;
 		chunk_free(&function->chunk);
@@ -99,9 +112,6 @@ void freeObject(Obj* object) {
 	case OBJ_STRING: {
 		ObjString* string = (ObjString*)object;
 		FREE_FLEX(ObjString, string, char, string->length);//FAM object  
-		break;
-	case OBJ_UPVALUE:
-		FREE(ObjUpvalue, object);
 		break;
 	}
 	}

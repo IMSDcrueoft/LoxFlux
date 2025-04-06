@@ -49,7 +49,7 @@ static void markRoots() {
 		markObject((Obj*)upvalue);
 	}
 
-	markTable(&vm.globals);
+	markTable(&vm.globals.fields);
 	//the shared constants don't gc
 	//markConstants(&vm.constants);
 
@@ -120,6 +120,20 @@ static void blackenObject(Obj* object) {
 	//	//markArray(&function->chunk.constants);
 	//	break;
 	//}
+	//case OBJ_CLASS: {
+	//	ObjClass* klass = (ObjClass*)object;
+	//	markObject((Obj*)klass->name);
+	//	break;
+	//}
+	case OBJ_INSTANCE: {
+		ObjInstance* instance = (ObjInstance*)object;
+		ObjClass* klass = instance->klass;
+		if (klass != &builtinClass) {
+			markObject((Obj*)klass);
+			markTable(&instance->fields);
+		}
+		break;
+	}
 	}
 }
 

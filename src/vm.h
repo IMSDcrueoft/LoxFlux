@@ -39,7 +39,7 @@ typedef struct {
 	NumberTable numbers;
 
 	//global hash table
-	Table globals;
+	ObjInstance globals;
 
 	//the root for dynamic objects
 	Obj* objects;
@@ -71,6 +71,7 @@ typedef enum {
 
 //the global shared vm extern to other file
 extern VM vm;
+extern const ObjClass builtinClass;
 
 void vm_init();
 void vm_free();

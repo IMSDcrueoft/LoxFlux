@@ -560,6 +560,30 @@ static void function(FunctionType type) {
 	freeLocals(&compiler);
 }
 
+static void emitClassCommond(uint32_t index) {
+	if (index <= UINT16_MAX) {
+		emitBytes(3, OP_CLASS, (uint8_t)index, (uint8_t)(index >> 8));
+	}
+	else if (index <= UINT24_MAX) {
+		emitBytes(4, OP_CLASS_LONG, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
+	}
+	else {
+		error("Too many constants in chunk.");
+	}
+}
+
+static void classDeclaration() {
+	consume(TOKEN_IDENTIFIER, "Expect class name.");
+	uint32_t nameConstant = identifierConstant(&parser.previous);
+	declareVariable();
+
+	emitClassCommond(nameConstant);
+	defineVariable(nameConstant);
+
+	consume(TOKEN_LEFT_BRACE, "Expect '{' before class body.");
+	consume(TOKEN_RIGHT_BRACE, "Expect '}' after class body.");
+}
+
 static void funDeclaration() {
 	uint32_t global = parseVariable("Expect function name.");
 	markInitialized(false);
@@ -845,7 +869,9 @@ static void declaration() {
 	//might went panicMode
 	if (parser.panicMode) synchronize();
 
-	if (match(TOKEN_FUN)) {
+	if (match(TOKEN_CLASS)) {
+		classDeclaration();
+	} else if (match(TOKEN_FUN)) {
 		funDeclaration();
 	}
 	else if (match(TOKEN_VAR)) {
@@ -886,6 +912,43 @@ static void binary(bool canAssign) {
 static void call(bool canAssign) {
 	uint8_t argCount = argumentList();
 	emitBytes(2,OP_CALL, argCount);
+}
+
+static void emitPropGetCommond(uint32_t index) {
+	if (index <= UINT16_MAX) {
+		emitBytes(3, OP_GET_PROPERTY, (uint8_t)index, (uint8_t)(index >> 8));
+	}
+	else if (index <= UINT24_MAX) {
+		emitBytes(4, OP_GET_PROPERTY_LONG, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
+	}
+	else {
+		error("Too many constants in chunk.");
+	}
+}
+
+static void emitPropSetCommond(uint32_t index) {
+	if (index <= UINT16_MAX) {
+		emitBytes(3, OP_SET_PROPERTY, (uint8_t)index, (uint8_t)(index >> 8));
+	}
+	else if (index <= UINT24_MAX) {
+		emitBytes(4, OP_SET_PROPERTY_LONG, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
+	}
+	else {
+		error("Too many constants in chunk.");
+	}
+}
+
+static void dot(bool canAssign) {
+	consume(TOKEN_IDENTIFIER, "Expect property name after '.'.");
+	uint32_t name = identifierConstant(&parser.previous);
+
+	if (canAssign && match(TOKEN_EQUAL)) {
+		expression();
+		emitPropSetCommond(name);
+	}
+	else {
+		emitPropGetCommond(name);
+	}
 }
 
 //check builtin
@@ -1074,7 +1137,7 @@ ParseRule rules[] = {
 	[TOKEN_LEFT_BRACE] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_RIGHT_BRACE] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_COMMA] = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_DOT] = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_DOT] = {NULL,     dot,   PREC_CALL},
 	[TOKEN_MINUS] = {unary   ,    binary, PREC_TERM     },
 	[TOKEN_PLUS] = {NULL,     binary, PREC_TERM    },
 	[TOKEN_SEMICOLON] = {NULL,     NULL,   PREC_NONE},

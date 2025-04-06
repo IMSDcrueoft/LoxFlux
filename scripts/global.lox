@@ -1,0 +1,6 @@
+@global.aString = "hello world";
+print @global;
+print @global.aString;
+print @global.someThingNotExist; //no error
+
+// print someThingNotExist; //cause error

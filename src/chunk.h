@@ -53,6 +53,14 @@ typedef enum {
 
 	OP_CLOSE_UPVALUE,   // close upvalue
 
+	OP_CLASS,			// create class
+	OP_CLASS_LONG,
+
+	OP_GET_PROPERTY,	// modify property
+	OP_GET_PROPERTY_LONG,
+	OP_SET_PROPERTY,
+	OP_SET_PROPERTY_LONG,
+
 	OP_RETURN,          // ret
 	OP_THROW,			// throw
 
