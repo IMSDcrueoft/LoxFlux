@@ -36,6 +36,7 @@ Lox 是一种专为学习设计的编程语言。它被设计成一门精简且�
 ### Global Variable
 
 - **Optimized global variable access**: Achieves O(1) time complexity of existing keys indexes that do not deteriorate.
+- **Global instance**: Use @global to explicitly get the global table, create and delete attributes, use it like a simple object.
 
 ### Local Variable
 
@@ -45,6 +46,10 @@ Lox 是一种专为学习设计的编程语言。它被设计成一门精简且�
 ### Loop
 
 - **'break' and 'continue' keywords**: Supported within loops.
+
+### Instance
+
+- **Delete property**: Remove key-value pairs by assigning nil to the object.
 
 ### Random Generator
 

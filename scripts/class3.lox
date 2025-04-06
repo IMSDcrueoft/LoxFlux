@@ -1,0 +1,7 @@
+class Object{}
+
+var obj = Object();
+var b = obj._key = 3;
+print b;
+var c = b + (obj._key = 1);
+print c;
