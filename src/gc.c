@@ -10,27 +10,31 @@
 #include "memory.h"
 #include "timer.h"
 
-static void blackenObject(Obj* object);
+//Flip tagging, although the performance is not high (about 4% gap), is more suitable for concurrent tagging
+bool usingMark = true;
+uint64_t gc_heap_begin = GC_HEAP_BEGIN;
+
 void markValue(Value value)
 {
 	if (IS_OBJ(value)) markObject(AS_OBJ(value));
 }
 
-static void markArray(ValueArray* array) {
-	for (uint32_t i = 0; i < array->count; i++) {
-		markValue(array->values[i]);
-	}
-}
+//static void markArray(ValueArray* array) {
+//	for (uint32_t i = 0; i < array->count; i++) {
+//		markValue(array->values[i]);
+//	}
+//}
 
-static void markConstants(ValueArray* array) {
-	for (uint32_t i = 0; i < array->count; i++) {
-		Value value = array->values[i];
-		if (IS_OBJ(value)) {
-			AS_OBJ(value)->isMarked = true;
-			blackenObject(AS_OBJ(value));
-		}
-	}
-}
+// static void blackenObject(Obj* object);
+//static void markConstants(ValueArray* array) {
+//	for (uint32_t i = 0; i < array->count; i++) {
+//		Value value = array->values[i];
+//		if (IS_OBJ(value)) {
+//			AS_OBJ(value)->isMarked = usingMark;
+//			blackenObject(AS_OBJ(value));
+//		}
+//	}
+//}
 
 static void markRoots() {
 	for (Value* slot = vm.stack; slot < vm.stackTop; slot++) {
@@ -57,7 +61,7 @@ void markObject(Obj* object)
 	//skip the null and things that don't need mark
 	if (object == NULL) return;
 	//skip marked one
-	if (object->isMarked) return;
+	if (object->isMarked == usingMark) return;
 
 	switch (object->type) {
 	case OBJ_FUNCTION:
@@ -73,7 +77,7 @@ void markObject(Obj* object)
 	printValue(OBJ_VAL(object));
 	printf("\n");
 #endif
-	object->isMarked = true;
+	object->isMarked = usingMark;
 
 	if (vm.grayCapacity < vm.grayCount + 1) {
 		vm.grayCapacity = GROW_CAPACITY(vm.grayCapacity);
@@ -130,12 +134,9 @@ static void sweep() {
 	Obj* previous = NULL;
 	Obj* object = vm.objects;
 
-	//const Value* constantBegin = vm.constants.values;
-	//const Value* constantEnd = vm.constants.values + vm.constants.capacity;
-
 	while (object != NULL) {
-		if (object->isMarked) {
-			object->isMarked = false;//clear the mark
+		if (object->isMarked == usingMark) {
+			//object->isMarked = false;//clear the mark
 
 			previous = object;
 			object = object->next;
@@ -151,21 +152,6 @@ static void sweep() {
 			}
 
 			freeObject(unreached);
-			//			Value* value = GET_VALUE_CONTAINER(unreached);
-			//			// if its in constants, we need remove it and mark the hole for reuse
-			//			if ((constantBegin <= value) && (value < constantEnd)) {
-			//				// calculate the index,ptrdiff_t is unit count
-			//				ptrdiff_t index = value - constantBegin;
-			//#if DEBUG_LOG_GC
-			//				printf("[gc] constants %td\n", index);
-			//#endif
-			//				valueHoles_push(&vm.constantHoles, index);
-			//				freeObject(unreached);
-			//				*value = NIL_VAL;//set to nil
-			//			}
-			//			else {
-			//				freeObject(unreached);
-			//			}
 		}
 	}
 }
@@ -185,7 +171,10 @@ void garbageCollect()
 	//tableRemoveWhite(&vm.strings);
 	sweep();
 
-	vm.nextGC = vm.bytesAllocated * GC_HEAP_GROW_FACTOR;
+	//flip the mark
+	usingMark = !usingMark;
+	//reset the limit
+	vm.nextGC = max(vm.bytesAllocated * GC_HEAP_GROW_FACTOR, gc_heap_begin);
 
 #if DEBUG_LOG_GC
 	printf("-- gc end\n");
@@ -201,4 +190,9 @@ void garbageCollect()
 void changeNextGC(uint64_t newSize)
 {
 	vm.nextGC = newSize;
+}
+
+void changeBeginGC(uint64_t newSize)
+{
+	gc_heap_begin = newSize;
 }

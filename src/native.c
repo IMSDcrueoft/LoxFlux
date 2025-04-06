@@ -104,6 +104,30 @@ static Value gcNextNative(int argCount, Value* args, C_STR* errorInfo) {
 	return NIL_VAL;
 }
 
+//change gc begin
+static Value gcBeginNative(int argCount, Value* args, C_STR* errorInfo) {
+	if (argCount != 1) {
+		*errorInfo = (argCount == 0)
+			? "gcBegin(): Expected 1 argument but got none"
+			: "gcBegin(): Expected 1 argument but got more";
+		return NIL_VAL;
+	}
+
+	if (args[0].type != VAL_NUMBER) {
+		*errorInfo = "gcBegin(): The parameter must be a number";
+		return NIL_VAL;
+	}
+	double beginGC = AS_NUMBER(args[0]);
+	if (beginGC < 1024) {
+		beginGC = 1024;
+	}
+	else if (beginGC > (1024 * 1024 * 1024)) {
+		beginGC = (1024 * 1024 * 1024);
+	}
+	changeBeginGC((uint64_t)beginGC);
+	return NIL_VAL;
+}
+
 void importNative()
 {
 	defineNative("clock", clockNative);
@@ -111,4 +135,5 @@ void importNative()
 	defineNative("min", minNative);
 	defineNative("gc", gcNative);
 	defineNative("gcNext", gcNextNative);
+	defineNative("gcBegin", gcBeginNative);
 }

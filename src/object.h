@@ -10,12 +10,12 @@
 #include "chunk.h"
 
 typedef enum {
-	//constants
+	//constants that don't join gc
 	OBJ_FUNCTION,
 	OBJ_NATIVE,
 	OBJ_STRING,
 
-	//gc objs
+	//gcable objs
 	OBJ_CLOSURE,
 	OBJ_UPVALUE,
 	
@@ -52,8 +52,8 @@ typedef struct {
 
 typedef struct ObjUpvalue {
 	Obj obj;
-	Value* location;
 	Value closed; //closed value
+	Value* location;
 	struct ObjUpvalue* next;
 } ObjUpvalue;
 

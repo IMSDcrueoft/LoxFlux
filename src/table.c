@@ -257,20 +257,20 @@ ObjString* tableFindString(Table* table, C_STR chars, uint32_t length, uint64_t 
 	}
 }
 
-void tableRemoveWhite(Table* table)
-{
-	for (uint32_t i = 0; i < table->capacity; i++) {
-		Entry* entry = &table->entries[i];
-		if (entry->key != NULL && !entry->key->obj.isMarked) {
-			tableDelete(table, entry->key);
-		}
-	}
-}
+//void tableRemoveWhite(Table* table)
+//{
+//	for (uint32_t i = 0; i < table->capacity; i++) {
+//		Entry* entry = &table->entries[i];
+//		if (entry->key != NULL && !entry->key->obj.isMarked) {
+//			tableDelete(table, entry->key);
+//		}
+//	}
+//}
 
 void markTable(Table* table) {
 	for (uint32_t i = 0; i < table->capacity; i++) {
 		Entry* entry = &table->entries[i];
-		markObject((Obj*)entry->key);
+		//markObject((Obj*)entry->key);
 		markValue(entry->value);
 	}
 }
