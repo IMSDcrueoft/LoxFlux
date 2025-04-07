@@ -1,0 +1,7 @@
+class Object{}
+{
+    var a = Object();
+    for(a.i = 0;a.i < 1e7;){
+        a.i = a.i + 1;
+    }
+}

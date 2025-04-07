@@ -22,6 +22,15 @@ typedef enum {
 
 #define BUILTIN_MODULE_COUNT MODULE_GLOBAL
 
+// you must define the size of table in the module ,must be 2^n,and enough for improtNative_xxx
+#define BUILTIN_MATH_TABLE_SIZE 16
+#define BUILTIN_ARRAY_TABLE_SIZE 16
+#define BUILTIN_OBJECT_TABLE_SIZE 16
+#define BUILTIN_STRING_TABLE_SIZE 16
+#define BUILTIN_FILE_TABLE_SIZE 16
+#define BUILTIN_TIME_TABLE_SIZE 8
+#define BUILTIN_SYSTEM_TABLE_SIZE 8
+
 void importNative_math();
 void importNative_array();
 void importNative_object();

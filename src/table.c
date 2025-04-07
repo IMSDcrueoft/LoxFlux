@@ -26,6 +26,24 @@ void table_free(Table* table)
 	table_init(table);
 }
 
+void table_init_static(Table* table, uint32_t capacity, Entry* static_address)
+{
+	table->inlineCaching = 0;
+	table->count = 0;
+	table->capacity = capacity;
+	table->entries = static_address;
+
+	for (uint32_t i = 0; i < table->capacity; ++i) {
+		table->entries[i].key = NULL;
+		table->entries[i].value = NIL_VAL;
+	}
+}
+
+void table_free_static(Table* table)
+{
+	table_init_static(table, table->capacity, table->entries);
+}
+
 static Entry* findEntry(Entry* entries, uint32_t capacity, ObjString* key, TableType type) {
 	//check it
 	Entry* entry = NULL;

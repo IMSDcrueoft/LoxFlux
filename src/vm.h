@@ -40,8 +40,6 @@ typedef struct {
 	NumberTable numbers;
 	//global hash table
 	ObjInstance globals;
-	//builtins
-	ObjInstance builtins[BUILTIN_MODULE_COUNT];
 
 	//the root for dynamic objects
 	Obj* objects;

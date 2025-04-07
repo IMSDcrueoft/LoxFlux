@@ -154,5 +154,8 @@
     <ClInclude Include="src\nativeBuiltin.h">
       <Filter>loxFlux\header</Filter>
     </ClInclude>
+    <ClInclude Include="src\optimize.h">
+      <Filter>loxFlux\header</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
