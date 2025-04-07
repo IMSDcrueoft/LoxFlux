@@ -167,25 +167,31 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.c" />
-    <ClCompile Include="src\builtin.c" />
+    <ClCompile Include="src\nativeArray.c" />
     <ClCompile Include="src\chunk.c" />
     <ClCompile Include="src\compiler.c" />
     <ClCompile Include="src\debug.c" />
     <ClCompile Include="src\entrance.c" />
+    <ClCompile Include="src\nativeFile.c" />
     <ClCompile Include="src\gc.c" />
     <ClCompile Include="src\lineArray.c" />
     <ClCompile Include="src\memory.c" />
-    <ClCompile Include="src\native.c" />
+    <ClCompile Include="src\nativeGlobal.c" />
+    <ClCompile Include="src\nativeMath.c" />
+    <ClCompile Include="src\nativeSystem.c" />
+    <ClCompile Include="src\nativeTime.c" />
     <ClCompile Include="src\object.c" />
+    <ClCompile Include="src\nativeObject.c" />
     <ClCompile Include="src\scanner.c" />
+    <ClCompile Include="src\nativeString.c" />
     <ClCompile Include="src\table.c" />
     <ClCompile Include="src\timer.c" />
     <ClCompile Include="src\value.c" />
     <ClCompile Include="src\vm.c" />
-    <ClCompile Include="src\wellRng1024a.c" />
+    <ClCompile Include="src\well1024a.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\builtin.h" />
+    <ClInclude Include="src\nativeBuiltin.h" />
     <ClInclude Include="src\check.h" />
     <ClInclude Include="src\chunk.h" />
     <ClInclude Include="src\common.h" />
@@ -204,7 +210,7 @@
     <ClInclude Include="src\value.h" />
     <ClInclude Include="src\version.h" />
     <ClInclude Include="src\vm.h" />
-    <ClInclude Include="src\wellRng1024a.h" />
+    <ClInclude Include="src\well1024a.h" />
     <ClInclude Include="src\allocator.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

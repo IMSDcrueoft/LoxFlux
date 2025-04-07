@@ -23,7 +23,7 @@
     <ClCompile Include="main.c">
       <Filter>source</Filter>
     </ClCompile>
-    <ClCompile Include="src\wellRng1024a.c">
+    <ClCompile Include="src\well1024a.c">
       <Filter>loxFlux\source</Filter>
     </ClCompile>
     <ClCompile Include="src\chunk.c">
@@ -62,13 +62,31 @@
     <ClCompile Include="src\entrance.c">
       <Filter>loxFlux\source</Filter>
     </ClCompile>
-    <ClCompile Include="src\native.c">
+    <ClCompile Include="src\nativeGlobal.c">
       <Filter>loxFlux\source</Filter>
     </ClCompile>
     <ClCompile Include="src\gc.c">
       <Filter>loxFlux\source</Filter>
     </ClCompile>
-    <ClCompile Include="src\builtin.c">
+    <ClCompile Include="src\nativeMath.c">
+      <Filter>loxFlux\source</Filter>
+    </ClCompile>
+    <ClCompile Include="src\nativeSystem.c">
+      <Filter>loxFlux\source</Filter>
+    </ClCompile>
+    <ClCompile Include="src\nativeTime.c">
+      <Filter>loxFlux\source</Filter>
+    </ClCompile>
+    <ClCompile Include="src\nativeString.c">
+      <Filter>loxFlux\source</Filter>
+    </ClCompile>
+    <ClCompile Include="src\nativeArray.c">
+      <Filter>loxFlux\source</Filter>
+    </ClCompile>
+    <ClCompile Include="src\nativeFile.c">
+      <Filter>loxFlux\source</Filter>
+    </ClCompile>
+    <ClCompile Include="src\nativeObject.c">
       <Filter>loxFlux\source</Filter>
     </ClCompile>
   </ItemGroup>
@@ -106,7 +124,7 @@
     <ClInclude Include="src\vm.h">
       <Filter>loxFlux\header</Filter>
     </ClInclude>
-    <ClInclude Include="src\wellRng1024a.h">
+    <ClInclude Include="src\well1024a.h">
       <Filter>loxFlux\header</Filter>
     </ClInclude>
     <ClInclude Include="src\check.h">
@@ -133,7 +151,7 @@
     <ClInclude Include="src\gc.h">
       <Filter>loxFlux\header</Filter>
     </ClInclude>
-    <ClInclude Include="src\builtin.h">
+    <ClInclude Include="src\nativeBuiltin.h">
       <Filter>loxFlux\header</Filter>
     </ClInclude>
   </ItemGroup>

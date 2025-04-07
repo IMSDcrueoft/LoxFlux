@@ -8,7 +8,7 @@
 #include "compiler.h"
 #include "table.h"
 #include "object.h"
-#include "builtin.h"
+#include "nativeBuiltin.h"
 
 //the depth of call frames
 #define FRAMES_MAX 1024
@@ -73,7 +73,7 @@ typedef enum {
 
 //the global shared vm extern to other file
 extern VM vm;
-extern const ObjClass builtinClass;
+extern ObjClass builtinClass;
 
 void vm_init();
 void vm_free();

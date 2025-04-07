@@ -3,15 +3,15 @@
  * Copyright (c) 2025 IM&SD (https://github.com/IMSDcrueoft)
  * See LICENSE file in the root directory for full license text.
 */
-#include "wellRng1024a.h"
+#include "well1024a.h"
 
 #define STATE_SIZE 32
 
 //the global shared random engine
-WellRng1024a well1024;
+well1024a well1024;
 
 // init
-void wellRng1024a_initArray(const uint32_t* init_keys, uint32_t keys_length) {
+void well1024a_initArray(const uint32_t* init_keys, uint32_t keys_length) {
 	uint32_t* state = well1024.state;
 
 	keys_length = (keys_length < STATE_SIZE) ? keys_length : STATE_SIZE;
@@ -26,12 +26,17 @@ void wellRng1024a_initArray(const uint32_t* init_keys, uint32_t keys_length) {
 	}
 }
 
-void wellRng1024a_init(uint32_t seed) {
-	wellRng1024a_initArray((uint32_t[]) { seed }, 1);
+void well1024a_init(uint32_t seed) {
+	well1024a_initArray((uint32_t[]) { seed }, 1);
 	well1024.index = 0; // reset
 }
 
-uint32_t wellRng1024a_rand() {
+void well1024a_init64(uint64_t seed) {
+	well1024a_initArray((uint32_t[]) { seed >> 32, seed & UINT32_MAX }, 2);
+	well1024.index = 0; // reset
+}
+
+uint32_t well1024a_rand() {
 	uint32_t* state = well1024.state;
 	uint32_t index = well1024.index;
 
@@ -52,13 +57,13 @@ uint32_t wellRng1024a_rand() {
 	return state[nextIndex];
 }
 
-double wellRng1024a_random() {
-	return  wellRng1024a_rand() * (1.0 / 4294967296.0);
+double well1024a_random() {
+	return  well1024a_rand() * (1.0 / 4294967296.0);
 }
 
-double wellRng1024a_random53() {
-	uint64_t a = wellRng1024a_rand() >> 5;  // 27
-	uint64_t b = wellRng1024a_rand() >> 6;  // 26
+double well1024a_random53() {
+	uint64_t a = well1024a_rand() >> 5;  // 27
+	uint64_t b = well1024a_rand() >> 6;  // 26
 
 	uint64_t combined = (a << 26) | b;
 

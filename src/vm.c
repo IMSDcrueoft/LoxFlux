@@ -17,9 +17,9 @@
 #endif
 
 //the global
-const ObjClass globalClass = { .obj = {.type = OBJ_CLASS,.next = NULL,.isMarked = true},.name = NULL };
+ObjClass globalClass = { .obj = {.type = OBJ_CLASS,.next = NULL,.isMarked = true},.name = NULL };
 //the builtins
-const ObjClass builtinClass = { .obj = {.type = OBJ_CLASS,.next = NULL,.isMarked = true},.name = NULL };
+ObjClass builtinClass = { .obj = {.type = OBJ_CLASS,.next = NULL,.isMarked = true},.name = NULL };
 //the global shared vm
 VM vm;
 //ip for debug

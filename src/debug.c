@@ -4,7 +4,7 @@
  * See LICENSE file in the root directory for full license text.
 */
 #include "debug.h"
-#include "builtin.h"
+#include "nativeBuiltin.h"
 #include "vm.h"
 
 #if  DEBUG_TRACE_EXECUTION || DEBUG_PRINT_CODE

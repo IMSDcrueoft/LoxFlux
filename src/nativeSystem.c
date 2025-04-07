@@ -3,63 +3,9 @@
 * Copyright (c) 2025 IM&SD (https://github.com/IMSDcrueoft)
 * See LICENSE file in the root directory for full license text.
 */
-#include "builtin.h"
+#include "nativeBuiltin.h"
 #include "vm.h"
-#include "timer.h"
 #include "gc.h"
-
-//Math
-//max with multiple input
-static Value maxNative(int argCount, Value* args, C_STR* errorInfo)
-{
-	if (argCount < 2) {
-		*errorInfo = "max(): Expected at least 2 arguments";
-		return NIL_VAL;
-	}
-
-	if (!(IS_NUMBER(args[0])) || !IS_NUMBER(args[1])) {
-		return NUMBER_VAL(NAN);
-	}
-
-	double val = max(AS_NUMBER(args[0]), AS_NUMBER(args[1]));
-
-	for (uint32_t i = 2; i < argCount; ++i) {
-		if (!(IS_NUMBER(args[i]))) {
-			val = NAN;
-			break;
-		}
-
-		val = max(val, AS_NUMBER(args[i]));
-	}
-
-	return NUMBER_VAL(val);
-}
-
-//max with multiple input
-static Value minNative(int argCount, Value* args, C_STR* errorInfo)
-{
-	if (argCount < 2) {
-		*errorInfo = "min(): Expected at least 2 arguments";
-		return NIL_VAL;
-	}
-
-	if (!(IS_NUMBER(args[0])) || !IS_NUMBER(args[1])) {
-		return NUMBER_VAL(NAN);
-	}
-
-	double val = min(AS_NUMBER(args[0]), AS_NUMBER(args[1]));
-
-	for (uint32_t i = 2; i < argCount; ++i) {
-		if (!(IS_NUMBER(args[i]))) {
-			val = NAN;
-			break;
-		}
-
-		val = min(val, AS_NUMBER(args[i]));
-	}
-
-	return NUMBER_VAL(val);
-}
 
 //System
 //force do gc
@@ -118,46 +64,6 @@ static Value gcBeginNative(int argCount, Value* args, C_STR* errorInfo) {
 	}
 	changeBeginGC((uint64_t)beginGC);
 	return NIL_VAL;
-}
-
-//Time
-//return second
-static Value nanoTickNative(int argCount, Value* args, C_STR* errorInfo)
-{
-	if (argCount != 0) {
-		*errorInfo = "clock(): Expected 0 arguments but got some";
-		return NIL_VAL;
-	}
-	return NUMBER_VAL((double)get_nanoseconds() * 1e-9);
-}
-
-//File
-
-//String
-
-//Array
-
-//Object
-
-void importNative_math() {
-	defineNative_math("max", maxNative);
-	defineNative_math("min", minNative);
-}
-
-void importNative_array() {
-}
-
-void importNative_object() {
-}
-
-void importNative_string() {
-}
-
-void importNative_time() {
-	defineNative_time("nanoTick", nanoTickNative);
-}
-
-void importNative_file() {
 }
 
 void importNative_system() {
