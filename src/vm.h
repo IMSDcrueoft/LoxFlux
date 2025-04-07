@@ -8,7 +8,7 @@
 #include "compiler.h"
 #include "table.h"
 #include "object.h"
-#include "builtinModule.h"
+#include "builtin.h"
 
 //the depth of call frames
 #define FRAMES_MAX 1024
@@ -89,5 +89,13 @@ uint32_t addConstant(Value value);
 InterpretResult interpret(C_STR source);
 InterpretResult interpret_repl(C_STR source);
 
-//for vm
-void defineNative(C_STR name, NativeFn function);
+//for builtin
+void defineNative_math(C_STR name, NativeFn function);
+void defineNative_array(C_STR name, NativeFn function);
+void defineNative_object(C_STR name, NativeFn function);
+void defineNative_string(C_STR name, NativeFn function);
+void defineNative_time(C_STR name, NativeFn function);
+void defineNative_file(C_STR name, NativeFn function);
+void defineNative_system(C_STR name, NativeFn function);
+//for global
+void defineNative_global(C_STR name, NativeFn function);

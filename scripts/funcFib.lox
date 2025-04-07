@@ -3,6 +3,6 @@ fun fib(n) {
   return fib(n - 2) + fib(n - 1);
 }
 
-var start = clock();
+var start = @time.nanoTick();
 print fib(35);
-print clock() - start;
+print @time.nanoTick() - start;

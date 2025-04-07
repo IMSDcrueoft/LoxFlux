@@ -135,7 +135,56 @@ Value stack_pop()
 
 #define STACK_PEEK(distance) (vm.stackTop[-1 - distance])
 
-void defineNative(C_STR name, NativeFn function) {
+void defineNative_math(C_STR name, NativeFn function) {
+	tableSet(&vm.builtins[MODULE_MATH].fields,
+		copyString(name, (uint32_t)strlen(name), false),
+		OBJ_VAL(newNative(function))
+	);
+}
+
+void defineNative_array(C_STR name, NativeFn function) {
+	tableSet(&vm.builtins[MODULE_ARRAY].fields,
+		copyString(name, (uint32_t)strlen(name), false),
+		OBJ_VAL(newNative(function))
+	);
+}
+
+void defineNative_object(C_STR name, NativeFn function) {
+	tableSet(&vm.builtins[MODULE_OBJECT].fields,
+		copyString(name, (uint32_t)strlen(name), false),
+		OBJ_VAL(newNative(function))
+	);
+}
+
+void defineNative_string(C_STR name, NativeFn function) {
+	tableSet(&vm.builtins[MODULE_STRING].fields,
+		copyString(name, (uint32_t)strlen(name), false),
+		OBJ_VAL(newNative(function))
+	);
+}
+
+void defineNative_time(C_STR name, NativeFn function) {
+	tableSet(&vm.builtins[MODULE_TIME].fields,
+		copyString(name, (uint32_t)strlen(name), false),
+		OBJ_VAL(newNative(function))
+	);
+}
+
+void defineNative_file(C_STR name, NativeFn function) {
+	tableSet(&vm.builtins[MODULE_FILE].fields,
+		copyString(name, (uint32_t)strlen(name), false),
+		OBJ_VAL(newNative(function))
+	);
+}
+
+void defineNative_system(C_STR name, NativeFn function) {
+	tableSet(&vm.builtins[MODULE_SYSTEM].fields,
+		copyString(name, (uint32_t)strlen(name), false),
+		OBJ_VAL(newNative(function))
+	);
+}
+
+void defineNative_global(C_STR name, NativeFn function) {
 	//stack_push(OBJ_VAL(copyString(name, (uint32_t)strlen(name), false)));
 	//stack_push(OBJ_VAL(newNative(function)));
 	//tableSet(&vm.globals.fields, AS_STRING(vm.stack[0]), vm.stack[1]);
@@ -148,18 +197,30 @@ void defineNative(C_STR name, NativeFn function) {
 	);
 }
 
-void defineBuiltins() {
+static void importBuiltins() {
 	for (uint32_t i = 0; i < BUILTIN_MODULE_COUNT; ++i) {
 		vm.builtins[i] = (ObjInstance){
 		.obj = {.type = OBJ_INSTANCE,.next = NULL,.isMarked = true},
 		.klass = &builtinClass,
-		.fields = {.type = TABLE_MODULE}//remind this
+		.fields = {.type = TABLE_NORMAL}//remind this
 		};
 		table_init(&vm.builtins[i].fields);
 	}
+
+	importNative_math();
+	importNative_array();
+	importNative_object();
+	importNative_string();
+	importNative_time();
+	importNative_file();
+	importNative_system();
+
+	for (uint32_t i = 0; i < BUILTIN_MODULE_COUNT; ++i) {
+		vm.builtins[i].fields.type = TABLE_MODULE;//remind this,we can't set first
+	}
 }
 
-void removeBuiltins() {
+static void removeBuiltins() {
 	for (uint32_t i = 0; i < BUILTIN_MODULE_COUNT; ++i) {
 		table_free(&vm.builtins[i].fields);
 	}
@@ -204,10 +265,10 @@ void vm_init()
 	vm.nextGC = GC_HEAP_BEGIN;
 
 	//import the builtins
-	defineBuiltins();
+	importBuiltins();
 
 	//import native funcs
-	importNative();
+	importNative_global();
 }
 
 void vm_free()

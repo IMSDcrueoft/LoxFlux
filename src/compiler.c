@@ -5,7 +5,7 @@
 */
 #include "compiler.h"
 #include "gc.h"
-#include "builtinModule.h"
+#include "builtin.h"
 
 #if DEBUG_PRINT_CODE
 #include "debug.h"
