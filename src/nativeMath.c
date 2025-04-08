@@ -93,6 +93,7 @@ static Value seedNative(int argCount, Value* args, C_STR* errorInfo) {
 	return NIL_VAL;
 }
 
+COLD_FUNCTION
 void importNative_math() {
 	well1024a_init64(get_utc_milliseconds());
 

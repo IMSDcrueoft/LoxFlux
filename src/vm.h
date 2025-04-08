@@ -40,6 +40,7 @@ typedef struct {
 	NumberTable numbers;
 	//global hash table
 	ObjInstance globals;
+	ObjInstance builtins[BUILTIN_MODULE_COUNT];
 
 	//the root for dynamic objects
 	Obj* objects;
@@ -78,6 +79,7 @@ void vm_free();
 
 void stack_push(Value value);
 Value stack_pop();
+void stack_replace(Value val);
 
 //get the size of constants (including the holes)
 uint32_t getConstantSize();

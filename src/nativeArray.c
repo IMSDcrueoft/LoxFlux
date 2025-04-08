@@ -7,5 +7,6 @@
 #include "vm.h"
 //Array
 
+COLD_FUNCTION
 void importNative_array() {
 }

@@ -1,3 +1,0 @@
-for(@global.i = 0;@global.i < 1e7;){
-    @global.i = @global.i + 1;
-}

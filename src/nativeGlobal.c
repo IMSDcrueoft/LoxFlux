@@ -8,6 +8,7 @@
 
 //place your function here
 
+COLD_FUNCTION
 void importNative_global()
 {
 	//nothing here yet.

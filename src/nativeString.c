@@ -7,5 +7,6 @@
 #include "vm.h"
 //String
 
+COLD_FUNCTION
 void importNative_string() {
 }

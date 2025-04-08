@@ -19,9 +19,10 @@ fun stress() {
         createPoint(count, count)("x");
         count = count - 1;
     }
-
-    print "do full gc";
     @system.gc(); // do full gc
 }
 
-stress();
+for(var i = 0; i < 10;){
+    stress();
+    i = i + 1;
+}

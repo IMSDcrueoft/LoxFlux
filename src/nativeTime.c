@@ -48,6 +48,7 @@ static Value secondNative(int argCount, Value* args, C_STR* errorInfo)
 	return NUMBER_VAL((double)get_nanoseconds() * 1e-9);
 }
 
+COLD_FUNCTION
 void importNative_time() {
 	defineNative_time("nano", nanoNative);
 	defineNative_time("micro", microNative);

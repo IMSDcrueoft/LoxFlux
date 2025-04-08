@@ -27,6 +27,7 @@ const C_STR objTypeInfo[] = {
 #define ALLOCATE_FLEX_OBJ(type,objectType,byteSize) \
     (type*)allocateObject(byteSize, objectType)
 
+HOT_FUNCTION
 static Obj* allocateObject(size_t size, ObjType type) {
     Obj* object = (Obj*)reallocate(NULL, 0, size);
     object->type = type;
@@ -53,6 +54,7 @@ static Obj* allocateObject(size_t size, ObjType type) {
     return object;
 }
 
+HOT_FUNCTION
 ObjUpvalue* newUpvalue(Value* slot)
 {
     ObjUpvalue* upvalue = ALLOCATE_OBJ(ObjUpvalue, OBJ_UPVALUE);
@@ -71,6 +73,7 @@ ObjFunction* newFunction() {
     return function;
 }
 
+HOT_FUNCTION
 ObjClosure* newClosure(ObjFunction* function) {
 	ObjUpvalue** upvalues = ALLOCATE(ObjUpvalue*, function->upvalueCount);
 	for (int32_t i = 0; i < function->upvalueCount; i++) {
@@ -99,6 +102,7 @@ ObjClass* newClass(ObjString* name)
     return klass;
 }
 
+HOT_FUNCTION
 ObjInstance* newInstance(ObjClass* klass) {
     ObjInstance* instance = ALLOCATE_OBJ(ObjInstance, OBJ_INSTANCE);
     instance->klass = klass;

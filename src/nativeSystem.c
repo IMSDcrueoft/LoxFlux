@@ -66,6 +66,7 @@ static Value gcBeginNative(int argCount, Value* args, C_STR* errorInfo) {
 	return NIL_VAL;
 }
 
+COLD_FUNCTION
 void importNative_system() {
 	defineNative_system("gc", gcNative);
 	defineNative_system("gcNext", gcNextNative);

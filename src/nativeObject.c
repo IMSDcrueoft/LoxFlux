@@ -7,5 +7,6 @@
 #include "vm.h"
 //Object
 
+COLD_FUNCTION
 void importNative_object() {
 }

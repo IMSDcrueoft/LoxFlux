@@ -1,0 +1,3 @@
+for(@global.i = 0;@global.i < 1e8;){
+    @global.i = @global.i + 1;
+}

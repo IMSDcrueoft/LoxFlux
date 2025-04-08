@@ -7,5 +7,6 @@
 #include "vm.h"
 //File
 
+COLD_FUNCTION
 void importNative_file() {
 }

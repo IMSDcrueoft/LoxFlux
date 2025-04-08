@@ -5,7 +5,6 @@
 */
 #include "vm.h"
 #include "object.h"
-#include "native.h"
 #include "gc.h"
 
 #if DEBUG_TRACE_EXECUTION
@@ -22,8 +21,7 @@ static ObjClass globalClass = { .obj = {.type = OBJ_CLASS,.next = NULL,.isMarked
 ObjClass builtinClass = { .obj = {.type = OBJ_CLASS,.next = NULL,.isMarked = true},.name = NULL };
 //the global shared vm
 VM vm;
-//the modules
-static ObjInstance builtins[BUILTIN_MODULE_COUNT];
+
 //alloc the entries in stack
 static Entry mathTable[BUILTIN_MATH_TABLE_SIZE];
 static Entry arrayTable[BUILTIN_ARRAY_TABLE_SIZE];
@@ -139,7 +137,7 @@ void stack_push(Value value)
 }
 
 HOT_FUNCTION
-static inline void stack_replace(Value val) {
+void stack_replace(Value val) {
 	vm.stackTop[-1] = val;
 }
 
@@ -154,7 +152,7 @@ Value stack_pop()
 
 COLD_FUNCTION
 void defineNative_math(C_STR name, NativeFn function) {
-	tableSet(&builtins[MODULE_MATH].fields,
+	tableSet(&vm.builtins[MODULE_MATH].fields,
 		copyString(name, (uint32_t)strlen(name), false),
 		OBJ_VAL(newNative(function))
 	);
@@ -162,7 +160,7 @@ void defineNative_math(C_STR name, NativeFn function) {
 
 COLD_FUNCTION
 void defineNative_array(C_STR name, NativeFn function) {
-	tableSet(&builtins[MODULE_ARRAY].fields,
+	tableSet(&vm.builtins[MODULE_ARRAY].fields,
 		copyString(name, (uint32_t)strlen(name), false),
 		OBJ_VAL(newNative(function))
 	);
@@ -170,7 +168,7 @@ void defineNative_array(C_STR name, NativeFn function) {
 
 COLD_FUNCTION
 void defineNative_object(C_STR name, NativeFn function) {
-	tableSet(&builtins[MODULE_OBJECT].fields,
+	tableSet(&vm.builtins[MODULE_OBJECT].fields,
 		copyString(name, (uint32_t)strlen(name), false),
 		OBJ_VAL(newNative(function))
 	);
@@ -178,7 +176,7 @@ void defineNative_object(C_STR name, NativeFn function) {
 
 COLD_FUNCTION
 void defineNative_string(C_STR name, NativeFn function) {
-	tableSet(&builtins[MODULE_STRING].fields,
+	tableSet(&vm.builtins[MODULE_STRING].fields,
 		copyString(name, (uint32_t)strlen(name), false),
 		OBJ_VAL(newNative(function))
 	);
@@ -186,7 +184,7 @@ void defineNative_string(C_STR name, NativeFn function) {
 
 COLD_FUNCTION
 void defineNative_time(C_STR name, NativeFn function) {
-	tableSet(&builtins[MODULE_TIME].fields,
+	tableSet(&vm.builtins[MODULE_TIME].fields,
 		copyString(name, (uint32_t)strlen(name), false),
 		OBJ_VAL(newNative(function))
 	);
@@ -194,7 +192,7 @@ void defineNative_time(C_STR name, NativeFn function) {
 
 COLD_FUNCTION
 void defineNative_file(C_STR name, NativeFn function) {
-	tableSet(&builtins[MODULE_FILE].fields,
+	tableSet(&vm.builtins[MODULE_FILE].fields,
 		copyString(name, (uint32_t)strlen(name), false),
 		OBJ_VAL(newNative(function))
 	);
@@ -202,7 +200,7 @@ void defineNative_file(C_STR name, NativeFn function) {
 
 COLD_FUNCTION
 void defineNative_system(C_STR name, NativeFn function) {
-	tableSet(&builtins[MODULE_SYSTEM].fields,
+	tableSet(&vm.builtins[MODULE_SYSTEM].fields,
 		copyString(name, (uint32_t)strlen(name), false),
 		OBJ_VAL(newNative(function))
 	);
@@ -225,7 +223,7 @@ void defineNative_global(C_STR name, NativeFn function) {
 COLD_FUNCTION
 static void importBuiltins() {
 	for (uint32_t i = 0; i < BUILTIN_MODULE_COUNT; ++i) {
-		builtins[i] = (ObjInstance){
+		vm.builtins[i] = (ObjInstance){
 		.obj = {.type = OBJ_INSTANCE,.next = NULL,.isMarked = true},
 		.klass = &builtinClass,
 		.fields = {.type = TABLE_NORMAL}//remind this
@@ -233,13 +231,13 @@ static void importBuiltins() {
 	}
 
 	//init
-	table_init_static(&builtins[MODULE_MATH].fields, BUILTIN_MATH_TABLE_SIZE, &mathTable);
-	table_init_static(&builtins[MODULE_ARRAY].fields, BUILTIN_ARRAY_TABLE_SIZE, &arrayTable);
-	table_init_static(&builtins[MODULE_OBJECT].fields, BUILTIN_OBJECT_TABLE_SIZE, &objectTable);
-	table_init_static(&builtins[MODULE_STRING].fields, BUILTIN_STRING_TABLE_SIZE, &stringTable);
-	table_init_static(&builtins[MODULE_TIME].fields, BUILTIN_TIME_TABLE_SIZE, &timeTable);
-	table_init_static(&builtins[MODULE_FILE].fields, BUILTIN_FILE_TABLE_SIZE, &fileTable);
-	table_init_static(&builtins[MODULE_SYSTEM].fields, BUILTIN_SYSTEM_TABLE_SIZE, &systemTable);
+	table_init_static(&vm.builtins[MODULE_MATH].fields, BUILTIN_MATH_TABLE_SIZE, &mathTable);
+	table_init_static(&vm.builtins[MODULE_ARRAY].fields, BUILTIN_ARRAY_TABLE_SIZE, &arrayTable);
+	table_init_static(&vm.builtins[MODULE_OBJECT].fields, BUILTIN_OBJECT_TABLE_SIZE, &objectTable);
+	table_init_static(&vm.builtins[MODULE_STRING].fields, BUILTIN_STRING_TABLE_SIZE, &stringTable);
+	table_init_static(&vm.builtins[MODULE_TIME].fields, BUILTIN_TIME_TABLE_SIZE, &timeTable);
+	table_init_static(&vm.builtins[MODULE_FILE].fields, BUILTIN_FILE_TABLE_SIZE, &fileTable);
+	table_init_static(&vm.builtins[MODULE_SYSTEM].fields, BUILTIN_SYSTEM_TABLE_SIZE, &systemTable);
 
 	importNative_math();
 	importNative_array();
@@ -250,14 +248,14 @@ static void importBuiltins() {
 	importNative_system();
 
 	for (uint32_t i = 0; i < BUILTIN_MODULE_COUNT; ++i) {
-		builtins[i].fields.type = TABLE_MODULE;//remind this,we can't set first
+		vm.builtins[i].fields.type = TABLE_MODULE;//remind this,we can't set first
 	}
 }
 
 COLD_FUNCTION
 static void removeBuiltins() {
 	for (uint32_t i = 0; i < BUILTIN_MODULE_COUNT; ++i) {
-		table_free_static(&builtins[i].fields);
+		table_free_static(&vm.builtins[i].fields);
 	}
 }
 
@@ -351,6 +349,7 @@ uint32_t addConstant(Value value)
 	}
 }
 
+HOT_FUNCTION
 static bool call(ObjClosure* closure, int argCount) {
 	if (argCount > closure->function->arity) {
 		runtimeError("Expected %d arguments but got %d.",
@@ -376,6 +375,7 @@ static bool call(ObjClosure* closure, int argCount) {
 	return true;
 }
 
+HOT_FUNCTION
 static bool call_native(NativeFn native, int argCount) {
 	C_STR errorInfo = NULL;
 	Value result = native(argCount, vm.stackTop - argCount, &errorInfo);
@@ -388,6 +388,7 @@ static bool call_native(NativeFn native, int argCount) {
 	return true;
 }
 
+HOT_FUNCTION
 static bool callValue(Value callee, int argCount) {
 	if (IS_OBJ(callee)) {
 		switch (OBJ_TYPE(callee)) {
@@ -405,6 +406,7 @@ static bool callValue(Value callee, int argCount) {
 	return false;
 }
 
+HOT_FUNCTION
 static ObjUpvalue* captureUpvalue(Value* local) {
 	ObjUpvalue* prevUpvalue = NULL;
 	ObjUpvalue* upvalue = vm.openUpvalues;
@@ -433,6 +435,7 @@ static ObjUpvalue* captureUpvalue(Value* local) {
 	return createdUpvalue;
 }
 
+HOT_FUNCTION
 static void closeUpvalues(Value* last) { 
 	while (vm.openUpvalues != NULL && vm.openUpvalues->location >= last) {
 		ObjUpvalue* upvalue = vm.openUpvalues;
@@ -881,7 +884,7 @@ static InterpretResult run()
 			break;
 		case OP_MODULE_BUILTIN: {
 			uint8_t moduleIndex = READ_BYTE();
-			stack_push(OBJ_VAL(&builtins[moduleIndex]));
+			stack_push(OBJ_VAL(&vm.builtins[moduleIndex]));
 			break;
 		}
 		case OP_DEBUGGER: {
