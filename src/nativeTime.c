@@ -9,42 +9,26 @@
 
 //Time
 //return nano second
-static Value nanoNative(int argCount, Value* args, C_STR* errorInfo)
+static Value nanoNative(int argCount, Value* args)
 {
-	if (argCount != 0) {
-		*errorInfo = "nano(): Expected 0 arguments but got some";
-		return NAN_VAL;
-	}
 	return NUMBER_VAL((double)get_nanoseconds());
 }
 
 //return micro second
-static Value microNative(int argCount, Value* args, C_STR* errorInfo)
+static Value microNative(int argCount, Value* args)
 {
-	if (argCount != 0) {
-		*errorInfo = "micro(): Expected 0 arguments but got some";
-		return NAN_VAL;
-	}
 	return NUMBER_VAL((double)get_nanoseconds() * 1e-3);
 }
 
 //return milli second-
-static Value milliNative(int argCount, Value* args, C_STR* errorInfo)
+static Value milliNative(int argCount, Value* args)
 {
-	if (argCount != 0) {
-		*errorInfo = "milli(): Expected 0 arguments but got some";
-		return NAN_VAL;
-	}
 	return NUMBER_VAL((double)get_nanoseconds() * 1e-6);
 }
 
 //return second
-static Value secondNative(int argCount, Value* args, C_STR* errorInfo)
+static Value secondNative(int argCount, Value* args)
 {
-	if (argCount != 0) {
-		*errorInfo = "second(): Expected 0 arguments but got some";
-		return NAN_VAL;
-	}
 	return NUMBER_VAL((double)get_nanoseconds() * 1e-9);
 }
 

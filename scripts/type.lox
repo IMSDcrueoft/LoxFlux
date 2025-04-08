@@ -1,0 +1,5 @@
+print @object.isNumber(3);
+print @object.isString("sxx");
+class O{}
+print @object.isClass(O);
+print @object.isObject(O());

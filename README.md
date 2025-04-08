@@ -16,7 +16,7 @@ Lox 是一种专为学习设计的编程语言。它被设计成一门精简且�
 - [Crafting Interpreters - Official Website](https://craftinginterpreters.com/)
 - [Crafting Interpreters - Official Github](https://github.com/munificent/craftinginterpreters)
 
-## Features beyond lox standard
+## Extra Features
 
 ### Numbers
 
@@ -78,7 +78,7 @@ Lox 是一种专为学习设计的编程语言。它被设计成一门精简且�
   - `/mem`  : Print memory information (using mimalloc).
 
 ## Licenses
-The project is based on the [MIT license] and uses two third-party projects.LLVM may be used as a JIT in the future.
+The project is based on the [MIT license] and uses two third-party projects.LLVM/CraneLift may be used as a JIT in the future.
 
 1. **mimalloc**
    - Copyright (c) 2018-2025 Microsoft Corporation, Daan Leijen

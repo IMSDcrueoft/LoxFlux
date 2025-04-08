@@ -10,20 +10,10 @@
 
 //Math
 //max with multiple input
-static Value maxNative(int argCount, Value* args, C_STR* errorInfo)
+static Value maxNative(int argCount, Value* args)
 {
-	if (argCount < 2) {
-		*errorInfo = "max(): Expected at least 2 arguments";
-		return NAN_VAL;
-	}
-
-	if (!(IS_NUMBER(args[0])) || !IS_NUMBER(args[1])) {
-		return NAN_VAL;
-	}
-
-	double val = max(AS_NUMBER(args[0]), AS_NUMBER(args[1]));
-
-	for (uint32_t i = 2; i < argCount; ++i) {
+	double val = -INFINITY;
+	for (uint32_t i = 0; i < argCount; ++i) {
 		if (!(IS_NUMBER(args[i]))) {
 			val = NAN;
 			break;
@@ -31,25 +21,14 @@ static Value maxNative(int argCount, Value* args, C_STR* errorInfo)
 
 		val = max(val, AS_NUMBER(args[i]));
 	}
-
 	return NUMBER_VAL(val);
 }
 
 //max with multiple input
-static Value minNative(int argCount, Value* args, C_STR* errorInfo)
+static Value minNative(int argCount, Value* args)
 {
-	if (argCount < 2) {
-		*errorInfo = "min(): Expected at least 2 arguments";
-		return NAN_VAL;
-	}
-
-	if (!(IS_NUMBER(args[0])) || !IS_NUMBER(args[1])) {
-		return NAN_VAL;
-	}
-
-	double val = min(AS_NUMBER(args[0]), AS_NUMBER(args[1]));
-
-	for (uint32_t i = 2; i < argCount; ++i) {
+	double val = INFINITY;
+	for (uint32_t i = 0; i < argCount; ++i) {
 		if (!(IS_NUMBER(args[i]))) {
 			val = NAN;
 			break;
@@ -62,35 +41,28 @@ static Value minNative(int argCount, Value* args, C_STR* errorInfo)
 }
 
 //get a random [0,1)
-static Value randomNative(int argCount, Value* args, C_STR* errorInfo) {
-	if (argCount != 0) {
-		*errorInfo = "random(): Expected 0 arguments but got some";
-		return NAN_VAL;
-	}
-
+static Value randomNative(int argCount, Value* args) {
 	return NUMBER_VAL(well1024a_random());
 }
 
 //seed it
-static Value seedNative(int argCount, Value* args, C_STR* errorInfo) {
-	if (argCount != 1) {
-		if (argCount == 0) {
-			*errorInfo = "seed(): Expected 1 arguments but got none";
-		}
-		else {
-			*errorInfo = "seed(): Expected 1 arguments but got more";
-		}
+static Value seedNative(int argCount, Value* args) {
+	if (argCount != 1 || (args[0].type != VAL_NUMBER)) {
 		return NIL_VAL;
 	}
 
-	if (args[0].type != VAL_NUMBER) {
-		*errorInfo = "seed(): The parameter must be a number";
-		return NIL_VAL;
-	}
 	uint32_t seed = (uint32_t)AS_NUMBER(args[0]);
 	well1024a_init(seed);
 
 	return NIL_VAL;
+}
+
+static Value isNaNNative(int argCount, Value* args) {
+	return BOOL_VAL((argCount >= 1 || (args[0].type == VAL_NUMBER)) && isnan(AS_NUMBER(args[0])));
+}
+
+static Value isInf(int argCount, Value* args) {
+	return BOOL_VAL((argCount >= 1 || (args[0].type == VAL_NUMBER)) && isinf(AS_NUMBER(args[0])));
 }
 
 COLD_FUNCTION
@@ -101,4 +73,6 @@ void importNative_math() {
 	defineNative_math("min", minNative);
 	defineNative_math("random", randomNative);
 	defineNative_math("seed", seedNative);
+	defineNative_math("isNaN", isNaNNative);
+	defineNative_math("isInf", isInf);
 }

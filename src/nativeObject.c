@@ -6,7 +6,40 @@
 #include "nativeBuiltin.h"
 #include "vm.h"
 //Object
+static Value instanceOfNative(int argCount, Value* args)
+{
+	bool isInstance = (argCount >= 2) && (IS_INSTANCE(args[0]) && IS_CLASS(args[1])) && (AS_INSTANCE(args[0])->klass == AS_CLASS(args[1]));
+	return BOOL_VAL(isInstance);
+}
+
+static Value isClass(int argCount, Value* args)
+{
+	return BOOL_VAL(argCount >= 1 && IS_CLASS(args[0]));
+}
+
+//object is instance to user
+static Value isObject(int argCount, Value* args)
+{
+	return BOOL_VAL(argCount >= 1 && IS_INSTANCE(args[0]));
+}
+
+static Value isString(int argCount, Value* args)
+{
+	return BOOL_VAL(argCount >= 1 && IS_STRING(args[0]));
+}
+
+static Value isNumber(int argCount, Value* args)
+{
+	return BOOL_VAL(argCount >= 1 && IS_NUMBER(args[0]));
+}
+
+//dont need isNil or isBool
 
 COLD_FUNCTION
 void importNative_object() {
+	defineNative_object("instanceOf", instanceOfNative);
+	defineNative_object("isClass", isClass);
+	defineNative_object("isObject", isObject);
+	defineNative_object("isString", isString);
+	defineNative_object("isNumber", isNumber);
 }

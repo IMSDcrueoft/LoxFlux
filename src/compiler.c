@@ -1195,9 +1195,6 @@ static ParseRule* getRule(TokenType type) {
 }
 
 ObjFunction* compile(C_STR source) {
-#if LOG_COMPILE_TIMING
-	uint64_t time_compile = get_nanoseconds();
-#endif
 	Compiler compiler;
 
 	scanner_init(source);
@@ -1217,10 +1214,6 @@ ObjFunction* compile(C_STR source) {
 	ObjFunction* function = endCompiler();
 	freeLocals(&compiler);
 
-#if LOG_COMPILE_TIMING
-	double time_ms = (get_nanoseconds() - time_compile) * 1e-6;
-	printf("[Log] Finished compiling in %g ms.\n", time_ms);
-#endif
 	return parser.hadError ? NULL : function;
 }
 

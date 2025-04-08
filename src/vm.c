@@ -11,7 +11,7 @@
 #include "debug.h"
 #endif
 
-#if LOG_EXECUTE_TIMING
+#if LOG_EXECUTE_TIMING || LOG_MIPS
 #include "timer.h"
 #endif
 
@@ -21,15 +21,6 @@ static ObjClass globalClass = { .obj = {.type = OBJ_CLASS,.next = NULL,.isMarked
 ObjClass builtinClass = { .obj = {.type = OBJ_CLASS,.next = NULL,.isMarked = true},.name = NULL };
 //the global shared vm
 VM vm;
-
-//alloc the entries in stack
-static Entry mathTable[BUILTIN_MATH_TABLE_SIZE];
-static Entry arrayTable[BUILTIN_ARRAY_TABLE_SIZE];
-static Entry objectTable[BUILTIN_OBJECT_TABLE_SIZE];
-static Entry stringTable[BUILTIN_STRING_TABLE_SIZE];
-static Entry timeTable[BUILTIN_TIME_TABLE_SIZE];
-static Entry fileTable[BUILTIN_FILE_TABLE_SIZE];
-static Entry systemTable[BUILTIN_SYSTEM_TABLE_SIZE];
 
 #if LOG_MIPS
 static uint64_t byteCodeCount;
@@ -229,13 +220,13 @@ static void importBuiltins() {
 	}
 
 	//init
-	table_init_static(&vm.builtins[MODULE_MATH].fields, BUILTIN_MATH_TABLE_SIZE, &mathTable);
-	table_init_static(&vm.builtins[MODULE_ARRAY].fields, BUILTIN_ARRAY_TABLE_SIZE, &arrayTable);
-	table_init_static(&vm.builtins[MODULE_OBJECT].fields, BUILTIN_OBJECT_TABLE_SIZE, &objectTable);
-	table_init_static(&vm.builtins[MODULE_STRING].fields, BUILTIN_STRING_TABLE_SIZE, &stringTable);
-	table_init_static(&vm.builtins[MODULE_TIME].fields, BUILTIN_TIME_TABLE_SIZE, &timeTable);
-	table_init_static(&vm.builtins[MODULE_FILE].fields, BUILTIN_FILE_TABLE_SIZE, &fileTable);
-	table_init_static(&vm.builtins[MODULE_SYSTEM].fields, BUILTIN_SYSTEM_TABLE_SIZE, &systemTable);
+	table_init(&vm.builtins[MODULE_MATH].fields);
+	table_init(&vm.builtins[MODULE_ARRAY].fields);
+	table_init(&vm.builtins[MODULE_OBJECT].fields);
+	table_init(&vm.builtins[MODULE_STRING].fields);
+	table_init(&vm.builtins[MODULE_TIME].fields);
+	table_init(&vm.builtins[MODULE_FILE].fields);
+	table_init(&vm.builtins[MODULE_SYSTEM].fields);
 
 	importNative_math();
 	importNative_array();
@@ -253,7 +244,7 @@ static void importBuiltins() {
 COLD_FUNCTION
 static void removeBuiltins() {
 	for (uint32_t i = 0; i < BUILTIN_MODULE_COUNT; ++i) {
-		table_free_static(&vm.builtins[i].fields);
+		table_free(&vm.builtins[i].fields);
 	}
 }
 
@@ -379,14 +370,9 @@ static bool call(ObjClosure* closure, int argCount) {
 
 HOT_FUNCTION
 static bool call_native(NativeFn native, int argCount) {
-	C_STR errorInfo = NULL;
-	Value result = native(argCount, vm.stackTop - argCount, &errorInfo);
-	if (errorInfo != NULL) {
-		runtimeError("Error in Native -> %s.", errorInfo);
-		return false;
-	}
-	vm.stackTop -= argCount + 1;
-	stack_push(result);
+	Value result = native(argCount, vm.stackTop - argCount);
+	vm.stackTop -= argCount;
+	stack_replace(result);
 	return true;
 }
 
@@ -459,6 +445,12 @@ static inline bool isTruthy(Value value) {
 	return !IS_NIL(value) && (!IS_BOOL(value) || AS_BOOL(value));
 }
 
+#if LOG_MIPS
+static inline void addByteCodeCount() {
+	++byteCodeCount;
+}
+#endif
+
 //to run code in vm
 HOT_FUNCTION
 static InterpretResult run()
@@ -502,10 +494,6 @@ static InterpretResult run()
 
 	while (true) //let it loop
 	{
-#if LOG_MIPS
-		++byteCodeCount;
-#endif
-
 #if DEBUG_TRACE_EXECUTION //print in debug mode
 		printf("          ");
 		for (Value* slot = vm.stack; slot < vm.stackTop; slot++) {
@@ -899,6 +887,10 @@ static InterpretResult run()
 			break;
 		}
 		}
+
+#if LOG_MIPS
+		addByteCodeCount();
+#endif
 	}
 
 	//the place the error happens
@@ -912,8 +904,17 @@ static InterpretResult run()
 
 InterpretResult interpret(C_STR source)
 {
+#if LOG_COMPILE_TIMING
+	uint64_t time_compile = get_nanoseconds();
+#endif
+
 	ObjFunction* function = compile(source);
 	if (function == NULL) return INTERPRET_COMPILE_ERROR;
+
+#if LOG_COMPILE_TIMING
+	double time_compile_f = (get_nanoseconds() - time_compile) * 1e-6;
+	printf("[Log] Finished compiling in %g ms.\n", time_compile_f);
+#endif
 
 	//stack_push(OBJ_VAL(function));
 	ObjClosure* closure = newClosure(function);
@@ -931,14 +932,14 @@ InterpretResult interpret(C_STR source)
 
 	InterpretResult result = run();
 
+#if LOG_EXECUTE_TIMING || LOG_MIPS
+	double time_run_f = (get_nanoseconds() - time_run) * 1e-6;
 #if LOG_EXECUTE_TIMING
-	double time_ms = (get_nanoseconds() - time_run) * 1e-6;
-	printf("[Log] Finished executing in %g ms.\n", time_ms);
-#endif
-
-#if LOG_MIPS
-	printf("[Log] Finished executing at %g mips.\n", byteCodeCount / time_ms * 1e-3);
+	printf("[Log] Finished executing in %g ms.\n", time_run_f);
+#elif LOG_MIPS
+	printf("[Log] Finished executing at %g mips.\n", byteCodeCount / time_run_f * 1e-3);
 	byteCodeCount = 0;
+#endif
 #endif
 
 	return result;

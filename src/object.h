@@ -68,7 +68,7 @@ typedef struct {
 } ObjClosure;
 
 //argCount and argValues
-typedef Value(*NativeFn)(int argCount, Value* args, C_STR* errorInfo);
+typedef Value(*NativeFn)(int argCount, Value* args);
 
 typedef struct {
 	Obj obj;

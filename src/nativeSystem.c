@@ -9,26 +9,14 @@
 
 //System
 //force do gc
-static Value gcNative(int argCount, Value* args, C_STR* errorInfo) {
-	if (argCount != 0) {
-		*errorInfo = "gc(): Expected 0 arguments but got some";
-		return NIL_VAL;
-	}
+static Value gcNative(int argCount, Value* args) {
 	garbageCollect();
 	return NIL_VAL;
 }
 
 //change gc next
-static Value gcNextNative(int argCount, Value* args, C_STR* errorInfo) {
-	if (argCount != 1) {
-		*errorInfo = (argCount == 0)
-			? "gcNext(): Expected 1 argument but got none"
-			: "gcNext(): Expected 1 argument but got more";
-		return NIL_VAL;
-	}
-
-	if (args[0].type != VAL_NUMBER) {
-		*errorInfo = "gcNext(): The parameter must be a number";
+static Value gcNextNative(int argCount, Value* args) {
+	if (argCount != 1 || (args[0].type != VAL_NUMBER)) {
 		return NIL_VAL;
 	}
 	double nextGC = AS_NUMBER(args[0]);
@@ -43,16 +31,8 @@ static Value gcNextNative(int argCount, Value* args, C_STR* errorInfo) {
 }
 
 //change gc begin
-static Value gcBeginNative(int argCount, Value* args, C_STR* errorInfo) {
-	if (argCount != 1) {
-		*errorInfo = (argCount == 0)
-			? "gcBegin(): Expected 1 argument but got none"
-			: "gcBegin(): Expected 1 argument but got more";
-		return NIL_VAL;
-	}
-
-	if (args[0].type != VAL_NUMBER) {
-		*errorInfo = "gcBegin(): The parameter must be a number";
+static Value gcBeginNative(int argCount, Value* args) {
+	if (argCount != 1 || (args[0].type != VAL_NUMBER)) {
 		return NIL_VAL;
 	}
 	double beginGC = AS_NUMBER(args[0]);
