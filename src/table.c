@@ -330,6 +330,7 @@ Entry* tableGetStringEntry(Table* table, ObjString* key)
 	}
 }
 
+COLD_FUNCTION
 void numberTable_init(NumberTable* table)
 {
 	table->count = 0;
@@ -337,6 +338,7 @@ void numberTable_init(NumberTable* table)
 	table->entries = NULL;
 }
 
+COLD_FUNCTION
 void numberTable_free(NumberTable* table)
 {
 	FREE_ARRAY(NumberEntry, table->entries, table->capacity);

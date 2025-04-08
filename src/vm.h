@@ -27,28 +27,29 @@ typedef struct {
 	Value* stackTop;
 	//the edge of stack
 	Value* stackBoundary;
-	
+
 	// deduplicated global constant table
 	ValueArray constants;
 	// In order to repurpose the voids caused by GC
 	// create a constant void table to record and reuse
 	ValueHoles constantHoles;
 
+	//global hash table
+	ObjInstance globals;
+	ObjInstance builtins[BUILTIN_MODULE_COUNT];
+
+	//upvalues
+	ObjUpvalue* openUpvalues;
+
 	//pool
 	Table strings;
 	//pool
 	NumberTable numbers;
-	//global hash table
-	ObjInstance globals;
-	ObjInstance builtins[BUILTIN_MODULE_COUNT];
 
 	//the root for dynamic objects
 	Obj* objects;
 	//the root for static objects
 	Obj* objects_no_gc;
-
-	//upvalues
-	ObjUpvalue* openUpvalues;
 
 	//gc gray objects
 	uint64_t grayCount;
@@ -62,6 +63,9 @@ typedef struct {
 	//frames
 	uint64_t frameCount;
 	CallFrame frames[FRAMES_MAX];
+
+	//ip for debug error
+	uint8_t** ip_error;
 } VM;
 
 typedef enum {

@@ -8,6 +8,7 @@
 //shared scanner
 Scanner scanner;
 
+COLD_FUNCTION
 void scanner_init(C_STR source)
 {
 	scanner.start = source;

@@ -31,8 +31,6 @@ static Entry timeTable[BUILTIN_TIME_TABLE_SIZE];
 static Entry fileTable[BUILTIN_FILE_TABLE_SIZE];
 static Entry systemTable[BUILTIN_SYSTEM_TABLE_SIZE];
 
-//ip for debug
-static uint8_t** ip_error = NULL;
 #if LOG_MIPS
 static uint64_t byteCodeCount;
 #endif
@@ -59,7 +57,7 @@ static bool throwError(Value error) {
 	printf("\n");
 
 	if ((vm.frameCount - 1) >= 0) {
-		vm.frames[vm.frameCount - 1].ip = *ip_error;
+		vm.frames[vm.frameCount - 1].ip = *vm.ip_error;
 	}
 
 	for (int32_t i = vm.frameCount - 1; i >= 0; i--) {
@@ -94,7 +92,7 @@ static void runtimeError(C_STR format, ...) {
 	fputs("\n", stderr);
 
 	if ((vm.frameCount - 1) >= 0) {
-		vm.frames[vm.frameCount - 1].ip = *ip_error;
+		vm.frames[vm.frameCount - 1].ip = *vm.ip_error;
 	}
 
 	for (int32_t i = vm.frameCount - 1; i >= 0; i--) {
@@ -303,6 +301,8 @@ void vm_init()
 
 	//import native funcs
 	importNative_global();
+
+	vm.ip_error = NULL;
 }
 
 COLD_FUNCTION
@@ -325,6 +325,8 @@ void vm_free()
 	vm.stackBoundary = NULL;
 
 	removeBuiltins();
+
+	vm.ip_error = NULL;
 }
 
 uint32_t getConstantSize()
@@ -464,36 +466,38 @@ static InterpretResult run()
 	CallFrame* frame = &vm.frames[vm.frameCount - 1];
 	uint8_t* ip = frame->ip;
 	//if error,use this to print
-	ip_error = &ip;
+	vm.ip_error = &ip;
 
 #define READ_BYTE() (*(ip++))
 #define READ_SHORT() (ip += 2, (uint16_t)(ip[-2] | (ip[-1] << 8)))
 #define READ_24bits() (ip += 3, (uint32_t)(ip[-3] | (ip[-2] << 8) | (ip[-1] << 16)))
 #define READ_CONSTANT(index) (vm.constants.values[(index)])
 
-	// push(pop() op pop())
-#define BINARY_OP(valueType,op)																	\
-    do {																						\
-		/* Pop the top two values from the stack */												\
-        vm.stackTop--;																			\
-		if (!IS_NUMBER(vm.stackTop[0]) || !IS_NUMBER(vm.stackTop[-1])) {						\
-			runtimeError("Operands must be numbers.");									\
-			return INTERPRET_RUNTIME_ERROR;														\
-		}																						\
-        /* Perform the operation and push the result back */									\
-		vm.stackTop[-1] = valueType(AS_NUMBER(vm.stackTop[-1]) op AS_NUMBER(vm.stackTop[0]));	\
+// push(pop() op pop())
+#define BINARY_OP(valueType,op)																		\
+    do {																							\
+		/* Pop the top two values from the stack */													\
+		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {								\
+			/* Perform the operation and push the result back */									\
+			vm.stackTop[-2] = valueType(AS_NUMBER(vm.stackTop[-2]) op AS_NUMBER(vm.stackTop[-1]));	\
+			vm.stackTop--;																			\
+		} else {														                            \
+			runtimeError("Operands must be numbers.");												\
+			return INTERPRET_RUNTIME_ERROR;															\
+		}																							\
 	} while (false)
 
 #define BINARY_OP_MODULUS(valueType)																	\
     do {																								\
 		/* Pop the top two values from the stack */														\
-        vm.stackTop--;																					\
-		if (!IS_NUMBER(vm.stackTop[0]) || !IS_NUMBER(vm.stackTop[-1])) {								\
-			runtimeError("Operands must be numbers.");											\
+		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {									\
+			/* Perform the operation and push the result back */										\
+			vm.stackTop[-2] = valueType(fmod(AS_NUMBER(vm.stackTop[-2]),AS_NUMBER(vm.stackTop[-1])));	\
+			vm.stackTop--;																				\
+		} else {																						\
+			runtimeError("Operands must be numbers.");													\
 			return INTERPRET_RUNTIME_ERROR;																\
 		}																								\
-        /* Perform the operation and push the result back */											\
-		vm.stackTop[-1] = valueType(fmod(AS_NUMBER(vm.stackTop[-1]),AS_NUMBER(vm.stackTop[0])));	\
 	} while (false)
 
 	while (true) //let it loop
@@ -751,14 +755,14 @@ static InterpretResult run()
 
 		case OP_ADD: {
 			// might cause gc,so can't decrease first
-			if (IS_STRING(vm.stackTop[-2]) && IS_STRING(vm.stackTop[-1])) {
-				ObjString* result = connectString(AS_STRING(vm.stackTop[-2]), AS_STRING(vm.stackTop[-1]));
-				vm.stackTop[-2] = OBJ_VAL(result);
+			if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
+				vm.stackTop[-2] = NUMBER_VAL(AS_NUMBER(vm.stackTop[-2]) + AS_NUMBER(vm.stackTop[-1]));
 				vm.stackTop--;
 				break;
 			}
-			else if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
-				vm.stackTop[-2] = NUMBER_VAL(AS_NUMBER(vm.stackTop[-2]) + AS_NUMBER(vm.stackTop[-1]));
+			else if (IS_STRING(vm.stackTop[-2]) && IS_STRING(vm.stackTop[-1])) {
+				ObjString* result = connectString(AS_STRING(vm.stackTop[-2]), AS_STRING(vm.stackTop[-1]));
+				vm.stackTop[-2] = OBJ_VAL(result);
 				vm.stackTop--;
 				break;
 			}
