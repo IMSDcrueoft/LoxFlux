@@ -285,6 +285,7 @@ void vm_init()
 
 	//set
 	vm.bytesAllocated = 0;
+	vm.bytesAllocated_no_gc = 0;
 	vm.nextGC = GC_HEAP_BEGIN;
 
 	//import the builtins

@@ -11,6 +11,8 @@
 
 Unknown_ptr reallocate_no_gc(Unknown_ptr pointer, size_t oldSize, size_t newSize)
 {
+	vm.bytesAllocated_no_gc += newSize - oldSize;
+
 	if (newSize == 0) {
 		if (pointer != NULL) {
 #if LOG_EACH_MALLOC_INFO
@@ -103,15 +105,15 @@ void freeObject(Obj* object) {
 	case OBJ_FUNCTION: {
 		ObjFunction* function = (ObjFunction*)object;
 		chunk_free(&function->chunk);
-		FREE(ObjFunction, object);
+		FREE_NO_GC(ObjFunction, object);
 		break;
 	}
 	case OBJ_NATIVE:
-		FREE(ObjNative, object);
+		FREE_NO_GC(ObjNative, object);
 		break;
 	case OBJ_STRING: {
 		ObjString* string = (ObjString*)object;
-		FREE_FLEX(ObjString, string, char, string->length + 1);//FAM object include'\0
+		FREE_FLEX_NO_GC(ObjString, string, char, string->length + 1);//FAM object include'\0
 		break;
 	}
 	}

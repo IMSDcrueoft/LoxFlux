@@ -29,26 +29,30 @@ const C_STR objTypeInfo[] = {
 
 HOT_FUNCTION
 static Obj* allocateObject(size_t size, ObjType type) {
-    Obj* object = (Obj*)reallocate(NULL, 0, size);
-    object->type = type;
-    object->isMarked = !usingMark;
+    Obj* object = NULL;
 
     //link the objects
     switch (type) {
     case OBJ_FUNCTION:
     case OBJ_NATIVE:
     case OBJ_STRING:
+        object = (Obj*)reallocate_no_gc(NULL, 0, size);
+        object->type = type;
+        object->isMarked = !usingMark;
         object->next = vm.objects_no_gc;
         vm.objects_no_gc = object;
         break;
     default:
+        object = (Obj*)reallocate(NULL, 0, size);
+        object->type = type;
+        object->isMarked = !usingMark;
         object->next = vm.objects;
         vm.objects = object;
         break;
     }
 
 #if DEBUG_LOG_GC
-    printf("[gc] %p allocate %zu for \$%s\n", (Unknown_ptr)object, size, objTypeInfo[type]);
+    printf("[gc] %p allocate %zu for (%s)\n", (Unknown_ptr)object, size, objTypeInfo[type]);
 #endif
 
     return object;

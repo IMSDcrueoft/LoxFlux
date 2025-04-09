@@ -37,6 +37,10 @@ Unknown_ptr reallocate_no_gc(Unknown_ptr pointer, size_t oldSize, size_t newSize
 #define ALLOCATE_NO_GC(type, count) \
 	(type*)reallocate_no_gc(NULL, 0, sizeof(type) * (count))
 
+#define FREE_NO_GC(type, pointer) reallocate_no_gc(pointer, sizeof(type), 0)
+
+#define FREE_FLEX_NO_GC(type,pointer,flexType,count) reallocate_no_gc(pointer, sizeof(type) + sizeof(flexType) * count, 0)
+
 void freeObject(Obj* object);
 void freeObjects();
 

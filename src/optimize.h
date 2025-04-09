@@ -28,15 +28,6 @@
 #define COLD_FUNCTION
 #endif
 
-// ==================== likely/unlikely ====================
-#if IS_CLANGCL || IS_CLANG || IS_GCC
-#define LIKELY(x)       __builtin_expect(!!(x), 1)
-#define UNLIKELY(x)     __builtin_expect(!!(x), 0)
-#else
-#define LIKELY(x)       (x)
-#define UNLIKELY(x)     (x)
-#endif
-
 #undef IS_CLANGCL
 #undef IS_CLANG
 #undef IS_GCC

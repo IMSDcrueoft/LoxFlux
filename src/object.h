@@ -10,12 +10,12 @@
 #include "chunk.h"
 
 typedef enum {
-	//constants that don't gc
+	//objects that don't gc
 	OBJ_STRING,
 	OBJ_NATIVE,
 	OBJ_FUNCTION,
 
-	//gcable obj
+	//objects gc able
 	OBJ_CLOSURE,
 	OBJ_UPVALUE,
 	OBJ_CLASS,
@@ -23,7 +23,7 @@ typedef enum {
 
 	//string builder and array are typed arrays
 	OBJ_STRING_BUILDER,
-	OBJ_ARRAY,
+	//arrays
 	OBJ_ARRAY_U8,
 	OBJ_ARRAY_I8,
 	OBJ_ARRAY_U16,
@@ -32,6 +32,7 @@ typedef enum {
 	OBJ_ARRAY_I32,
 	OBJ_ARRAY_F32,
 	OBJ_ARRAY_F64,
+	OBJ_ARRAY,
 } ObjType;
 
 #if DEBUG_LOG_GC

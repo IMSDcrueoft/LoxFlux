@@ -16,34 +16,46 @@ static Value gcNative(int argCount, Value* args) {
 
 //change gc next
 static Value gcNextNative(int argCount, Value* args) {
-	if (argCount != 1 || (args[0].type != VAL_NUMBER)) {
-		return NIL_VAL;
+	if (argCount == 1 && IS_NUMBER(args[0])) {
+		double nextGC = AS_NUMBER(args[0]);
+		if (nextGC < 1024) {
+			nextGC = 1024;
+		}
+		else if (nextGC > (1024 * 1024 * 1024)) {
+			nextGC = (1024 * 1024 * 1024);
+		}
+		changeNextGC((uint64_t)nextGC);
+		return BOOL_VAL(true);
 	}
-	double nextGC = AS_NUMBER(args[0]);
-	if (nextGC < 1024) {
-		nextGC = 1024;
+	else {
+		return BOOL_VAL(false);
 	}
-	else if (nextGC > (1024 * 1024 * 1024)) {
-		nextGC = (1024 * 1024 * 1024);
-	}
-	changeNextGC((uint64_t)nextGC);
-	return NIL_VAL;
 }
 
 //change gc begin
 static Value gcBeginNative(int argCount, Value* args) {
-	if (argCount != 1 || (args[0].type != VAL_NUMBER)) {
-		return NIL_VAL;
+	if (argCount == 1 && IS_NUMBER(args[0])) {
+		double beginGC = AS_NUMBER(args[0]);
+		if (beginGC < 1024) {
+			beginGC = 1024;
+		}
+		else if (beginGC > (1024 * 1024 * 1024)) {
+			beginGC = (1024 * 1024 * 1024);
+		}
+		changeBeginGC((uint64_t)beginGC);
+		return BOOL_VAL(true);
 	}
-	double beginGC = AS_NUMBER(args[0]);
-	if (beginGC < 1024) {
-		beginGC = 1024;
+	else {
+		return BOOL_VAL(false);
 	}
-	else if (beginGC > (1024 * 1024 * 1024)) {
-		beginGC = (1024 * 1024 * 1024);
-	}
-	changeBeginGC((uint64_t)beginGC);
-	return NIL_VAL;
+}
+
+static Value allocatedBytesNative(int argCount, Value* args) {
+	return NUMBER_VAL(vm.bytesAllocated);
+}
+
+static Value allocatedStaticBytesNative(int argCount, Value* args) {
+	return NUMBER_VAL(vm.bytesAllocated_no_gc);
 }
 
 COLD_FUNCTION
@@ -51,4 +63,6 @@ void importNative_system() {
 	defineNative_system("gc", gcNative);
 	defineNative_system("gcNext", gcNextNative);
 	defineNative_system("gcBegin", gcBeginNative);
+	defineNative_system("allocated", allocatedBytesNative);
+	defineNative_system("allocatedStatic", allocatedStaticBytesNative);
 }

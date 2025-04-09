@@ -57,6 +57,7 @@ typedef struct {
 	Obj** grayStack;
 
 	//Excludes space used by stacks/constants/compilations
+	uint64_t bytesAllocated_no_gc;
 	uint64_t bytesAllocated;
 	uint64_t nextGC;
 
