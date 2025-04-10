@@ -81,10 +81,13 @@ Lox is a programming language designed for learning purposes. It is conceived as
 
 ---
 
-### Built-in methods
+### Built-in Modules
 
-#### @Math
-The `@Math` module provides a comprehensive set of mathematical functions and utilities, implemented as native bindings for efficiency and ease of use. These functions are accessible globally and can be used directly in scripts or applications.
+There are some namespace objects that start with '@' available, and since they are not in the global scope, the initial state of the global scope is a "completely clean" state. 
+
+#### @math @array @object @string @time @file @system
+
+The `@math` module provides a comprehensive set of mathematical functions and utilities, implemented as native bindings for efficiency and ease of use. These functions are accessible globally and can be used directly in scripts or applications.
 
 - **Basic Arithmetic Functions**:
   - `max`: Returns the maximum value among the provided arguments.
@@ -122,9 +125,7 @@ These functions are designed to provide robust mathematical capabilities while m
 
 ---
 
-#### @Object
-
-The `@Object` module provides utilities for type checking and object introspection. These functions are essential for determining the nature of values and ensuring type safety in dynamic environments.
+The `@object` module provides utilities for type checking and object introspection. These functions are essential for determining the nature of values and ensuring type safety in dynamic environments.
 
 - **Type Checking**:
   - `instanceOf`: Checks if an object is an instance of a specific class.
@@ -137,20 +138,20 @@ These functions are particularly useful for runtime type validation and debuggin
 
 ---
 
-#### @System
-
-The `@System` module offers low-level system utilities, primarily focused on memory management and garbage collection. These functions provide insights into the runtime environment and allow fine-grained control over resource allocation.
+The `@system` module offers low-level system utilities, primarily focused on memory management and garbage collection. These functions provide insights into the runtime environment and allow fine-grained control over resource allocation.
 
 - **Garbage Collection**:
   - `gc`: Triggers a full garbage collection cycle.
-  - `gcNext`: Performs incremental garbage collection, processing a portion of the heap.
-  - `gcBegin`: Starts a new garbage collection cycle, preparing the runtime for cleanup.
+  - `gcNext`: Configure the heap memory usage to be used for the next GC trigger.
+  - `gcBegin`: Configure the limits of the initial GC.
 
 - **Memory Statistics**:
   - `allocated`: Returns the total number of bytes currently allocated in the dynamic memory pool.
-  - `allocatedStatic`: Returns the total number of bytes allocated for static objects (e.g., strings, functions).
+  - `allocatedStatic`: Returns the total number of bytes allocated for static objects(e.g., strings, functions).
 
 These utilities are invaluable for monitoring and optimizing memory usage, especially in long-running applications or environments with limited resources. They enable developers to manage memory explicitly and diagnose potential memory leaks or inefficiencies.
+
+---
 
 ### REPL
 
