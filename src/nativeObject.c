@@ -12,23 +12,23 @@ static Value instanceOfNative(int argCount, Value* args)
 	return BOOL_VAL(isInstance);
 }
 
-static Value isClass(int argCount, Value* args)
+static Value isClassNative(int argCount, Value* args)
 {
 	return BOOL_VAL(argCount >= 1 && IS_CLASS(args[0]));
 }
 
 //object is instance to user
-static Value isObject(int argCount, Value* args)
+static Value isObjectNative(int argCount, Value* args)
 {
 	return BOOL_VAL(argCount >= 1 && IS_INSTANCE(args[0]));
 }
 
-static Value isString(int argCount, Value* args)
+static Value isStringNative(int argCount, Value* args)
 {
 	return BOOL_VAL(argCount >= 1 && IS_STRING(args[0]));
 }
 
-static Value isNumber(int argCount, Value* args)
+static Value isNumberNative(int argCount, Value* args)
 {
 	return BOOL_VAL(argCount >= 1 && IS_NUMBER(args[0]));
 }
@@ -38,8 +38,8 @@ static Value isNumber(int argCount, Value* args)
 COLD_FUNCTION
 void importNative_object() {
 	defineNative_object("instanceOf", instanceOfNative);
-	defineNative_object("isClass", isClass);
-	defineNative_object("isObject", isObject);
-	defineNative_object("isString", isString);
-	defineNative_object("isNumber", isNumber);
+	defineNative_object("isClass", isClassNative);
+	defineNative_object("isObject", isObjectNative);
+	defineNative_object("isString", isStringNative);
+	defineNative_object("isNumber", isNumberNative);
 }

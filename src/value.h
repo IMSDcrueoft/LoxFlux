@@ -57,7 +57,7 @@ typedef struct {
 
 #define BOOL_VAL(value)   ((Value){VAL_BOOL, {.boolean = value}})
 #define NIL_VAL           ((Value){VAL_NIL, {.number = 0}})
-#define NAN_VAL           ((Value){VAL_NIL, {.number = NAN}}) //use this to return a NaN
+#define NAN_VAL           ((Value){VAL_NUMBER, {.number = NAN}}) //use this to return a NaN
 #define NUMBER_VAL(value) ((Value){VAL_NUMBER, {.number = value}})
 #define OBJ_VAL(object)   ((Value){VAL_OBJ, {.obj = (Obj*)object}})
 

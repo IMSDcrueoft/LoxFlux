@@ -96,12 +96,12 @@ struct ObjString {
 	char chars[]; // flexible array members FAM
 };
 
-//begin at 8 not 16
+//begin at 8 and align to 8, when < 64,mul 2, then *1.5 and align 8
 struct ObjArray {
 	Obj obj;
 	uint32_t capacity;
 	uint32_t length;
-	char payload[];
+	char* payload;
 };
 
 #define OBJ_TYPE(value)				(AS_OBJ(value)->type)

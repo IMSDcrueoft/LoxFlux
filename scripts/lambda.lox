@@ -1,3 +1,8 @@
+/*
+*   @param x {number}
+*   @param y {number}
+*   @return {function} {function} that takes a string and returns a number or a function
+*/
 fun createPoint(x,y){
     return lambda (funName){
         if(funName == "x"){

@@ -5,8 +5,8 @@
 */
 #include "nativeBuiltin.h"
 #include "vm.h"
+#include "object.h"
 #include "gc.h"
-
 //System
 //force do gc
 static Value gcNative(int argCount, Value* args) {
@@ -51,11 +51,23 @@ static Value gcBeginNative(int argCount, Value* args) {
 }
 
 static Value allocatedBytesNative(int argCount, Value* args) {
-	return NUMBER_VAL(vm.bytesAllocated);
+	return NUMBER_VAL((double)vm.bytesAllocated);
 }
 
 static Value allocatedStaticBytesNative(int argCount, Value* args) {
-	return NUMBER_VAL(vm.bytesAllocated_no_gc);
+	return NUMBER_VAL((double)vm.bytesAllocated_no_gc);
+}
+
+//Print all the parameters
+static Value logNative(int argCount, Value* args) {
+	for (int i = 0; i < argCount; ++i) {
+		printValue(args[i]);
+		if (i != argCount) {
+			printf(" ");
+		}
+	}
+	//no '\n'
+	return NIL_VAL;
 }
 
 COLD_FUNCTION
@@ -65,4 +77,6 @@ void importNative_system() {
 	defineNative_system("gcBegin", gcBeginNative);
 	defineNative_system("allocated", allocatedBytesNative);
 	defineNative_system("allocatedStatic", allocatedStaticBytesNative);
+
+	defineNative_system("log", logNative);
 }

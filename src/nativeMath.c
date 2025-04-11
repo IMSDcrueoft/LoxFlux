@@ -13,7 +13,7 @@
 static Value maxNative(int argCount, Value* args)
 {
 	double val = -INFINITY;
-	for (uint32_t i = 0; i < argCount; ++i) {
+	for (int i = 0; i < argCount; ++i) {
 		if (IS_NUMBER(args[i])) {
 			val = max(val, AS_NUMBER(args[i]));
 		}
@@ -29,7 +29,7 @@ static Value maxNative(int argCount, Value* args)
 static Value minNative(int argCount, Value* args)
 {
 	double val = INFINITY;
-	for (uint32_t i = 0; i < argCount; ++i) {
+	for (int i = 0; i < argCount; ++i) {
 		if (IS_NUMBER(args[i])) {
 			val = min(val, AS_NUMBER(args[i]));
 		}
