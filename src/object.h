@@ -23,16 +23,16 @@ typedef enum {
 
 	//string builder and array are typed arrays
 	OBJ_STRING_BUILDER,
-	//arrays
-	OBJ_ARRAY_U8,
-	OBJ_ARRAY_I8,
-	OBJ_ARRAY_U16,
-	OBJ_ARRAY_I16,
+	//array
+	OBJ_ARRAY,
+	OBJ_ARRAY_F64,
+	OBJ_ARRAY_F32,
 	OBJ_ARRAY_U32,
 	OBJ_ARRAY_I32,
-	OBJ_ARRAY_F32,
-	OBJ_ARRAY_F64,
-	OBJ_ARRAY,
+	OBJ_ARRAY_U16,
+	OBJ_ARRAY_I16,
+	OBJ_ARRAY_U8,
+	OBJ_ARRAY_I8,
 } ObjType;
 
 #if DEBUG_LOG_GC
@@ -97,12 +97,12 @@ struct ObjString {
 };
 
 //begin at 8 and align to 8, when < 64,mul 2, then *1.5 and align 8
-struct ObjArray {
+typedef struct {
 	Obj obj;
 	uint32_t capacity;
 	uint32_t length;
 	char* payload;
-};
+} ObjArray;
 
 #define OBJ_TYPE(value)				(AS_OBJ(value)->type)
 #define IS_CLOSURE(value)			isObjType(value, OBJ_CLOSURE)
@@ -114,14 +114,10 @@ struct ObjArray {
 #define IS_STRING_BUILDER(value)	isObjType(value, OBJ_STRING_BUILDER)
 #define IS_ARRAY(value)				isObjType(value, OBJ_ARRAY)
 
-#define IS_ARRAY_U8(value)        isObjType(value, OBJ_ARRAY_U8)
-#define IS_ARRAY_I8(value)        isObjType(value, OBJ_ARRAY_I8)
-#define IS_ARRAY_U16(value)       isObjType(value, OBJ_ARRAY_U16)
-#define IS_ARRAY_I16(value)       isObjType(value, OBJ_ARRAY_I16)
-#define IS_ARRAY_U32(value)       isObjType(value, OBJ_ARRAY_U32)
-#define IS_ARRAY_I32(value)       isObjType(value, OBJ_ARRAY_I32)
-#define IS_ARRAY_F32(value)       isObjType(value, OBJ_ARRAY_F32)
-#define IS_ARRAY_F64(value)       isObjType(value, OBJ_ARRAY_F64)
+#define ARRAY_IS_TYPE(array, arrayType)		((array->obj.type) == arrayType)
+#define ARRAY_ELEMENT(array, type, index)	(((type*)array->payload)[index])
+
+#define IS_ARRAY_ANY(value)		ARRAY_IS_TYPE(value, OBJ_ARRAY)
 
 #define AS_CLOSURE(value)	((ObjClosure*)AS_OBJ(value))
 #define AS_FUNCTION(value)	((ObjFunction*)AS_OBJ(value))
@@ -129,19 +125,29 @@ struct ObjArray {
 #define AS_INSTANCE(value)	((ObjInstance*)AS_OBJ(value))
 #define AS_NATIVE(value)	(((ObjNative*)AS_OBJ(value))->function)
 #define AS_STRING(value)	((ObjString*)AS_OBJ(value))
+#define AS_ARRAY(value)		((ObjArray*)AS_OBJ(value))
 
 static inline bool isObjType(Value value, ObjType type) {
 	return IS_OBJ(value) && AS_OBJ(value)->type == type;
 }
 
-static inline bool IS_ARRAY_LIKE(Value value) {
+//array and stringBuilder (not including const string)
+static inline bool isArrayLike(Value value) {
 	return IS_OBJ(value) && AS_OBJ(value)->type >= OBJ_ARRAY;//enum type
+}
+
+static inline bool isIndexableArray(Value value) {
+	return IS_OBJ(value) && AS_OBJ(value)->type >= OBJ_STRING_BUILDER;//enum type
+}
+
+static inline bool isTypedArray(Value value) {
+	return IS_OBJ(value) && (AS_OBJ(value)->type >= OBJ_ARRAY_F64);//enum type
 }
 
 ObjString* copyString(C_STR chars, uint32_t length, bool escapeChars);
 ObjString* connectString(ObjString* strA, ObjString* strB);
 
-void printObject(Value value);
+void printObject(Value value, bool isExpand);
 
 Entry* getStringEntryInPool(ObjString* string);
 NumberEntry* getNumberEntryInPool(Value* value);
@@ -152,3 +158,19 @@ ObjClosure* newClosure(ObjFunction* function);
 ObjNative* newNative(NativeFn function);
 ObjClass* newClass(ObjString* name);
 ObjInstance* newInstance(ObjClass* klass);
+ObjArray* newArray(uint64_t size);
+ObjArray* newArrayF64(uint64_t size);
+ObjArray* newArrayF32(uint64_t size);
+ObjArray* newArrayU32(uint64_t size);
+ObjArray* newArrayI32(uint64_t size);
+ObjArray* newArrayU16(uint64_t size);
+ObjArray* newArrayI16(uint64_t size);
+ObjArray* newArrayU8(uint64_t size);
+ObjArray* newArrayI8(uint64_t size);
+
+void reserveArray(ObjArray* array, uint64_t size);
+
+Value getStringValue(ObjString* string, uint32_t index);
+Value getStringBuilderValue(ObjArray* stringBuilder, uint32_t index);
+Value getTypedArrayElement(ObjArray* array, uint32_t index);
+void setTypedArrayElement(ObjArray* array, uint32_t index, Value val);

@@ -33,6 +33,10 @@ static Value isNumberNative(int argCount, Value* args)
 	return BOOL_VAL(argCount >= 1 && IS_NUMBER(args[0]));
 }
 
+static Value isArrayNative(int argCount, Value* args) {
+	return BOOL_VAL(argCount >= 1 && isArrayLike(args[0]));
+}
+
 //dont need isNil or isBool
 
 COLD_FUNCTION
@@ -42,4 +46,5 @@ void importNative_object() {
 	defineNative_object("isObject", isObjectNative);
 	defineNative_object("isString", isStringNative);
 	defineNative_object("isNumber", isNumberNative);
+	defineNative_object("isArray", isArrayNative);
 }

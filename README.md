@@ -14,7 +14,7 @@ Lox is a programming language designed for learning purposes. It is conceived as
 - [Crafting Interpreters - Official Website](https://craftinginterpreters.com/)
 - [Crafting Interpreters - Official Github](https://github.com/munificent/craftinginterpreters)
 
-## Extra Features
+## List of LoxFlux features
 
 ### Numbers
 
@@ -39,8 +39,8 @@ Lox is a programming language designed for learning purposes. It is conceived as
 
 ### Global Variable
 
-- **Optimized global variable access**: Achieves O(1) time complexity of existing keys indexes that do not deteriorate.
-- **Global instance**: Use @global to explicitly get the global table, create and delete attributes, use it like a simple object.
+- **Optimized global variable access**: Achieves `O(1)` time complexity. With dynamic index updates, direct index fetching can be achieved in almost all cases. Indexes are rarely invalidated, unless you frequently delete and then declare global variables that don't exist.
+- **Global instance**: Use `@global` to explicitly get the global table, create and delete attributes, use it like a simple object.
 
 ---
 
@@ -57,6 +57,27 @@ Lox is a programming language designed for learning purposes. It is conceived as
 - **Use Cases**: Lambda expressions are commonly used in functional programming patterns, such as passing functions as arguments to higher-order functions (e.g., `map`, `filter`, `reduce`).
 
 ---
+
+### Array
+
+- **Array Literals**: Supports defining array literals directly in the code(no more than `255` within each `[]`), making array creation more intuitive and convenient.
+- **Syntax**: Use square brackets `[]` to define an array. Elements are separated by commas. Arrays can hold elements of any supported data type, including numbers, strings, objects, or even other arrays (nested arrays).
+- **Typed Array**: Typed arrays are pure arrays in compiled languages like C/CPP as we know them, and if you try to assign a non-numeric type to it, it will become `0`.
+
+---
+
+### Subscript
+
+- **Indexing Syntax**: Access and modify array elements using subscript notation with square brackets.
+- **Bounds Checking**: Automatically checks for out-of-bounds, when you access an array out of bounds, it doesn't throw an error, but returns a `nil`.
+- **Zero-based Indexing**: The first element of the array is accessed with index `0`, the second with index `1`, and so on.
+- **Assignment via Subscript**: Modify array elements by assigning new values using the subscript operator.
+
+- **Object Key Access**: In addition to arrays, subscript notation also supports accessing object properties by key.
+- **Syntax**: Use square brackets `[]` with a string representing the key name.
+- **Assignment via Subscript for Objects**: Modify object properties by assigning new values using the subscript operator.
+
+--- 
 
 ### Loop
 
@@ -90,9 +111,9 @@ Lox is a programming language designed for learning purposes. It is conceived as
 
 ### Built-in Modules
 
-There are some namespace objects that start with '@' available, and since they are not in the global scope, the initial state of the global scope is a "completely clean" state. 
+There are some namespace objects that start with `'@'` available, and since they are not in the global scope, the initial state of the global scope is a "completely clean" state. 
 
-#### @math @array @object @string @time @file @system
+#### `@math` `@array` `@object` `@string` `@time` `@file` `@system`
 
 The `@math` module provides a comprehensive set of mathematical functions and utilities, implemented as native bindings for efficiency and ease of use. These functions are accessible globally and can be used directly in scripts or applications.
 
@@ -132,12 +153,35 @@ These functions are designed to provide robust mathematical capabilities while m
 
 ---
 
+The `@array` module provides robust support for working with arrays, enabling efficient manipulation of collections of data. These utilities allow developers to create and manage arrays of various types with fine-grained control.
+
+- **Array Methods**:
+  - `resize`: Resizes an existing array to a new length. If the new length is larger, additional elements are initialized to zero (or the default value for the type). If smaller, excess elements are discarded.
+  - `length`: Returns the current number of elements in the array.
+  - `pop`: Removes and returns the last element of the array. If the array is empty, it may return nil or throw an error, depending on configuration.
+  - `push`: Appends one or more elements to the end of the array.
+- **Array Constructors**:
+  - `Array`: Creates a generic dynamic array that can hold elements of any supported type.
+  - `F64Array`: Creates a fixed-size array of 64-bit floating-point numbers (IEEE 754 double precision).
+  - `F32Array`: Creates a fixed-size array of 32-bit floating-point numbers (IEEE 754 single precision).
+  - `U32Array`: Creates a fixed-size array of 32-bit unsigned integers.
+  - `I32Array`: Creates a fixed-size array of 32-bit signed integers.
+  - `U16Array`: Creates a fixed-size array of 16-bit unsigned integers.
+  - `I16Array`: Creates a fixed-size array of 16-bit signed integers.
+  - `U8Array`: Creates a fixed-size array of 8-bit unsigned integers (commonly used for byte-level operations).
+  - `I8Array`: Creates a fixed-size array of 8-bit signed integers.
+
+These utilities are invaluable for working with structured data, especially in performance-critical applications or environments where memory usage must be tightly controlled. They enable developers to manage arrays explicitly and efficiently.
+
+---
+
 The `@object` module provides utilities for type checking and object introspection. These functions are essential for determining the nature of values and ensuring type safety in dynamic environments.
 
 - **Type Checking**:
   - `instanceOf`: Checks if an object is an instance of a specific class.
   - `isClass`: Determines whether a value is a class.
   - `isObject`: Verifies if a value is an object.
+  - `isArray`: Verifies if a value is an array|typedArray.
   - `isString`: Checks if a value is a string.
   - `isNumber`: Determines whether a value is a number.
 
@@ -147,14 +191,17 @@ These functions are particularly useful for runtime type validation and debuggin
 
 The `@system` module offers low-level system utilities, primarily focused on memory management and garbage collection. These functions provide insights into the runtime environment and allow fine-grained control over resource allocation.
 
+- **Log**
+  - `log`: Unlike the `print` keyword, it allows for multiple inputs and behaves slightly differently.It automatically expands the contents of the array and prints (but not recursively).
+
 - **Garbage Collection**:
   - `gc`: Triggers a full garbage collection cycle.
   - `gcNext`: Configure the heap memory usage to be used for the next GC trigger.
   - `gcBegin`: Configure the limits of the initial GC.
 
 - **Memory Statistics**:
-  - `allocated`: Returns the total number of bytes currently allocated in the dynamic memory pool.
-  - `allocatedStatic`: Returns the total number of bytes allocated for static objects(e.g., strings, functions).
+  - `allocated`: Returns the total number of bytes currently allocated in the dynamic memory pool(includes built-in objects and deduplication pools).
+  - `static`: Returns the total number of bytes allocated for static objects(e.g., strings, functions).
 
 These utilities are invaluable for monitoring and optimizing memory usage, especially in long-running applications or environments with limited resources. They enable developers to manage memory explicitly and diagnose potential memory leaks or inefficiencies.
 
@@ -171,12 +218,17 @@ These utilities are invaluable for monitoring and optimizing memory usage, espec
   - `/mem`  : Print memory information (using mimalloc).
 
 ## Licenses
-The project is based on the [MIT license] and uses two third-party projects.LLVM/CraneLift may be used as a JIT in the future.
+The project **loxFlux** is based on `MIT` and uses two third-party projects.
+  - Copyright (c) 2025 IMSDCrueoft
+  - License: `MIT`
 
 1. **mimalloc**
    - Copyright (c) 2018-2025 Microsoft Corporation, Daan Leijen
-   - License: MIT
+   - License: `MIT`
 
 2. **xxHash**
    - Copyright (c) 2012-2021 Yann Collet
-   - License: BSD 2-Clause
+   - License: `BSD 2-Clause`
+
+## Other
+LLVM/CraneLift may be used as a JIT in the future.

@@ -61,6 +61,11 @@ typedef enum {
 	OP_SET_PROPERTY,
 	OP_SET_PROPERTY_LONG,
 
+	OP_SET_SUBSCRIPT,	// set subscript
+	OP_GET_SUBSCRIPT,	// get subscript
+
+	OP_NEW_ARRAY,		// array literal
+
 	OP_RETURN,          // ret
 	OP_THROW,			// throw
 

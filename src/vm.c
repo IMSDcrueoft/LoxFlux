@@ -53,7 +53,7 @@ static bool throwError(Value error) {
 
 	for (int32_t i = vm.frameCount - 1; i >= 0; i--) {
 		CallFrame* frame = &vm.frames[i];
-    
+
 		ObjFunction* function = frame->closure->function;
 		size_t instruction = frame->ip - function->chunk.code - 1;
 
@@ -425,7 +425,7 @@ static ObjUpvalue* captureUpvalue(Value* local) {
 }
 
 HOT_FUNCTION
-static void closeUpvalues(Value* last) { 
+static void closeUpvalues(Value* last) {
 	while (vm.openUpvalues != NULL && vm.openUpvalues->location >= last) {
 		ObjUpvalue* upvalue = vm.openUpvalues;
 
@@ -466,7 +466,7 @@ static InterpretResult run()
 #define READ_24bits() (ip += 3, (uint32_t)(ip[-3] | (ip[-2] << 8) | (ip[-1] << 16)))
 #define READ_CONSTANT(index) (vm.constants.values[(index)])
 
-// push(pop() op pop())
+	// push(pop() op pop())
 #define BINARY_OP(valueType,op)																		\
     do {																							\
 		/* Pop the top two values from the stack */													\
@@ -650,6 +650,193 @@ static InterpretResult run()
 			stack_replace(value);
 			break;
 		}
+		case OP_GET_SUBSCRIPT: {
+			Value target = vm.stackTop[-2];
+			Value index = vm.stackTop[-1];
+
+			if (IS_ARRAY(target)) {
+				if (IS_NUMBER(index)) {
+					//get array
+					ObjArray* array = AS_ARRAY(target);
+					double num_index = AS_NUMBER(index);
+
+					if ((num_index >= 0) && (num_index < array->length)) {
+						vm.stackTop[-2] = ARRAY_ELEMENT(array, Value, (uint32_t)num_index);
+						vm.stackTop--;
+					}
+					else {
+						vm.stackTop[-2] = NIL_VAL;
+						vm.stackTop--;
+					}
+					break;
+				}
+				else {
+					runtimeError("Array subscript must be number.");
+					return INTERPRET_RUNTIME_ERROR;
+				}
+			}
+			else if (IS_INSTANCE(target)) {
+				if (IS_STRING(index)) {
+					ObjInstance* instance = AS_INSTANCE(target);
+					ObjString* name = AS_STRING(index);
+
+					Value value;
+					if (tableGet(&instance->fields, name, &value)) {
+						vm.stackTop[-2] = value;
+						vm.stackTop--;
+					}
+					else {
+						vm.stackTop[-2] = NIL_VAL;
+						vm.stackTop--;
+					}
+					break;
+				}
+				else {
+					runtimeError("Instance subscript must be string.");
+					return INTERPRET_RUNTIME_ERROR;
+				}
+			}
+			else if (IS_STRING(target)) {
+				if (IS_NUMBER(index)) {
+					//get string
+					ObjString* string = AS_STRING(target);
+					double num_index = AS_NUMBER(index);
+
+					if ((num_index >= 0) && (num_index < string->length)) {
+						vm.stackTop[-2] = getStringValue(string, (uint32_t)num_index);
+						vm.stackTop--;
+					}
+					else {
+						vm.stackTop[-2] = NIL_VAL;
+						vm.stackTop--;
+					}
+					break;
+				}
+				else {
+					runtimeError("String subscript must be number.");
+					return INTERPRET_RUNTIME_ERROR;
+				}
+			}
+			else if (IS_STRING_BUILDER(target)) {
+				if (IS_NUMBER(index)) {
+					//get array
+					ObjArray* array = AS_ARRAY(target);
+					double num_index = AS_NUMBER(index);
+
+					if ((num_index >= 0) && (num_index < array->length)) {
+						vm.stackTop[-2] = getStringBuilderValue(array, (uint32_t)num_index);
+						vm.stackTop--;
+					}
+					else {
+						vm.stackTop[-2] = NIL_VAL;
+						vm.stackTop--;
+					}
+					break;
+				}
+				else {
+					runtimeError("StringBuiler subscript must be number.");
+					return INTERPRET_RUNTIME_ERROR;
+				}
+			}
+			else if (isTypedArray(target)) {
+				if (IS_NUMBER(index)) {
+					//get array
+					ObjArray* array = AS_ARRAY(target);
+					double num_index = AS_NUMBER(index);
+
+					if ((num_index >= 0) && (num_index < array->length)) {
+						vm.stackTop[-2] = getTypedArrayElement(array, (uint32_t)num_index);
+						vm.stackTop--;
+					}
+					else {
+						vm.stackTop[-2] = NIL_VAL;
+						vm.stackTop--;
+					}
+					break;
+				}
+				else {
+					runtimeError("TypedArray and stringBuiler subscript must be number.");
+					return INTERPRET_RUNTIME_ERROR;
+				}
+			}
+
+			runtimeError("Only instances,arrayLike,stringBuilder and string can get subscript.");
+			return INTERPRET_RUNTIME_ERROR;
+		}
+		case OP_SET_SUBSCRIPT: {
+			Value target = vm.stackTop[-3];
+			Value index = vm.stackTop[-2];
+			Value value = vm.stackTop[-1];
+
+			if (IS_ARRAY(target)) {
+				if (IS_NUMBER(index)) {
+					//get array
+					ObjArray* array = AS_ARRAY(target);
+					double num_index = AS_NUMBER(index);
+
+					if ((num_index >= 0) && (num_index < array->length)) {
+						vm.stackTop[-3] = ARRAY_ELEMENT(array, Value, (uint32_t)num_index) = value;
+						vm.stackTop -= 2;
+						break;
+					}
+					else {
+						runtimeError("Array index out of range.");
+						return INTERPRET_RUNTIME_ERROR;
+					}
+				}
+				else {
+					runtimeError("Array subscript must be number.");
+					return INTERPRET_RUNTIME_ERROR;
+				}
+			}
+			else if (IS_INSTANCE(target)) {
+				if (IS_STRING(index)) {
+					ObjInstance* instance = AS_INSTANCE(target);
+					ObjString* name = AS_STRING(index);
+
+					if (NOT_NIL(vm.stackTop[-1])) {
+						tableSet(&instance->fields, name, value);
+					}
+					else {
+						tableDelete(&instance->fields, name);
+					}
+
+					vm.stackTop[-3] = value;
+					vm.stackTop -= 2;
+					break;
+				}
+				else {
+					runtimeError("Instance subscript must be string.");
+					return INTERPRET_RUNTIME_ERROR;
+				}
+			}
+			else if (isTypedArray(target)) {
+				if (IS_NUMBER(index)) {
+					//get array
+					ObjArray* array = AS_ARRAY(target);
+					double num_index = AS_NUMBER(index);
+
+					if ((num_index >= 0) && (num_index < array->length)) {
+						setTypedArrayElement(array, (uint32_t)num_index, value);
+
+						vm.stackTop[-3] = value;
+						vm.stackTop -= 2;
+						break;
+					}
+					else {
+						runtimeError("TypedArray index out of range.");
+						return INTERPRET_RUNTIME_ERROR;
+					}
+				}
+				else {
+					runtimeError("TypedArray subscript must be number.");
+					return INTERPRET_RUNTIME_ERROR;
+				}
+			}
+
+			runtimeError("Only instances and arrayLike can set subscript.");
+			return INTERPRET_RUNTIME_ERROR;
+		}
 		case OP_DEFINE_GLOBAL: {
 			Value constant = READ_CONSTANT(READ_SHORT());
 			ObjString* name = AS_STRING(constant);
@@ -712,6 +899,25 @@ static InterpretResult run()
 				runtimeError("Undefined variable '%s'.", name->chars);
 				return INTERPRET_RUNTIME_ERROR;
 			}
+			break;
+		}
+		case OP_NEW_ARRAY: {
+			uint8_t size = READ_BYTE();
+			ObjArray* array = newArray(size);
+
+			//init the array
+			Value* valuePtr = vm.stackTop - size;
+			Value* values = (Value*)array->payload;
+
+			for (uint32_t i = 0; i < size; ++i) {
+				values[i] = valuePtr[i];
+			}
+
+			array->length = size;
+
+			//pop the values
+			*valuePtr = OBJ_VAL(array);
+			vm.stackTop -= (size - 1);
 			break;
 		}
 		case OP_GET_UPVALUE: {

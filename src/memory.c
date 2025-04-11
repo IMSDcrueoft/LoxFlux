@@ -115,6 +115,40 @@ void freeObject(Obj* object) {
 		ObjString* string = (ObjString*)object;
 		FREE_FLEX_NO_GC(ObjString, string, char, string->length + 1);//FAM object include'\0
 		break;
+	case OBJ_ARRAY:
+	case OBJ_ARRAY_F64: {
+		//they share the same struct
+		ObjArray* array = (ObjArray*)object;
+		FREE_ARRAY(char, array->payload, array->capacity * 8); //size 8 byte
+		FREE(OBJ_ARRAY, object);
+		break;
+	}
+	case OBJ_ARRAY_F32:
+	case OBJ_ARRAY_U32:
+	case OBJ_ARRAY_I32: {
+		//they share the same struct
+		ObjArray* array = (ObjArray*)object;
+		FREE_ARRAY(char, array->payload, array->capacity * 4); //size 4 byte
+		FREE(OBJ_ARRAY, object);
+		break;
+	}
+	case OBJ_ARRAY_U16:
+	case OBJ_ARRAY_I16: {
+		//they share the same struct
+		ObjArray* array = (ObjArray*)object;
+		FREE_ARRAY(char, array->payload, array->capacity * 2); //size 2 byte
+		FREE(OBJ_ARRAY, object);
+		break;
+	}
+	case OBJ_ARRAY_U8:
+	case OBJ_ARRAY_I8:
+	case OBJ_STRING_BUILDER: {
+		//they share the same struct
+		ObjArray* array = (ObjArray*)object;
+		FREE_ARRAY(char, array->payload, array->capacity * 1); //size 1 byte
+		FREE(OBJ_ARRAY, object);
+		break;
+	}
 	}
 	}
 }

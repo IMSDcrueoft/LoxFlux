@@ -66,7 +66,9 @@ typedef struct {
 
 bool valuesEqual(Value a, Value b);
 
+void print_adaptive_double(double value);
 void printValue(Value value);
+void printValue_sys(Value value);
 
 void valueArray_init(ValueArray* array);
 void valueArray_write(ValueArray* array, Value value);

@@ -965,6 +965,36 @@ static void dot(bool canAssign) {
 	}
 }
 
+static void arrayLiteral(bool canAssign) {
+	uint32_t elementCount = 0;
+	if (!check(TOKEN_RIGHT_SQUARE_BRACKET)) {
+		do {
+			expression(); //parse values
+			elementCount++;
+		} while (match(TOKEN_COMMA));
+	}
+	consume(TOKEN_RIGHT_SQUARE_BRACKET, "Expect ']' after array elements.");
+
+	if (elementCount >= UINT8_COUNT) {
+		error("Array literal is too long.");
+		return;
+	}
+
+	emitBytes(2, OP_NEW_ARRAY, (uint8_t)elementCount);  //make array
+}
+
+static void subscript(bool canAssign) {
+	expression();
+	consume(TOKEN_RIGHT_SQUARE_BRACKET, "Expect ']' after subscript.");
+	if (canAssign && match(TOKEN_EQUAL)) {
+		expression(); // parse assignment
+		emitByte(OP_SET_SUBSCRIPT);
+	}
+	else {
+		emitByte(OP_GET_SUBSCRIPT);
+	}
+}
+
 //check builtin
 static void builtinLiteral(bool canAssign) {
 	switch (parser.previous.type)
@@ -1152,6 +1182,7 @@ ParseRule rules[] = {
 	[TOKEN_RIGHT_BRACE] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_COMMA] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_DOT] = {NULL,     dot,   PREC_CALL},
+	[TOKEN_LEFT_SQUARE_BRACKET] = {arrayLiteral,	subscript,	PREC_CALL},
 	[TOKEN_MINUS] = {unary   ,    binary, PREC_TERM     },
 	[TOKEN_PLUS] = {NULL,     binary, PREC_TERM    },
 	[TOKEN_SEMICOLON] = {NULL,     NULL,   PREC_NONE},
@@ -1172,14 +1203,14 @@ ParseRule rules[] = {
 	[TOKEN_NUMBER] = {number  ,   NULL,   PREC_NONE  },
 	[TOKEN_NUMBER_BIN] = {number_bin  ,   NULL,   PREC_NONE  },
 	[TOKEN_NUMBER_HEX] = {number_hex  ,   NULL,   PREC_NONE  },
-	[TOKEN_MODULE_GLOBAL] = {builtinLiteral,     NULL,   PREC_NONE},
-	[TOKEN_MODULE_MATH] = {builtinLiteral,     NULL,   PREC_NONE},
-	[TOKEN_MODULE_ARRAY] = {builtinLiteral,     NULL,   PREC_NONE},
-	[TOKEN_MODULE_OBJECT] = {builtinLiteral,     NULL,   PREC_NONE},
-	[TOKEN_MODULE_STRING] = {builtinLiteral,     NULL,   PREC_NONE},
-	[TOKEN_MODULE_TIME] = {builtinLiteral,     NULL,   PREC_NONE},
-	[TOKEN_MODULE_FILE] = {builtinLiteral,     NULL,   PREC_NONE},
-	[TOKEN_MODULE_SYSTEM] = {builtinLiteral,     NULL,   PREC_NONE},
+	[TOKEN_MODULE_GLOBAL] = {builtinLiteral,     NULL,   PREC_CALL},
+	[TOKEN_MODULE_MATH] = {builtinLiteral,     NULL,   PREC_CALL},
+	[TOKEN_MODULE_ARRAY] = {builtinLiteral,     NULL,   PREC_CALL},
+	[TOKEN_MODULE_OBJECT] = {builtinLiteral,     NULL,   PREC_CALL},
+	[TOKEN_MODULE_STRING] = {builtinLiteral,     NULL,   PREC_CALL},
+	[TOKEN_MODULE_TIME] = {builtinLiteral,     NULL,   PREC_CALL},
+	[TOKEN_MODULE_FILE] = {builtinLiteral,     NULL,   PREC_CALL},
+	[TOKEN_MODULE_SYSTEM] = {builtinLiteral,     NULL,   PREC_CALL},
 	[TOKEN_AND] = {NULL,     and_,   PREC_AND},
 	[TOKEN_CLASS] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_ELSE] = {NULL,     NULL,   PREC_NONE},

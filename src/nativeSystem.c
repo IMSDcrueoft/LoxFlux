@@ -54,16 +54,20 @@ static Value allocatedBytesNative(int argCount, Value* args) {
 	return NUMBER_VAL((double)vm.bytesAllocated);
 }
 
-static Value allocatedStaticBytesNative(int argCount, Value* args) {
+static Value staticBytesNative(int argCount, Value* args) {
 	return NUMBER_VAL((double)vm.bytesAllocated_no_gc);
 }
 
 //Print all the parameters
 static Value logNative(int argCount, Value* args) {
-	for (int i = 0; i < argCount; ++i) {
-		printValue(args[i]);
-		if (i != argCount) {
+	for (int i = 0; i < argCount;) {
+		printValue_sys(args[i]);
+
+		if (++i < argCount) {
 			printf(" ");
+		}
+		else {
+			printf("\n");
 		}
 	}
 	//no '\n'
@@ -76,7 +80,7 @@ void importNative_system() {
 	defineNative_system("gcNext", gcNextNative);
 	defineNative_system("gcBegin", gcBeginNative);
 	defineNative_system("allocated", allocatedBytesNative);
-	defineNative_system("allocatedStatic", allocatedStaticBytesNative);
+	defineNative_system("static", staticBytesNative);
 
 	defineNative_system("log", logNative);
 }

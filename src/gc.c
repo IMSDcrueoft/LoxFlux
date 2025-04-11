@@ -36,6 +36,18 @@ void markValue(Value value)
 //	}
 //}
 
+static void markArrayAny(ObjArray* array) {
+	Value* arrPtr = (Value*)array->payload;
+
+	for (uint32_t i = 0; i < array->length; ++i) {
+		Value value = arrPtr[i];
+
+		if (IS_OBJ(value)) {
+			markObject(AS_OBJ(value));
+		}
+	}
+}
+
 static void markRoots() {
 	for (Value* slot = vm.stack; slot < vm.stackTop; slot++) {
 		markValue(*slot);
@@ -134,6 +146,9 @@ static void blackenObject(Obj* object) {
 		}
 		break;
 	}
+	case OBJ_ARRAY: //only array-any needs gc scan
+		markArrayAny((ObjArray*)object);
+		break;
 	}
 }
 

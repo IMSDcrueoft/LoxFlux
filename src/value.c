@@ -41,7 +41,7 @@ static void remove_scientific_zeros(STR str) {
 	*e_pos = 'e';
 }
 
-static void print_adaptive_double(double value) {
+void print_adaptive_double(double value) {
 	double int_part;
 	double fractional = modf(value, &int_part);
 
@@ -74,7 +74,21 @@ void printValue(Value value) {
 	case VAL_NUMBER: {
 		print_adaptive_double(AS_NUMBER(value)); break;
 	}
-	case VAL_OBJ: printObject(value); break;
+	case VAL_OBJ: printObject(value, false); break;
+	}
+}
+
+void printValue_sys(Value value)
+{
+	switch (value.type) {
+	case VAL_BOOL:
+		printf(AS_BOOL(value) ? "true" : "false");
+		break;
+	case VAL_NIL: printf("nil"); break;
+	case VAL_NUMBER: {
+		print_adaptive_double(AS_NUMBER(value)); break;
+	}
+	case VAL_OBJ: printObject(value, true); break;
 	}
 }
 

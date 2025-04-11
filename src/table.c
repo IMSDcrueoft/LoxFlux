@@ -341,7 +341,7 @@ void numberTable_init(NumberTable* table)
 COLD_FUNCTION
 void numberTable_free(NumberTable* table)
 {
-	FREE_ARRAY(NumberEntry, table->entries, table->capacity);
+	FREE_ARRAY_NO_GC(NumberEntry, table->entries, table->capacity);
 	numberTable_init(table);
 }
 
@@ -367,7 +367,7 @@ static NumberEntry* findNumberEntry(NumberEntry* entries, uint32_t capacity, uin
 
 static void adjustNumberCapacity(NumberTable* table, uint32_t capacity) {
 	//we need re input, so don't reallocate
-	NumberEntry* entries = ALLOCATE(NumberEntry, capacity);
+	NumberEntry* entries = ALLOCATE_NO_GC(NumberEntry, capacity);
 
 	for (uint32_t i = 0; i < capacity; ++i) {
 		entries[i].binary = 0;
@@ -391,7 +391,7 @@ static void adjustNumberCapacity(NumberTable* table, uint32_t capacity) {
 		table->count++;
 	}
 
-	FREE_ARRAY(NumberEntry, table->entries, table->capacity);
+	FREE_ARRAY_NO_GC(NumberEntry, table->entries, table->capacity);
 
 	table->entries = entries;
 	table->capacity = capacity;

@@ -250,6 +250,13 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 	case OP_SET_PROPERTY_LONG:
 		return constantInstruction("OP_SET_PROPERTY_LONG", chunk, offset);
 
+	case OP_GET_SUBSCRIPT:
+		return simpleInstruction("OP_GET_SUBSCRIPT", offset);
+	case OP_SET_SUBSCRIPT:
+		return simpleInstruction("OP_SET_SUBSCRIPT", offset);
+	case OP_NEW_ARRAY:
+		return byteInstruction("OP_NEW_ARRAY", chunk, offset);
+
 	case OP_GET_LOCAL:
 		return modifyLocalInstruction("OP_GET_LOCAL", chunk, offset);
 	case OP_SET_LOCAL:
