@@ -58,6 +58,7 @@ typedef struct LoopContext{
 
 typedef enum {
 	TYPE_FUNCTION,
+	TYPE_LAMBDA,
 	TYPE_SCRIPT
 } FunctionType;
 

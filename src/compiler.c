@@ -227,8 +227,13 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	compiler->function = newFunction();
 
 	//it's a function
-	if (type != TYPE_SCRIPT) {
+	switch (type) {
+	case TYPE_FUNCTION:
 		compiler->function->name = copyString(parser.previous.start, parser.previous.length, false);
+		break;
+	case TYPE_LAMBDA:
+		compiler->function->name = copyString("", 0, false);
+		break;
 	}
 
 	Local* local = &compiler->locals[compiler->localCount++];
@@ -261,8 +266,8 @@ static ObjFunction* endCompiler() {
 	ObjFunction* function = current->function;
 #if DEBUG_PRINT_CODE
 	if (!parser.hadError) {
-		disassembleChunk(currentChunk(), function->name != NULL
-			? function->name->chars : "<script>");
+		disassembleChunk(currentChunk(), (function->name != NULL)
+			? ((function->name->length != 0) ? function->name->chars : "<lambda>") : "<script>");
 	}
 #endif
 	current = current->enclosing;
@@ -527,7 +532,12 @@ static void function(FunctionType type) {
 	initCompiler(&compiler, type);
 	beginScope();
 
-	consume(TOKEN_LEFT_PAREN, "Expect '(' after function name.");
+	if (type == TYPE_FUNCTION) {
+		consume(TOKEN_LEFT_PAREN, "Expect '(' after function name.");
+	}
+	else {
+		consume(TOKEN_LEFT_PAREN, "Expect '(' after lambda.");
+	}
 
 	if (!check(TOKEN_RIGHT_PAREN)) {
     do {
@@ -558,6 +568,10 @@ static void function(FunctionType type) {
 	}
 
 	freeLocals(&compiler);
+}
+
+static void lambda(bool canAssign) {
+	function(TYPE_LAMBDA);
 }
 
 static void emitClassCommond(uint32_t index) {
@@ -1172,6 +1186,7 @@ ParseRule rules[] = {
 	[TOKEN_FALSE] = {literal,     NULL,   PREC_NONE},
 	[TOKEN_FOR] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_FUN] = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_LAMBDA] = {lambda,	NULL,	PREC_NONE},
 	[TOKEN_IF] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_NIL] = {literal,     NULL,   PREC_NONE},
 	[TOKEN_OR] = {NULL,     or_,   PREC_OR},

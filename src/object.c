@@ -263,6 +263,10 @@ static void printFunction(ObjFunction* function) {
         printf("<script>");
         return;
     }
+    else if (function->name->length == 0) {
+		printf("<lambda>");
+		return;
+    }
 
     printf("<fn %s>", function->name->chars);
 }

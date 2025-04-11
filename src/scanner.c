@@ -188,6 +188,7 @@ static TokenType identifierType() {
 	}
 	case 'v': return checkKeyword(1, 2, "ar", TOKEN_VAR);
 	case 'w': return checkKeyword(1, 4, "hile", TOKEN_WHILE);
+	case 'l': return checkKeyword(1, 5, "ambda", TOKEN_LAMBDA);
 	}
 
 	return TOKEN_IDENTIFIER;
