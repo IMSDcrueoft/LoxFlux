@@ -599,37 +599,47 @@ static void classDeclaration() {
 }
 
 static void funDeclaration() {
-	uint32_t global = parseVariable("Expect function name.");
+	uint32_t arg = parseVariable("Expect function name.");
 	markInitialized(false);
 	function(TYPE_FUNCTION);
-	defineVariable(global);
+	defineVariable(arg);
 }
 
 static void varDeclaration() {
-	uint32_t global = parseVariable("Expect variable name.");
+	do {
+		uint32_t arg = parseVariable("Expect variable name.");
 
-	if (match(TOKEN_EQUAL)) {
-		expression();
-	}
-	else {
-		emitByte(OP_NIL);
-	}
+		if (match(TOKEN_EQUAL)) {
+			expression();
+		}
+		else {
+			emitByte(OP_NIL);
+		}
+
+		defineVariable(arg);
+
+		if (parser.hadError) return;
+	} while (match(TOKEN_COMMA));
+
 	consume(TOKEN_SEMICOLON, "Expect ';' after variable declaration.");
-
-	defineVariable(global);
 }
 
 static void constDeclaration() {
-	uint32_t global = parseVariable("Expect constant name.");
+	do {
+		uint32_t arg = parseVariable("Expect constant name.");
 
-	if (!match(TOKEN_EQUAL)) {
-		errorAtCurrent("Constant must be initialized.");
-	}
+		if (!match(TOKEN_EQUAL)) {
+			errorAtCurrent("Constant must be initialized.");
+		}
 
-	expression();
+		expression();
+
+		defineConst(arg);
+
+		if (parser.hadError) return;
+	} while (match(TOKEN_COMMA));
+
 	consume(TOKEN_SEMICOLON, "Expect ';' after constant declaration.");
-
-	defineConst(global);
 }
 
 static void expressionStatement() {

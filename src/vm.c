@@ -980,10 +980,11 @@ static InterpretResult run()
 			frame->slots[index] = vm.stackTop[-1];
 			break;
 		}
-		case OP_CLOSE_UPVALUE:
+		case OP_CLOSE_UPVALUE: {
 			closeUpvalues(vm.stackTop - 1);
 			stack_pop();
 			break;
+		}
 		case OP_POP: {
 			stack_pop();
 			break;
@@ -1050,9 +1051,7 @@ static InterpretResult run()
 			break;
 		}
 
-		case OP_MODULE_GLOBAL:
-			stack_push(OBJ_VAL(&vm.globals));
-			break;
+		case OP_MODULE_GLOBAL:stack_push(OBJ_VAL(&vm.globals)); break;
 		case OP_MODULE_BUILTIN: {
 			uint8_t moduleIndex = READ_BYTE();
 			stack_push(OBJ_VAL(&vm.builtins[moduleIndex]));
@@ -1115,7 +1114,8 @@ InterpretResult interpret(C_STR source)
 	double time_run_f = (get_nanoseconds() - time_run) * 1e-6;
 #if LOG_EXECUTE_TIMING
 	printf("[Log] Finished executing in %g ms.\n", time_run_f);
-#elif LOG_MIPS
+#endif
+#if LOG_MIPS
 	printf("[Log] Finished executing at %g mips.\n", byteCodeCount / time_run_f * 1e-3);
 	byteCodeCount = 0;
 #endif

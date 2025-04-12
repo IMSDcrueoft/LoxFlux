@@ -13,7 +13,7 @@
 // stress gc
 #define DEBUG_STRESS_GC 0
 // log gc info
-#define DEBUG_LOG_GC 1
+#define DEBUG_LOG_GC 0
 
 // switch on this to use log
 #define LOG_MODE 0
@@ -28,7 +28,7 @@
 // log memory info after execute
 #define LOG_MALLOC_INFO 1
 // kilo instructions per second
-#define LOG_MIPS 0
+#define LOG_MIPS 1
 
 #if !DEBUG_MODE
 #undef DEBUG_PRINT_CODE

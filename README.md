@@ -5,6 +5,9 @@ Please note that this project has not yet completed its basic functionalities, t
 
 此项目“LoxFlux”是基于Lox语言的cLox 版本(栈型字节码虚拟机)进行学习和开发的。请注意，该项目目前尚未完成基础功能，因此请勿将其用于实际应用中。
 
+- **Design metrics**: loxFlux should be fully compatible with the lox syntax, so lox scripts can be painlessly interpreted and executed in loxFlux (although error handling may vary, the "correct code" is the same).
+-  **设计指标**: loxFlux应是完整兼容lox语法的，因此lox脚本可以无痛的在loxFlux里解释执行(尽管错误处理可能有所不同，但“正确的代码”是一样的)。
+
 ## Introduction of Lox
 
 Lox is a programming language designed for learning purposes. It is conceived as a small and easy-to-understand language, perfect for those who want to build their own interpreter or compiler. The Lox language and its associated tutorials were originally introduced by Bob Nystrom in his online book "Crafting Interpreters". ([Book URL](https://craftinginterpreters.com/))
@@ -37,14 +40,18 @@ Lox is a programming language designed for learning purposes. It is conceived as
 
 ---
 
-### Global Variable
+### Variable
+
+- **Allows multiple definitions of variable constants**: (e.g., `var a = 1,b = 2,c = a + b;`).
+
+#### Global Variable
 
 - **Optimized global variable access**: Achieves `O(1)` time complexity. With dynamic index updates, direct index fetching can be achieved in almost all cases. Indexes are rarely invalidated, unless you frequently delete and then declare global variables that don't exist.
 - **Global instance**: Use `@global` to explicitly get the global table, create and delete attributes, use it like a simple object.
 
 ---
 
-### Local Variable
+#### Local Variable
 
 - **Local variable range**: Expands to support up to 1024 variables(Configurable up to 65534).
 - **'const' keyword support**: Supported within blocks.
