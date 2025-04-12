@@ -276,6 +276,7 @@ ObjArray* newArrayI8(uint64_t size)
 	return array;
 }
 
+COLD_FUNCTION
 void reserveArray(ObjArray* array, uint64_t size)
 {
 	size = max(8, (size + 7) & ~7);
@@ -326,12 +327,14 @@ void reserveArray(ObjArray* array, uint64_t size)
 #undef GROW_TYPED_ARRY
 }
 
+COLD_FUNCTION
 Value getStringValue(ObjString* string, uint32_t index)
 {
 	//There are only a maximum of 256 characters
 	return OBJ_VAL(copyString(string->chars + index, 1, false));
 }
 
+COLD_FUNCTION
 Value getStringBuilderValue(ObjArray* stringBuilder, uint32_t index) {
 	//There are only a maximum of 256 characters
 	return OBJ_VAL(copyString(stringBuilder->payload + index, 1, false));

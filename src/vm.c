@@ -654,15 +654,21 @@ static InterpretResult run()
 			Value target = vm.stackTop[-2];
 			Value index = vm.stackTop[-1];
 
-			if (IS_ARRAY(target)) {
+			if (isArrayLike(target)) {
 				if (IS_NUMBER(index)) {
 					//get array
 					ObjArray* array = AS_ARRAY(target);
 					double num_index = AS_NUMBER(index);
 
 					if ((num_index >= 0) && (num_index < array->length)) {
-						vm.stackTop[-2] = ARRAY_ELEMENT(array, Value, (uint32_t)num_index);
-						vm.stackTop--;
+						if (IS_ARRAY_ANY(array)) {
+							vm.stackTop[-2] = ARRAY_ELEMENT(array, Value, (uint32_t)num_index);
+							vm.stackTop--;
+						}
+						else {
+							vm.stackTop[-2] = getTypedArrayElement(array, (uint32_t)num_index);
+							vm.stackTop--;
+						}
 					}
 					else {
 						vm.stackTop[-2] = NIL_VAL;
@@ -738,27 +744,6 @@ static InterpretResult run()
 					return INTERPRET_RUNTIME_ERROR;
 				}
 			}
-			else if (isTypedArray(target)) {
-				if (IS_NUMBER(index)) {
-					//get array
-					ObjArray* array = AS_ARRAY(target);
-					double num_index = AS_NUMBER(index);
-
-					if ((num_index >= 0) && (num_index < array->length)) {
-						vm.stackTop[-2] = getTypedArrayElement(array, (uint32_t)num_index);
-						vm.stackTop--;
-					}
-					else {
-						vm.stackTop[-2] = NIL_VAL;
-						vm.stackTop--;
-					}
-					break;
-				}
-				else {
-					runtimeError("TypedArray and stringBuiler subscript must be number.");
-					return INTERPRET_RUNTIME_ERROR;
-				}
-			}
 
 			runtimeError("Only instances,arrayLike,stringBuilder and string can get subscript.");
 			return INTERPRET_RUNTIME_ERROR;
@@ -768,15 +753,24 @@ static InterpretResult run()
 			Value index = vm.stackTop[-2];
 			Value value = vm.stackTop[-1];
 
-			if (IS_ARRAY(target)) {
+			if (isArrayLike(target)) {
 				if (IS_NUMBER(index)) {
 					//get array
 					ObjArray* array = AS_ARRAY(target);
 					double num_index = AS_NUMBER(index);
 
 					if ((num_index >= 0) && (num_index < array->length)) {
-						vm.stackTop[-3] = ARRAY_ELEMENT(array, Value, (uint32_t)num_index) = value;
-						vm.stackTop -= 2;
+						if (IS_ARRAY_ANY(array)) {
+							vm.stackTop[-3] = ARRAY_ELEMENT(array, Value, (uint32_t)num_index) = value;
+							vm.stackTop -= 2;
+						}
+						else {
+							setTypedArrayElement(array, (uint32_t)num_index, value);
+
+							vm.stackTop[-3] = value;
+							vm.stackTop -= 2;
+						}
+
 						break;
 					}
 					else {
@@ -807,29 +801,6 @@ static InterpretResult run()
 				}
 				else {
 					runtimeError("Instance subscript must be string.");
-					return INTERPRET_RUNTIME_ERROR;
-				}
-			}
-			else if (isTypedArray(target)) {
-				if (IS_NUMBER(index)) {
-					//get array
-					ObjArray* array = AS_ARRAY(target);
-					double num_index = AS_NUMBER(index);
-
-					if ((num_index >= 0) && (num_index < array->length)) {
-						setTypedArrayElement(array, (uint32_t)num_index, value);
-
-						vm.stackTop[-3] = value;
-						vm.stackTop -= 2;
-						break;
-					}
-					else {
-						runtimeError("TypedArray index out of range.");
-						return INTERPRET_RUNTIME_ERROR;
-					}
-				}
-				else {
-					runtimeError("TypedArray subscript must be number.");
 					return INTERPRET_RUNTIME_ERROR;
 				}
 			}
@@ -950,21 +921,22 @@ static InterpretResult run()
 
 		case OP_ADD: {
 			// might cause gc,so can't decrease first
-			if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
-				vm.stackTop[-2] = NUMBER_VAL(AS_NUMBER(vm.stackTop[-2]) + AS_NUMBER(vm.stackTop[-1]));
-				vm.stackTop--;
-				break;
+			if (SAME_REF_TYPE(vm.stackTop[-2], vm.stackTop[-1])) {
+				if (IS_NUMBER(vm.stackTop[-2])){ // && IS_NUMBER(vm.stackTop[-1])) {
+					vm.stackTop[-2] = NUMBER_VAL(AS_NUMBER(vm.stackTop[-2]) + AS_NUMBER(vm.stackTop[-1]));
+					vm.stackTop--;
+					break;
+				}
+				else if (IS_STRING(vm.stackTop[-2]) && IS_STRING(vm.stackTop[-1])) {
+					ObjString* result = connectString(AS_STRING(vm.stackTop[-2]), AS_STRING(vm.stackTop[-1]));
+					vm.stackTop[-2] = OBJ_VAL(result);
+					vm.stackTop--;
+					break;
+				}
 			}
-			else if (IS_STRING(vm.stackTop[-2]) && IS_STRING(vm.stackTop[-1])) {
-				ObjString* result = connectString(AS_STRING(vm.stackTop[-2]), AS_STRING(vm.stackTop[-1]));
-				vm.stackTop[-2] = OBJ_VAL(result);
-				vm.stackTop--;
-				break;
-			}
-			else {
-				runtimeError("Operands must be two numbers or two strings.");
-				return INTERPRET_RUNTIME_ERROR;
-			}
+
+			runtimeError("Operands must be two numbers or two strings.");
+			return INTERPRET_RUNTIME_ERROR;
 		}
 		case OP_SUBTRACT: BINARY_OP(NUMBER_VAL, -); break;
 		case OP_MULTIPLY: BINARY_OP(NUMBER_VAL, *); break;

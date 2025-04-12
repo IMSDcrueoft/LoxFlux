@@ -44,6 +44,8 @@ typedef struct {
 	uint32_t* holes;
 } ValueHoles;
 
+#define SAME_REF_TYPE(a,b)	   ((a).type == (b).type)
+
 #define IS_BOOL(value)    ((value).type == VAL_BOOL)
 #define IS_NIL(value)     ((value).type == VAL_NIL)
 #define NOT_NIL(value)	  ((value).type != VAL_NIL)
