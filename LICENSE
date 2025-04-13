@@ -1,6 +1,7 @@
 MIT License
 
-Copyright (c) 2025 IM&SD (https://github.com/IMSDcrueoft)
+Copyright (c) 2025 IM&SD
+
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
@@ -18,21 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-## Third-Party Libraries
-
-This project uses the following third-party libraries:
-
-1. **mimalloc**
-   - Copyright (c) 2018-2025 Microsoft Corporation, Daan Leijen
-   - License: MIT
-   - Repository: https://github.com/microsoft/mimalloc
-   - Notice: This project includes mimalloc, a high-performance memory allocator. The mimalloc library is distributed under the MIT License. Please refer to the mimalloc repository for the full license text.
-
-2. **xxHash**
-   - Copyright (c) 2012-2021 Yann Collet
-   - License: BSD 2-Clause
-   - Repository: https://github.com/Cyan4973/xxHash
-   - Notice: This project includes xxHash, an extremely fast non-cryptographic hash algorithm. The xxHash library is distributed under the BSD 2-Clause License. Please refer to the xxHash repository for the full license text.
