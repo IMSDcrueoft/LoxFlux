@@ -3,6 +3,6 @@ fun fib(n) {
   return fib(n - 2) + fib(n - 1);
 }
 
-var start = @time.second();
+var start = @time.milli();
 print fib(35);
-print @time.second() - start;
+print @time.milli() - start;

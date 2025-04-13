@@ -140,7 +140,7 @@ static void blackenObject(Obj* object) {
 	case OBJ_INSTANCE: {
 		ObjInstance* instance = (ObjInstance*)object;
 		ObjClass* klass = instance->klass;
-		if (klass != &builtinClass) {
+		if (klass != NULL) {
 			markObject((Obj*)klass);
 			markTable(&instance->fields);
 		}

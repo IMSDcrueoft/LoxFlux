@@ -1,11 +1,11 @@
-var start = @time.second();
+var start = @time.milli();
 for(var i = 1e8;i>0;){
     i = i-1;
 }
-print @time.second() - start;
+print @time.milli() - start;
 
-start = @time.second();
+start = @time.milli();
 for(var i = 0;i<1e8;){
     i = i+1;
 }
-print @time.second() - start;
+print @time.milli() - start;

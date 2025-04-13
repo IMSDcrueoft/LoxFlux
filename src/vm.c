@@ -15,10 +15,6 @@
 #include "timer.h"
 #endif
 
-//the global
-static ObjClass globalClass = { .obj = {.type = OBJ_CLASS,.next = NULL,.isMarked = true},.name = NULL };
-//the builtins
-ObjClass builtinClass = { .obj = {.type = OBJ_CLASS,.next = NULL,.isMarked = true},.name = NULL };
 //the global shared vm
 VM vm;
 
@@ -214,7 +210,7 @@ static void importBuiltins() {
 	for (uint32_t i = 0; i < BUILTIN_MODULE_COUNT; ++i) {
 		vm.builtins[i] = (ObjInstance){
 		.obj = {.type = OBJ_INSTANCE,.next = NULL,.isMarked = true},
-		.klass = &builtinClass,
+		.klass = NULL,
 		.fields = {.type = TABLE_NORMAL}//remind this
 		};
 	}
@@ -266,7 +262,7 @@ void vm_init()
 
 	vm.globals = (ObjInstance){
 		.obj = {.type = OBJ_INSTANCE,.next = NULL,.isMarked = true},
-		.klass = &globalClass,
+		.klass = NULL,
 		.fields = {.type = TABLE_GLOBAL}//remind this
 	};
 	table_init(&vm.globals.fields);
@@ -1063,14 +1059,14 @@ static InterpretResult run()
 InterpretResult interpret(C_STR source)
 {
 #if LOG_COMPILE_TIMING
-	uint64_t time_compile = get_nanoseconds();
+	uint64_t time_compile = get_milliseconds();
 #endif
 
 	ObjFunction* function = compile(source);
 	if (function == NULL) return INTERPRET_COMPILE_ERROR;
 
 #if LOG_COMPILE_TIMING
-	double time_compile_f = (get_nanoseconds() - time_compile) * 1e-6;
+	double time_compile_f = (get_milliseconds() - time_compile);
 	printf("[Log] Finished compiling in %g ms.\n", time_compile_f);
 #endif
 
@@ -1081,7 +1077,7 @@ InterpretResult interpret(C_STR source)
 	call(closure, 0);
 
 #if LOG_EXECUTE_TIMING || LOG_MIPS
-	uint64_t time_run = get_nanoseconds();
+	uint64_t time_run = get_milliseconds();
 #endif
 
 #if LOG_MIPS
@@ -1091,7 +1087,7 @@ InterpretResult interpret(C_STR source)
 	InterpretResult result = run();
 
 #if LOG_EXECUTE_TIMING || LOG_MIPS
-	double time_run_f = (get_nanoseconds() - time_run) * 1e-6;
+	double time_run_f = (get_milliseconds() - time_run);
 #if LOG_EXECUTE_TIMING
 	printf("[Log] Finished executing in %g ms.\n", time_run_f);
 #endif

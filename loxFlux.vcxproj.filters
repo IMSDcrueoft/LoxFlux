@@ -47,7 +47,7 @@
     <ClCompile Include="src\scanner.c">
       <Filter>loxFlux\source</Filter>
     </ClCompile>
-    <ClCompile Include="src\timer.c">
+    <ClCompile Include="src\timer.cpp">
       <Filter>loxFlux\source</Filter>
     </ClCompile>
     <ClCompile Include="src\value.c">

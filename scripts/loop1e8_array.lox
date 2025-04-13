@@ -4,15 +4,15 @@
     @array.resize(arr,16);
     print @array.length(arr);
 
-    var start = @time.second();
+    var start = @time.milli();
     for(arr[0] = 1e8;arr[0] > 0;){
         arr[0] = arr[0] - 1;
     }
-    print @time.second() - start;
+    print @time.milli() - start;
 
-    start = @time.second();
+    start = @time.milli();
     for(arr[0] = 0;arr[0] < 1e8;){
         arr[0] = arr[0] + 1;
     }
-    print @time.second() - start;
+    print @time.milli() - start;
 }

@@ -3,9 +3,9 @@ class Object{}
     var a = Object();
     print @object.instanceOf(a,Object);
 
-    var start = @time.second();
+    var start = @time.milli();
     for(a["i"] = 0;a["i"] < 1e8;){
         a["i"] = a["i"] + 1;
     }
-    print @time.second() - start;
+    print @time.milli() - start;
 }

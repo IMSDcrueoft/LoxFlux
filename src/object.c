@@ -11,6 +11,7 @@
 
 #if DEBUG_LOG_GC
 const C_STR objTypeInfo[] = {
+	[OBJ_CLASS] = {"class"},
 	[OBJ_CLOSURE] = {"closure"},
 	[OBJ_FUNCTION] = {"function"},
 	[OBJ_NATIVE] = {"native"},
@@ -645,17 +646,17 @@ void printObject(Value value, bool isExpand) {
 			printf("%s (class)", name->chars);
 		}
 		else {
-			printf("$anonymous (class)");
+			printf("$anon (class)");
 		}
 		break;
 	}
 	case OBJ_INSTANCE: {
-		ObjString* name = AS_INSTANCE(value)->klass->name;
-		if (name != NULL) {
-			printf("%s (instance)", name->chars);
+		ObjClass* klass = AS_INSTANCE(value)->klass;
+		if (klass != NULL) {
+			printf("%s (instance)", klass->name->chars);
 		}
 		else {
-			printf("$anonymous (instance)");
+			printf("$anon (instance)");
 		}
 		break;
 	}
