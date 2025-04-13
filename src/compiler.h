@@ -8,6 +8,9 @@
 #include "scanner.h"
 #include "object.h"
 
+#define LOCAL_INIT 64
+#define LOCAL_MAX UINT10_COUNT
+
 typedef struct {
 	Token current;
 	Token previous;
@@ -63,8 +66,8 @@ typedef enum {
 } FunctionType;
 
 typedef struct {
-	bool isLocal;
 	uint16_t index;
+	bool isLocal;
 } Upvalue;
 
 typedef struct Compiler {
@@ -76,12 +79,11 @@ typedef struct Compiler {
 
 	uint16_t localCount;
 	uint16_t scopeDepth;
-	uint32_t capacity;
+	uint32_t localCapacity;
 	Local* locals;
 
-	Upvalue upvalues[UINT8_COUNT];
-
 	LoopContext* currentLoop;
+	Upvalue upvalues[UINT8_COUNT];
 } Compiler;
 
 ObjFunction* compile(C_STR source);

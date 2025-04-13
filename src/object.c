@@ -360,6 +360,8 @@ Value getTypedArrayElement(ObjArray* array, uint32_t index)
 		return NUMBER_VAL(ARRAY_ELEMENT(array, uint8_t, index));
 	case OBJ_ARRAY_I8:
 		return NUMBER_VAL(ARRAY_ELEMENT(array, int8_t, index));
+	case OBJ_STRING_BUILDER:
+		return NUMBER_VAL(ARRAY_ELEMENT(array, uint8_t, index));
 	default:
 		return NIL_VAL;
 	}

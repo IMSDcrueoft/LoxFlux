@@ -654,7 +654,7 @@ static InterpretResult run()
 			Value target = vm.stackTop[-2];
 			Value index = vm.stackTop[-1];
 
-			if (isArrayLike(target)) {
+			if (isIndexableArray(target)) {
 				if (IS_NUMBER(index)) {
 					//get array
 					ObjArray* array = AS_ARRAY(target);
@@ -709,7 +709,8 @@ static InterpretResult run()
 					double num_index = AS_NUMBER(index);
 
 					if (ARRAY_IN_RANGE(string, num_index)) {
-						vm.stackTop[-2] = getStringValue(string, (uint32_t)num_index);
+						//return ascii
+						vm.stackTop[-2] = NUMBER_VAL((uint8_t)(string->chars[(uint32_t)num_index]));
 						vm.stackTop--;
 					}
 					else {
@@ -720,27 +721,6 @@ static InterpretResult run()
 				}
 				else {
 					runtimeError("String subscript must be number.");
-					return INTERPRET_RUNTIME_ERROR;
-				}
-			}
-			else if (IS_STRING_BUILDER(target)) {
-				if (IS_NUMBER(index)) {
-					//get stringBuilder
-					ObjArray* stringBuilder = AS_ARRAY(target);
-					double num_index = AS_NUMBER(index);
-
-					if (ARRAY_IN_RANGE(stringBuilder, num_index)) {
-						vm.stackTop[-2] = getStringBuilderValue(stringBuilder, (uint32_t)num_index);
-						vm.stackTop--;
-					}
-					else {
-						vm.stackTop[-2] = NIL_VAL;
-						vm.stackTop--;
-					}
-					break;
-				}
-				else {
-					runtimeError("StringBuiler subscript must be number.");
 					return INTERPRET_RUNTIME_ERROR;
 				}
 			}

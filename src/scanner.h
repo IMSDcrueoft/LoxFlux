@@ -40,16 +40,16 @@ typedef enum {
 } TokenType;
 
 typedef struct {
-	uint32_t line;
 	C_STR start;
 	C_STR current;
+	uint32_t line;
 } Scanner;
 
 typedef struct {
+	C_STR start;
 	TokenType type;
 	uint32_t length;
 	uint32_t line;
-	C_STR start;
 } Token;
 
 void scanner_init(C_STR source);

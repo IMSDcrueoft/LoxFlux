@@ -221,8 +221,8 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	compiler->localCount = 0;
 	compiler->scopeDepth = 0;
 	//init with 1024 slots
-	compiler->locals = ALLOCATE_NO_GC(Local, UINT10_COUNT);
-	compiler->capacity = UINT10_COUNT;
+	compiler->locals = ALLOCATE_NO_GC(Local, LOCAL_INIT);
+	compiler->localCapacity = LOCAL_INIT;
 
 	compiler->function = newFunction();
 
@@ -255,9 +255,9 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 }
 
 static void freeLocals(Compiler* compiler) {
-	FREE_ARRAY_NO_GC(Local, compiler->locals, compiler->capacity);
+	FREE_ARRAY_NO_GC(Local, compiler->locals, compiler->localCapacity);
 	compiler->locals = NULL;
-	compiler->capacity = 0;
+	compiler->localCapacity = 0;
 }
 
 static ObjFunction* endCompiler() {
@@ -345,9 +345,16 @@ static uint32_t identifierConstant(Token* name) {
 }
 
 static void addLocal(Token name) {
-	if (current->localCount == UINT10_COUNT) {
-		error("Too many nested local variables in function.");
+	if (current->localCount == LOCAL_MAX) {
+		error("Too many nested local variables in scope.");
 		return;
+	}
+
+	if (current->localCount == current->localCapacity) {
+		//grow
+		uint32_t oldCapacity = current->localCapacity;
+		current->localCapacity = GROW_CAPACITY(oldCapacity);
+		current->locals = GROW_ARRAY_NO_GC(Local, current->locals, oldCapacity, current->localCapacity);
 	}
 
 	Local* local = &current->locals[current->localCount++];
