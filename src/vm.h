@@ -8,6 +8,7 @@
 #include "compiler.h"
 #include "table.h"
 #include "object.h"
+#include "nativeBuiltin.h"
 
 //the depth of call frames
 #define FRAMES_MAX 1024
@@ -26,25 +27,29 @@ typedef struct {
 	Value* stackTop;
 	//the edge of stack
 	Value* stackBoundary;
-	
+
 	// deduplicated global constant table
 	ValueArray constants;
+	// In order to repurpose the voids caused by GC
+	// create a constant void table to record and reuse
+	ValueHoles constantHoles;
+
+	//global hash table
+	ObjInstance globals;
+	ObjInstance builtins[BUILTIN_MODULE_COUNT];
+
+	//upvalues
+	ObjUpvalue* openUpvalues;
 
 	//pool
 	Table strings;
 	//pool
 	NumberTable numbers;
 
-	//global hash table
-	Table globals;
-
 	//the root for dynamic objects
 	Obj* objects;
 	//the root for static objects
 	Obj* objects_no_gc;
-
-	//upvalues
-	ObjUpvalue* openUpvalues;
 
 	//gc gray objects
 	uint64_t grayCount;
@@ -52,12 +57,16 @@ typedef struct {
 	Obj** grayStack;
 
 	//Excludes space used by stacks/constants/compilations
+	uint64_t bytesAllocated_no_gc;
 	uint64_t bytesAllocated;
 	uint64_t nextGC;
 
 	//frames
 	uint64_t frameCount;
 	CallFrame frames[FRAMES_MAX];
+
+	//ip for debug error
+	uint8_t** ip_error;
 } VM;
 
 typedef enum {
@@ -68,12 +77,14 @@ typedef enum {
 
 //the global shared vm extern to other file
 extern VM vm;
+extern ObjClass builtinClass;
 
 void vm_init();
 void vm_free();
 
 void stack_push(Value value);
 Value stack_pop();
+void stack_replace(Value val);
 
 //get the size of constants (including the holes)
 uint32_t getConstantSize();
@@ -83,5 +94,13 @@ uint32_t addConstant(Value value);
 InterpretResult interpret(C_STR source);
 InterpretResult interpret_repl(C_STR source);
 
-//for vm
-void defineNative(C_STR name, NativeFn function);
+//for builtin
+void defineNative_math(C_STR name, NativeFn function);
+void defineNative_array(C_STR name, NativeFn function);
+void defineNative_object(C_STR name, NativeFn function);
+void defineNative_string(C_STR name, NativeFn function);
+void defineNative_time(C_STR name, NativeFn function);
+void defineNative_file(C_STR name, NativeFn function);
+void defineNative_system(C_STR name, NativeFn function);
+//for global
+void defineNative_global(C_STR name, NativeFn function);

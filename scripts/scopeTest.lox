@@ -1,0 +1,28 @@
+var testKey;
+
+//test global
+var start = @time.second();
+for(var i = 0;i < 1e8;){
+    var x = testKey;
+    i = i + 1;
+}
+print @time.second() - start;
+
+//test global object
+var start = @time.second();
+for(var i = 0;i < 1e8;){
+    var x = @global.testKey;
+    i = i + 1;
+}
+print @time.second() - start;
+
+//test local object
+{
+    var start = @time.second();
+    var _G = @global;
+    for(var i = 0;i < 1e8;){
+        var x = _G.testKey;
+        i = i + 1;
+    }
+print @time.second() - start;
+}

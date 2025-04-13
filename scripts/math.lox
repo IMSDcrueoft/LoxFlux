@@ -1,0 +1,4 @@
+print @math.max(1, 2, 3, 4, 5);
+print @math.min(-1, -2, -1e3, 4, -155);
+
+print @math.random();

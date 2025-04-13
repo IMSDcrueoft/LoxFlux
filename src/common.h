@@ -15,6 +15,7 @@
 //check the type
 #include "check.h"
 #include "options.h"
+#include "optimize.h"
 
 typedef char* STR;
 typedef const char* C_STR;

@@ -1,19 +1,20 @@
+/*
+*   @param x {number}
+*   @param y {number}
+*   @return {function} {function} that takes a string and returns a number or a function
+*/
 fun createPoint(x,y){
-    fun addPoint(p){
-        return createPoint(x + p("x"), y + p("y"));
-    }
-
-    fun pointerFuc(funName){
+    return lambda (funName){
         if(funName == "x"){
             return x;
         } else if(funName == "y"){
             return y;
         } else if(funName == "add"){
-            return addPoint;
+            return lambda(p){
+                return createPoint(x + p("x"), y + p("y"));
+            };
         }
-    }
-
-    return pointerFuc;
+    };
 }
 
 var a = createPoint(1,2);

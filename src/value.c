@@ -41,7 +41,7 @@ static void remove_scientific_zeros(STR str) {
 	*e_pos = 'e';
 }
 
-static void print_adaptive_double(double value) {
+void print_adaptive_double(double value) {
 	double int_part;
 	double fractional = modf(value, &int_part);
 
@@ -74,7 +74,21 @@ void printValue(Value value) {
 	case VAL_NUMBER: {
 		print_adaptive_double(AS_NUMBER(value)); break;
 	}
-	case VAL_OBJ: printObject(value); break;
+	case VAL_OBJ: printObject(value, false); break;
+	}
+}
+
+void printValue_sys(Value value)
+{
+	switch (value.type) {
+	case VAL_BOOL:
+		printf(AS_BOOL(value) ? "true" : "false");
+		break;
+	case VAL_NIL: printf("nil"); break;
+	case VAL_NUMBER: {
+		print_adaptive_double(AS_NUMBER(value)); break;
+	}
+	case VAL_OBJ: printObject(value, true); break;
 	}
 }
 
@@ -95,7 +109,48 @@ void valueArray_write(ValueArray* array, Value value) {
 	array->count++;
 }
 
+void valueArray_writeAt(ValueArray* array, Value value, uint32_t index)
+{
+	array->values[index] = value;
+}
+
 void valueArray_free(ValueArray* array) {
 	FREE_ARRAY_NO_GC(Value, array->values, array->capacity);
 	valueArray_init(array);
+}
+
+void valueHoles_init(ValueHoles* holes) {
+	holes->holes = NULL;
+	holes->count = 0;
+	holes->capacity = 0;
+}
+
+void valueHoles_free(ValueHoles* holes) {
+	FREE_ARRAY_NO_GC(uint32_t, holes->holes, holes->capacity);
+	holes->holes = NULL;
+	holes->count = 0;
+	holes->capacity = 0;
+}
+
+void valueHoles_push(ValueHoles* holes, uint32_t index) {
+	if (holes->count == holes->capacity) {
+		uint32_t oldCapacity = holes->capacity;
+		holes->capacity = GROW_CAPACITY(oldCapacity);
+		holes->holes = GROW_ARRAY_NO_GC(uint32_t, holes->holes, oldCapacity, holes->capacity);
+	}
+	holes->holes[holes->count++] = index;
+}
+
+void valueHoles_pop(ValueHoles* holes)
+{
+	if (holes->count > 0) {
+		holes->count--;
+	}
+}
+
+uint32_t valueHoles_get(ValueHoles* holes) {
+	if (holes->count == 0) {
+		return VALUEHOLES_EMPTY;
+	}
+	return holes->holes[--holes->count];
 }

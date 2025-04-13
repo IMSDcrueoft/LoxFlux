@@ -1,0 +1,21 @@
+{
+    print @system.allocated();
+    print @array.Array(16);
+    print @system.allocated();
+    print @array.F64Array(16);
+    print @system.allocated();
+    print @array.F32Array(16);
+    print @system.allocated();
+    print @array.U32Array(16);
+    print @system.allocated();
+    print @array.I32Array(16);
+    print @system.allocated();
+    print @array.U16Array(16);
+    print @system.allocated();
+    print @array.I16Array(16);
+    print @system.allocated();
+    print @array.U8Array(16);
+    print @system.allocated();
+    print @array.I8Array(16);
+    print @system.allocated();
+    }

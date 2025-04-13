@@ -31,8 +31,8 @@ typedef struct {
 } Value;
 
 typedef struct {
-	uint32_t capacity; //limit to 4GB
-	uint32_t count;    //limit to 4GB
+	uint32_t capacity; //limit to 4G
+	uint32_t count;    //limit to 4G
 	Value* values;
 } ValueArray;
 
@@ -44,8 +44,11 @@ typedef struct {
 	uint32_t* holes;
 } ValueHoles;
 
+#define SAME_REF_TYPE(a,b)	   ((a).type == (b).type)
+
 #define IS_BOOL(value)    ((value).type == VAL_BOOL)
 #define IS_NIL(value)     ((value).type == VAL_NIL)
+#define NOT_NIL(value)	  ((value).type != VAL_NIL)
 #define IS_NUMBER(value)  ((value).type == VAL_NUMBER)
 #define IS_OBJ(value)     ((value).type == VAL_OBJ)
 
@@ -56,6 +59,7 @@ typedef struct {
 
 #define BOOL_VAL(value)   ((Value){VAL_BOOL, {.boolean = value}})
 #define NIL_VAL           ((Value){VAL_NIL, {.number = 0}})
+#define NAN_VAL           ((Value){VAL_NUMBER, {.number = NAN}}) //use this to return a NaN
 #define NUMBER_VAL(value) ((Value){VAL_NUMBER, {.number = value}})
 #define OBJ_VAL(object)   ((Value){VAL_OBJ, {.obj = (Obj*)object}})
 
@@ -64,10 +68,19 @@ typedef struct {
 
 bool valuesEqual(Value a, Value b);
 
+void print_adaptive_double(double value);
 void printValue(Value value);
+void printValue_sys(Value value);
 
 void valueArray_init(ValueArray* array);
 void valueArray_write(ValueArray* array, Value value);
+void valueArray_writeAt(ValueArray* array, Value value, uint32_t index);
 void valueArray_free(ValueArray* array);
+
+void valueHoles_init(ValueHoles* holes);
+void valueHoles_free(ValueHoles* holes);
+void valueHoles_push(ValueHoles* holes, uint32_t index);
+void valueHoles_pop(ValueHoles* holes);
+uint32_t valueHoles_get(ValueHoles* holes);
 
 #define GET_VALUE_CONTAINER(obj) ((Value*)((char*)(obj) - offsetof(Value, as)))

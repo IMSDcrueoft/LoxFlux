@@ -11,6 +11,8 @@
 
 Unknown_ptr reallocate_no_gc(Unknown_ptr pointer, size_t oldSize, size_t newSize)
 {
+	vm.bytesAllocated_no_gc += newSize - oldSize;
+
 	if (newSize == 0) {
 		if (pointer != NULL) {
 #if LOG_EACH_MALLOC_INFO
@@ -76,10 +78,20 @@ Unknown_ptr reallocate(Unknown_ptr pointer, size_t oldSize, size_t newSize)
 
 void freeObject(Obj* object) {
 #if DEBUG_LOG_GC
-	printf("[gc] %p free \$%s\n", (Unknown_ptr)object, objTypeInfo[object->type]);
+	printf("[gc] %p free (%s)\n", (Unknown_ptr)object, objTypeInfo[object->type]);
 #endif
 
 	switch (object->type) {
+	case OBJ_CLASS: {
+		FREE(ObjClass, object);
+		break;
+	}
+	case OBJ_INSTANCE: {
+		ObjInstance* instance = (ObjInstance*)object;
+		table_free(&instance->fields);
+		FREE(ObjInstance, object);
+		break;
+	}
 	case OBJ_CLOSURE: {
 		ObjClosure* closure = (ObjClosure*)object;
 		FREE_ARRAY(ObjUpvalue*, closure->upvalues, closure->upvalueCount);
@@ -87,22 +99,56 @@ void freeObject(Obj* object) {
 		FREE(ObjClosure, object);
 		break;
 	}
-	case OBJ_FUNCTION: {
-		ObjFunction* function = (ObjFunction*)object;
-		chunk_free(&function->chunk);
-		FREE(ObjFunction, object);
-		break;
-	}
-	case OBJ_NATIVE:
-		FREE(ObjNative, object);
-		break;
-	case OBJ_STRING: {
-		ObjString* string = (ObjString*)object;
-		FREE_FLEX(ObjString, string, char, string->length);//FAM object  
-		break;
 	case OBJ_UPVALUE:
 		FREE(ObjUpvalue, object);
 		break;
+	case OBJ_FUNCTION: {
+		ObjFunction* function = (ObjFunction*)object;
+		chunk_free(&function->chunk);
+		FREE_NO_GC(ObjFunction, object);
+		break;
+	}
+	case OBJ_NATIVE:
+		FREE_NO_GC(ObjNative, object);
+		break;
+	case OBJ_STRING: {
+		ObjString* string = (ObjString*)object;
+		FREE_FLEX_NO_GC(ObjString, string, char, string->length + 1);//FAM object include'\0
+		break;
+	case OBJ_ARRAY:
+	case OBJ_ARRAY_F64: {
+		//they share the same struct
+		ObjArray* array = (ObjArray*)object;
+		FREE_ARRAY(char, array->payload, array->capacity * 8); //size 8 byte
+		FREE(OBJ_ARRAY, object);
+		break;
+	}
+	case OBJ_ARRAY_F32:
+	case OBJ_ARRAY_U32:
+	case OBJ_ARRAY_I32: {
+		//they share the same struct
+		ObjArray* array = (ObjArray*)object;
+		FREE_ARRAY(char, array->payload, array->capacity * 4); //size 4 byte
+		FREE(OBJ_ARRAY, object);
+		break;
+	}
+	case OBJ_ARRAY_U16:
+	case OBJ_ARRAY_I16: {
+		//they share the same struct
+		ObjArray* array = (ObjArray*)object;
+		FREE_ARRAY(char, array->payload, array->capacity * 2); //size 2 byte
+		FREE(OBJ_ARRAY, object);
+		break;
+	}
+	case OBJ_ARRAY_U8:
+	case OBJ_ARRAY_I8:
+	case OBJ_STRING_BUILDER: {
+		//they share the same struct
+		ObjArray* array = (ObjArray*)object;
+		FREE_ARRAY(char, array->payload, array->capacity * 1); //size 1 byte
+		FREE(OBJ_ARRAY, object);
+		break;
+	}
 	}
 	}
 }

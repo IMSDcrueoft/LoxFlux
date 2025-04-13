@@ -53,6 +53,19 @@ typedef enum {
 
 	OP_CLOSE_UPVALUE,   // close upvalue
 
+	OP_CLASS,			// create class
+	OP_CLASS_LONG,
+
+	OP_GET_PROPERTY,	// modify property
+	OP_GET_PROPERTY_LONG,
+	OP_SET_PROPERTY,
+	OP_SET_PROPERTY_LONG,
+
+	OP_SET_SUBSCRIPT,	// set subscript
+	OP_GET_SUBSCRIPT,	// get subscript
+
+	OP_NEW_ARRAY,		// array literal
+
 	OP_RETURN,          // ret
 	OP_THROW,			// throw
 
@@ -74,8 +87,8 @@ typedef enum {
 } OpCode;
 
 typedef struct {
-	uint32_t count;    //limit to 4GB
-	uint32_t capacity; //limit to 4GB
+	uint32_t count;    //limit to 4G
+	uint32_t capacity; //limit to 4G
 
 	uint8_t* code;
 	LineArray lines; //codes are nearby,so it's based on offset

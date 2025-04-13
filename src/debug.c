@@ -4,17 +4,18 @@
  * See LICENSE file in the root directory for full license text.
 */
 #include "debug.h"
-#include "builtinModule.h"
+#if  DEBUG_TRACE_EXECUTION || DEBUG_PRINT_CODE
+#include "nativeBuiltin.h"
 #include "vm.h"
 
-#if  DEBUG_TRACE_EXECUTION || DEBUG_PRINT_CODE
-
+COLD_FUNCTION
 static uint32_t simpleInstruction(C_STR name, uint32_t offset) {
 	printf("%s\n", name);
 	//OP_RETURN 1
 	return offset + 1;
 }
 
+COLD_FUNCTION
 static uint32_t builtinStruction(C_STR name, Chunk* chunk, uint32_t offset) {
 	uint32_t slot = chunk->code[offset + 1];
 	switch (slot)
@@ -44,12 +45,14 @@ static uint32_t builtinStruction(C_STR name, Chunk* chunk, uint32_t offset) {
 	return offset + 2;
 }
 
+COLD_FUNCTION
 static uint32_t byteInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
 	uint32_t slot = chunk->code[offset + 1];
 	printf("%-16s %4d\n", name, slot);
 	return offset + 2;
 }
 
+COLD_FUNCTION
 static uint32_t jumpInstruction(C_STR name, int32_t sign, Chunk* chunk, uint32_t offset) {
 	uint16_t jump = (uint16_t)chunk->code[offset + 1];
 	jump |= (chunk->code[offset + 2] << 8);
@@ -58,12 +61,14 @@ static uint32_t jumpInstruction(C_STR name, int32_t sign, Chunk* chunk, uint32_t
 	return offset + 3;
 }
 
+COLD_FUNCTION
 static uint32_t modifyLocalInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
 	uint32_t slot = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8);
 	printf("%-16s %4d\n", name, slot);
 	return offset + 3;
 }
 
+COLD_FUNCTION
 static uint32_t modifyGlobalInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
 	uint32_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8);
 	printf("%-16s %4d '", name, constant);
@@ -72,6 +77,7 @@ static uint32_t modifyGlobalInstruction(C_STR name, Chunk* chunk, uint32_t offse
 	return offset + 3;
 }
 
+COLD_FUNCTION
 static uint32_t modifyGlobalLongInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
 	uint32_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8) | ((uint32_t)chunk->code[offset + 3] << 16);
 	printf("%-16s %4d '", name, constant);
@@ -80,6 +86,7 @@ static uint32_t modifyGlobalLongInstruction(C_STR name, Chunk* chunk, uint32_t o
 	return offset + 4;
 }
 
+COLD_FUNCTION
 static uint32_t constantInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
 	//16bit index
 	uint16_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8);
@@ -92,6 +99,7 @@ static uint32_t constantInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
 	return offset + 3;
 }
 
+COLD_FUNCTION
 static uint32_t constantInstruction_long(C_STR name, Chunk* chunk, uint32_t offset) {
 	//24bit index
 	uint32_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8) | ((uint32_t)chunk->code[offset + 3] << 16);
@@ -104,6 +112,7 @@ static uint32_t constantInstruction_long(C_STR name, Chunk* chunk, uint32_t offs
 	return offset + 4;
 }
 
+COLD_FUNCTION
 uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 	printf("%04d ", offset);
 
@@ -227,6 +236,26 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 		return modifyGlobalInstruction("OP_SET_GLOBAL", chunk, offset);
 	case OP_SET_GLOBAL_LONG:
 		return modifyGlobalLongInstruction("OP_SET_GLOBAL_LONG", chunk, offset);
+	case OP_CLASS:
+		return constantInstruction("OP_CLASS", chunk, offset);
+	case OP_CLASS_LONG:
+		return constantInstruction_long("OP_CLASS_LONG", chunk, offset);
+
+	case OP_GET_PROPERTY:
+		return constantInstruction("OP_GET_PROPERTY", chunk, offset);
+	case OP_GET_PROPERTY_LONG:
+		return constantInstruction("OP_GET_PROPERTY_LONG", chunk, offset);
+	case OP_SET_PROPERTY:
+		return constantInstruction("OP_SET_PROPERTY", chunk, offset);
+	case OP_SET_PROPERTY_LONG:
+		return constantInstruction("OP_SET_PROPERTY_LONG", chunk, offset);
+
+	case OP_GET_SUBSCRIPT:
+		return simpleInstruction("OP_GET_SUBSCRIPT", offset);
+	case OP_SET_SUBSCRIPT:
+		return simpleInstruction("OP_SET_SUBSCRIPT", offset);
+	case OP_NEW_ARRAY:
+		return byteInstruction("OP_NEW_ARRAY", chunk, offset);
 
 	case OP_GET_LOCAL:
 		return modifyLocalInstruction("OP_GET_LOCAL", chunk, offset);
@@ -255,6 +284,7 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 	}
 }
 
+COLD_FUNCTION
 void disassembleChunk(Chunk* chunk, C_STR name) {
 	printf("== %s ==\n", name);
 

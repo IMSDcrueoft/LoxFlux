@@ -13,8 +13,8 @@ if "%~1"=="" (
 set "FilePath=%~1"
 
 :: Output the file path and executable path for debugging
+echo Using executable: "Debug"
 echo Executing with file: "%FilePath%"
-echo Using executable: "../x64/Release/loxFlux.exe"
 
 :: Call your executable and pass the file path as an argument
 "../x64/Debug/loxFlux.exe" "%FilePath%"

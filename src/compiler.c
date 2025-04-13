@@ -5,7 +5,7 @@
 */
 #include "compiler.h"
 #include "gc.h"
-#include "builtinModule.h"
+#include "nativeBuiltin.h"
 
 #if DEBUG_PRINT_CODE
 #include "debug.h"
@@ -227,8 +227,13 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	compiler->function = newFunction();
 
 	//it's a function
-	if (type != TYPE_SCRIPT) {
+	switch (type) {
+	case TYPE_FUNCTION:
 		compiler->function->name = copyString(parser.previous.start, parser.previous.length, false);
+		break;
+	case TYPE_LAMBDA:
+		compiler->function->name = copyString("", 0, false);
+		break;
 	}
 
 	Local* local = &compiler->locals[compiler->localCount++];
@@ -261,8 +266,8 @@ static ObjFunction* endCompiler() {
 	ObjFunction* function = current->function;
 #if DEBUG_PRINT_CODE
 	if (!parser.hadError) {
-		disassembleChunk(currentChunk(), function->name != NULL
-			? function->name->chars : "<script>");
+		disassembleChunk(currentChunk(), (function->name != NULL)
+			? ((function->name->length != 0) ? function->name->chars : "<lambda>") : "<script>");
 	}
 #endif
 	current = current->enclosing;
@@ -527,7 +532,12 @@ static void function(FunctionType type) {
 	initCompiler(&compiler, type);
 	beginScope();
 
-	consume(TOKEN_LEFT_PAREN, "Expect '(' after function name.");
+	if (type == TYPE_FUNCTION) {
+		consume(TOKEN_LEFT_PAREN, "Expect '(' after function name.");
+	}
+	else {
+		consume(TOKEN_LEFT_PAREN, "Expect '(' after lambda.");
+	}
 
 	if (!check(TOKEN_RIGHT_PAREN)) {
     do {
@@ -560,38 +570,76 @@ static void function(FunctionType type) {
 	freeLocals(&compiler);
 }
 
+static void lambda(bool canAssign) {
+	function(TYPE_LAMBDA);
+}
+
+static void emitClassCommond(uint32_t index) {
+	if (index <= UINT16_MAX) {
+		emitBytes(3, OP_CLASS, (uint8_t)index, (uint8_t)(index >> 8));
+	}
+	else if (index <= UINT24_MAX) {
+		emitBytes(4, OP_CLASS_LONG, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
+	}
+	else {
+		error("Too many constants in chunk.");
+	}
+}
+
+static void classDeclaration() {
+	consume(TOKEN_IDENTIFIER, "Expect class name.");
+	uint32_t nameConstant = identifierConstant(&parser.previous);
+	declareVariable();
+
+	emitClassCommond(nameConstant);
+	defineVariable(nameConstant);
+
+	consume(TOKEN_LEFT_BRACE, "Expect '{' before class body.");
+	consume(TOKEN_RIGHT_BRACE, "Expect '}' after class body.");
+}
+
 static void funDeclaration() {
-	uint32_t global = parseVariable("Expect function name.");
+	uint32_t arg = parseVariable("Expect function name.");
 	markInitialized(false);
 	function(TYPE_FUNCTION);
-	defineVariable(global);
+	defineVariable(arg);
 }
 
 static void varDeclaration() {
-	uint32_t global = parseVariable("Expect variable name.");
+	do {
+		uint32_t arg = parseVariable("Expect variable name.");
 
-	if (match(TOKEN_EQUAL)) {
-		expression();
-	}
-	else {
-		emitByte(OP_NIL);
-	}
+		if (match(TOKEN_EQUAL)) {
+			expression();
+		}
+		else {
+			emitByte(OP_NIL);
+		}
+
+		defineVariable(arg);
+
+		if (parser.hadError) return;
+	} while (match(TOKEN_COMMA));
+
 	consume(TOKEN_SEMICOLON, "Expect ';' after variable declaration.");
-
-	defineVariable(global);
 }
 
 static void constDeclaration() {
-	uint32_t global = parseVariable("Expect constant name.");
+	do {
+		uint32_t arg = parseVariable("Expect constant name.");
 
-	if (!match(TOKEN_EQUAL)) {
-		errorAtCurrent("Constant must be initialized.");
-	}
+		if (!match(TOKEN_EQUAL)) {
+			errorAtCurrent("Constant must be initialized.");
+		}
 
-	expression();
+		expression();
+
+		defineConst(arg);
+
+		if (parser.hadError) return;
+	} while (match(TOKEN_COMMA));
+
 	consume(TOKEN_SEMICOLON, "Expect ';' after constant declaration.");
-
-	defineConst(global);
 }
 
 static void expressionStatement() {
@@ -845,7 +893,9 @@ static void declaration() {
 	//might went panicMode
 	if (parser.panicMode) synchronize();
 
-	if (match(TOKEN_FUN)) {
+	if (match(TOKEN_CLASS)) {
+		classDeclaration();
+	} else if (match(TOKEN_FUN)) {
 		funDeclaration();
 	}
 	else if (match(TOKEN_VAR)) {
@@ -886,6 +936,73 @@ static void binary(bool canAssign) {
 static void call(bool canAssign) {
 	uint8_t argCount = argumentList();
 	emitBytes(2,OP_CALL, argCount);
+}
+
+static void emitPropGetCommond(uint32_t index) {
+	if (index <= UINT16_MAX) {
+		emitBytes(3, OP_GET_PROPERTY, (uint8_t)index, (uint8_t)(index >> 8));
+	}
+	else if (index <= UINT24_MAX) {
+		emitBytes(4, OP_GET_PROPERTY_LONG, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
+	}
+	else {
+		error("Too many constants in chunk.");
+	}
+}
+
+static void emitPropSetCommond(uint32_t index) {
+	if (index <= UINT16_MAX) {
+		emitBytes(3, OP_SET_PROPERTY, (uint8_t)index, (uint8_t)(index >> 8));
+	}
+	else if (index <= UINT24_MAX) {
+		emitBytes(4, OP_SET_PROPERTY_LONG, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
+	}
+	else {
+		error("Too many constants in chunk.");
+	}
+}
+
+static void dot(bool canAssign) {
+	consume(TOKEN_IDENTIFIER, "Expect property name after '.'.");
+	uint32_t name = identifierConstant(&parser.previous);
+
+	if (canAssign && match(TOKEN_EQUAL)) {
+		expression();
+		emitPropSetCommond(name);
+	}
+	else {
+		emitPropGetCommond(name);
+	}
+}
+
+static void arrayLiteral(bool canAssign) {
+	uint32_t elementCount = 0;
+	if (!check(TOKEN_RIGHT_SQUARE_BRACKET)) {
+		do {
+			expression(); //parse values
+			elementCount++;
+		} while (match(TOKEN_COMMA));
+	}
+	consume(TOKEN_RIGHT_SQUARE_BRACKET, "Expect ']' after array elements.");
+
+	if (elementCount >= UINT8_COUNT) {
+		error("Array literal is too long.");
+		return;
+	}
+
+	emitBytes(2, OP_NEW_ARRAY, (uint8_t)elementCount);  //make array
+}
+
+static void subscript(bool canAssign) {
+	expression();
+	consume(TOKEN_RIGHT_SQUARE_BRACKET, "Expect ']' after subscript.");
+	if (canAssign && match(TOKEN_EQUAL)) {
+		expression(); // parse assignment
+		emitByte(OP_SET_SUBSCRIPT);
+	}
+	else {
+		emitByte(OP_GET_SUBSCRIPT);
+	}
 }
 
 //check builtin
@@ -1074,7 +1191,8 @@ ParseRule rules[] = {
 	[TOKEN_LEFT_BRACE] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_RIGHT_BRACE] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_COMMA] = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_DOT] = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_DOT] = {NULL,     dot,   PREC_CALL},
+	[TOKEN_LEFT_SQUARE_BRACKET] = {arrayLiteral,	subscript,	PREC_CALL},
 	[TOKEN_MINUS] = {unary   ,    binary, PREC_TERM     },
 	[TOKEN_PLUS] = {NULL,     binary, PREC_TERM    },
 	[TOKEN_SEMICOLON] = {NULL,     NULL,   PREC_NONE},
@@ -1095,20 +1213,21 @@ ParseRule rules[] = {
 	[TOKEN_NUMBER] = {number  ,   NULL,   PREC_NONE  },
 	[TOKEN_NUMBER_BIN] = {number_bin  ,   NULL,   PREC_NONE  },
 	[TOKEN_NUMBER_HEX] = {number_hex  ,   NULL,   PREC_NONE  },
-	[TOKEN_MODULE_GLOBAL] = {builtinLiteral,     NULL,   PREC_NONE},
-	[TOKEN_MODULE_MATH] = {builtinLiteral,     NULL,   PREC_NONE},
-	[TOKEN_MODULE_ARRAY] = {builtinLiteral,     NULL,   PREC_NONE},
-	[TOKEN_MODULE_OBJECT] = {builtinLiteral,     NULL,   PREC_NONE},
-	[TOKEN_MODULE_STRING] = {builtinLiteral,     NULL,   PREC_NONE},
-	[TOKEN_MODULE_TIME] = {builtinLiteral,     NULL,   PREC_NONE},
-	[TOKEN_MODULE_FILE] = {builtinLiteral,     NULL,   PREC_NONE},
-	[TOKEN_MODULE_SYSTEM] = {builtinLiteral,     NULL,   PREC_NONE},
+	[TOKEN_MODULE_GLOBAL] = {builtinLiteral,     NULL,   PREC_CALL},
+	[TOKEN_MODULE_MATH] = {builtinLiteral,     NULL,   PREC_CALL},
+	[TOKEN_MODULE_ARRAY] = {builtinLiteral,     NULL,   PREC_CALL},
+	[TOKEN_MODULE_OBJECT] = {builtinLiteral,     NULL,   PREC_CALL},
+	[TOKEN_MODULE_STRING] = {builtinLiteral,     NULL,   PREC_CALL},
+	[TOKEN_MODULE_TIME] = {builtinLiteral,     NULL,   PREC_CALL},
+	[TOKEN_MODULE_FILE] = {builtinLiteral,     NULL,   PREC_CALL},
+	[TOKEN_MODULE_SYSTEM] = {builtinLiteral,     NULL,   PREC_CALL},
 	[TOKEN_AND] = {NULL,     and_,   PREC_AND},
 	[TOKEN_CLASS] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_ELSE] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_FALSE] = {literal,     NULL,   PREC_NONE},
 	[TOKEN_FOR] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_FUN] = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_LAMBDA] = {lambda,	NULL,	PREC_NONE},
 	[TOKEN_IF] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_NIL] = {literal,     NULL,   PREC_NONE},
 	[TOKEN_OR] = {NULL,     or_,   PREC_OR},
@@ -1132,9 +1251,6 @@ static ParseRule* getRule(TokenType type) {
 }
 
 ObjFunction* compile(C_STR source) {
-#if LOG_COMPILE_TIMING
-	uint64_t time_compile = get_nanoseconds();
-#endif
 	Compiler compiler;
 
 	scanner_init(source);
@@ -1154,10 +1270,6 @@ ObjFunction* compile(C_STR source) {
 	ObjFunction* function = endCompiler();
 	freeLocals(&compiler);
 
-#if LOG_COMPILE_TIMING
-	double time_ms = (get_nanoseconds() - time_compile) * 1e-6;
-	printf("[Log] Finished compiling in %g ms.\n", time_ms);
-#endif
 	return parser.hadError ? NULL : function;
 }
 

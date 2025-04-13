@@ -36,6 +36,18 @@ void markValue(Value value)
 //	}
 //}
 
+static void markArrayAny(ObjArray* array) {
+	Value* arrPtr = (Value*)array->payload;
+
+	for (uint32_t i = 0; i < array->length; ++i) {
+		Value value = arrPtr[i];
+
+		if (IS_OBJ(value)) {
+			markObject(AS_OBJ(value));
+		}
+	}
+}
+
 static void markRoots() {
 	for (Value* slot = vm.stack; slot < vm.stackTop; slot++) {
 		markValue(*slot);
@@ -49,7 +61,7 @@ static void markRoots() {
 		markObject((Obj*)upvalue);
 	}
 
-	markTable(&vm.globals);
+	markTable(&vm.globals.fields);
 	//the shared constants don't gc
 	//markConstants(&vm.constants);
 
@@ -120,6 +132,23 @@ static void blackenObject(Obj* object) {
 	//	//markArray(&function->chunk.constants);
 	//	break;
 	//}
+	//case OBJ_CLASS: {
+	//	ObjClass* klass = (ObjClass*)object;
+	//	markObject((Obj*)klass->name);
+	//	break;
+	//}
+	case OBJ_INSTANCE: {
+		ObjInstance* instance = (ObjInstance*)object;
+		ObjClass* klass = instance->klass;
+		if (klass != &builtinClass) {
+			markObject((Obj*)klass);
+			markTable(&instance->fields);
+		}
+		break;
+	}
+	case OBJ_ARRAY: //only array-any needs gc scan
+		markArrayAny((ObjArray*)object);
+		break;
 	}
 }
 
@@ -133,6 +162,9 @@ static void traceReferences() {
 static void sweep() {
 	Obj* previous = NULL;
 	Obj* object = vm.objects;
+
+	const Value* constantBegin = vm.constants.values;
+	const Value* constantEnd = vm.constants.values + vm.constants.capacity;
 
 	while (object != NULL) {
 		if (object->isMarked == usingMark) {
@@ -151,7 +183,21 @@ static void sweep() {
 				vm.objects = object;
 			}
 
-			freeObject(unreached);
+			Value* value = GET_VALUE_CONTAINER(unreached);
+			// if its in constants, we need remove it and mark the hole for reuse
+			if ((constantBegin <= value) && (value < constantEnd)) {
+				// calculate the index,ptrdiff_t is unit count
+				ptrdiff_t index = value - constantBegin;
+#if DEBUG_LOG_GC
+				printf("[gc] constants %td\n", index);
+#endif
+				valueHoles_push(&vm.constantHoles, index);
+				freeObject(unreached);
+				*value = NIL_VAL;//set to nil
+			}
+			else {
+				freeObject(unreached);
+			}
 		}
 	}
 }

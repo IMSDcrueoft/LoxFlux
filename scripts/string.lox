@@ -1,0 +1,6 @@
+var a = "strA";
+var b = "strB";
+print (a + b) == "strAstrB"; // Concatenation
+
+var c = "\"Hello\"";
+print c == ("\"He" + "llo\""); // Escaping double quotes

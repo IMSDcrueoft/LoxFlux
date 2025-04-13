@@ -1,0 +1,5 @@
+var start = @time.second();
+for(@global.i = 0;@global.i < 1e8;){
+    @global.i = @global.i + 1;
+}
+print @time.second() - start;

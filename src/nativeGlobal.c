@@ -3,7 +3,13 @@
  * Copyright (c) 2025 IM&SD (https://github.com/IMSDcrueoft)
  * See LICENSE file in the root directory for full license text.
 */
-#pragma once
+#include "nativeBuiltin.h"
+#include "vm.h"
 
-//provide native for vm
-void importNative();
+//place your function here
+
+COLD_FUNCTION
+void importNative_global()
+{
+	//nothing here yet.
+}

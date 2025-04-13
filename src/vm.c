@@ -5,28 +5,28 @@
 */
 #include "vm.h"
 #include "object.h"
-#include "builtinModule.h"
-#include "native.h"
 #include "gc.h"
 
 #if DEBUG_TRACE_EXECUTION
 #include "debug.h"
 #endif
 
-#if LOG_EXECUTE_TIMING
+#if LOG_EXECUTE_TIMING || LOG_MIPS
 #include "timer.h"
 #endif
 
+//the global
+static ObjClass globalClass = { .obj = {.type = OBJ_CLASS,.next = NULL,.isMarked = true},.name = NULL };
+//the builtins
+ObjClass builtinClass = { .obj = {.type = OBJ_CLASS,.next = NULL,.isMarked = true},.name = NULL };
 //the global shared vm
 VM vm;
-//the builtin modules
-Table builtinModules[BUILTIN_MODULE_COUNT];
-//ip for debug
-uint8_t** ip_error = NULL;
-#if LOG_KIPS
-uint64_t byteCodeCount;
+
+#if LOG_MIPS
+static uint64_t byteCodeCount;
 #endif
 
+COLD_FUNCTION
 static void stack_reset()
 {
 	//reset the pointer
@@ -41,18 +41,19 @@ static void stack_reset()
 	vm.openUpvalues = NULL;
 }
 
+COLD_FUNCTION
 static bool throwError(Value error) {
 	printf("[ThrowError] ");
 	printValue(error);
 	printf("\n");
 
 	if ((vm.frameCount - 1) >= 0) {
-		vm.frames[vm.frameCount - 1].ip = *ip_error;
+		vm.frames[vm.frameCount - 1].ip = *vm.ip_error;
 	}
 
 	for (int32_t i = vm.frameCount - 1; i >= 0; i--) {
 		CallFrame* frame = &vm.frames[i];
-    
+
 		ObjFunction* function = frame->closure->function;
 		size_t instruction = frame->ip - function->chunk.code - 1;
 
@@ -71,6 +72,7 @@ static bool throwError(Value error) {
 	return false;
 }
 
+COLD_FUNCTION
 static void runtimeError(C_STR format, ...) {
 	printf("[RuntimeError] ");
 
@@ -81,7 +83,7 @@ static void runtimeError(C_STR format, ...) {
 	fputs("\n", stderr);
 
 	if ((vm.frameCount - 1) >= 0) {
-		vm.frames[vm.frameCount - 1].ip = *ip_error;
+		vm.frames[vm.frameCount - 1].ip = *vm.ip_error;
 	}
 
 	for (int32_t i = vm.frameCount - 1; i >= 0; i--) {
@@ -103,6 +105,7 @@ static void runtimeError(C_STR format, ...) {
 	stack_reset();
 }
 
+HOT_FUNCTION
 void stack_push(Value value)
 {
 	*vm.stackTop = value;
@@ -122,10 +125,12 @@ void stack_push(Value value)
 	}
 }
 
-static inline void stack_replace(Value val) {
+HOT_FUNCTION
+void stack_replace(Value val) {
 	vm.stackTop[-1] = val;
 }
 
+HOT_FUNCTION
 Value stack_pop()
 {
 	vm.stackTop--;
@@ -134,19 +139,116 @@ Value stack_pop()
 
 #define STACK_PEEK(distance) (vm.stackTop[-1 - distance])
 
-void defineNative(C_STR name, NativeFn function) {
-	//stack_push(OBJ_VAL(copyString(name, (uint32_t)strlen(name), false)));
-	//stack_push(OBJ_VAL(newNative(function)));
-	//tableSet(&vm.globals, AS_STRING(vm.stack[0]), vm.stack[1]);
-	//stack_pop();
-	//stack_pop();
-
-	tableSet(&vm.globals,
+COLD_FUNCTION
+void defineNative_math(C_STR name, NativeFn function) {
+	tableSet(&vm.builtins[MODULE_MATH].fields,
 		copyString(name, (uint32_t)strlen(name), false),
 		OBJ_VAL(newNative(function))
 	);
 }
 
+COLD_FUNCTION
+void defineNative_array(C_STR name, NativeFn function) {
+	tableSet(&vm.builtins[MODULE_ARRAY].fields,
+		copyString(name, (uint32_t)strlen(name), false),
+		OBJ_VAL(newNative(function))
+	);
+}
+
+COLD_FUNCTION
+void defineNative_object(C_STR name, NativeFn function) {
+	tableSet(&vm.builtins[MODULE_OBJECT].fields,
+		copyString(name, (uint32_t)strlen(name), false),
+		OBJ_VAL(newNative(function))
+	);
+}
+
+COLD_FUNCTION
+void defineNative_string(C_STR name, NativeFn function) {
+	tableSet(&vm.builtins[MODULE_STRING].fields,
+		copyString(name, (uint32_t)strlen(name), false),
+		OBJ_VAL(newNative(function))
+	);
+}
+
+COLD_FUNCTION
+void defineNative_time(C_STR name, NativeFn function) {
+	tableSet(&vm.builtins[MODULE_TIME].fields,
+		copyString(name, (uint32_t)strlen(name), false),
+		OBJ_VAL(newNative(function))
+	);
+}
+
+COLD_FUNCTION
+void defineNative_file(C_STR name, NativeFn function) {
+	tableSet(&vm.builtins[MODULE_FILE].fields,
+		copyString(name, (uint32_t)strlen(name), false),
+		OBJ_VAL(newNative(function))
+	);
+}
+
+COLD_FUNCTION
+void defineNative_system(C_STR name, NativeFn function) {
+	tableSet(&vm.builtins[MODULE_SYSTEM].fields,
+		copyString(name, (uint32_t)strlen(name), false),
+		OBJ_VAL(newNative(function))
+	);
+}
+
+COLD_FUNCTION
+void defineNative_global(C_STR name, NativeFn function) {
+	//stack_push(OBJ_VAL(copyString(name, (uint32_t)strlen(name), false)));
+	//stack_push(OBJ_VAL(newNative(function)));
+	//tableSet(&vm.globals.fields, AS_STRING(vm.stack[0]), vm.stack[1]);
+	//stack_pop();
+	//stack_pop();
+
+	tableSet(&vm.globals.fields,
+		copyString(name, (uint32_t)strlen(name), false),
+		OBJ_VAL(newNative(function))
+	);
+}
+
+COLD_FUNCTION
+static void importBuiltins() {
+	for (uint32_t i = 0; i < BUILTIN_MODULE_COUNT; ++i) {
+		vm.builtins[i] = (ObjInstance){
+		.obj = {.type = OBJ_INSTANCE,.next = NULL,.isMarked = true},
+		.klass = &builtinClass,
+		.fields = {.type = TABLE_NORMAL}//remind this
+		};
+	}
+
+	//init
+	table_init(&vm.builtins[MODULE_MATH].fields);
+	table_init(&vm.builtins[MODULE_ARRAY].fields);
+	table_init(&vm.builtins[MODULE_OBJECT].fields);
+	table_init(&vm.builtins[MODULE_STRING].fields);
+	table_init(&vm.builtins[MODULE_TIME].fields);
+	table_init(&vm.builtins[MODULE_FILE].fields);
+	table_init(&vm.builtins[MODULE_SYSTEM].fields);
+
+	importNative_math();
+	importNative_array();
+	importNative_object();
+	importNative_string();
+	importNative_time();
+	importNative_file();
+	importNative_system();
+
+	for (uint32_t i = 0; i < BUILTIN_MODULE_COUNT; ++i) {
+		vm.builtins[i].fields.type = TABLE_MODULE;//remind this,we can't set first
+	}
+}
+
+COLD_FUNCTION
+static void removeBuiltins() {
+	for (uint32_t i = 0; i < BUILTIN_MODULE_COUNT; ++i) {
+		table_free(&vm.builtins[i].fields);
+	}
+}
+
+COLD_FUNCTION
 void vm_init()
 {
 	vm.stack = NULL;
@@ -155,14 +257,20 @@ void vm_init()
 
 	//init global
 	valueArray_init(&vm.constants);
+	valueHoles_init(&vm.constantHoles);
 
 	vm.stack = ALLOCATE_NO_GC(Value, STACK_INITIAL_SIZE);
 	vm.stackBoundary = vm.stack + STACK_INITIAL_SIZE;
 
 	stack_reset();
 
-	table_init(&vm.globals);
-	vm.globals.type = TABLE_GLOBAL;//remind this
+	vm.globals = (ObjInstance){
+		.obj = {.type = OBJ_INSTANCE,.next = NULL,.isMarked = true},
+		.klass = &globalClass,
+		.fields = {.type = TABLE_GLOBAL}//remind this
+	};
+	table_init(&vm.globals.fields);
+
 	table_init(&vm.strings);
 	vm.strings.type = TABLE_NORMAL;
 	numberTable_init(&vm.numbers);
@@ -177,17 +285,25 @@ void vm_init()
 
 	//set
 	vm.bytesAllocated = 0;
+	vm.bytesAllocated_no_gc = 0;
 	vm.nextGC = GC_HEAP_BEGIN;
 
+	//import the builtins
+	importBuiltins();
+
 	//import native funcs
-	importNative();
+	importNative_global();
+
+	vm.ip_error = NULL;
 }
 
+COLD_FUNCTION
 void vm_free()
 {
 	valueArray_free(&vm.constants);
+	valueHoles_free(&vm.constantHoles);
 
-	table_free(&vm.globals);
+	table_free(&vm.globals.fields);
 	table_free(&vm.strings);
 	numberTable_free(&vm.numbers);
 
@@ -199,6 +315,10 @@ void vm_free()
 	vm.stack = NULL;
 	vm.stackTop = NULL;
 	vm.stackBoundary = NULL;
+
+	removeBuiltins();
+
+	vm.ip_error = NULL;
 }
 
 uint32_t getConstantSize()
@@ -209,12 +329,21 @@ uint32_t getConstantSize()
 //return the constant index
 uint32_t addConstant(Value value)
 {
-	stack_push(value);//prevent GC errors
-	valueArray_write(&vm.constants, value);
-	stack_pop();
-	return vm.constants.count - 1;
+	uint32_t index = valueHoles_get(&vm.constantHoles);
+	if (index == VALUEHOLES_EMPTY) {
+		stack_push(value);//prevent GC errors
+		valueArray_write(&vm.constants, value);
+		stack_pop();
+		return vm.constants.count - 1;
+	}
+	else {
+		valueArray_writeAt(&vm.constants, value, index);
+		valueHoles_pop(&vm.constantHoles);
+		return index;
+	}
 }
 
+HOT_FUNCTION
 static bool call(ObjClosure* closure, int argCount) {
 	if (argCount > closure->function->arity) {
 		runtimeError("Expected %d arguments but got %d.",
@@ -240,23 +369,25 @@ static bool call(ObjClosure* closure, int argCount) {
 	return true;
 }
 
+HOT_FUNCTION
 static bool call_native(NativeFn native, int argCount) {
-	C_STR errorInfo = NULL;
-	Value result = native(argCount, vm.stackTop - argCount, &errorInfo);
-	if (errorInfo != NULL) {
-		runtimeError("Error in Native -> %s.", errorInfo);
-		return false;
-	}
-	vm.stackTop -= argCount + 1;
-	stack_push(result);
+	Value result = native(argCount, vm.stackTop - argCount);
+	vm.stackTop -= argCount;
+	stack_replace(result);
 	return true;
 }
 
+HOT_FUNCTION
 static bool callValue(Value callee, int argCount) {
 	if (IS_OBJ(callee)) {
 		switch (OBJ_TYPE(callee)) {
 		case OBJ_CLOSURE: return call(AS_CLOSURE(callee), argCount);
 		case OBJ_NATIVE: return call_native(AS_NATIVE(callee), argCount);
+		case OBJ_CLASS: {
+			ObjClass* klass = AS_CLASS(callee);
+			vm.stackTop[-argCount - 1] = OBJ_VAL(newInstance(klass));
+			return true;
+		}
 		}
 	}
 
@@ -264,6 +395,7 @@ static bool callValue(Value callee, int argCount) {
 	return false;
 }
 
+HOT_FUNCTION
 static ObjUpvalue* captureUpvalue(Value* local) {
 	ObjUpvalue* prevUpvalue = NULL;
 	ObjUpvalue* upvalue = vm.openUpvalues;
@@ -292,7 +424,8 @@ static ObjUpvalue* captureUpvalue(Value* local) {
 	return createdUpvalue;
 }
 
-static void closeUpvalues(Value* last) { 
+HOT_FUNCTION
+static void closeUpvalues(Value* last) {
 	while (vm.openUpvalues != NULL && vm.openUpvalues->location >= last) {
 		ObjUpvalue* upvalue = vm.openUpvalues;
 
@@ -303,21 +436,30 @@ static void closeUpvalues(Value* last) {
 	}
 }
 
+HOT_FUNCTION
 static inline bool isFalsey(Value value) {
 	return IS_NIL(value) || (IS_BOOL(value) && !AS_BOOL(value));
 }
 
+HOT_FUNCTION
 static inline bool isTruthy(Value value) {
 	return !IS_NIL(value) && (!IS_BOOL(value) || AS_BOOL(value));
 }
 
+#if LOG_MIPS
+static inline void addByteCodeCount() {
+	++byteCodeCount;
+}
+#endif
+
 //to run code in vm
+HOT_FUNCTION
 static InterpretResult run()
 {
 	CallFrame* frame = &vm.frames[vm.frameCount - 1];
 	uint8_t* ip = frame->ip;
 	//if error,use this to print
-	ip_error = &ip;
+	vm.ip_error = &ip;
 
 #define READ_BYTE() (*(ip++))
 #define READ_SHORT() (ip += 2, (uint16_t)(ip[-2] | (ip[-1] << 8)))
@@ -325,36 +467,34 @@ static InterpretResult run()
 #define READ_CONSTANT(index) (vm.constants.values[(index)])
 
 	// push(pop() op pop())
-#define BINARY_OP(valueType,op)																	\
-    do {																						\
-		/* Pop the top two values from the stack */												\
-        vm.stackTop--;																			\
-		if (!IS_NUMBER(vm.stackTop[0]) || !IS_NUMBER(vm.stackTop[-1])) {						\
-			runtimeError("Operands must be numbers.");									\
-			return INTERPRET_RUNTIME_ERROR;														\
-		}																						\
-        /* Perform the operation and push the result back */									\
-		vm.stackTop[-1] = valueType(AS_NUMBER(vm.stackTop[-1]) op AS_NUMBER(vm.stackTop[0]));	\
+#define BINARY_OP(valueType,op)																		\
+    do {																							\
+		/* Pop the top two values from the stack */													\
+		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {								\
+			/* Perform the operation and push the result back */									\
+			vm.stackTop[-2] = valueType(AS_NUMBER(vm.stackTop[-2]) op AS_NUMBER(vm.stackTop[-1]));	\
+			vm.stackTop--;																			\
+		} else {														                            \
+			runtimeError("Operands must be numbers.");												\
+			return INTERPRET_RUNTIME_ERROR;															\
+		}																							\
 	} while (false)
 
 #define BINARY_OP_MODULUS(valueType)																	\
     do {																								\
 		/* Pop the top two values from the stack */														\
-        vm.stackTop--;																					\
-		if (!IS_NUMBER(vm.stackTop[0]) || !IS_NUMBER(vm.stackTop[-1])) {								\
-			runtimeError("Operands must be numbers.");											\
+		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {									\
+			/* Perform the operation and push the result back */										\
+			vm.stackTop[-2] = valueType(fmod(AS_NUMBER(vm.stackTop[-2]),AS_NUMBER(vm.stackTop[-1])));	\
+			vm.stackTop--;																				\
+		} else {																						\
+			runtimeError("Operands must be numbers.");													\
 			return INTERPRET_RUNTIME_ERROR;																\
 		}																								\
-        /* Perform the operation and push the result back */											\
-		vm.stackTop[-1] = valueType(fmod(AS_NUMBER(vm.stackTop[-1]),AS_NUMBER(vm.stackTop[0])));	\
 	} while (false)
 
 	while (true) //let it loop
 	{
-#if LOG_KIPS
-		++byteCodeCount;
-#endif
-
 #if DEBUG_TRACE_EXECUTION //print in debug mode
 		printf("          ");
 		for (Value* slot = vm.stack; slot < vm.stackTop; slot++) {
@@ -373,20 +513,17 @@ static InterpretResult run()
 		switch (instruction)
 		{
 		case OP_CONSTANT: {
-			uint32_t index = READ_SHORT();
-			Value constant = READ_CONSTANT(index);
+			Value constant = READ_CONSTANT(READ_SHORT());
 			stack_push(constant);
 			break;
 		}
 		case OP_CONSTANT_LONG: {
-			uint32_t index = READ_24bits();
-			Value constant = READ_CONSTANT(index);
+			Value constant = READ_CONSTANT(READ_24bits());
 			stack_push(constant);
 			break;
 		}
 		case OP_CLOSURE: {
-			uint32_t index = READ_SHORT();
-			Value constant = READ_CONSTANT(index);
+			Value constant = READ_CONSTANT(READ_SHORT());
 			ObjFunction* function = AS_FUNCTION(constant);
 			ObjClosure* closure = newClosure(function);
 			stack_push(OBJ_VAL(closure));
@@ -404,8 +541,7 @@ static InterpretResult run()
 			break;
 		}
 		case OP_CLOSURE_LONG: {
-			uint32_t index = READ_24bits();
-			Value constant = READ_CONSTANT(index);
+			Value constant = READ_CONSTANT(READ_24bits());
 			ObjFunction* function = AS_FUNCTION(constant);
 			ObjClosure* closure = newClosure(function);
 			stack_push(OBJ_VAL(closure));
@@ -422,12 +558,262 @@ static InterpretResult run()
 			}
 			break;
 		}
+		case OP_CLASS: {
+			Value constant = READ_CONSTANT(READ_SHORT());
+			ObjString* name = AS_STRING(constant);
+			stack_push(OBJ_VAL(newClass(name)));
+			break;
+		}
+		case OP_CLASS_LONG: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			ObjString* name = AS_STRING(constant);
+			stack_push(OBJ_VAL(newClass(name)));
+			break;
+		}
+		case OP_GET_PROPERTY: {
+			if (!IS_INSTANCE(vm.stackTop[-1])) {
+				runtimeError("Only instances have properties.");
+				return INTERPRET_RUNTIME_ERROR;
+			}
+
+			ObjInstance* instance = AS_INSTANCE(vm.stackTop[-1]);
+			Value constant = READ_CONSTANT(READ_SHORT());
+			ObjString* name = AS_STRING(constant);
+
+			Value value;
+			if (tableGet(&instance->fields, name, &value)) {
+				stack_replace(value);
+				break;
+			}
+
+			//runtimeError("Undefined property '%s'.", name->chars);
+			//return INTERPRET_RUNTIME_ERROR;
+			stack_replace(NIL_VAL);//don't throw error
+			break;
+		}
+		case OP_GET_PROPERTY_LONG: {
+			if (!IS_INSTANCE(vm.stackTop[-1])) {
+				runtimeError("Only instances have properties.");
+				return INTERPRET_RUNTIME_ERROR;
+			}
+
+			ObjInstance* instance = AS_INSTANCE(vm.stackTop[-1]);
+			Value constant = READ_CONSTANT(READ_24bits());
+			ObjString* name = AS_STRING(constant);
+
+			Value value;
+			if (tableGet(&instance->fields, name, &value)) {
+				stack_replace(value);
+				break;
+			}
+
+			//runtimeError("Undefined property '%s'.", name->chars);
+			//return INTERPRET_RUNTIME_ERROR;
+			stack_replace(NIL_VAL);//don't throw error
+			break;
+		}
+		case OP_SET_PROPERTY: {
+			if (!IS_INSTANCE(vm.stackTop[-2])) {
+				runtimeError("Only instances have fields.");
+				return INTERPRET_RUNTIME_ERROR;
+			}
+
+			ObjInstance* instance = AS_INSTANCE(vm.stackTop[-2]);
+			Value constant = READ_CONSTANT(READ_SHORT());
+			ObjString* name = AS_STRING(constant);
+			if (NOT_NIL(vm.stackTop[-1])) {
+				tableSet(&instance->fields, name, vm.stackTop[-1]);
+			}
+			else {
+				tableDelete(&instance->fields, name);
+			}
+			Value value = stack_pop();
+			stack_replace(value);
+			break;
+		}
+		case OP_SET_PROPERTY_LONG: {
+			if (!IS_INSTANCE(vm.stackTop[-2])) {
+				runtimeError("Only instances have fields.");
+				return INTERPRET_RUNTIME_ERROR;
+			}
+
+			ObjInstance* instance = AS_INSTANCE(vm.stackTop[-2]);
+			Value constant = READ_CONSTANT(READ_24bits());
+			ObjString* name = AS_STRING(constant);
+			if (NOT_NIL(vm.stackTop[-1])) {
+				tableSet(&instance->fields, name, vm.stackTop[-1]);
+			}
+			else {
+				tableDelete(&instance->fields, name);
+			}
+			Value value = stack_pop();
+			stack_replace(value);
+			break;
+		}
+		case OP_GET_SUBSCRIPT: {
+			Value target = vm.stackTop[-2];
+			Value index = vm.stackTop[-1];
+
+			if (isArrayLike(target)) {
+				if (IS_NUMBER(index)) {
+					//get array
+					ObjArray* array = AS_ARRAY(target);
+					double num_index = AS_NUMBER(index);
+
+					if ((num_index >= 0) && (num_index < array->length)) {
+						if (IS_ARRAY_ANY(array)) {
+							vm.stackTop[-2] = ARRAY_ELEMENT(array, Value, (uint32_t)num_index);
+							vm.stackTop--;
+						}
+						else {
+							vm.stackTop[-2] = getTypedArrayElement(array, (uint32_t)num_index);
+							vm.stackTop--;
+						}
+					}
+					else {
+						vm.stackTop[-2] = NIL_VAL;
+						vm.stackTop--;
+					}
+					break;
+				}
+				else {
+					runtimeError("Array subscript must be number.");
+					return INTERPRET_RUNTIME_ERROR;
+				}
+			}
+			else if (IS_INSTANCE(target)) {
+				if (IS_STRING(index)) {
+					ObjInstance* instance = AS_INSTANCE(target);
+					ObjString* name = AS_STRING(index);
+
+					Value value;
+					if (tableGet(&instance->fields, name, &value)) {
+						vm.stackTop[-2] = value;
+						vm.stackTop--;
+					}
+					else {
+						vm.stackTop[-2] = NIL_VAL;
+						vm.stackTop--;
+					}
+					break;
+				}
+				else {
+					runtimeError("Instance subscript must be string.");
+					return INTERPRET_RUNTIME_ERROR;
+				}
+			}
+			else if (IS_STRING(target)) {
+				if (IS_NUMBER(index)) {
+					//get string
+					ObjString* string = AS_STRING(target);
+					double num_index = AS_NUMBER(index);
+
+					if ((num_index >= 0) && (num_index < string->length)) {
+						vm.stackTop[-2] = getStringValue(string, (uint32_t)num_index);
+						vm.stackTop--;
+					}
+					else {
+						vm.stackTop[-2] = NIL_VAL;
+						vm.stackTop--;
+					}
+					break;
+				}
+				else {
+					runtimeError("String subscript must be number.");
+					return INTERPRET_RUNTIME_ERROR;
+				}
+			}
+			else if (IS_STRING_BUILDER(target)) {
+				if (IS_NUMBER(index)) {
+					//get array
+					ObjArray* array = AS_ARRAY(target);
+					double num_index = AS_NUMBER(index);
+
+					if ((num_index >= 0) && (num_index < array->length)) {
+						vm.stackTop[-2] = getStringBuilderValue(array, (uint32_t)num_index);
+						vm.stackTop--;
+					}
+					else {
+						vm.stackTop[-2] = NIL_VAL;
+						vm.stackTop--;
+					}
+					break;
+				}
+				else {
+					runtimeError("StringBuiler subscript must be number.");
+					return INTERPRET_RUNTIME_ERROR;
+				}
+			}
+
+			runtimeError("Only instances,arrayLike,stringBuilder and string can get subscript.");
+			return INTERPRET_RUNTIME_ERROR;
+		}
+		case OP_SET_SUBSCRIPT: {
+			Value target = vm.stackTop[-3];
+			Value index = vm.stackTop[-2];
+			Value value = vm.stackTop[-1];
+
+			if (isArrayLike(target)) {
+				if (IS_NUMBER(index)) {
+					//get array
+					ObjArray* array = AS_ARRAY(target);
+					double num_index = AS_NUMBER(index);
+
+					if ((num_index >= 0) && (num_index < array->length)) {
+						if (IS_ARRAY_ANY(array)) {
+							vm.stackTop[-3] = ARRAY_ELEMENT(array, Value, (uint32_t)num_index) = value;
+							vm.stackTop -= 2;
+						}
+						else {
+							setTypedArrayElement(array, (uint32_t)num_index, value);
+
+							vm.stackTop[-3] = value;
+							vm.stackTop -= 2;
+						}
+
+						break;
+					}
+					else {
+						runtimeError("Array index out of range.");
+						return INTERPRET_RUNTIME_ERROR;
+					}
+				}
+				else {
+					runtimeError("Array subscript must be number.");
+					return INTERPRET_RUNTIME_ERROR;
+				}
+			}
+			else if (IS_INSTANCE(target)) {
+				if (IS_STRING(index)) {
+					ObjInstance* instance = AS_INSTANCE(target);
+					ObjString* name = AS_STRING(index);
+
+					if (NOT_NIL(vm.stackTop[-1])) {
+						tableSet(&instance->fields, name, value);
+					}
+					else {
+						tableDelete(&instance->fields, name);
+					}
+
+					vm.stackTop[-3] = value;
+					vm.stackTop -= 2;
+					break;
+				}
+				else {
+					runtimeError("Instance subscript must be string.");
+					return INTERPRET_RUNTIME_ERROR;
+				}
+			}
+
+			runtimeError("Only instances and arrayLike can set subscript.");
+			return INTERPRET_RUNTIME_ERROR;
+		}
 		case OP_DEFINE_GLOBAL: {
 			Value constant = READ_CONSTANT(READ_SHORT());
 			ObjString* name = AS_STRING(constant);
 			--vm.stackTop;
-      
-			tableSet_g(&vm.globals, name, *vm.stackTop);
+
+			tableSet_g(&vm.globals.fields, name, *vm.stackTop);
 			break;
 		}
 		case OP_DEFINE_GLOBAL_LONG: {
@@ -435,7 +821,7 @@ static InterpretResult run()
 			ObjString* name = AS_STRING(constant);
 			--vm.stackTop;
 
-			tableSet_g(&vm.globals, name, *vm.stackTop);
+			tableSet_g(&vm.globals.fields, name, *vm.stackTop);
 			break;
 		}
 		case OP_GET_GLOBAL: {
@@ -443,7 +829,7 @@ static InterpretResult run()
 			ObjString* name = AS_STRING(constant);
 			Value value;
 
-			if (!tableGet_g(&vm.globals, name, &value)) {
+			if (!tableGet_g(&vm.globals.fields, name, &value)) {
 				runtimeError("Undefined variable '%s'.", name->chars);
 				return INTERPRET_RUNTIME_ERROR;
 			}
@@ -455,7 +841,7 @@ static InterpretResult run()
 			ObjString* name = AS_STRING(constant);
 			Value value;
 
-			if (!tableGet_g(&vm.globals, name, &value)) {
+			if (!tableGet_g(&vm.globals.fields, name, &value)) {
 				runtimeError("Undefined variable '%s'.", name->chars);
 				return INTERPRET_RUNTIME_ERROR;
 			}
@@ -466,9 +852,9 @@ static InterpretResult run()
 			Value constant = READ_CONSTANT(READ_SHORT());
 			ObjString* name = AS_STRING(constant);
 
-			if (tableSet_g(&vm.globals, name, vm.stackTop[-1])) {
+			if (tableSet_g(&vm.globals.fields, name, vm.stackTop[-1])) {
 				//lox dont allow setting undefined one
-				tableDelete_g(&vm.globals, name);
+				tableDelete_g(&vm.globals.fields, name);
 				runtimeError("Undefined variable '%s'.", name->chars);
 				return INTERPRET_RUNTIME_ERROR;
 			}
@@ -478,12 +864,31 @@ static InterpretResult run()
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 
-			if (tableSet_g(&vm.globals, name, vm.stackTop[-1])) {
+			if (tableSet_g(&vm.globals.fields, name, vm.stackTop[-1])) {
 				//lox dont allow setting undefined one
-				tableDelete_g(&vm.globals, name);
+				tableDelete_g(&vm.globals.fields, name);
 				runtimeError("Undefined variable '%s'.", name->chars);
 				return INTERPRET_RUNTIME_ERROR;
 			}
+			break;
+		}
+		case OP_NEW_ARRAY: {
+			uint8_t size = READ_BYTE();
+			ObjArray* array = newArray(size);
+
+			//init the array
+			Value* valuePtr = vm.stackTop - size;
+			Value* values = (Value*)array->payload;
+
+			for (uint32_t i = 0; i < size; ++i) {
+				values[i] = valuePtr[i];
+			}
+
+			array->length = size;
+
+			//pop the values
+			*valuePtr = OBJ_VAL(array);
+			vm.stackTop -= (size - 1);
 			break;
 		}
 		case OP_GET_UPVALUE: {
@@ -516,21 +921,22 @@ static InterpretResult run()
 
 		case OP_ADD: {
 			// might cause gc,so can't decrease first
-			if (IS_STRING(vm.stackTop[-2]) && IS_STRING(vm.stackTop[-1])) {
-				ObjString* result = connectString(AS_STRING(vm.stackTop[-2]), AS_STRING(vm.stackTop[-1]));
-				vm.stackTop[-2] = OBJ_VAL(result);
-				vm.stackTop--;
-				break;
+			if (SAME_REF_TYPE(vm.stackTop[-2], vm.stackTop[-1])) {
+				if (IS_NUMBER(vm.stackTop[-2])){ // && IS_NUMBER(vm.stackTop[-1])) {
+					vm.stackTop[-2] = NUMBER_VAL(AS_NUMBER(vm.stackTop[-2]) + AS_NUMBER(vm.stackTop[-1]));
+					vm.stackTop--;
+					break;
+				}
+				else if (IS_STRING(vm.stackTop[-2]) && IS_STRING(vm.stackTop[-1])) {
+					ObjString* result = connectString(AS_STRING(vm.stackTop[-2]), AS_STRING(vm.stackTop[-1]));
+					vm.stackTop[-2] = OBJ_VAL(result);
+					vm.stackTop--;
+					break;
+				}
 			}
-			else if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
-				vm.stackTop[-2] = NUMBER_VAL(AS_NUMBER(vm.stackTop[-2]) + AS_NUMBER(vm.stackTop[-1]));
-				vm.stackTop--;
-				break;
-			}
-			else {
-				runtimeError("Operands must be two numbers or two strings.");
-				return INTERPRET_RUNTIME_ERROR;
-			}
+
+			runtimeError("Operands must be two numbers or two strings.");
+			return INTERPRET_RUNTIME_ERROR;
 		}
 		case OP_SUBTRACT: BINARY_OP(NUMBER_VAL, -); break;
 		case OP_MULTIPLY: BINARY_OP(NUMBER_VAL, *); break;
@@ -574,10 +980,11 @@ static InterpretResult run()
 			frame->slots[index] = vm.stackTop[-1];
 			break;
 		}
-		case OP_CLOSE_UPVALUE:
+		case OP_CLOSE_UPVALUE: {
 			closeUpvalues(vm.stackTop - 1);
 			stack_pop();
 			break;
+		}
 		case OP_POP: {
 			stack_pop();
 			break;
@@ -644,13 +1051,12 @@ static InterpretResult run()
 			break;
 		}
 
-		case OP_MODULE_GLOBAL:
-			//Not implemented
-			stack_push(NUMBER_VAL(OP_MODULE_GLOBAL));
+		case OP_MODULE_GLOBAL:stack_push(OBJ_VAL(&vm.globals)); break;
+		case OP_MODULE_BUILTIN: {
+			uint8_t moduleIndex = READ_BYTE();
+			stack_push(OBJ_VAL(&vm.builtins[moduleIndex]));
 			break;
-		case OP_MODULE_BUILTIN:
-			stack_push(NUMBER_VAL(READ_BYTE()));
-			break;
+		}
 		case OP_DEBUGGER: {
 			//no op
 #if DEBUG_MODE
@@ -659,6 +1065,10 @@ static InterpretResult run()
 			break;
 		}
 		}
+
+#if LOG_MIPS
+		addByteCodeCount();
+#endif
 	}
 
 	//the place the error happens
@@ -672,8 +1082,17 @@ static InterpretResult run()
 
 InterpretResult interpret(C_STR source)
 {
+#if LOG_COMPILE_TIMING
+	uint64_t time_compile = get_nanoseconds();
+#endif
+
 	ObjFunction* function = compile(source);
 	if (function == NULL) return INTERPRET_COMPILE_ERROR;
+
+#if LOG_COMPILE_TIMING
+	double time_compile_f = (get_nanoseconds() - time_compile) * 1e-6;
+	printf("[Log] Finished compiling in %g ms.\n", time_compile_f);
+#endif
 
 	//stack_push(OBJ_VAL(function));
 	ObjClosure* closure = newClosure(function);
@@ -681,24 +1100,25 @@ InterpretResult interpret(C_STR source)
 	stack_push(OBJ_VAL(closure));
 	call(closure, 0);
 
-#if LOG_EXECUTE_TIMING || LOG_KIPS
+#if LOG_EXECUTE_TIMING || LOG_MIPS
 	uint64_t time_run = get_nanoseconds();
 #endif
 
-#if LOG_KIPS
+#if LOG_MIPS
 	byteCodeCount = 0;
 #endif
 
 	InterpretResult result = run();
 
+#if LOG_EXECUTE_TIMING || LOG_MIPS
+	double time_run_f = (get_nanoseconds() - time_run) * 1e-6;
 #if LOG_EXECUTE_TIMING
-	double time_ms = (get_nanoseconds() - time_run) * 1e-6;
-	printf("[Log] Finished executing in %g ms.\n", time_ms);
+	printf("[Log] Finished executing in %g ms.\n", time_run_f);
 #endif
-
-#if LOG_KIPS
-	printf("[Log] Finished executing at %g kips.\n", byteCodeCount / time_ms);
+#if LOG_MIPS
+	printf("[Log] Finished executing at %g mips.\n", byteCodeCount / time_run_f * 1e-3);
 	byteCodeCount = 0;
+#endif
 #endif
 
 	return result;

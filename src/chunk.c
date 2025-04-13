@@ -27,6 +27,7 @@ void chunk_write(Chunk* chunk, uint8_t byte, uint32_t line) {
 	chunk->count++;
 }
 
+COLD_FUNCTION
 void chunk_free(Chunk* chunk) {
 	FREE_ARRAY_NO_GC(uint8_t, chunk->code, chunk->capacity);
 	lineArray_free(&chunk->lines);

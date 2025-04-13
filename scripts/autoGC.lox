@@ -11,13 +11,15 @@ fun createPoint(x,y){
 }
 
 fun stress() {
-    gcBegin(256 * 1024);
+    @system.gcBegin(256 * 1024);
 
-    var count = 1e6;
+    var count = 1e7;
     while (count > 0) {
         createPoint(count, count)("x");
         count = count - 1;
     }
 }
 
+var start = @time.second();
 stress();
+print @time.second() - start;

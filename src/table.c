@@ -14,6 +14,7 @@
 
 void table_init(Table* table)
 {
+	table->inlineCaching = 0;
 	table->count = 0;
 	table->capacity = 0;
 	table->entries = NULL;
@@ -25,6 +26,27 @@ void table_free(Table* table)
 	table_init(table);
 }
 
+COLD_FUNCTION
+void table_init_static(Table* table, uint32_t capacity, Entry* static_address)
+{
+	table->inlineCaching = 0;
+	table->count = 0;
+	table->capacity = capacity;
+	table->entries = static_address;
+
+	for (uint32_t i = 0; i < table->capacity; ++i) {
+		table->entries[i].key = NULL;
+		table->entries[i].value = NIL_VAL;
+	}
+}
+
+COLD_FUNCTION
+void table_free_static(Table* table)
+{
+	table_init_static(table, table->capacity, table->entries);
+}
+
+HOT_FUNCTION
 static Entry* findEntry(Entry* entries, uint32_t capacity, ObjString* key, TableType type) {
 	//check it
 	Entry* entry = NULL;
@@ -74,12 +96,13 @@ static Entry* findEntry(Entry* entries, uint32_t capacity, ObjString* key, Table
 }
 
 //for global table
+HOT_FUNCTION
 static Entry* findEntry_g(Entry* entries, uint32_t capacity, ObjString* key, TableType type) {
 	//check it
 	Entry* entry = NULL;
 
 	//find by cache symbol
-	if (key->symbol != INVALID_OBJ_STRING_SYMBOL) {
+	if ((key->symbol != INVALID_OBJ_STRING_SYMBOL)) {
 		entry = &entries[key->symbol];
 
 		if (entry->key == key) {
@@ -144,6 +167,7 @@ static void adjustCapacity(Table* table, uint32_t capacity) {
 	table->capacity = capacity;
 }
 
+HOT_FUNCTION
 bool tableGet(Table* table, ObjString* key, Value* value) {
 	if (table->count == 0) return false;
 
@@ -154,8 +178,11 @@ bool tableGet(Table* table, ObjString* key, Value* value) {
 	return true;
 }
 
+HOT_FUNCTION
 bool tableSet(Table* table, ObjString* key, Value value)
 {
+	if (table->type == TABLE_MODULE) return false;// not allowed
+
 	//if (table->count + 1 > table->capacity * TABLE_MAX_LOAD) {
 	if ((table->count + 1) > MUL_3_DIV_4((uint64_t)(table->capacity))) {
 		uint32_t capacity = GROW_CAPACITY(table->capacity);
@@ -171,7 +198,10 @@ bool tableSet(Table* table, ObjString* key, Value value)
 	return isNewKey;
 }
 
+HOT_FUNCTION
 bool tableDelete(Table* table, ObjString* key) {
+	if (table->type == TABLE_MODULE) return false;// not allowed
+
 	if (table->count == 0) return false;
 
 	// Find the entry.
@@ -194,6 +224,7 @@ void tableAddAll(Table* from, Table* to)
 	}
 }
 
+HOT_FUNCTION
 bool tableGet_g(Table* table, ObjString* key, Value* value) {
 	if (table->count == 0) return false;
 
@@ -204,6 +235,7 @@ bool tableGet_g(Table* table, ObjString* key, Value* value) {
 	return true;
 }
 
+HOT_FUNCTION
 bool tableSet_g(Table* table, ObjString* key, Value value)
 {
 	//if (table->count + 1 > table->capacity * TABLE_MAX_LOAD) {
@@ -221,6 +253,7 @@ bool tableSet_g(Table* table, ObjString* key, Value value)
 	return isNewKey;
 }
 
+HOT_FUNCTION
 bool tableDelete_g(Table* table, ObjString* key) {
 	if (table->count == 0) return false;
 
@@ -297,6 +330,7 @@ Entry* tableGetStringEntry(Table* table, ObjString* key)
 	}
 }
 
+COLD_FUNCTION
 void numberTable_init(NumberTable* table)
 {
 	table->count = 0;
@@ -304,9 +338,10 @@ void numberTable_init(NumberTable* table)
 	table->entries = NULL;
 }
 
+COLD_FUNCTION
 void numberTable_free(NumberTable* table)
 {
-	FREE_ARRAY(NumberEntry, table->entries, table->capacity);
+	FREE_ARRAY_NO_GC(NumberEntry, table->entries, table->capacity);
 	numberTable_init(table);
 }
 
@@ -332,7 +367,7 @@ static NumberEntry* findNumberEntry(NumberEntry* entries, uint32_t capacity, uin
 
 static void adjustNumberCapacity(NumberTable* table, uint32_t capacity) {
 	//we need re input, so don't reallocate
-	NumberEntry* entries = ALLOCATE(NumberEntry, capacity);
+	NumberEntry* entries = ALLOCATE_NO_GC(NumberEntry, capacity);
 
 	for (uint32_t i = 0; i < capacity; ++i) {
 		entries[i].binary = 0;
@@ -356,7 +391,7 @@ static void adjustNumberCapacity(NumberTable* table, uint32_t capacity) {
 		table->count++;
 	}
 
-	FREE_ARRAY(NumberEntry, table->entries, table->capacity);
+	FREE_ARRAY_NO_GC(NumberEntry, table->entries, table->capacity);
 
 	table->entries = entries;
 	table->capacity = capacity;

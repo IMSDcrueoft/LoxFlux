@@ -19,7 +19,7 @@ typedef struct {
 //must be ordered
 typedef enum {
 	PREC_NONE,
-	PREC_ASSIGNMENT,  // =  []=
+	PREC_ASSIGNMENT,  // =
 	PREC_OR,          // or
 	PREC_AND,         // and
 	PREC_EQUALITY,    // == !=
@@ -58,6 +58,7 @@ typedef struct LoopContext{
 
 typedef enum {
 	TYPE_FUNCTION,
+	TYPE_LAMBDA,
 	TYPE_SCRIPT
 } FunctionType;
 

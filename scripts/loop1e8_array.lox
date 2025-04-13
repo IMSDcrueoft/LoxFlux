@@ -1,0 +1,18 @@
+{
+    var arr = @array.Array(1);
+    print @array.length(arr);
+    @array.resize(arr,16);
+    print @array.length(arr);
+
+    var start = @time.second();
+    for(arr[0] = 1e8;arr[0] > 0;){
+        arr[0] = arr[0] - 1;
+    }
+    print @time.second() - start;
+
+    start = @time.second();
+    for(arr[0] = 0;arr[0] < 1e8;){
+        arr[0] = arr[0] + 1;
+    }
+    print @time.second() - start;
+}

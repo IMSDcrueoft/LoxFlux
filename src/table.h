@@ -27,7 +27,7 @@ typedef enum {
 
 typedef struct {
 	TableType type;
-	uint32_t __PADDING;
+	uint32_t inlineCaching; //cache offset
 	uint32_t count;
 	uint32_t capacity;
 	Entry* entries;
@@ -41,6 +41,10 @@ typedef struct {
 
 void table_init(Table* table);
 void table_free(Table* table);
+
+// the entries are not in heap,don't free it
+void table_init_static(Table* table, uint32_t capacity, Entry* static_address);
+void table_free_static(Table* table);
 
 bool tableGet(Table* table, ObjString* key, Value* value);
 bool tableSet(Table* table, ObjString* key, Value value);

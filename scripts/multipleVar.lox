@@ -1,0 +1,13 @@
+var x;
+var y = 1;
+var z = "hello", w = true;
+
+{
+    const PI = 3.14;
+    const ID = "admin";
+}
+
+{
+    var a = 1, b, c = a + 2;
+    const MAX = 100, MIN = -MAX;
+}

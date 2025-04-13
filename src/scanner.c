@@ -8,6 +8,7 @@
 //shared scanner
 Scanner scanner;
 
+COLD_FUNCTION
 void scanner_init(C_STR source)
 {
 	scanner.start = source;
@@ -187,6 +188,7 @@ static TokenType identifierType() {
 	}
 	case 'v': return checkKeyword(1, 2, "ar", TOKEN_VAR);
 	case 'w': return checkKeyword(1, 4, "hile", TOKEN_WHILE);
+	case 'l': return checkKeyword(1, 5, "ambda", TOKEN_LAMBDA);
 	}
 
 	return TOKEN_IDENTIFIER;
@@ -387,7 +389,7 @@ Token scanToken()
 	case ')': return makeToken(TOKEN_RIGHT_PAREN);
 	case '{': return makeToken(TOKEN_LEFT_BRACE);
 	case '}': return makeToken(TOKEN_RIGHT_BRACE);
-	case '[': return makeToken(TOKEN_RIGHT_SQUARE_BRACKET);
+	case '[': return makeToken(TOKEN_LEFT_SQUARE_BRACKET);
 	case ']': return makeToken(TOKEN_RIGHT_SQUARE_BRACKET);
 	case ';': return makeToken(TOKEN_SEMICOLON);
 	case ':': return makeToken(TOKEN_COLON);
