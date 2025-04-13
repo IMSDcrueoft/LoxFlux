@@ -1,6 +1,6 @@
 /*
  * MIT License
- * Copyright (c) 2025 IM&SD (https://github.com/IMSDcrueoft)
+ * Copyright (c) 2025 IMSDcrueoft (https://github.com/IMSDcrueoft)
  * See LICENSE file in the root directory for full license text.
 */
 #pragma once
@@ -116,6 +116,7 @@ typedef struct {
 
 #define ARRAY_IS_TYPE(array, arrayType)		((array->obj.type) == arrayType)
 #define ARRAY_ELEMENT(array, type, index)	(((type*)array->payload)[index])
+#define ARRAY_IN_RANGE(array, index)		((index >= 0) && (index < array->length))
 
 #define IS_ARRAY_ANY(value)		ARRAY_IS_TYPE(value, OBJ_ARRAY)
 

@@ -1,6 +1,6 @@
 /*
  * MIT License
- * Copyright (c) 2025 IM&SD (https://github.com/IMSDcrueoft)
+ * Copyright (c) 2025 IMSDcrueoft (https://github.com/IMSDcrueoft)
  * See LICENSE file in the root directory for full license text.
 */
 #include "vm.h"
@@ -660,7 +660,7 @@ static InterpretResult run()
 					ObjArray* array = AS_ARRAY(target);
 					double num_index = AS_NUMBER(index);
 
-					if ((num_index >= 0) && (num_index < array->length)) {
+					if (ARRAY_IN_RANGE(array, num_index)) {
 						if (IS_ARRAY_ANY(array)) {
 							vm.stackTop[-2] = ARRAY_ELEMENT(array, Value, (uint32_t)num_index);
 							vm.stackTop--;
@@ -708,7 +708,7 @@ static InterpretResult run()
 					ObjString* string = AS_STRING(target);
 					double num_index = AS_NUMBER(index);
 
-					if ((num_index >= 0) && (num_index < string->length)) {
+					if (ARRAY_IN_RANGE(string, num_index)) {
 						vm.stackTop[-2] = getStringValue(string, (uint32_t)num_index);
 						vm.stackTop--;
 					}
@@ -725,12 +725,12 @@ static InterpretResult run()
 			}
 			else if (IS_STRING_BUILDER(target)) {
 				if (IS_NUMBER(index)) {
-					//get array
-					ObjArray* array = AS_ARRAY(target);
+					//get stringBuilder
+					ObjArray* stringBuilder = AS_ARRAY(target);
 					double num_index = AS_NUMBER(index);
 
-					if ((num_index >= 0) && (num_index < array->length)) {
-						vm.stackTop[-2] = getStringBuilderValue(array, (uint32_t)num_index);
+					if (ARRAY_IN_RANGE(stringBuilder, num_index)) {
+						vm.stackTop[-2] = getStringBuilderValue(stringBuilder, (uint32_t)num_index);
 						vm.stackTop--;
 					}
 					else {
@@ -759,7 +759,7 @@ static InterpretResult run()
 					ObjArray* array = AS_ARRAY(target);
 					double num_index = AS_NUMBER(index);
 
-					if ((num_index >= 0) && (num_index < array->length)) {
+					if (ARRAY_IN_RANGE(array, num_index)) {
 						if (IS_ARRAY_ANY(array)) {
 							vm.stackTop[-3] = ARRAY_ELEMENT(array, Value, (uint32_t)num_index) = value;
 							vm.stackTop -= 2;
