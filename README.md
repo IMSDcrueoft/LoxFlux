@@ -98,12 +98,6 @@ Lox is a programming language designed for learning purposes. It is conceived as
 
 ---
 
-### Timer
-
-- **Cross-platform interface**: Includes `get_nanoseconds()` and `get_utc_milliseconds()`.
-
----
-
 ### Comment
 
 - **Block comment support**: Using `/* */`.
