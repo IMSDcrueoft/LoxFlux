@@ -56,11 +56,16 @@ static bool throwError(Value error) {
 		uint32_t line = getLine(&function->chunk.lines, (uint32_t)instruction);
 
 		fprintf(stderr, "[line %d] in ", line);
-		if (function->name == NULL) {
-			fprintf(stderr, "script\n");
+		if (function->name != NULL) {
+			if (function->name->length != 0) {
+				printf("%s()\n", function->name->chars);
+			}
+			else {
+				printf("lambda\n");
+			}
 		}
 		else {
-			fprintf(stderr, "%s()\n", function->name->chars);
+			printf("script\n");
 		}
 	}
 
@@ -90,11 +95,16 @@ static void runtimeError(C_STR format, ...) {
 		uint32_t line = getLine(&function->chunk.lines, (uint32_t)instruction);
 
 		fprintf(stderr, "[line %d] in ", line);
-		if (function->name == NULL) {
-			fprintf(stderr, "script\n");
+		if (function->name != NULL) {
+			if (function->name->length != 0) {
+				printf("%s()\n", function->name->chars);
+			}
+			else {
+				printf("lambda\n");
+			}
 		}
 		else {
-			fprintf(stderr, "%s()\n", function->name->chars);
+			printf("script\n");
 		}
 	}
 
