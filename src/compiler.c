@@ -139,7 +139,7 @@ static uint32_t makeConstant(Value value) {
 		}
 	}
 	case VAL_OBJ: {
-		switch (AS_OBJ(value)->type) {
+		switch (OBJ_TYPE(value)) {
 		case OBJ_STRING: {
 			//find if string is in constant,because it is in pool
 			Entry* entry = getStringEntryInPool(AS_STRING(value));
