@@ -38,10 +38,14 @@ static void stack_reset()
 }
 
 COLD_FUNCTION
-static bool throwError(Value error) {
-	printf("[ThrowError] ");
-	printValue(error);
-	printf("\n");
+static bool throwError(Value error, C_STR format, ...) {
+	fprintf(stderr, "[RuntimeError] ");
+
+	va_list args;
+	va_start(args, format);
+	vfprintf(stderr, format, args);
+	va_end(args);
+	fputs("\n", stderr);
 
 	if ((vm.frameCount - 1) >= 0) {
 		vm.frames[vm.frameCount - 1].ip = *vm.ip_error;
@@ -58,16 +62,20 @@ static bool throwError(Value error) {
 		fprintf(stderr, "[line %d] in ", line);
 		if (function->name != NULL) {
 			if (function->name->length != 0) {
-				printf("%s()\n", function->name->chars);
+				fprintf(stderr, "%s()\n", function->name->chars);
 			}
 			else {
-				printf("lambda\n");
+				fprintf(stderr, "lambda()\n");
 			}
 		}
 		else {
-			printf("script\n");
+			fprintf(stderr, "script\n");
 		}
 	}
+	
+	printf("[ErrorInfo] ");
+	printValue(error);
+	printf("\n");
 
 	stack_reset();
 	return false;
@@ -75,7 +83,7 @@ static bool throwError(Value error) {
 
 COLD_FUNCTION
 static void runtimeError(C_STR format, ...) {
-	printf("[RuntimeError] ");
+	fprintf(stderr, "[RuntimeError] ");
 
 	va_list args;
 	va_start(args, format);
@@ -97,14 +105,14 @@ static void runtimeError(C_STR format, ...) {
 		fprintf(stderr, "[line %d] in ", line);
 		if (function->name != NULL) {
 			if (function->name->length != 0) {
-				printf("%s()\n", function->name->chars);
+				fprintf(stderr, "%s()\n", function->name->chars);
 			}
 			else {
-				printf("lambda\n");
+				fprintf(stderr, "lambda()\n");
 			}
 		}
 		else {
-			printf("script\n");
+			fprintf(stderr, "script\n");
 		}
 	}
 
@@ -951,7 +959,7 @@ static InterpretResult run()
 		}
 		case OP_THROW: {
 			//if solved break else error
-			if (throwError(stack_pop())) {
+			if (throwError(stack_pop(), "An exception was thrown.")) {
 				break;
 			}
 			return INTERPRET_RUNTIME_ERROR;
