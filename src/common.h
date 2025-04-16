@@ -12,8 +12,10 @@
 #include <string.h>
 #include <math.h>
 #include <stdarg.h>
-//check the type
-#include "check.h"
+#include <float.h>
+
+_Static_assert(sizeof(void*) == 8, "This platform does not have 8-byte pointers. The program requires a 64-bit environment.");
+
 #include "options.h"
 #include "optimize.h"
 

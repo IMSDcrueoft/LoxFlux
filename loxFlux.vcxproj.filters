@@ -127,9 +127,6 @@
     <ClInclude Include="src\well1024a.h">
       <Filter>loxFlux\header</Filter>
     </ClInclude>
-    <ClInclude Include="src\check.h">
-      <Filter>loxFlux\header</Filter>
-    </ClInclude>
     <ClInclude Include="src\table.h">
       <Filter>loxFlux\header</Filter>
     </ClInclude>

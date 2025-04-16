@@ -542,7 +542,7 @@ static InterpretResult run()
 			ObjClosure* closure = newClosure(function);
 			stack_push(OBJ_VAL(closure));
 
-			for (int32_t i = 0; i < closure->upvalueCount; i++) {
+			for (uint32_t i = 0; i < closure->upvalueCount; i++) {
 				uint8_t isLocal = READ_BYTE();
 				uint16_t index = READ_SHORT();
 				if (isLocal) {
@@ -560,7 +560,7 @@ static InterpretResult run()
 			ObjClosure* closure = newClosure(function);
 			stack_push(OBJ_VAL(closure));
 
-			for (int32_t i = 0; i < closure->upvalueCount; i++) {
+			for (uint32_t i = 0; i < closure->upvalueCount; i++) {
 				uint8_t isLocal = READ_BYTE();
 				uint16_t index = READ_SHORT();
 				if (isLocal) {

@@ -108,7 +108,7 @@ static STR dealWithFilePath(STR line) {
 }
 
 void repl() {
-	printf("%s %s  Copyright (C) %s, %s\n", INTERPRETER_NAME, INTERPRETER_VERSION, INTERPRETER_COPYRIGHT, INTERPRETER_OWNER);
+	printf("%s %s  Copyright (C) %s, %s\n", INTERPRETER_NAME, INTERPRETER_VERSION, INTERPRETER_COPYRIGHT, INTERPRETER_DEVELOPER);
 
 	vm_init();
 

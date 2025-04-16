@@ -40,9 +40,12 @@ extern const C_STR objTypeInfo[];
 #endif
 
 struct Obj {
-	ObjType type;
+	struct Obj* next;	//ptr
+
+	uint8_t padding[6];
+
 	bool isMarked;
-	struct Obj* next;
+	uint8_t type;
 };
 
 typedef struct {
@@ -63,7 +66,7 @@ typedef struct ObjUpvalue {
 typedef struct {
 	Obj obj;
 
-	int32_t upvalueCount;
+	uint32_t upvalueCount;
 	ObjUpvalue** upvalues;
 	ObjFunction* function;
 } ObjClosure;

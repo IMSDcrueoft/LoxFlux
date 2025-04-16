@@ -89,7 +89,7 @@ ObjFunction* newFunction() {
 HOT_FUNCTION
 ObjClosure* newClosure(ObjFunction* function) {
 	ObjUpvalue** upvalues = ALLOCATE(ObjUpvalue*, function->upvalueCount);
-	for (int32_t i = 0; i < function->upvalueCount; i++) {
+	for (uint32_t i = 0; i < function->upvalueCount; i++) {
 		upvalues[i] = NULL;
 	}
 

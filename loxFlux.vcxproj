@@ -191,7 +191,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\nativeBuiltin.h" />
-    <ClInclude Include="src\check.h" />
     <ClInclude Include="src\chunk.h" />
     <ClInclude Include="src\common.h" />
     <ClInclude Include="src\compiler.h" />

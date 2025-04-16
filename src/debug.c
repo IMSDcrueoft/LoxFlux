@@ -165,7 +165,7 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 		offset += 3;
 
 		ObjFunction* function = AS_FUNCTION(vm.constants.values[constant]);
-		for (int32_t j = 0; j < function->upvalueCount; j++) {
+		for (uint32_t j = 0; j < function->upvalueCount; j++) {
 			int32_t isLocal = chunk->code[offset++];
 			uint16_t index = chunk->code[offset++];
 			index |= (chunk->code[offset++] << 8);
@@ -187,7 +187,7 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 		offset += 4;
 
 		ObjFunction* function = AS_FUNCTION(vm.constants.values[constant]);
-		for (int32_t j = 0; j < function->upvalueCount; j++) {
+		for (uint32_t j = 0; j < function->upvalueCount; j++) {
 			int32_t isLocal = chunk->code[offset++];
 			uint16_t index = chunk->code[offset++];
 			index |= (chunk->code[offset++] << 8);

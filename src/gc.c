@@ -114,7 +114,7 @@ static void blackenObject(Obj* object) {
 		//no need
 		//markObject((Obj*)closure->function);
 
-		for (int32_t i = 0; i < closure->upvalueCount; i++) {
+		for (uint32_t i = 0; i < closure->upvalueCount; i++) {
 			markObject((Obj*)closure->upvalues[i]);
 		}
 		break;

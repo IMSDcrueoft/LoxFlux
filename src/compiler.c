@@ -411,8 +411,8 @@ static LocalInfo resolveLocal(Compiler* compiler, Token* name) {
 	return (LocalInfo) { .arg = -1, .isConst = false };
 }
 
-static int32_t addUpvalue(Compiler* compiler, int32_t index, bool isLocal) {
-	int32_t upvalueCount = compiler->function->upvalueCount;
+static uint32_t addUpvalue(Compiler* compiler, int32_t index, bool isLocal) {
+	uint32_t upvalueCount = compiler->function->upvalueCount;
 
 	//deduplicate
 	for (uint32_t i = 0; i < upvalueCount; i++) {
@@ -569,7 +569,7 @@ static void function(FunctionType type) {
 	emitClosureCommond(makeConstant(OBJ_VAL(function)));
   
 	//insert upValue index
-	for (int32_t i = 0; i < function->upvalueCount; i++) {
+	for (uint32_t i = 0; i < function->upvalueCount; i++) {
 		emitByte(compiler.upvalues[i].isLocal ? 1 : 0);
 		emitBytes(2, (uint8_t)(compiler.upvalues[i].index), (uint8_t)(compiler.upvalues[i].index >> 8));
 	}
