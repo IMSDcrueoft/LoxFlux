@@ -81,6 +81,7 @@ ObjFunction* newFunction() {
 	ObjFunction* function = ALLOCATE_OBJ(ObjFunction, OBJ_FUNCTION);
 	function->arity = 0;
 	function->upvalueCount = 0;
+	function->id = vm.functionID++;//unique id
 	function->name = NULL;
 	chuck_init(&function->chunk);
 	return function;
@@ -544,15 +545,14 @@ ObjString* connectString(ObjString* strA, ObjString* strB) {
 
 static void printFunction(ObjFunction* function) {
 	if (function->name == NULL) {
-		printf("<script>");
-		return;
+		printf("<script> (%d)", function->id);
 	}
 	else if (function->name->length == 0) {
-		printf("<lambda>");
-		return;
+		printf("<lambda> (%d)", function->id);
 	}
-
-	printf("<fn %s>", function->name->chars);
+	else {
+		printf("<fn %s> (%d)", function->name->chars, function->id);
+	}
 }
 
 static void printArrayLike(ObjArray* array, bool isExpand) {

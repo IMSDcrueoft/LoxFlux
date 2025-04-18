@@ -64,8 +64,11 @@ typedef struct {
 	//ip for debug error
 	uint8_t** ip_error;
 
+	//id for compiled functions
+	uint32_t functionID;
+
 	//frames
-	uint64_t frameCount;
+	uint32_t frameCount;
 	CallFrame frames[FRAMES_MAX];
 } VM;
 

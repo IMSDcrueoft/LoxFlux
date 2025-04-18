@@ -62,14 +62,14 @@ static bool throwError(Value error, C_STR format, ...) {
 		fprintf(stderr, "[line %d] in ", line);
 		if (function->name != NULL) {
 			if (function->name->length != 0) {
-				fprintf(stderr, "%s()\n", function->name->chars);
+				fprintf(stderr, "%s() : (%d)\n", function->name->chars, function->id);
 			}
 			else {
-				fprintf(stderr, "lambda()\n");
+				fprintf(stderr, "<lambda>() : (%d)\n", function->id);
 			}
 		}
 		else {
-			fprintf(stderr, "script\n");
+			fprintf(stderr, "<script> : (%d)\n", function->id);
 		}
 	}
 	
@@ -105,14 +105,14 @@ static void runtimeError(C_STR format, ...) {
 		fprintf(stderr, "[line %d] in ", line);
 		if (function->name != NULL) {
 			if (function->name->length != 0) {
-				fprintf(stderr, "%s()\n", function->name->chars);
+				fprintf(stderr, "%s() : (%d)\n", function->name->chars, function->id);
 			}
 			else {
-				fprintf(stderr, "lambda()\n");
+				fprintf(stderr, "<lambda>() : (%d)\n", function->id);
 			}
 		}
 		else {
-			fprintf(stderr, "script\n");
+			fprintf(stderr, "<script> : (%d)\n", function->id);
 		}
 	}
 
@@ -297,6 +297,7 @@ void vm_init()
 	vm.grayCapacity = 0;
 	vm.grayStack = NULL;
 
+	vm.functionID = 0;
 	//set
 	vm.bytesAllocated = 0;
 	vm.bytesAllocated_no_gc = 0;

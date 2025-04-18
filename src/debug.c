@@ -285,14 +285,14 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 }
 
 COLD_FUNCTION
-void disassembleChunk(Chunk* chunk, C_STR name) {
-	printf("== %s ==\n", name);
+void disassembleChunk(Chunk* chunk, C_STR name, uint32_t id) {
+	printf("== %s(%d) ==\n", name, id);
 
 	uint32_t offset = 0;
 	while (offset < chunk->count) {
 		offset = disassembleInstruction(chunk, offset);
 	}
 
-	printf("== %s end ==\n", name);
+	printf("== %s(%d) end==\n", name, id);
 }
 #endif

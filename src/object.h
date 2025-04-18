@@ -40,18 +40,17 @@ extern const C_STR objTypeInfo[];
 #endif
 
 struct Obj {
-	struct Obj* next;	//ptr
-
-	uint8_t padding[6];
-
-	bool isMarked;
 	uint8_t type;
+	uint8_t isMarked;
+	uint8_t padding[6];
+	struct Obj* next;	//ptr
 };
 
 typedef struct {
 	Obj obj;
-	uint32_t arity;
-	uint32_t upvalueCount;
+	uint16_t arity;
+	uint16_t upvalueCount;
+	uint32_t id;
 	Chunk chunk;
 	ObjString* name;
 } ObjFunction;
@@ -102,8 +101,8 @@ struct ObjString {
 //begin at 8 and align to 8, when < 64,mul 2, then *1.5 and align 8
 typedef struct {
 	Obj obj;
-	uint32_t capacity;
 	uint32_t length;
+	uint32_t capacity;
 	char* payload;
 } ObjArray;
 

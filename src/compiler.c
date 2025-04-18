@@ -267,7 +267,7 @@ static ObjFunction* endCompiler() {
 #if DEBUG_PRINT_CODE
 	if (!parser.hadError) {
 		disassembleChunk(currentChunk(), (function->name != NULL)
-			? ((function->name->length != 0) ? function->name->chars : "<lambda>") : "<script>");
+			? ((function->name->length != 0) ? function->name->chars : "<lambda>") : "<script>", function->id);
 	}
 #endif
 	current = current->enclosing;
@@ -313,7 +313,7 @@ static void endScope() {
 	}
 }
 
-//need to define first
+//need to declare first
 static ParseRule* getRule(TokenType type);
 
 static void parsePrecedence(Precedence precedence) {
@@ -407,7 +407,7 @@ static LocalInfo resolveLocal(Compiler* compiler, Token* name) {
 		}
 	}
 
-	//it is a global defined var
+	//it is a global declared var
 	return (LocalInfo) { .arg = -1, .isConst = false };
 }
 

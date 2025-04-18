@@ -11,7 +11,7 @@
 #define GC_HEAP_BEGIN 1024 * 1024
 
 //please don't modify them from outside
-extern bool usingMark;
+extern uint8_t usingMark;
 
 void markObject(Obj* object);
 void markValue(Value value);
