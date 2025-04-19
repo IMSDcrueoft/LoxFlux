@@ -85,9 +85,18 @@ typedef enum {
 	//instance
 	OP_INSTANCE_OF,
 
-	//for debugger
-	OP_DEBUGGER,
+	OP_BIT,				//& | ~ ^ << >> >>>
 } OpCode;
+
+typedef enum {
+	BIT_OP_NOT,			//~
+	BIT_OP_AND,			//&
+	BIT_OP_OR,			//|
+	BIT_OP_XOR,			//^
+	BIT_OP_SHL,			//<<
+	BIT_OP_SHR,			//>>>
+	BIT_OP_SAR,			//>>
+} BitOpCode;
 
 typedef struct {
 	uint32_t count;    //limit to 4G

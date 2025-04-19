@@ -937,6 +937,12 @@ static void binary(bool canAssign) {
 	case TOKEN_LESS: emitByte(OP_LESS); break;
 	case TOKEN_LESS_EQUAL: emitByte(OP_LESS_EQUAL); break;
 	case TOKEN_INSTANCE_OF: emitByte(OP_INSTANCE_OF); break;
+	case TOKEN_BIT_AND: emitBytes(2, OP_BIT, BIT_OP_AND); break;
+	case TOKEN_BIT_OR: emitBytes(2, OP_BIT, BIT_OP_OR); break;
+	case TOKEN_BIT_XOR: emitBytes(2, OP_BIT, BIT_OP_XOR); break;
+	case TOKEN_BIT_SHL: emitBytes(2, OP_BIT, BIT_OP_SHL); break;
+	case TOKEN_BIT_SHR: emitBytes(2, OP_BIT, BIT_OP_SHR); break;
+	case TOKEN_BIT_SAR: emitBytes(2, OP_BIT, BIT_OP_SAR); break;
 	default: return; // Unreachable.
 	}
 }
@@ -1189,6 +1195,7 @@ static void unary(bool canAssign) {
 	switch (operatorType) {
 	case TOKEN_BANG: emitByte(OP_NOT); break;
 	case TOKEN_MINUS: emitByte(OP_NEGATE); break;
+	case TOKEN_BIT_NOT: emitBytes(2, OP_BIT, BIT_OP_NOT); break;
 	default: return; // Unreachable.
 	}
 }
@@ -1216,6 +1223,13 @@ ParseRule rules[] = {
 	[TOKEN_LESS] = {NULL,     binary, PREC_COMPARISON},
 	[TOKEN_LESS_EQUAL] = {NULL,     binary, PREC_COMPARISON},
 	[TOKEN_INSTANCE_OF] = {NULL,     binary, PREC_INSTANCEOF},
+	[TOKEN_BIT_AND] = {NULL,	binary, PREC_BITWISE},
+	[TOKEN_BIT_OR] = {NULL,		binary, PREC_BITWISE},
+	[TOKEN_BIT_XOR] = {NULL,	binary, PREC_BITWISE},
+	[TOKEN_BIT_NOT] = {unary,	NULL, PREC_UNARY},
+	[TOKEN_BIT_SHL] = {NULL,	binary, PREC_BITWISE},
+	[TOKEN_BIT_SHR] = {NULL,	binary, PREC_BITWISE},
+	[TOKEN_BIT_SAR] = {NULL,	binary, PREC_BITWISE},
 	[TOKEN_IDENTIFIER] = {variable,     NULL,   PREC_NONE},
 	[TOKEN_STRING] = {string,     NULL,   PREC_NONE},
 	[TOKEN_STRING_ESCAPE] = {string_escape,     NULL,   PREC_NONE},

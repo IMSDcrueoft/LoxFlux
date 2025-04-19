@@ -1,0 +1,32 @@
+// Test left shift (<<)
+print((1 << 2) == 4);  // 1 shifted left by 2 bits results in 4
+
+// Test right shift (>>)
+print((8 >> 2) == 2);  // 8 shifted right by 2 bits results in 2
+
+// Test bitwise AND (&)
+print((5 & 3) == 1);  // 5 (0101) & 3 (0011) = 1 (0001)
+
+// Test bitwise OR (|)
+print((5 | 3) == 7);  // 5 (0101) | 3 (0011) = 7 (0111)
+
+// Test bitwise XOR (^)
+print((5 ^ 3) == 6);  // 5 (0101) ^ 3 (0011) = 6 (0110)
+
+// Test bitwise NOT (~)
+print((~5 == -6));  // Bitwise NOT: ~5 = -6 (due to two's complement representation)
+
+// Test arithmetic right shift for negative numbers
+print((-8 >> 2) == -2);  // -8 shifted right by 2 bits results in -2
+print((-8 >>> 2) != -2);  // -8 shifted right by 2 bits results in -2
+
+// Test out-of-range shift amounts
+print((1 << 32) == 1);  // Shifting left by 32 bits equals << 0 (language-dependent)
+print((1 >> 32) == 1);  // Shifting right by 32 bits equals >> 0 (language-dependent)
+
+// Test negative shift amounts
+print((1 >> -1) == 0);  // Right shifting by -1 is equivalent to shifting by 31 bits, resulting in 0
+print((1 << -1) == 0);  // Left shifting by -1 is equivalent to shifting by 31 bits, resulting in 0
+
+// Test mixed bitwise operations
+print(((5 & 3) | (6 ^ 2)) == 5);  // (5 & 3) = 1, (6 ^ 2) = 4, 1 | 4 = 5

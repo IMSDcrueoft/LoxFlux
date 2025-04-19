@@ -72,7 +72,7 @@ static bool throwError(Value error, C_STR format, ...) {
 			fprintf(stderr, "<script> : (%d)\n", function->id);
 		}
 	}
-	
+
 	printf("[ErrorInfo] ");
 	printValue(error);
 	printf("\n");
@@ -467,6 +467,84 @@ static inline void addByteCodeCount() {
 }
 #endif
 
+HOT_FUNCTION
+static bool bitInstruction(uint8_t bitOpType) {
+#define BINARAY_OP_BIT(op)																			\
+    do {																							\
+		/* Pop the top two values from the stack */													\
+		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {								\
+			/* Perform the operation and push the result back */									\
+			vm.stackTop[-2] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-2]) op (int32_t)AS_NUMBER(vm.stackTop[-1]));	\
+			vm.stackTop--;																			\
+		} else {														                            \
+			runtimeError("Operands must be numbers.");										\
+			return INTERPRET_RUNTIME_ERROR;															\
+		}																							\
+	} while (false)
+
+	switch (bitOpType)
+	{
+	case BIT_OP_NOT: {
+		if (IS_NUMBER(vm.stackTop[-1])) {
+			AS_NUMBER(vm.stackTop[-1]) = ~(int32_t)AS_NUMBER(vm.stackTop[-1]);
+			return true;
+		}
+	}
+	case BIT_OP_AND: BINARAY_OP_BIT(&); return true;
+	case BIT_OP_OR: BINARAY_OP_BIT(| ); return true;
+	case BIT_OP_XOR: BINARAY_OP_BIT(^); return true;
+
+	case BIT_OP_SHL: {
+		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
+			int32_t shiftBits = AS_NUMBER(vm.stackTop[-1]);
+
+			if (shiftBits >= 0) {
+				vm.stackTop[-2] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-2]) << (shiftBits & 31));
+				vm.stackTop--;
+			}
+			else {
+				vm.stackTop[-2] = NUMBER_VAL(0);
+				vm.stackTop--;
+			}
+			return true;
+		}
+	}
+	case BIT_OP_SAR: {
+		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
+			int32_t shiftBits = AS_NUMBER(vm.stackTop[-1]);
+
+			if (shiftBits >= 0) {
+				vm.stackTop[-2] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-2]) >> (shiftBits & 31));
+				vm.stackTop--;
+			}
+			else {
+				vm.stackTop[-2] = NUMBER_VAL(0);
+				vm.stackTop--;
+			}
+			return true;
+		}
+	}
+	case BIT_OP_SHR: {
+		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
+			int32_t shiftBits = AS_NUMBER(vm.stackTop[-1]);
+
+			if (shiftBits >= 0) {
+				vm.stackTop[-2] = NUMBER_VAL((uint32_t)AS_NUMBER(vm.stackTop[-2]) >> (shiftBits & 31));
+				vm.stackTop--;
+			}
+			else {
+				vm.stackTop[-2] = NUMBER_VAL(0);
+				vm.stackTop--;
+			}
+			return true;
+		}
+	}
+	}
+
+	return false;
+#undef BINARAY_OP_BIT
+}
+
 //to run code in vm
 HOT_FUNCTION
 static InterpretResult run()
@@ -490,7 +568,7 @@ static InterpretResult run()
 			vm.stackTop[-2] = valueType(AS_NUMBER(vm.stackTop[-2]) op AS_NUMBER(vm.stackTop[-1]));	\
 			vm.stackTop--;																			\
 		} else {														                            \
-			runtimeError("Operands must be numbers.");												\
+			runtimeError("Operands must be numbers.");										\
 			return INTERPRET_RUNTIME_ERROR;															\
 		}																							\
 	} while (false)
@@ -503,7 +581,7 @@ static InterpretResult run()
 			vm.stackTop[-2] = valueType(fmod(AS_NUMBER(vm.stackTop[-2]),AS_NUMBER(vm.stackTop[-1])));	\
 			vm.stackTop--;																				\
 		} else {																						\
-			runtimeError("Operands must be numbers.");													\
+			runtimeError("Operands must be numbers.");											\
 			return INTERPRET_RUNTIME_ERROR;																\
 		}																								\
 	} while (false)
@@ -922,7 +1000,7 @@ static InterpretResult run()
 		case OP_ADD: {
 			// might cause gc,so can't decrease first
 			if (SAME_VALUE_TYPE(vm.stackTop[-2], vm.stackTop[-1])) {
-				if (IS_NUMBER(vm.stackTop[-2])){ // && IS_NUMBER(vm.stackTop[-1])) {
+				if (IS_NUMBER(vm.stackTop[-2])) { // && IS_NUMBER(vm.stackTop[-1])) {
 					vm.stackTop[-2] = NUMBER_VAL(AS_NUMBER(vm.stackTop[-2]) + AS_NUMBER(vm.stackTop[-1]));
 					vm.stackTop--;
 					break;
@@ -947,14 +1025,29 @@ static InterpretResult run()
 			vm.stackTop[-1] = BOOL_VAL(isFalsey(vm.stackTop[-1]));
 			break;
 		}
+
 		case OP_NEGATE: {
-			if (!IS_NUMBER(vm.stackTop[-1])) {
+			if (IS_NUMBER(vm.stackTop[-1])) {
+				AS_NUMBER(vm.stackTop[-1]) = -AS_NUMBER(vm.stackTop[-1]);
+				break;
+			}
+			else {
 				runtimeError("Operand must be a number.");
 				return INTERPRET_RUNTIME_ERROR;
 			}
-			AS_NUMBER(vm.stackTop[-1]) = -AS_NUMBER(vm.stackTop[-1]);
-			break;
 		}
+
+		case OP_BIT: {
+			uint8_t bitOpType = READ_BYTE();
+			if (bitInstruction(bitOpType)) {
+				break;
+			}
+			else {
+				runtimeError("Operands must be numbers.");
+				return INTERPRET_RUNTIME_ERROR;
+			}
+		}
+
 		case OP_PRINT: {
 #if DEBUG_MODE
 			printf("[print] ");
@@ -1055,13 +1148,6 @@ static InterpretResult run()
 		case OP_MODULE_BUILTIN: {
 			uint8_t moduleIndex = READ_BYTE();
 			stack_push(OBJ_VAL(&vm.builtins[moduleIndex]));
-			break;
-		}
-		case OP_DEBUGGER: {
-			//no op
-#if DEBUG_MODE
-
-#endif
 			break;
 		}
 		}

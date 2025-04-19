@@ -426,12 +426,26 @@ Token scanToken()
 	case '=':
 		return makeToken(
 			match('=') ? TOKEN_EQUAL_EQUAL : TOKEN_EQUAL);
-	case '<':
-		return makeToken(
-			match('=') ? TOKEN_LESS_EQUAL : TOKEN_LESS);
-	case '>':
-		return makeToken(
-			match('=') ? TOKEN_GREATER_EQUAL : TOKEN_GREATER);
+	case '<': {
+		if (!match('<')) {
+			return makeToken(match('=') ? TOKEN_LESS_EQUAL : TOKEN_LESS);
+		}
+		else {
+			return makeToken(TOKEN_BIT_SHL);
+		}
+	}
+	case '>': {
+		if (!match('>')) {
+			return makeToken(match('=') ? TOKEN_GREATER_EQUAL : TOKEN_GREATER);
+		}
+		else {
+			return makeToken(match('>') ? TOKEN_BIT_SHR : TOKEN_BIT_SAR);
+		}
+	}
+	case '&': return makeToken(TOKEN_BIT_AND);
+	case '|': return makeToken(TOKEN_BIT_OR);
+	case '~': return makeToken(TOKEN_BIT_NOT);
+	case '^': return makeToken(TOKEN_BIT_XOR);
 	case '"': return string();
 	}
 
