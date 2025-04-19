@@ -1,6 +1,6 @@
 /*
  * MIT License
- * Copyright (c) 2025 IM&SD (https://github.com/IMSDcrueoft)
+ * Copyright (c) 2025 IMSDcrueoft (https://github.com/IMSDcrueoft)
  * See LICENSE file in the root directory for full license text.
 */
 #include "object.h"
@@ -11,6 +11,7 @@
 
 #if DEBUG_LOG_GC
 const C_STR objTypeInfo[] = {
+	[OBJ_CLASS] = {"class"},
 	[OBJ_CLOSURE] = {"closure"},
 	[OBJ_FUNCTION] = {"function"},
 	[OBJ_NATIVE] = {"native"},
@@ -80,6 +81,7 @@ ObjFunction* newFunction() {
 	ObjFunction* function = ALLOCATE_OBJ(ObjFunction, OBJ_FUNCTION);
 	function->arity = 0;
 	function->upvalueCount = 0;
+	function->id = vm.functionID++;//unique id
 	function->name = NULL;
 	chuck_init(&function->chunk);
 	return function;
@@ -88,7 +90,7 @@ ObjFunction* newFunction() {
 HOT_FUNCTION
 ObjClosure* newClosure(ObjFunction* function) {
 	ObjUpvalue** upvalues = ALLOCATE(ObjUpvalue*, function->upvalueCount);
-	for (int32_t i = 0; i < function->upvalueCount; i++) {
+	for (uint32_t i = 0; i < function->upvalueCount; i++) {
 		upvalues[i] = NULL;
 	}
 
@@ -289,7 +291,7 @@ void reserveArray(ObjArray* array, uint64_t size)
 #define GROW_TYPED_ARRY(type, ptr, size) reallocate(ptr, sizeof(type) * array->capacity, sizeof(type) * size)
 	Unknown_ptr newPayload = NULL;
 
-	switch (array->obj.type) {
+	switch (OBJ_GET_TYPE(array->obj)) {
 	case OBJ_ARRAY:
 		newPayload = GROW_TYPED_ARRY(Value, array->payload, size);
 		break;
@@ -343,7 +345,7 @@ Value getStringBuilderValue(ObjArray* stringBuilder, uint32_t index) {
 //it don't check index so be careful
 Value getTypedArrayElement(ObjArray* array, uint32_t index)
 {
-	switch (array->obj.type) {
+	switch (OBJ_GET_TYPE(array->obj)) {
 	case OBJ_ARRAY_F64:
 		return NUMBER_VAL(ARRAY_ELEMENT(array, double, index));
 	case OBJ_ARRAY_F32:
@@ -360,6 +362,8 @@ Value getTypedArrayElement(ObjArray* array, uint32_t index)
 		return NUMBER_VAL(ARRAY_ELEMENT(array, uint8_t, index));
 	case OBJ_ARRAY_I8:
 		return NUMBER_VAL(ARRAY_ELEMENT(array, int8_t, index));
+	case OBJ_STRING_BUILDER:
+		return NUMBER_VAL(ARRAY_ELEMENT(array, uint8_t, index));
 	default:
 		return NIL_VAL;
 	}
@@ -368,7 +372,7 @@ Value getTypedArrayElement(ObjArray* array, uint32_t index)
 void setTypedArrayElement(ObjArray* array, uint32_t index, Value val)
 {
 	val = IS_NUMBER(val) ? val : NUMBER_VAL(0);
-	switch (array->obj.type) {
+	switch (OBJ_GET_TYPE(array->obj)) {
 	case OBJ_ARRAY_F64:
 		ARRAY_ELEMENT(array, double, index) = AS_NUMBER(val);
 		break;
@@ -541,25 +545,24 @@ ObjString* connectString(ObjString* strA, ObjString* strB) {
 
 static void printFunction(ObjFunction* function) {
 	if (function->name == NULL) {
-		printf("<script>");
-		return;
+		printf("<script> (%d)", function->id);
 	}
 	else if (function->name->length == 0) {
-		printf("<lambda>");
-		return;
+		printf("<lambda> (%d)", function->id);
 	}
-
-	printf("<fn %s>", function->name->chars);
+	else {
+		printf("<fn %s> (%d)", function->name->chars, function->id);
+	}
 }
 
 static void printArrayLike(ObjArray* array, bool isExpand) {
-	if (array->obj.type == OBJ_STRING_BUILDER) {
+	if (OBJ_GET_TYPE(array->obj) == OBJ_STRING_BUILDER) {
 		printf("%s", array->payload);
 		return;
 	}
 
 	if (!isExpand) {
-		switch (array->obj.type) {
+		switch (OBJ_GET_TYPE(array->obj)) {
 		case OBJ_ARRAY:
 			printf("<array>");
 			break;
@@ -593,7 +596,7 @@ static void printArrayLike(ObjArray* array, bool isExpand) {
 		if (array->length > 0) {
 			printf("[ ");
 			for (uint32_t i = 0; i < array->length;) {
-				switch (array->obj.type) {
+				switch (OBJ_GET_TYPE(array->obj)) {
 				case OBJ_ARRAY: //don't expand now ,or it's too slow and too much
 					printValue(ARRAY_ELEMENT(array, Value, i));
 					break;
@@ -643,17 +646,17 @@ void printObject(Value value, bool isExpand) {
 			printf("%s (class)", name->chars);
 		}
 		else {
-			printf("$anonymous (class)");
+			printf("$anon (class)");
 		}
 		break;
 	}
 	case OBJ_INSTANCE: {
-		ObjString* name = AS_INSTANCE(value)->klass->name;
-		if (name != NULL) {
-			printf("%s (instance)", name->chars);
+		ObjClass* klass = AS_INSTANCE(value)->klass;
+		if (klass != NULL) {
+			printf("%s (instance)", klass->name->chars);
 		}
 		else {
-			printf("$anonymous (instance)");
+			printf("$anon (instance)");
 		}
 		break;
 	}

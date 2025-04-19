@@ -1,12 +1,15 @@
 /*
  * MIT License
- * Copyright (c) 2025 IM&SD (https://github.com/IMSDcrueoft)
+ * Copyright (c) 2025 IMSDcrueoft (https://github.com/IMSDcrueoft)
  * See LICENSE file in the root directory for full license text.
 */
 #pragma once
 #include "vm.h"
 #include "scanner.h"
 #include "object.h"
+
+#define LOCAL_INIT 64
+#define LOCAL_MAX UINT10_COUNT
 
 typedef struct {
 	Token current;
@@ -22,14 +25,16 @@ typedef enum {
 	PREC_ASSIGNMENT,  // =
 	PREC_OR,          // or
 	PREC_AND,         // and
+	PREC_BITWISE,	  // |, ^, &, <<, >>, >>>
 	PREC_EQUALITY,    // == !=
-	PREC_COMPARISON,  // < > <= >=
-	PREC_TERM,        // + -
-	PREC_FACTOR,      // * / %
-	PREC_UNARY,       // ! -
-	PREC_CALL,        // . () []
+	PREC_INSTANCEOF,  // instanceOf
+	PREC_COMPARISON,  // <, >, <=, >=
+	PREC_TERM,        // +, -
+	PREC_FACTOR,      // *, /, %
+	PREC_UNARY,       // !, -, ~
+	PREC_CALL,        // ., (), []
 	PREC_OPERATE,
-	PREC_PRIMARY	  // @
+	PREC_PRIMARY
 } Precedence;
 
 typedef void (*ParseFn)(bool canAssign);
@@ -63,8 +68,8 @@ typedef enum {
 } FunctionType;
 
 typedef struct {
-	bool isLocal;
 	uint16_t index;
+	bool isLocal;
 } Upvalue;
 
 typedef struct Compiler {
@@ -76,12 +81,11 @@ typedef struct Compiler {
 
 	uint16_t localCount;
 	uint16_t scopeDepth;
-	uint32_t capacity;
+	uint32_t localCapacity;
 	Local* locals;
 
-	Upvalue upvalues[UINT8_COUNT];
-
 	LoopContext* currentLoop;
+	Upvalue upvalues[UINT8_COUNT];
 } Compiler;
 
 ObjFunction* compile(C_STR source);

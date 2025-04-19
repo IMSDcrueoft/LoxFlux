@@ -1,6 +1,6 @@
 /*
  * MIT License
- * Copyright (c) 2025 IM&SD (https://github.com/IMSDcrueoft)
+ * Copyright (c) 2025 IMSDcrueoft (https://github.com/IMSDcrueoft)
  * See LICENSE file in the root directory for full license text.
 */
 #include "debug.h"
@@ -16,7 +16,7 @@ static uint32_t simpleInstruction(C_STR name, uint32_t offset) {
 }
 
 COLD_FUNCTION
-static uint32_t builtinStruction(C_STR name, Chunk* chunk, uint32_t offset) {
+static uint32_t builtinInStruction(C_STR name, Chunk* chunk, uint32_t offset) {
 	uint32_t slot = chunk->code[offset + 1];
 	switch (slot)
 	{
@@ -40,6 +40,36 @@ static uint32_t builtinStruction(C_STR name, Chunk* chunk, uint32_t offset) {
 		break;
 	case MODULE_SYSTEM:
 		printf("%-16s %-10s\n", name, "@system");
+		break;
+	}
+	return offset + 2;
+}
+
+COLD_FUNCTION
+static uint32_t bitwiseInStruction(C_STR name, Chunk* chunk, uint32_t offset) {
+	uint32_t slot = chunk->code[offset + 1];
+	switch (slot)
+	{
+	case BIT_OP_NOT:
+		printf("%-10s : %-4s\n", name, "NOT");
+		break;
+	case BIT_OP_AND:
+		printf("%-10s : %-4s\n", name, "AND");
+		break;
+	case BIT_OP_OR:
+		printf("%-10s : %-4s\n", name, "OR");
+		break;
+	case BIT_OP_XOR:
+		printf("%-10s : %-4s\n", name, "XOR");
+		break;
+	case BIT_OP_SHL:
+		printf("%-10s : %-4s\n", name, "SHL");
+		break;
+	case BIT_OP_SHR:
+		printf("%-10s : %-4s\n", name, "SHR");
+		break;
+	case BIT_OP_SAR:
+		printf("%-10s : %-4s\n", name, "SAR");
 		break;
 	}
 	return offset + 2;
@@ -165,7 +195,7 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 		offset += 3;
 
 		ObjFunction* function = AS_FUNCTION(vm.constants.values[constant]);
-		for (int32_t j = 0; j < function->upvalueCount; j++) {
+		for (uint32_t j = 0; j < function->upvalueCount; j++) {
 			int32_t isLocal = chunk->code[offset++];
 			uint16_t index = chunk->code[offset++];
 			index |= (chunk->code[offset++] << 8);
@@ -187,7 +217,7 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 		offset += 4;
 
 		ObjFunction* function = AS_FUNCTION(vm.constants.values[constant]);
-		for (int32_t j = 0; j < function->upvalueCount; j++) {
+		for (uint32_t j = 0; j < function->upvalueCount; j++) {
 			int32_t isLocal = chunk->code[offset++];
 			uint16_t index = chunk->code[offset++];
 			index |= (chunk->code[offset++] << 8);
@@ -223,6 +253,11 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 		return simpleInstruction("OP_GREATER_EQUAL", offset);
 	case OP_LESS_EQUAL:
 		return simpleInstruction("OP_LESS_EQUAL", offset);
+	case OP_INSTANCE_OF:
+		return simpleInstruction("OP_INSTANCE_OF", offset);
+
+	case OP_BITWISE:
+		return bitwiseInStruction("OP_BITWISE", chunk, offset);
 
 	case OP_DEFINE_GLOBAL:
 		return modifyGlobalInstruction("OP_DEFINE_GLOBAL", chunk, offset);
@@ -277,7 +312,7 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 	case OP_MODULE_GLOBAL:
 		return simpleInstruction("OP_MODULE_GLOBAL", offset);
 	case OP_MODULE_BUILTIN:
-		return builtinStruction("OP_MODULE", chunk, offset);
+		return builtinInStruction("OP_MODULE", chunk, offset);
 	default:
 		printf("Unknown opcode %d offset = %d\n", instruction, offset);
 		return offset + 1;
@@ -285,14 +320,14 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 }
 
 COLD_FUNCTION
-void disassembleChunk(Chunk* chunk, C_STR name) {
-	printf("== %s ==\n", name);
+void disassembleChunk(Chunk* chunk, C_STR name, uint32_t id) {
+	printf("== %s(%d) ==\n", name, id);
 
 	uint32_t offset = 0;
 	while (offset < chunk->count) {
 		offset = disassembleInstruction(chunk, offset);
 	}
 
-	printf("== %s end ==\n", name);
+	printf("== %s(%d) end==\n", name, id);
 }
 #endif

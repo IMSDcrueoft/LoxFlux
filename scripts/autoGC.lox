@@ -20,6 +20,6 @@ fun stress() {
     }
 }
 
-var start = @time.second();
+var start = @time.milli();
 stress();
-print @time.second() - start;
+print @time.milli() - start;

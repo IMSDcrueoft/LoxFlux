@@ -53,8 +53,42 @@ Lox is a programming language designed for learning purposes. It is conceived as
 
 #### Local Variable
 
-- **Local variable range**: Expands to support up to 1024 variables(Configurable up to 65534).
-- **'const' keyword support**: Supported within blocks.
+- **Local variable range**: Expands to support up to 1023 nested variables(Configurable up to 65534).
+- **`const` keyword support**: Supported within blocks.
+
+---
+
+### Bitwise Operations
+
+- **Bitwise AND (`&`)**  
+  Performs a logical AND on each pair of corresponding bits. Returns an integer result.  
+  **Example**: `0b1010 & 0b1100` evaluates to `0b1000` (decimal `8`).  
+
+- **Bitwise OR (`|`)**  
+  Performs a logical OR on each pair of corresponding bits. Returns an integer result.  
+  **Example**: `0b1010 | 0b1100` evaluates to `0b1110` (decimal `14`).  
+
+- **Bitwise XOR (`^`)**  
+  Performs a logical exclusive OR (XOR) on each pair of corresponding bits. Returns an integer result.  
+  **Example**: `0b1010 ^ 0b1100` evaluates to `0b0110` (decimal `6`).  
+
+- **Left Shift (`<<`)**  
+  Shifts the bits of the first operand left by the number of positions specified by the second operand.  
+  **Example**: `0b0001 << 2` evaluates to `0b0100` (decimal `4`).  
+
+- **Right Shift (`>>`)** (Sign-propagating)  
+  Shifts the bits right, preserving the sign bit (arithmetic shift).  
+  **Example**: `-8 >> 1` evaluates to `-4` (sign preserved).  
+
+- **Unsigned Right Shift (`>>>`)** (Zero-fill)  
+  Shifts the bits right, filling the leftmost bits with `0` (logical shift).  
+  **Example**: `-8 >>> 1` evaluates to `2147483644` (zero-fill, no sign preservation).  
+
+  #### Notes:
+  1. **Shift Behavior**:  
+    - **Negative shifts**: Negative shift values always return `0`.  
+    - **Large shifts**: Shifts beyond `31` bits are truncated via `shiftAmount % 32`.  
+  2. **Operands**: All operations convert operands to 32-bit integers before execution.  
 
 ---
 
@@ -88,19 +122,14 @@ Lox is a programming language designed for learning purposes. It is conceived as
 
 ### Loop
 
-- **'break' and 'continue' keywords**: Supported within loops.
+- **`break` and `continue` keywords**: Supported within loops.
 
 ---
 
 ### Instance
 
 - **Delete property**: Remove key-value pairs by assigning nil to the object.
-
----
-
-### Timer
-
-- **Cross-platform interface**: Includes `get_nanoseconds()` and `get_utc_milliseconds()`.
+- **`instanceOf` keyword**:  Checks if an object is an instance of a specific class.
 
 ---
 
@@ -185,7 +214,6 @@ These utilities are invaluable for working with structured data, especially in p
 The `@object` module provides utilities for type checking and object introspection. These functions are essential for determining the nature of values and ensuring type safety in dynamic environments.
 
 - **Type Checking**:
-  - `instanceOf`: Checks if an object is an instance of a specific class.
   - `isClass`: Determines whether a value is a class.
   - `isObject`: Verifies if a value is an object.
   - `isArray`: Verifies if a value is an array|typedArray.

@@ -1,6 +1,6 @@
 /*
 * MIT License
-* Copyright (c) 2025 IM&SD (https://github.com/IMSDcrueoft)
+* Copyright (c) 2025 IMSDcrueoft (https://github.com/IMSDcrueoft)
 * See LICENSE file in the root directory for full license text.
 */
 #include "nativeBuiltin.h"
@@ -45,7 +45,7 @@ static Value pushNative(int argCount, Value* args) {
 				reserveArray(array, newSize);
 			}
 
-			if (IS_ARRAY_ANY(array)) {
+			if (OBJ_IS_TYPE(array, OBJ_ARRAY)) {
 				//no type check,so it's faster
 				for (uint32_t i = 1; i < argCount; ++i) {
 					ARRAY_ELEMENT(array, Value, array->length) = args[i];
@@ -56,7 +56,7 @@ static Value pushNative(int argCount, Value* args) {
 				for (uint32_t i = 1; i < argCount; ++i) {
 					Value val = IS_NUMBER(args[i]) ? args[i] : NUMBER_VAL(0);
 
-					switch (array->obj.type) {
+					switch (OBJ_GET_TYPE(array->obj)) {
 					case OBJ_ARRAY_F64:
 						ARRAY_ELEMENT(array, double, array->length) = AS_NUMBER(val);
 						break;
@@ -102,7 +102,7 @@ static Value popNative(int argCount, Value* args) {
 
 		if (array->length > 0) {
 			Value value;
-			if (IS_ARRAY_ANY(array)) {
+			if (OBJ_IS_TYPE(array, OBJ_ARRAY)) {
 				value = ARRAY_ELEMENT(array, Value, array->length - 1);
 			}
 			else {
@@ -135,7 +135,7 @@ static Value resizeNative(int argCount, Value* args) {
 			if (length > array->length) {
 				reserveArray(array, length);
 
-				if (IS_ARRAY_ANY(array)) {
+				if (OBJ_IS_TYPE(array, OBJ_ARRAY)) {
 					//no type check,so it's faster
 					while (array->length < length) {
 						ARRAY_ELEMENT(array, Value, array->length) = NIL_VAL;
@@ -143,7 +143,7 @@ static Value resizeNative(int argCount, Value* args) {
 					}
 				}
 				else {//typed array
-					switch (array->obj.type) {
+					switch (OBJ_GET_TYPE(array->obj)) {
 					case OBJ_ARRAY_F64: {//must fit ieee754
 						char* beginPtr = &ARRAY_ELEMENT(array, double, array->length);
 						uint64_t size = 8ULL * (length - array->length);

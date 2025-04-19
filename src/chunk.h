@@ -1,6 +1,6 @@
 /*
  * MIT License
- * Copyright (c) 2025 IM&SD (https://github.com/IMSDcrueoft)
+ * Copyright (c) 2025 IMSDcrueoft (https://github.com/IMSDcrueoft)
  * See LICENSE file in the root directory for full license text.
 */
 #pragma once
@@ -82,9 +82,21 @@ typedef enum {
 	//allow user to get the global object
 	OP_MODULE_GLOBAL,
 
-	//for debugger
-	OP_DEBUGGER,
+	//instance
+	OP_INSTANCE_OF,
+
+	OP_BITWISE,				//& | ~ ^ << >> >>>
 } OpCode;
+
+typedef enum {
+	BIT_OP_NOT,			//~
+	BIT_OP_AND,			//&
+	BIT_OP_OR,			//|
+	BIT_OP_XOR,			//^
+	BIT_OP_SHL,			//<<
+	BIT_OP_SHR,			//>>>
+	BIT_OP_SAR,			//>>
+} BitOpCode;
 
 typedef struct {
 	uint32_t count;    //limit to 4G

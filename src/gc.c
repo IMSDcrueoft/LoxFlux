@@ -1,6 +1,6 @@
 /*
  * MIT License
- * Copyright (c) 2025 IM&SD (https://github.com/IMSDcrueoft)
+ * Copyright (c) 2025 IMSDcrueoft (https://github.com/IMSDcrueoft)
  * See LICENSE file in the root directory for full license text.
 */
 #include "gc.h"
@@ -11,7 +11,7 @@
 #include "timer.h"
 
 //Flip tagging, although the performance is not high (about 4% gap), is more suitable for concurrent tagging
-bool usingMark = true;
+uint8_t usingMark = 1;
 uint64_t gc_heap_begin = GC_HEAP_BEGIN;
 
 void markValue(Value value)
@@ -114,7 +114,7 @@ static void blackenObject(Obj* object) {
 		//no need
 		//markObject((Obj*)closure->function);
 
-		for (int32_t i = 0; i < closure->upvalueCount; i++) {
+		for (uint32_t i = 0; i < closure->upvalueCount; i++) {
 			markObject((Obj*)closure->upvalues[i]);
 		}
 		break;
@@ -140,7 +140,7 @@ static void blackenObject(Obj* object) {
 	case OBJ_INSTANCE: {
 		ObjInstance* instance = (ObjInstance*)object;
 		ObjClass* klass = instance->klass;
-		if (klass != &builtinClass) {
+		if (klass != NULL) {
 			markObject((Obj*)klass);
 			markTable(&instance->fields);
 		}

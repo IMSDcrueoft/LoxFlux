@@ -1,6 +1,6 @@
 /*
  * MIT License
- * Copyright (c) 2025 IM&SD (https://github.com/IMSDcrueoft)
+ * Copyright (c) 2025 IMSDcrueoft (https://github.com/IMSDcrueoft)
  * See LICENSE file in the root directory for full license text.
 */
 #pragma once
@@ -11,9 +11,9 @@
 #include "nativeBuiltin.h"
 
 //the depth of call frames
-#define FRAMES_MAX 1024
-//customed vm stack begin size,the real limit is localLimit(1024) * frameLimit(1024)
-#define STACK_INITIAL_SIZE (16 * UINT10_COUNT)
+#define FRAMES_MAX UINT10_COUNT
+//customed vm stack begin size,the real limit is 16 * frameLimit(1024)
+#define STACK_INITIAL_SIZE (16 * FRAMES_MAX)
 
 typedef struct {
 	ObjClosure* closure;
@@ -61,12 +61,15 @@ typedef struct {
 	uint64_t bytesAllocated;
 	uint64_t nextGC;
 
-	//frames
-	uint64_t frameCount;
-	CallFrame frames[FRAMES_MAX];
-
 	//ip for debug error
 	uint8_t** ip_error;
+
+	//id for compiled functions
+	uint32_t functionID;
+
+	//frames
+	uint32_t frameCount;
+	CallFrame frames[FRAMES_MAX];
 } VM;
 
 typedef enum {
@@ -77,7 +80,6 @@ typedef enum {
 
 //the global shared vm extern to other file
 extern VM vm;
-extern ObjClass builtinClass;
 
 void vm_init();
 void vm_free();

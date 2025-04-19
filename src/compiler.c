@@ -1,6 +1,6 @@
 /*
  * MIT License
- * Copyright (c) 2025 IM&SD (https://github.com/IMSDcrueoft)
+ * Copyright (c) 2025 IMSDcrueoft (https://github.com/IMSDcrueoft)
  * See LICENSE file in the root directory for full license text.
 */
 #include "compiler.h"
@@ -139,7 +139,7 @@ static uint32_t makeConstant(Value value) {
 		}
 	}
 	case VAL_OBJ: {
-		switch (AS_OBJ(value)->type) {
+		switch (OBJ_TYPE(value)) {
 		case OBJ_STRING: {
 			//find if string is in constant,because it is in pool
 			Entry* entry = getStringEntryInPool(AS_STRING(value));
@@ -221,8 +221,8 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	compiler->localCount = 0;
 	compiler->scopeDepth = 0;
 	//init with 1024 slots
-	compiler->locals = ALLOCATE_NO_GC(Local, UINT10_COUNT);
-	compiler->capacity = UINT10_COUNT;
+	compiler->locals = ALLOCATE_NO_GC(Local, LOCAL_INIT);
+	compiler->localCapacity = LOCAL_INIT;
 
 	compiler->function = newFunction();
 
@@ -255,9 +255,9 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 }
 
 static void freeLocals(Compiler* compiler) {
-	FREE_ARRAY_NO_GC(Local, compiler->locals, compiler->capacity);
+	FREE_ARRAY_NO_GC(Local, compiler->locals, compiler->localCapacity);
 	compiler->locals = NULL;
-	compiler->capacity = 0;
+	compiler->localCapacity = 0;
 }
 
 static ObjFunction* endCompiler() {
@@ -267,7 +267,7 @@ static ObjFunction* endCompiler() {
 #if DEBUG_PRINT_CODE
 	if (!parser.hadError) {
 		disassembleChunk(currentChunk(), (function->name != NULL)
-			? ((function->name->length != 0) ? function->name->chars : "<lambda>") : "<script>");
+			? ((function->name->length != 0) ? function->name->chars : "<lambda>") : "<script>", function->id);
 	}
 #endif
 	current = current->enclosing;
@@ -313,7 +313,7 @@ static void endScope() {
 	}
 }
 
-//need to define first
+//need to declare first
 static ParseRule* getRule(TokenType type);
 
 static void parsePrecedence(Precedence precedence) {
@@ -345,9 +345,16 @@ static uint32_t identifierConstant(Token* name) {
 }
 
 static void addLocal(Token name) {
-	if (current->localCount == UINT10_COUNT) {
-		error("Too many nested local variables in function.");
+	if (current->localCount == LOCAL_MAX) {
+		error("Too many nested local variables in scope.");
 		return;
+	}
+
+	if (current->localCount == current->localCapacity) {
+		//grow
+		uint32_t oldCapacity = current->localCapacity;
+		current->localCapacity = GROW_CAPACITY(oldCapacity);
+		current->locals = GROW_ARRAY_NO_GC(Local, current->locals, oldCapacity, current->localCapacity);
 	}
 
 	Local* local = &current->locals[current->localCount++];
@@ -400,12 +407,12 @@ static LocalInfo resolveLocal(Compiler* compiler, Token* name) {
 		}
 	}
 
-	//it is a global defined var
+	//it is a global declared var
 	return (LocalInfo) { .arg = -1, .isConst = false };
 }
 
-static int32_t addUpvalue(Compiler* compiler, int32_t index, bool isLocal) {
-	int32_t upvalueCount = compiler->function->upvalueCount;
+static uint32_t addUpvalue(Compiler* compiler, int32_t index, bool isLocal) {
+	uint32_t upvalueCount = compiler->function->upvalueCount;
 
 	//deduplicate
 	for (uint32_t i = 0; i < upvalueCount; i++) {
@@ -483,7 +490,7 @@ static void defineConst(uint32_t global) {
 		return;
 	}
 	else {
-		errorAtCurrent("Constant can only be defined in the global scope.");
+		errorAtCurrent("Constant can only be defined in the local scope.");
 	}
 }
 
@@ -562,7 +569,7 @@ static void function(FunctionType type) {
 	emitClosureCommond(makeConstant(OBJ_VAL(function)));
   
 	//insert upValue index
-	for (int32_t i = 0; i < function->upvalueCount; i++) {
+	for (uint32_t i = 0; i < function->upvalueCount; i++) {
 		emitByte(compiler.upvalues[i].isLocal ? 1 : 0);
 		emitBytes(2, (uint8_t)(compiler.upvalues[i].index), (uint8_t)(compiler.upvalues[i].index >> 8));
 	}
@@ -929,6 +936,13 @@ static void binary(bool canAssign) {
 	case TOKEN_GREATER_EQUAL: emitByte(OP_GREATER_EQUAL); break;
 	case TOKEN_LESS: emitByte(OP_LESS); break;
 	case TOKEN_LESS_EQUAL: emitByte(OP_LESS_EQUAL); break;
+	case TOKEN_INSTANCE_OF: emitByte(OP_INSTANCE_OF); break;
+	case TOKEN_BIT_AND: emitBytes(2, OP_BITWISE, BIT_OP_AND); break;
+	case TOKEN_BIT_OR: emitBytes(2, OP_BITWISE, BIT_OP_OR); break;
+	case TOKEN_BIT_XOR: emitBytes(2, OP_BITWISE, BIT_OP_XOR); break;
+	case TOKEN_BIT_SHL: emitBytes(2, OP_BITWISE, BIT_OP_SHL); break;
+	case TOKEN_BIT_SHR: emitBytes(2, OP_BITWISE, BIT_OP_SHR); break;
+	case TOKEN_BIT_SAR: emitBytes(2, OP_BITWISE, BIT_OP_SAR); break;
 	default: return; // Unreachable.
 	}
 }
@@ -1181,6 +1195,7 @@ static void unary(bool canAssign) {
 	switch (operatorType) {
 	case TOKEN_BANG: emitByte(OP_NOT); break;
 	case TOKEN_MINUS: emitByte(OP_NEGATE); break;
+	case TOKEN_BIT_NOT: emitBytes(2, OP_BITWISE, BIT_OP_NOT); break;
 	default: return; // Unreachable.
 	}
 }
@@ -1207,20 +1222,28 @@ ParseRule rules[] = {
 	[TOKEN_GREATER_EQUAL] = {NULL,     binary, PREC_COMPARISON},
 	[TOKEN_LESS] = {NULL,     binary, PREC_COMPARISON},
 	[TOKEN_LESS_EQUAL] = {NULL,     binary, PREC_COMPARISON},
+	[TOKEN_INSTANCE_OF] = {NULL,     binary, PREC_INSTANCEOF},
+	[TOKEN_BIT_AND] = {NULL,	binary, PREC_BITWISE},
+	[TOKEN_BIT_OR] = {NULL,		binary, PREC_BITWISE},
+	[TOKEN_BIT_XOR] = {NULL,	binary, PREC_BITWISE},
+	[TOKEN_BIT_NOT] = {unary,	NULL, PREC_UNARY},
+	[TOKEN_BIT_SHL] = {NULL,	binary, PREC_BITWISE},
+	[TOKEN_BIT_SHR] = {NULL,	binary, PREC_BITWISE},
+	[TOKEN_BIT_SAR] = {NULL,	binary, PREC_BITWISE},
 	[TOKEN_IDENTIFIER] = {variable,     NULL,   PREC_NONE},
 	[TOKEN_STRING] = {string,     NULL,   PREC_NONE},
 	[TOKEN_STRING_ESCAPE] = {string_escape,     NULL,   PREC_NONE},
 	[TOKEN_NUMBER] = {number  ,   NULL,   PREC_NONE  },
 	[TOKEN_NUMBER_BIN] = {number_bin  ,   NULL,   PREC_NONE  },
 	[TOKEN_NUMBER_HEX] = {number_hex  ,   NULL,   PREC_NONE  },
-	[TOKEN_MODULE_GLOBAL] = {builtinLiteral,     NULL,   PREC_CALL},
-	[TOKEN_MODULE_MATH] = {builtinLiteral,     NULL,   PREC_CALL},
-	[TOKEN_MODULE_ARRAY] = {builtinLiteral,     NULL,   PREC_CALL},
-	[TOKEN_MODULE_OBJECT] = {builtinLiteral,     NULL,   PREC_CALL},
-	[TOKEN_MODULE_STRING] = {builtinLiteral,     NULL,   PREC_CALL},
-	[TOKEN_MODULE_TIME] = {builtinLiteral,     NULL,   PREC_CALL},
-	[TOKEN_MODULE_FILE] = {builtinLiteral,     NULL,   PREC_CALL},
-	[TOKEN_MODULE_SYSTEM] = {builtinLiteral,     NULL,   PREC_CALL},
+	[TOKEN_MODULE_GLOBAL] = {builtinLiteral,     NULL,   PREC_NONE},
+	[TOKEN_MODULE_MATH] = {builtinLiteral,     NULL,   PREC_NONE},
+	[TOKEN_MODULE_ARRAY] = {builtinLiteral,     NULL,   PREC_NONE},
+	[TOKEN_MODULE_OBJECT] = {builtinLiteral,     NULL,   PREC_NONE},
+	[TOKEN_MODULE_STRING] = {builtinLiteral,     NULL,   PREC_NONE},
+	[TOKEN_MODULE_TIME] = {builtinLiteral,     NULL,   PREC_NONE},
+	[TOKEN_MODULE_FILE] = {builtinLiteral,     NULL,   PREC_NONE},
+	[TOKEN_MODULE_SYSTEM] = {builtinLiteral,     NULL,   PREC_NONE},
 	[TOKEN_AND] = {NULL,     and_,   PREC_AND},
 	[TOKEN_CLASS] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_ELSE] = {NULL,     NULL,   PREC_NONE},
@@ -1250,6 +1273,7 @@ static ParseRule* getRule(TokenType type) {
 	return &rules[type];
 }
 
+COLD_FUNCTION
 ObjFunction* compile(C_STR source) {
 	Compiler compiler;
 

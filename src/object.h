@@ -1,6 +1,6 @@
 /*
  * MIT License
- * Copyright (c) 2025 IM&SD (https://github.com/IMSDcrueoft)
+ * Copyright (c) 2025 IMSDcrueoft (https://github.com/IMSDcrueoft)
  * See LICENSE file in the root directory for full license text.
 */
 #pragma once
@@ -40,15 +40,20 @@ extern const C_STR objTypeInfo[];
 #endif
 
 struct Obj {
-	ObjType type;
-	bool isMarked;
-	struct Obj* next;
+	struct
+	{
+		uint8_t type;
+		uint8_t isMarked;
+		uint8_t padding[6];//high 48bits
+	};
+	struct Obj* next;	//ptr: The user-space pointer's high 16 bits can be 0 directly,the high 16 bits of the pointer depends on the 47th bit
 };
 
 typedef struct {
 	Obj obj;
-	uint32_t arity;
-	uint32_t upvalueCount;
+	uint16_t arity;
+	uint16_t upvalueCount;
+	uint32_t id;
 	Chunk chunk;
 	ObjString* name;
 } ObjFunction;
@@ -63,7 +68,7 @@ typedef struct ObjUpvalue {
 typedef struct {
 	Obj obj;
 
-	int32_t upvalueCount;
+	uint32_t upvalueCount;
 	ObjUpvalue** upvalues;
 	ObjFunction* function;
 } ObjClosure;
@@ -99,8 +104,8 @@ struct ObjString {
 //begin at 8 and align to 8, when < 64,mul 2, then *1.5 and align 8
 typedef struct {
 	Obj obj;
-	uint32_t capacity;
 	uint32_t length;
+	uint32_t capacity;
 	char* payload;
 } ObjArray;
 
@@ -114,10 +119,12 @@ typedef struct {
 #define IS_STRING_BUILDER(value)	isObjType(value, OBJ_STRING_BUILDER)
 #define IS_ARRAY(value)				isObjType(value, OBJ_ARRAY)
 
-#define ARRAY_IS_TYPE(array, arrayType)		((array->obj.type) == arrayType)
-#define ARRAY_ELEMENT(array, type, index)	(((type*)array->payload)[index])
+#define OBJ_GET_TYPE(obj)			((obj).type)
+#define OBJ_SET_TYPE(obj,objType)	((obj).type = objType)
 
-#define IS_ARRAY_ANY(value)		ARRAY_IS_TYPE(value, OBJ_ARRAY)
+#define OBJ_IS_TYPE(array, arrayType)		(OBJ_GET_TYPE(array->obj) == arrayType)
+#define ARRAY_ELEMENT(array, type, index)	(((type*)array->payload)[index])
+#define ARRAY_IN_RANGE(array, index)		((index >= 0) && (index < array->length))
 
 #define AS_CLOSURE(value)	((ObjClosure*)AS_OBJ(value))
 #define AS_FUNCTION(value)	((ObjFunction*)AS_OBJ(value))

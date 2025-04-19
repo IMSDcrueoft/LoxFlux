@@ -184,14 +184,13 @@
     <ClCompile Include="src\scanner.c" />
     <ClCompile Include="src\nativeString.c" />
     <ClCompile Include="src\table.c" />
-    <ClCompile Include="src\timer.c" />
+    <ClCompile Include="src\timer.cpp" />
     <ClCompile Include="src\value.c" />
     <ClCompile Include="src\vm.c" />
     <ClCompile Include="src\well1024a.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\nativeBuiltin.h" />
-    <ClInclude Include="src\check.h" />
     <ClInclude Include="src\chunk.h" />
     <ClInclude Include="src\common.h" />
     <ClInclude Include="src\compiler.h" />

@@ -1,6 +1,6 @@
 /*
 * MIT License
-* Copyright (c) 2025 IM&SD (https://github.com/IMSDcrueoft)
+* Copyright (c) 2025 IMSDcrueoft (https://github.com/IMSDcrueoft)
 * See LICENSE file in the root directory for full license text.
 */
 #include "nativeBuiltin.h"
@@ -17,19 +17,23 @@ static Value nanoNative(int argCount, Value* args)
 //return micro second
 static Value microNative(int argCount, Value* args)
 {
-	return NUMBER_VAL((double)get_nanoseconds() * 1e-3);
+	return NUMBER_VAL((double)get_microseconds());
 }
 
 //return milli second-
 static Value milliNative(int argCount, Value* args)
 {
-	return NUMBER_VAL((double)get_nanoseconds() * 1e-6);
+	return NUMBER_VAL((double)get_milliseconds());
 }
 
 //return second
 static Value secondNative(int argCount, Value* args)
 {
-	return NUMBER_VAL((double)get_nanoseconds() * 1e-9);
+	return NUMBER_VAL((double)get_seconds());
+}
+
+static Value utcMilliNative(int argCount, Value* args) {
+	return NUMBER_VAL((double)get_utc_milliseconds());
 }
 
 COLD_FUNCTION
@@ -38,4 +42,5 @@ void importNative_time() {
 	defineNative_time("micro", microNative);
 	defineNative_time("milli", milliNative);
 	defineNative_time("second", secondNative);
+	defineNative_time("utc", utcMilliNative);
 }

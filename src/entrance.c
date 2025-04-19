@@ -1,6 +1,6 @@
 /*
  * MIT License
- * Copyright (c) 2025 IM&SD (https://github.com/IMSDcrueoft)
+ * Copyright (c) 2025 IMSDcrueoft (https://github.com/IMSDcrueoft)
  * See LICENSE file in the root directory for full license text.
 */
 #include "entrance.h"
@@ -108,7 +108,7 @@ static STR dealWithFilePath(STR line) {
 }
 
 void repl() {
-	printf("%s %s  Copyright (C) %s, %s\n", INTERPRETER_NAME, INTERPRETER_VERSION, INTERPRETER_COPYRIGHT, INTERPRETER_OWNER);
+	printf("%s %s  Copyright (C) %s, %s\n", INTERPRETER_NAME, INTERPRETER_VERSION, INTERPRETER_COPYRIGHT, INTERPRETER_DEVELOPER);
 
 	vm_init();
 

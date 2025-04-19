@@ -1,6 +1,6 @@
 /*
  * MIT License
- * Copyright (c) 2025 IM&SD (https://github.com/IMSDcrueoft)
+ * Copyright (c) 2025 IMSDcrueoft (https://github.com/IMSDcrueoft)
  * See LICENSE file in the root directory for full license text.
 */
 #include "vm.h"
@@ -15,10 +15,6 @@
 #include "timer.h"
 #endif
 
-//the global
-static ObjClass globalClass = { .obj = {.type = OBJ_CLASS,.next = NULL,.isMarked = true},.name = NULL };
-//the builtins
-ObjClass builtinClass = { .obj = {.type = OBJ_CLASS,.next = NULL,.isMarked = true},.name = NULL };
 //the global shared vm
 VM vm;
 
@@ -42,10 +38,14 @@ static void stack_reset()
 }
 
 COLD_FUNCTION
-static bool throwError(Value error) {
-	printf("[ThrowError] ");
-	printValue(error);
-	printf("\n");
+static bool throwError(Value error, C_STR format, ...) {
+	fprintf(stderr, "[RuntimeError] ");
+
+	va_list args;
+	va_start(args, format);
+	vfprintf(stderr, format, args);
+	va_end(args);
+	fputs("\n", stderr);
 
 	if ((vm.frameCount - 1) >= 0) {
 		vm.frames[vm.frameCount - 1].ip = *vm.ip_error;
@@ -60,13 +60,22 @@ static bool throwError(Value error) {
 		uint32_t line = getLine(&function->chunk.lines, (uint32_t)instruction);
 
 		fprintf(stderr, "[line %d] in ", line);
-		if (function->name == NULL) {
-			fprintf(stderr, "script\n");
+		if (function->name != NULL) {
+			if (function->name->length != 0) {
+				fprintf(stderr, "%s() : (%d)\n", function->name->chars, function->id);
+			}
+			else {
+				fprintf(stderr, "<lambda>() : (%d)\n", function->id);
+			}
 		}
 		else {
-			fprintf(stderr, "%s()\n", function->name->chars);
+			fprintf(stderr, "<script> : (%d)\n", function->id);
 		}
 	}
+
+	printf("[ErrorInfo] ");
+	printValue(error);
+	printf("\n");
 
 	stack_reset();
 	return false;
@@ -74,7 +83,7 @@ static bool throwError(Value error) {
 
 COLD_FUNCTION
 static void runtimeError(C_STR format, ...) {
-	printf("[RuntimeError] ");
+	fprintf(stderr, "[RuntimeError] ");
 
 	va_list args;
 	va_start(args, format);
@@ -94,11 +103,16 @@ static void runtimeError(C_STR format, ...) {
 		uint32_t line = getLine(&function->chunk.lines, (uint32_t)instruction);
 
 		fprintf(stderr, "[line %d] in ", line);
-		if (function->name == NULL) {
-			fprintf(stderr, "script\n");
+		if (function->name != NULL) {
+			if (function->name->length != 0) {
+				fprintf(stderr, "%s() : (%d)\n", function->name->chars, function->id);
+			}
+			else {
+				fprintf(stderr, "<lambda>() : (%d)\n", function->id);
+			}
 		}
 		else {
-			fprintf(stderr, "%s()\n", function->name->chars);
+			fprintf(stderr, "<script> : (%d)\n", function->id);
 		}
 	}
 
@@ -214,7 +228,7 @@ static void importBuiltins() {
 	for (uint32_t i = 0; i < BUILTIN_MODULE_COUNT; ++i) {
 		vm.builtins[i] = (ObjInstance){
 		.obj = {.type = OBJ_INSTANCE,.next = NULL,.isMarked = true},
-		.klass = &builtinClass,
+		.klass = NULL,
 		.fields = {.type = TABLE_NORMAL}//remind this
 		};
 	}
@@ -266,7 +280,7 @@ void vm_init()
 
 	vm.globals = (ObjInstance){
 		.obj = {.type = OBJ_INSTANCE,.next = NULL,.isMarked = true},
-		.klass = &globalClass,
+		.klass = NULL,
 		.fields = {.type = TABLE_GLOBAL}//remind this
 	};
 	table_init(&vm.globals.fields);
@@ -283,6 +297,7 @@ void vm_init()
 	vm.grayCapacity = 0;
 	vm.grayStack = NULL;
 
+	vm.functionID = 0;
 	//set
 	vm.bytesAllocated = 0;
 	vm.bytesAllocated_no_gc = 0;
@@ -452,6 +467,84 @@ static inline void addByteCodeCount() {
 }
 #endif
 
+HOT_FUNCTION
+static bool bitInstruction(uint8_t bitOpType) {
+#define BINARAY_OP_BIT(op)																			\
+    do {																							\
+		/* Pop the top two values from the stack */													\
+		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {								\
+			/* Perform the operation and push the result back */									\
+			vm.stackTop[-2] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-2]) op (int32_t)AS_NUMBER(vm.stackTop[-1]));	\
+			vm.stackTop--;																			\
+		} else {														                            \
+			runtimeError("Operands must be numbers.");										\
+			return INTERPRET_RUNTIME_ERROR;															\
+		}																							\
+	} while (false)
+
+	switch (bitOpType)
+	{
+	case BIT_OP_NOT: {
+		if (IS_NUMBER(vm.stackTop[-1])) {
+			AS_NUMBER(vm.stackTop[-1]) = ~(int32_t)AS_NUMBER(vm.stackTop[-1]);
+			return true;
+		}
+	}
+	case BIT_OP_AND: BINARAY_OP_BIT(&); return true;
+	case BIT_OP_OR: BINARAY_OP_BIT(| ); return true;
+	case BIT_OP_XOR: BINARAY_OP_BIT(^); return true;
+
+	case BIT_OP_SHL: {
+		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
+			int32_t shiftBits = AS_NUMBER(vm.stackTop[-1]);
+
+			if (shiftBits >= 0) {
+				vm.stackTop[-2] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-2]) << (shiftBits & 31));
+				vm.stackTop--;
+			}
+			else {
+				vm.stackTop[-2] = NUMBER_VAL(0);
+				vm.stackTop--;
+			}
+			return true;
+		}
+	}
+	case BIT_OP_SAR: {
+		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
+			int32_t shiftBits = AS_NUMBER(vm.stackTop[-1]);
+
+			if (shiftBits >= 0) {
+				vm.stackTop[-2] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-2]) >> (shiftBits & 31));
+				vm.stackTop--;
+			}
+			else {
+				vm.stackTop[-2] = NUMBER_VAL(0);
+				vm.stackTop--;
+			}
+			return true;
+		}
+	}
+	case BIT_OP_SHR: {
+		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
+			int32_t shiftBits = AS_NUMBER(vm.stackTop[-1]);
+
+			if (shiftBits >= 0) {
+				vm.stackTop[-2] = NUMBER_VAL((uint32_t)AS_NUMBER(vm.stackTop[-2]) >> (shiftBits & 31));
+				vm.stackTop--;
+			}
+			else {
+				vm.stackTop[-2] = NUMBER_VAL(0);
+				vm.stackTop--;
+			}
+			return true;
+		}
+	}
+	}
+
+	return false;
+#undef BINARAY_OP_BIT
+}
+
 //to run code in vm
 HOT_FUNCTION
 static InterpretResult run()
@@ -475,7 +568,7 @@ static InterpretResult run()
 			vm.stackTop[-2] = valueType(AS_NUMBER(vm.stackTop[-2]) op AS_NUMBER(vm.stackTop[-1]));	\
 			vm.stackTop--;																			\
 		} else {														                            \
-			runtimeError("Operands must be numbers.");												\
+			runtimeError("Operands must be numbers.");										\
 			return INTERPRET_RUNTIME_ERROR;															\
 		}																							\
 	} while (false)
@@ -488,7 +581,7 @@ static InterpretResult run()
 			vm.stackTop[-2] = valueType(fmod(AS_NUMBER(vm.stackTop[-2]),AS_NUMBER(vm.stackTop[-1])));	\
 			vm.stackTop--;																				\
 		} else {																						\
-			runtimeError("Operands must be numbers.");													\
+			runtimeError("Operands must be numbers.");											\
 			return INTERPRET_RUNTIME_ERROR;																\
 		}																								\
 	} while (false)
@@ -528,7 +621,7 @@ static InterpretResult run()
 			ObjClosure* closure = newClosure(function);
 			stack_push(OBJ_VAL(closure));
 
-			for (int32_t i = 0; i < closure->upvalueCount; i++) {
+			for (uint32_t i = 0; i < closure->upvalueCount; i++) {
 				uint8_t isLocal = READ_BYTE();
 				uint16_t index = READ_SHORT();
 				if (isLocal) {
@@ -546,7 +639,7 @@ static InterpretResult run()
 			ObjClosure* closure = newClosure(function);
 			stack_push(OBJ_VAL(closure));
 
-			for (int32_t i = 0; i < closure->upvalueCount; i++) {
+			for (uint32_t i = 0; i < closure->upvalueCount; i++) {
 				uint8_t isLocal = READ_BYTE();
 				uint16_t index = READ_SHORT();
 				if (isLocal) {
@@ -654,14 +747,14 @@ static InterpretResult run()
 			Value target = vm.stackTop[-2];
 			Value index = vm.stackTop[-1];
 
-			if (isArrayLike(target)) {
+			if (isIndexableArray(target)) {
 				if (IS_NUMBER(index)) {
 					//get array
 					ObjArray* array = AS_ARRAY(target);
 					double num_index = AS_NUMBER(index);
 
-					if ((num_index >= 0) && (num_index < array->length)) {
-						if (IS_ARRAY_ANY(array)) {
+					if (ARRAY_IN_RANGE(array, num_index)) {
+						if (OBJ_IS_TYPE(array, OBJ_ARRAY)) {
 							vm.stackTop[-2] = ARRAY_ELEMENT(array, Value, (uint32_t)num_index);
 							vm.stackTop--;
 						}
@@ -708,8 +801,9 @@ static InterpretResult run()
 					ObjString* string = AS_STRING(target);
 					double num_index = AS_NUMBER(index);
 
-					if ((num_index >= 0) && (num_index < string->length)) {
-						vm.stackTop[-2] = getStringValue(string, (uint32_t)num_index);
+					if (ARRAY_IN_RANGE(string, num_index)) {
+						//return ascii
+						vm.stackTop[-2] = NUMBER_VAL((uint8_t)(string->chars[(uint32_t)num_index]));
 						vm.stackTop--;
 					}
 					else {
@@ -720,27 +814,6 @@ static InterpretResult run()
 				}
 				else {
 					runtimeError("String subscript must be number.");
-					return INTERPRET_RUNTIME_ERROR;
-				}
-			}
-			else if (IS_STRING_BUILDER(target)) {
-				if (IS_NUMBER(index)) {
-					//get array
-					ObjArray* array = AS_ARRAY(target);
-					double num_index = AS_NUMBER(index);
-
-					if ((num_index >= 0) && (num_index < array->length)) {
-						vm.stackTop[-2] = getStringBuilderValue(array, (uint32_t)num_index);
-						vm.stackTop--;
-					}
-					else {
-						vm.stackTop[-2] = NIL_VAL;
-						vm.stackTop--;
-					}
-					break;
-				}
-				else {
-					runtimeError("StringBuiler subscript must be number.");
 					return INTERPRET_RUNTIME_ERROR;
 				}
 			}
@@ -759,8 +832,8 @@ static InterpretResult run()
 					ObjArray* array = AS_ARRAY(target);
 					double num_index = AS_NUMBER(index);
 
-					if ((num_index >= 0) && (num_index < array->length)) {
-						if (IS_ARRAY_ANY(array)) {
+					if (ARRAY_IN_RANGE(array, num_index)) {
+						if (OBJ_IS_TYPE(array, OBJ_ARRAY)) {
 							vm.stackTop[-3] = ARRAY_ELEMENT(array, Value, (uint32_t)num_index) = value;
 							vm.stackTop -= 2;
 						}
@@ -905,24 +978,29 @@ static InterpretResult run()
 		case OP_TRUE: stack_push(BOOL_VAL(true)); break;
 		case OP_FALSE: stack_push(BOOL_VAL(false)); break;
 		case OP_EQUAL: {
+			vm.stackTop[-2] = BOOL_VAL(valuesEqual(vm.stackTop[-2], vm.stackTop[-1]));
 			vm.stackTop--;
-			vm.stackTop[-1] = BOOL_VAL(valuesEqual(vm.stackTop[-1], vm.stackTop[0]));
 			break;
 		}
 		case OP_NOT_EQUAL: {
+			vm.stackTop[-2] = BOOL_VAL(!valuesEqual(vm.stackTop[-2], vm.stackTop[-1]));
 			vm.stackTop--;
-			vm.stackTop[-1] = BOOL_VAL(!valuesEqual(vm.stackTop[-1], vm.stackTop[0]));
 			break;
 		}
 		case OP_GREATER:  BINARY_OP(BOOL_VAL, > ); break;
 		case OP_LESS:     BINARY_OP(BOOL_VAL, < ); break;
 		case OP_GREATER_EQUAL:  BINARY_OP(BOOL_VAL, >= ); break;
 		case OP_LESS_EQUAL:     BINARY_OP(BOOL_VAL, <= ); break;
-
+		case OP_INSTANCE_OF: {
+			bool isInstanceOf = (IS_INSTANCE(vm.stackTop[-2]) && IS_CLASS(vm.stackTop[-1])) && (AS_INSTANCE(vm.stackTop[-2])->klass == AS_CLASS(vm.stackTop[-1]));
+			vm.stackTop[-2] = BOOL_VAL(isInstanceOf);
+			vm.stackTop--;
+			break;
+		}
 		case OP_ADD: {
 			// might cause gc,so can't decrease first
-			if (SAME_REF_TYPE(vm.stackTop[-2], vm.stackTop[-1])) {
-				if (IS_NUMBER(vm.stackTop[-2])){ // && IS_NUMBER(vm.stackTop[-1])) {
+			if (SAME_VALUE_TYPE(vm.stackTop[-2], vm.stackTop[-1])) {
+				if (IS_NUMBER(vm.stackTop[-2])) { // && IS_NUMBER(vm.stackTop[-1])) {
 					vm.stackTop[-2] = NUMBER_VAL(AS_NUMBER(vm.stackTop[-2]) + AS_NUMBER(vm.stackTop[-1]));
 					vm.stackTop--;
 					break;
@@ -947,14 +1025,29 @@ static InterpretResult run()
 			vm.stackTop[-1] = BOOL_VAL(isFalsey(vm.stackTop[-1]));
 			break;
 		}
+
 		case OP_NEGATE: {
-			if (!IS_NUMBER(vm.stackTop[-1])) {
+			if (IS_NUMBER(vm.stackTop[-1])) {
+				AS_NUMBER(vm.stackTop[-1]) = -AS_NUMBER(vm.stackTop[-1]);
+				break;
+			}
+			else {
 				runtimeError("Operand must be a number.");
 				return INTERPRET_RUNTIME_ERROR;
 			}
-			AS_NUMBER(vm.stackTop[-1]) = -AS_NUMBER(vm.stackTop[-1]);
-			break;
 		}
+
+		case OP_BITWISE: {
+			uint8_t bitOpType = READ_BYTE();
+			if (bitInstruction(bitOpType)) {
+				break;
+			}
+			else {
+				runtimeError("Operands must be numbers.");
+				return INTERPRET_RUNTIME_ERROR;
+			}
+		}
+
 		case OP_PRINT: {
 #if DEBUG_MODE
 			printf("[print] ");
@@ -965,7 +1058,7 @@ static InterpretResult run()
 		}
 		case OP_THROW: {
 			//if solved break else error
-			if (throwError(stack_pop())) {
+			if (throwError(stack_pop(), "An exception was thrown.")) {
 				break;
 			}
 			return INTERPRET_RUNTIME_ERROR;
@@ -1057,13 +1150,6 @@ static InterpretResult run()
 			stack_push(OBJ_VAL(&vm.builtins[moduleIndex]));
 			break;
 		}
-		case OP_DEBUGGER: {
-			//no op
-#if DEBUG_MODE
-
-#endif
-			break;
-		}
 		}
 
 #if LOG_MIPS
@@ -1083,14 +1169,14 @@ static InterpretResult run()
 InterpretResult interpret(C_STR source)
 {
 #if LOG_COMPILE_TIMING
-	uint64_t time_compile = get_nanoseconds();
+	uint64_t time_compile = get_milliseconds();
 #endif
 
 	ObjFunction* function = compile(source);
 	if (function == NULL) return INTERPRET_COMPILE_ERROR;
 
 #if LOG_COMPILE_TIMING
-	double time_compile_f = (get_nanoseconds() - time_compile) * 1e-6;
+	double time_compile_f = (get_milliseconds() - time_compile);
 	printf("[Log] Finished compiling in %g ms.\n", time_compile_f);
 #endif
 
@@ -1101,7 +1187,7 @@ InterpretResult interpret(C_STR source)
 	call(closure, 0);
 
 #if LOG_EXECUTE_TIMING || LOG_MIPS
-	uint64_t time_run = get_nanoseconds();
+	uint64_t time_run = get_milliseconds();
 #endif
 
 #if LOG_MIPS
@@ -1111,7 +1197,7 @@ InterpretResult interpret(C_STR source)
 	InterpretResult result = run();
 
 #if LOG_EXECUTE_TIMING || LOG_MIPS
-	double time_run_f = (get_nanoseconds() - time_run) * 1e-6;
+	double time_run_f = (get_milliseconds() - time_run);
 #if LOG_EXECUTE_TIMING
 	printf("[Log] Finished executing in %g ms.\n", time_run_f);
 #endif

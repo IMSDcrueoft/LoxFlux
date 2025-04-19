@@ -1,6 +1,6 @@
 /*
  * MIT License
- * Copyright (c) 2025 IM&SD (https://github.com/IMSDcrueoft)
+ * Copyright (c) 2025 IMSDcrueoft (https://github.com/IMSDcrueoft)
  * See LICENSE file in the root directory for full license text.
 */
 #pragma once
@@ -11,7 +11,7 @@
 #define GC_HEAP_BEGIN 1024 * 1024
 
 //please don't modify them from outside
-extern bool usingMark;
+extern uint8_t usingMark;
 
 void markObject(Obj* object);
 void markValue(Value value);

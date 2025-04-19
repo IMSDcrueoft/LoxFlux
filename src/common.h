@@ -1,6 +1,6 @@
 /*
  * MIT License
- * Copyright (c) 2025 IM&SD (https://github.com/IMSDcrueoft)
+ * Copyright (c) 2025 IMSDcrueoft (https://github.com/IMSDcrueoft)
  * See LICENSE file in the root directory for full license text.
 */
 #pragma once
@@ -12,8 +12,10 @@
 #include <string.h>
 #include <math.h>
 #include <stdarg.h>
-//check the type
-#include "check.h"
+#include <float.h>
+
+_Static_assert(sizeof(void*) == 8, "This platform does not have 8-byte pointers. The program requires a 64-bit environment.");
+
 #include "options.h"
 #include "optimize.h"
 
