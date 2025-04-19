@@ -95,6 +95,7 @@ Lox is a programming language designed for learning purposes. It is conceived as
 ### Instance
 
 - **Delete property**: Remove key-value pairs by assigning nil to the object.
+- **'instanceOf' keyword**:  Checks if an object is an instance of a specific class.
 
 ---
 
@@ -179,7 +180,6 @@ These utilities are invaluable for working with structured data, especially in p
 The `@object` module provides utilities for type checking and object introspection. These functions are essential for determining the nature of values and ensuring type safety in dynamic environments.
 
 - **Type Checking**:
-  - `instanceOf`: Checks if an object is an instance of a specific class.
   - `isClass`: Determines whether a value is a class.
   - `isObject`: Verifies if a value is an object.
   - `isArray`: Verifies if a value is an array|typedArray.
