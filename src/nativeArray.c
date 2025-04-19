@@ -45,7 +45,7 @@ static Value pushNative(int argCount, Value* args) {
 				reserveArray(array, newSize);
 			}
 
-			if (IS_ARRAY_ANY(array)) {
+			if (OBJ_IS_TYPE(array, OBJ_ARRAY)) {
 				//no type check,so it's faster
 				for (uint32_t i = 1; i < argCount; ++i) {
 					ARRAY_ELEMENT(array, Value, array->length) = args[i];
@@ -102,7 +102,7 @@ static Value popNative(int argCount, Value* args) {
 
 		if (array->length > 0) {
 			Value value;
-			if (IS_ARRAY_ANY(array)) {
+			if (OBJ_IS_TYPE(array, OBJ_ARRAY)) {
 				value = ARRAY_ELEMENT(array, Value, array->length - 1);
 			}
 			else {
@@ -135,7 +135,7 @@ static Value resizeNative(int argCount, Value* args) {
 			if (length > array->length) {
 				reserveArray(array, length);
 
-				if (IS_ARRAY_ANY(array)) {
+				if (OBJ_IS_TYPE(array, OBJ_ARRAY)) {
 					//no type check,so it's faster
 					while (array->length < length) {
 						ARRAY_ELEMENT(array, Value, array->length) = NIL_VAL;

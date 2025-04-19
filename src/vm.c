@@ -676,7 +676,7 @@ static InterpretResult run()
 					double num_index = AS_NUMBER(index);
 
 					if (ARRAY_IN_RANGE(array, num_index)) {
-						if (IS_ARRAY_ANY(array)) {
+						if (OBJ_IS_TYPE(array, OBJ_ARRAY)) {
 							vm.stackTop[-2] = ARRAY_ELEMENT(array, Value, (uint32_t)num_index);
 							vm.stackTop--;
 						}
@@ -755,7 +755,7 @@ static InterpretResult run()
 					double num_index = AS_NUMBER(index);
 
 					if (ARRAY_IN_RANGE(array, num_index)) {
-						if (IS_ARRAY_ANY(array)) {
+						if (OBJ_IS_TYPE(array, OBJ_ARRAY)) {
 							vm.stackTop[-3] = ARRAY_ELEMENT(array, Value, (uint32_t)num_index) = value;
 							vm.stackTop -= 2;
 						}
