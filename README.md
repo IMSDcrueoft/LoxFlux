@@ -228,6 +228,22 @@ These functions are particularly useful for runtime type validation and debuggin
 
 ---
 
+The `@string` module provides advanced string manipulation capabilities, supporting both basic operations and high-performance string building. It handles ASCII and UTF-8 encodings with memory-efficient strategies, ideal for text processing tasks.
+
+- **String Methods**:
+  - `length`: Returns the byte length of a string.  
+  - `utf8Len`: Returns the character count for UTF-8 strings (ignoring byte-level details). e.g.,`@string.utf8Len("αβγ")` → `3`
+  - `charAt`: Retrieves an ASCII character by byte position.  
+  - `utf8At`: Retrieves a UTF-8 character by logical character position. e.g.,`@string.utf8At("αβγ", 1)` → `"β"`
+  - `append`: Efficiently appends strings or other builders to a `StringBuilder`.
+  - `intern`: Converts a `StringBuilder` to an immutable string(will occupy the constant scale), or returns existing strings directly.
+- **StringBuiler Constructor**:
+  - `Builder`: Creates a mutable string buffer, optionally initialized with a string or another builder.  
+
+This module balances performance and safety for both simple text tasks and large-scale string processing.
+
+---
+
 The `@system` module offers low-level system utilities, primarily focused on memory management and garbage collection. These functions provide insights into the runtime environment and allow fine-grained control over resource allocation.
 
 - **Log**
