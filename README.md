@@ -214,11 +214,15 @@ These utilities are invaluable for working with structured data, especially in p
 The `@object` module provides utilities for type checking and object introspection. These functions are essential for determining the nature of values and ensuring type safety in dynamic environments.
 
 - **Type Checking**:
-  - `isClass`: Determines whether a value is a class.
+  - `isClass`: Verifies if a value is a class.
+  - `isFunction`: Verifies if a value is a function|native-function.
   - `isObject`: Verifies if a value is an object.
-  - `isArray`: Verifies if a value is an array|typedArray.
-  - `isString`: Checks if a value is a string.
-  - `isNumber`: Determines whether a value is a number.
+  - `isArray`: Verifies if a value is an array.
+  - `isArray`: Verifies if a value is typedArray.
+  - `isString`: Verifies if a value is a string|stringBuilder.
+  - `isNumber`: Verifies whether a value is a number.
+  - `isBoolean`: Verifies whether a value is true|false.
+  - 
 
 These functions are particularly useful for runtime type validation and debugging, allowing developers to write robust and error-resistant code.
 

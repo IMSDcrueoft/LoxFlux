@@ -36,7 +36,7 @@ static Value isArrayLikeNative(int argCount, Value* args) {
 }
 
 static Value isFunctionNative(int argCount, Value* args) {
-	return BOOL_VAL(argCount >= 1 && (IS_FUNCTION(args[0]) || IS_NATIVE(args[0])));
+	return BOOL_VAL(argCount >= 1 && (IS_CLOSURE(args[0]) || IS_NATIVE(args[0])));
 }
 
 static Value isBooleanNative(int argCount, Value* args) {
