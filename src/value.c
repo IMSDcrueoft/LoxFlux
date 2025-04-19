@@ -50,8 +50,8 @@ void print_adaptive_double(double value) {
 		return;
 	}
 
-	char buffer[50];
 	const double abs_value = fabs(value);
+	char buffer[40];
 
 	if (abs_value >= 1e9 || (abs_value <= 1e-5 && value != 0.0)) {
 		snprintf(buffer, sizeof(buffer), "%.15e", value);

@@ -129,7 +129,7 @@ ObjArray* newArray(uint64_t size)
 {
 	//align to 8
 	size = max(8, (size + 7) & ~7);
-	if (size > UINT32_MAX) {
+	if (size > ARRAYLIKE_MAX) {
 		fprintf(stderr, "Array size overflow");
 		exit(1);
 	}
@@ -146,7 +146,7 @@ ObjArray* newArrayF64(uint64_t size)
 {
 	//align to 8
 	size = max(8, (size + 7) & ~7);
-	if (size > UINT32_MAX) {
+	if (size > ARRAYLIKE_MAX) {
 		fprintf(stderr, "Array size overflow");
 		exit(1);
 	}
@@ -163,7 +163,7 @@ ObjArray* newArrayF32(uint64_t size)
 {
 	//align to 8
 	size = max(8, (size + 7) & ~7);
-	if (size > UINT32_MAX) {
+	if (size > ARRAYLIKE_MAX) {
 		fprintf(stderr, "Array size overflow");
 		exit(1);
 	}
@@ -180,7 +180,7 @@ ObjArray* newArrayU32(uint64_t size)
 {
 	//align to 8
 	size = max(8, (size + 7) & ~7);
-	if (size > UINT32_MAX) {
+	if (size > ARRAYLIKE_MAX) {
 		fprintf(stderr, "Array size overflow");
 		exit(1);
 	}
@@ -197,7 +197,7 @@ ObjArray* newArrayI32(uint64_t size)
 {
 	//align to 8
 	size = max(8, (size + 7) & ~7);
-	if (size > UINT32_MAX) {
+	if (size > ARRAYLIKE_MAX) {
 		fprintf(stderr, "Array size overflow");
 		exit(1);
 	}
@@ -214,7 +214,7 @@ ObjArray* newArrayU16(uint64_t size)
 {
 	//align to 8
 	size = max(8, (size + 7) & ~7);
-	if (size > UINT32_MAX) {
+	if (size > ARRAYLIKE_MAX) {
 		fprintf(stderr, "Array size overflow");
 		exit(1);
 	}
@@ -231,7 +231,7 @@ ObjArray* newArrayI16(uint64_t size)
 {
 	//align to 8
 	size = max(8, (size + 7) & ~7);
-	if (size > UINT32_MAX) {
+	if (size > ARRAYLIKE_MAX) {
 		fprintf(stderr, "Array size overflow");
 		exit(1);
 	}
@@ -248,7 +248,7 @@ ObjArray* newArrayU8(uint64_t size)
 {
 	//align to 8
 	size = max(8, (size + 7) & ~7);
-	if (size > UINT32_MAX) {
+	if (size > ARRAYLIKE_MAX) {
 		fprintf(stderr, "Array size overflow");
 		exit(1);
 	}
@@ -265,7 +265,7 @@ ObjArray* newArrayI8(uint64_t size)
 {
 	//align to 8
 	size = max(8, (size + 7) & ~7);
-	if (size > UINT32_MAX) {
+	if (size > ARRAYLIKE_MAX) {
 		fprintf(stderr, "Array size overflow");
 		exit(1);
 	}
@@ -278,13 +278,23 @@ ObjArray* newArrayI8(uint64_t size)
 	return array;
 }
 
+ObjArray* newStringBuilder()
+{
+	ObjArray* stringBuilder = ALLOCATE_OBJ(ObjArray, OBJ_STRING_BUILDER);
+	stringBuilder->capacity = 0;
+	stringBuilder->length = 0;
+	stringBuilder->payload = NULL;
+
+	return stringBuilder;
+}
+
 COLD_FUNCTION
 void reserveArray(ObjArray* array, uint64_t size)
 {
 	size = max(8, (size + 7) & ~7);
 	if (size < array->capacity) return;
-	if (size > UINT32_MAX) {
-		fprintf(stderr, "Array size overflow");
+	if (size > ARRAYLIKE_MAX) {
+		fprintf(stderr, "ArrayLike size overflow");
 		exit(1);
 	}
 
@@ -327,19 +337,6 @@ void reserveArray(ObjArray* array, uint64_t size)
 	array->payload = (char*)newPayload;
 	array->capacity = size;
 #undef GROW_TYPED_ARRY
-}
-
-COLD_FUNCTION
-Value getStringValue(ObjString* string, uint32_t index)
-{
-	//There are only a maximum of 256 characters
-	return OBJ_VAL(copyString(string->chars + index, 1, false));
-}
-
-COLD_FUNCTION
-Value getStringBuilderValue(ObjArray* stringBuilder, uint32_t index) {
-	//There are only a maximum of 256 characters
-	return OBJ_VAL(copyString(stringBuilder->payload + index, 1, false));
 }
 
 //it don't check index so be careful
@@ -675,11 +672,13 @@ void printObject(Value value, bool isExpand) {
 	case OBJ_UPVALUE:
 		printf("upvalue");
 		break;
-	default:
+	default: {
 		if (isIndexableArray(value)) {
 			ObjArray* array = AS_ARRAY(value);
 			printArrayLike(array, isExpand);
 		}
+		break;
+	}
 	}
 }
 
