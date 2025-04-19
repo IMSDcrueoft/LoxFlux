@@ -291,7 +291,7 @@ void reserveArray(ObjArray* array, uint64_t size)
 #define GROW_TYPED_ARRY(type, ptr, size) reallocate(ptr, sizeof(type) * array->capacity, sizeof(type) * size)
 	Unknown_ptr newPayload = NULL;
 
-	switch (array->obj.type) {
+	switch (OBJ_GET_TYPE(array->obj)) {
 	case OBJ_ARRAY:
 		newPayload = GROW_TYPED_ARRY(Value, array->payload, size);
 		break;
@@ -345,7 +345,7 @@ Value getStringBuilderValue(ObjArray* stringBuilder, uint32_t index) {
 //it don't check index so be careful
 Value getTypedArrayElement(ObjArray* array, uint32_t index)
 {
-	switch (array->obj.type) {
+	switch (OBJ_GET_TYPE(array->obj)) {
 	case OBJ_ARRAY_F64:
 		return NUMBER_VAL(ARRAY_ELEMENT(array, double, index));
 	case OBJ_ARRAY_F32:
@@ -372,7 +372,7 @@ Value getTypedArrayElement(ObjArray* array, uint32_t index)
 void setTypedArrayElement(ObjArray* array, uint32_t index, Value val)
 {
 	val = IS_NUMBER(val) ? val : NUMBER_VAL(0);
-	switch (array->obj.type) {
+	switch (OBJ_GET_TYPE(array->obj)) {
 	case OBJ_ARRAY_F64:
 		ARRAY_ELEMENT(array, double, index) = AS_NUMBER(val);
 		break;
@@ -556,13 +556,13 @@ static void printFunction(ObjFunction* function) {
 }
 
 static void printArrayLike(ObjArray* array, bool isExpand) {
-	if (array->obj.type == OBJ_STRING_BUILDER) {
+	if (OBJ_GET_TYPE(array->obj) == OBJ_STRING_BUILDER) {
 		printf("%s", array->payload);
 		return;
 	}
 
 	if (!isExpand) {
-		switch (array->obj.type) {
+		switch (OBJ_GET_TYPE(array->obj)) {
 		case OBJ_ARRAY:
 			printf("<array>");
 			break;
@@ -596,7 +596,7 @@ static void printArrayLike(ObjArray* array, bool isExpand) {
 		if (array->length > 0) {
 			printf("[ ");
 			for (uint32_t i = 0; i < array->length;) {
-				switch (array->obj.type) {
+				switch (OBJ_GET_TYPE(array->obj)) {
 				case OBJ_ARRAY: //don't expand now ,or it's too slow and too much
 					printValue(ARRAY_ELEMENT(array, Value, i));
 					break;

@@ -56,7 +56,7 @@ static Value pushNative(int argCount, Value* args) {
 				for (uint32_t i = 1; i < argCount; ++i) {
 					Value val = IS_NUMBER(args[i]) ? args[i] : NUMBER_VAL(0);
 
-					switch (array->obj.type) {
+					switch (OBJ_GET_TYPE(array->obj)) {
 					case OBJ_ARRAY_F64:
 						ARRAY_ELEMENT(array, double, array->length) = AS_NUMBER(val);
 						break;
@@ -143,7 +143,7 @@ static Value resizeNative(int argCount, Value* args) {
 					}
 				}
 				else {//typed array
-					switch (array->obj.type) {
+					switch (OBJ_GET_TYPE(array->obj)) {
 					case OBJ_ARRAY_F64: {//must fit ieee754
 						char* beginPtr = &ARRAY_ELEMENT(array, double, array->length);
 						uint64_t size = 8ULL * (length - array->length);

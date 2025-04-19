@@ -916,7 +916,7 @@ static InterpretResult run()
 
 		case OP_ADD: {
 			// might cause gc,so can't decrease first
-			if (SAME_REF_TYPE(vm.stackTop[-2], vm.stackTop[-1])) {
+			if (SAME_VALUE_TYPE(vm.stackTop[-2], vm.stackTop[-1])) {
 				if (IS_NUMBER(vm.stackTop[-2])){ // && IS_NUMBER(vm.stackTop[-1])) {
 					vm.stackTop[-2] = NUMBER_VAL(AS_NUMBER(vm.stackTop[-2]) + AS_NUMBER(vm.stackTop[-1]));
 					vm.stackTop--;

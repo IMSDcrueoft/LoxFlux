@@ -119,7 +119,10 @@ typedef struct {
 #define IS_STRING_BUILDER(value)	isObjType(value, OBJ_STRING_BUILDER)
 #define IS_ARRAY(value)				isObjType(value, OBJ_ARRAY)
 
-#define ARRAY_IS_TYPE(array, arrayType)		((array->obj.type) == arrayType)
+#define OBJ_GET_TYPE(obj)			((obj).type)
+#define OBJ_SET_TYPE(obj,objType)	((obj).type = objType)
+
+#define ARRAY_IS_TYPE(array, arrayType)		(OBJ_GET_TYPE(array->obj) == arrayType)
 #define ARRAY_ELEMENT(array, type, index)	(((type*)array->payload)[index])
 #define ARRAY_IN_RANGE(array, index)		((index >= 0) && (index < array->length))
 
