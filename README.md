@@ -218,7 +218,7 @@ The `@object` module provides utilities for type checking and object introspecti
   - `isFunction`: Verifies if a value is a function|native-function.
   - `isObject`: Verifies if a value is an object.
   - `isArray`: Verifies if a value is an array.
-  - `isArray`: Verifies if a value is typedArray.
+  - `isArrayLike`: Verifies if a value is typedArray.
   - `isString`: Verifies if a value is a string|stringBuilder.
   - `isNumber`: Verifies whether a value is a number.
   - `isBoolean`: Verifies whether a value is true|false.
