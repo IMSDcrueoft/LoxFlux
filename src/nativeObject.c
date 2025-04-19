@@ -19,7 +19,7 @@ static Value isObjectNative(int argCount, Value* args)
 
 static Value isStringNative(int argCount, Value* args)
 {
-	return BOOL_VAL(argCount >= 1 && IS_STRING(args[0]));
+	return BOOL_VAL(argCount >= 1 && (IS_STRING(args[0]) || IS_STRING_BUILDER(args[0])));
 }
 
 static Value isNumberNative(int argCount, Value* args)
@@ -28,16 +28,31 @@ static Value isNumberNative(int argCount, Value* args)
 }
 
 static Value isArrayNative(int argCount, Value* args) {
+	return BOOL_VAL(argCount >= 1 && IS_ARRAY(args[0]));
+}
+
+static Value isArrayLikeNative(int argCount, Value* args) {
 	return BOOL_VAL(argCount >= 1 && isArrayLike(args[0]));
 }
 
-//dont need isNil or isBool
+static Value isFunctionNative(int argCount, Value* args) {
+	return BOOL_VAL(argCount >= 1 && (IS_FUNCTION(args[0]) || IS_NATIVE(args[0])));
+}
+
+static Value isBooleanNative(int argCount, Value* args) {
+	return BOOL_VAL(argCount >= 1 && IS_BOOL(args[0]));
+}
+
+//dont need isNil
 
 COLD_FUNCTION
 void importNative_object() {
+	defineNative_object("isNumber", isNumberNative);
+	defineNative_object("isString", isStringNative);
+	defineNative_object("isFunction", isFunctionNative);
 	defineNative_object("isClass", isClassNative);
 	defineNative_object("isObject", isObjectNative);
-	defineNative_object("isString", isStringNative);
-	defineNative_object("isNumber", isNumberNative);
 	defineNative_object("isArray", isArrayNative);
+	defineNative_object("isArrayLike", isArrayLikeNative);
+	defineNative_object("isBoolean", isBooleanNative);
 }
