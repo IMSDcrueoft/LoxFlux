@@ -18,7 +18,7 @@ static Value lengthNative(int argCount, Value* args)
 	}
 }
 
-static Value charLenUTF8Native(int argCount, Value* args) {
+static Value UTF8LenNative(int argCount, Value* args) {
 	if (argCount >= 1 && IS_STRING(args[0])) {
 		//get utf8 length
 		ObjString* utf8_string = AS_STRING(args[0]);
@@ -53,12 +53,26 @@ static Value charLenUTF8Native(int argCount, Value* args) {
 
 static Value charAtNative(int argCount, Value* args) {
 	if (argCount >= 2 && IS_STRING(args[0]) && IS_NUMBER(args[1])) {
+		ObjString* string = AS_STRING(args[0]);//won't be null
+
+		double indexf = AS_NUMBER(args[1]);
+		if (indexf < 0 || indexf >= string->length) return NIL_VAL;//out of range
+		uint32_t index = (uint32_t)indexf;
+
+		return OBJ_VAL(copyString(string->chars + index, 1, false));
+	}
+
+	return NIL_VAL;
+}
+
+static Value utf8AtNative(int argCount, Value* args) {
+	if (argCount >= 2 && IS_STRING(args[0]) && IS_NUMBER(args[1])) {
 		ObjString* utf8_string = AS_STRING(args[0]);//won't be null
 
 		uint32_t char_count = 0;
 
 		double indexf = AS_NUMBER(args[1]);
-		if (indexf < 0 || indexf > utf8_string->length) return NIL_VAL;//out of range
+		if (indexf < 0 || indexf >= utf8_string->length) return NIL_VAL;//out of range
 		uint32_t index = (uint32_t)indexf;
 
 		for (uint32_t i = 0, start; i < utf8_string->length; ) {
@@ -95,6 +109,7 @@ static Value charAtNative(int argCount, Value* args) {
 COLD_FUNCTION
 void importNative_string() {
 	defineNative_string("length", lengthNative);
-	defineNative_string("charLen", charLenUTF8Native);
 	defineNative_string("charAt", charAtNative);
+	defineNative_string("utf8Len", UTF8LenNative);
+	defineNative_string("utf8At", utf8AtNative);
 }

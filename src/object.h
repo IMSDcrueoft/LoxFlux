@@ -40,10 +40,13 @@ extern const C_STR objTypeInfo[];
 #endif
 
 struct Obj {
-	uint8_t type;
-	uint8_t isMarked;
-	uint8_t padding[6];
-	struct Obj* next;	//ptr
+	struct
+	{
+		uint8_t type;
+		uint8_t isMarked;
+		uint8_t padding[6];//high 48bits
+	};
+	struct Obj* next;	//ptr: The user-space pointer's high 16 bits can be 0 directly,the high 16 bits of the pointer depends on the 47th bit
 };
 
 typedef struct {
