@@ -34,17 +34,17 @@ typedef struct {
 	// create a constant void table to record and reuse
 	ValueHoles constantHoles;
 
-	//global hash table
-	ObjInstance globals;
-	ObjInstance builtins[BUILTIN_MODULE_COUNT];
-
-	//upvalues
-	ObjUpvalue* openUpvalues;
-
 	//pool
 	Table strings;
 	//pool
 	NumberTable numbers;
+
+	//upvalues
+	ObjUpvalue* openUpvalues;
+
+	//global hash table
+	ObjInstance globals;
+	ObjInstance builtins[BUILTIN_MODULE_COUNT];
 
 	//the root for dynamic objects
 	Obj* objects;
@@ -63,6 +63,8 @@ typedef struct {
 
 	//ip for debug error
 	uint8_t** ip_error;
+
+	ObjString* typeStrings[TYPE_STRING_COUNT];
 
 	//id for compiled functions
 	uint32_t functionID;

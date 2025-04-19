@@ -35,6 +35,30 @@ typedef enum {
 	OBJ_ARRAY_I8,
 } ObjType;
 
+//@object.type()
+typedef enum {
+	TYPE_STRING_BOOL,
+	TYPE_STRING_NIL,
+	TYPE_STRING_NUMBER,
+	TYPE_STRING_STRING,
+	TYPE_STRING_STRING_BUILDER,
+	TYPE_STRING_FUNCTION,
+	TYPE_STRING_NATIVE,
+	TYPE_STRING_CLASS,
+	TYPE_STRING_OBJECT,
+	TYPE_STRING_ARRAY,
+	TYPE_STRING_ARRAY_F64,
+	TYPE_STRING_ARRAY_F32,
+	TYPE_STRING_ARRAY_U32,
+	TYPE_STRING_ARRAY_I32,
+	TYPE_STRING_ARRAY_U16,
+	TYPE_STRING_ARRAY_I16,
+	TYPE_STRING_ARRAY_U8,
+	TYPE_STRING_ARRAY_I8,
+
+	TYPE_STRING_COUNT,
+} TypeStringType;
+
 #if DEBUG_LOG_GC
 extern const C_STR objTypeInfo[];
 #endif
@@ -109,7 +133,11 @@ typedef struct {
 	char* payload;
 } ObjArray;
 
-#define OBJ_TYPE(value)				(AS_OBJ(value)->type)
+#define OBJ_GET_TYPE(obj)			((obj).type)
+#define OBJ_SET_TYPE(obj,objType)	((obj).type = objType)
+#define OBJ_PTR_GET_TYPE(obj)		((obj)->type)
+
+#define OBJ_TYPE(value)				OBJ_PTR_GET_TYPE(AS_OBJ(value))
 #define IS_CLOSURE(value)			isObjType(value, OBJ_CLOSURE)
 #define IS_FUNCTION(value)			isObjType(value, OBJ_FUNCTION)
 #define IS_NATIVE(value)			isObjType(value, OBJ_NATIVE)
@@ -118,9 +146,6 @@ typedef struct {
 #define IS_STRING(value)			isObjType(value, OBJ_STRING)
 #define IS_STRING_BUILDER(value)	isObjType(value, OBJ_STRING_BUILDER)
 #define IS_ARRAY(value)				isObjType(value, OBJ_ARRAY)
-
-#define OBJ_GET_TYPE(obj)			((obj).type)
-#define OBJ_SET_TYPE(obj,objType)	((obj).type = objType)
 
 #define OBJ_IS_TYPE(array, arrayType)		(OBJ_GET_TYPE(array->obj) == arrayType)
 #define ARRAY_ELEMENT(array, type, index)	(((type*)array->payload)[index])

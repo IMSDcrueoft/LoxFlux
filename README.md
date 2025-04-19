@@ -222,7 +222,7 @@ The `@object` module provides utilities for type checking and object introspecti
   - `isString`: Verifies if a value is a string|stringBuilder.
   - `isNumber`: Verifies whether a value is a number.
   - `isBoolean`: Verifies whether a value is true|false.
-  - 
+  - `type`: Returns the string of item's subdivision type.
 
 These functions are particularly useful for runtime type validation and debugging, allowing developers to write robust and error-resistant code.
 
