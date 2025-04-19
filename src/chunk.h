@@ -85,7 +85,7 @@ typedef enum {
 	//instance
 	OP_INSTANCE_OF,
 
-	OP_BIT,				//& | ~ ^ << >> >>>
+	OP_BITWISE,				//& | ~ ^ << >> >>>
 } OpCode;
 
 typedef enum {

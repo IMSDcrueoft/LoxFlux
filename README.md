@@ -58,6 +58,40 @@ Lox is a programming language designed for learning purposes. It is conceived as
 
 ---
 
+### Bitwise Operations
+
+- **Bitwise AND (`&`)**  
+  Performs a logical AND on each pair of corresponding bits. Returns an integer result.  
+  **Example**: `0b1010 & 0b1100` evaluates to `0b1000` (decimal `8`).  
+
+- **Bitwise OR (`|`)**  
+  Performs a logical OR on each pair of corresponding bits. Returns an integer result.  
+  **Example**: `0b1010 | 0b1100` evaluates to `0b1110` (decimal `14`).  
+
+- **Bitwise XOR (`^`)**  
+  Performs a logical exclusive OR (XOR) on each pair of corresponding bits. Returns an integer result.  
+  **Example**: `0b1010 ^ 0b1100` evaluates to `0b0110` (decimal `6`).  
+
+- **Left Shift (`<<`)**  
+  Shifts the bits of the first operand left by the number of positions specified by the second operand.  
+  **Example**: `0b0001 << 2` evaluates to `0b0100` (decimal `4`).  
+
+- **Right Shift (`>>`)** (Sign-propagating)  
+  Shifts the bits right, preserving the sign bit (arithmetic shift).  
+  **Example**: `-8 >> 1` evaluates to `-4` (sign preserved).  
+
+- **Unsigned Right Shift (`>>>`)** (Zero-fill)  
+  Shifts the bits right, filling the leftmost bits with `0` (logical shift).  
+  **Example**: `-8 >>> 1` evaluates to `2147483644` (zero-fill, no sign preservation).  
+
+  #### Notes:
+  1. **Shift Behavior**:  
+    - **Negative shifts**: Negative shift values always return `0`.  
+    - **Large shifts**: Shifts beyond `31` bits are truncated via `shiftAmount % 32`.  
+  2. **Operands**: All operations convert operands to 32-bit integers before execution.  
+
+---
+
 ### Lambda
 - **Lambda Syntax**: An anonymous function can be declared inline using the `lambda` keyword. This provides a concise way to define functions without explicitly naming them, making it suitable for short, inline operations.
 - **Syntax**: The syntax for a lambda expression is `lambda (parameters) { body }`, where `parameters` are the input arguments and `body` contains the logic to be executed.

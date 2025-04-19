@@ -1037,7 +1037,7 @@ static InterpretResult run()
 			}
 		}
 
-		case OP_BIT: {
+		case OP_BITWISE: {
 			uint8_t bitOpType = READ_BYTE();
 			if (bitInstruction(bitOpType)) {
 				break;

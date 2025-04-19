@@ -937,12 +937,12 @@ static void binary(bool canAssign) {
 	case TOKEN_LESS: emitByte(OP_LESS); break;
 	case TOKEN_LESS_EQUAL: emitByte(OP_LESS_EQUAL); break;
 	case TOKEN_INSTANCE_OF: emitByte(OP_INSTANCE_OF); break;
-	case TOKEN_BIT_AND: emitBytes(2, OP_BIT, BIT_OP_AND); break;
-	case TOKEN_BIT_OR: emitBytes(2, OP_BIT, BIT_OP_OR); break;
-	case TOKEN_BIT_XOR: emitBytes(2, OP_BIT, BIT_OP_XOR); break;
-	case TOKEN_BIT_SHL: emitBytes(2, OP_BIT, BIT_OP_SHL); break;
-	case TOKEN_BIT_SHR: emitBytes(2, OP_BIT, BIT_OP_SHR); break;
-	case TOKEN_BIT_SAR: emitBytes(2, OP_BIT, BIT_OP_SAR); break;
+	case TOKEN_BIT_AND: emitBytes(2, OP_BITWISE, BIT_OP_AND); break;
+	case TOKEN_BIT_OR: emitBytes(2, OP_BITWISE, BIT_OP_OR); break;
+	case TOKEN_BIT_XOR: emitBytes(2, OP_BITWISE, BIT_OP_XOR); break;
+	case TOKEN_BIT_SHL: emitBytes(2, OP_BITWISE, BIT_OP_SHL); break;
+	case TOKEN_BIT_SHR: emitBytes(2, OP_BITWISE, BIT_OP_SHR); break;
+	case TOKEN_BIT_SAR: emitBytes(2, OP_BITWISE, BIT_OP_SAR); break;
 	default: return; // Unreachable.
 	}
 }
@@ -1195,7 +1195,7 @@ static void unary(bool canAssign) {
 	switch (operatorType) {
 	case TOKEN_BANG: emitByte(OP_NOT); break;
 	case TOKEN_MINUS: emitByte(OP_NEGATE); break;
-	case TOKEN_BIT_NOT: emitBytes(2, OP_BIT, BIT_OP_NOT); break;
+	case TOKEN_BIT_NOT: emitBytes(2, OP_BITWISE, BIT_OP_NOT); break;
 	default: return; // Unreachable.
 	}
 }
