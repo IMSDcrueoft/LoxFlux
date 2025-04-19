@@ -6,12 +6,6 @@
 #include "nativeBuiltin.h"
 #include "vm.h"
 //Object
-static Value instanceOfNative(int argCount, Value* args)
-{
-	bool isInstance = (argCount >= 2) && (IS_INSTANCE(args[0]) && IS_CLASS(args[1])) && (AS_INSTANCE(args[0])->klass == AS_CLASS(args[1]));
-	return BOOL_VAL(isInstance);
-}
-
 static Value isClassNative(int argCount, Value* args)
 {
 	return BOOL_VAL(argCount >= 1 && IS_CLASS(args[0]));
@@ -41,7 +35,6 @@ static Value isArrayNative(int argCount, Value* args) {
 
 COLD_FUNCTION
 void importNative_object() {
-	defineNative_object("instanceOf", instanceOfNative);
 	defineNative_object("isClass", isClassNative);
 	defineNative_object("isObject", isObjectNative);
 	defineNative_object("isString", isStringNative);

@@ -490,7 +490,7 @@ static void defineConst(uint32_t global) {
 		return;
 	}
 	else {
-		errorAtCurrent("Constant can only be defined in the global scope.");
+		errorAtCurrent("Constant can only be defined in the local scope.");
 	}
 }
 
@@ -936,6 +936,7 @@ static void binary(bool canAssign) {
 	case TOKEN_GREATER_EQUAL: emitByte(OP_GREATER_EQUAL); break;
 	case TOKEN_LESS: emitByte(OP_LESS); break;
 	case TOKEN_LESS_EQUAL: emitByte(OP_LESS_EQUAL); break;
+	case TOKEN_INSTANCE_OF: emitByte(OP_INSTANCE_OF); break;
 	default: return; // Unreachable.
 	}
 }
@@ -1214,6 +1215,7 @@ ParseRule rules[] = {
 	[TOKEN_GREATER_EQUAL] = {NULL,     binary, PREC_COMPARISON},
 	[TOKEN_LESS] = {NULL,     binary, PREC_COMPARISON},
 	[TOKEN_LESS_EQUAL] = {NULL,     binary, PREC_COMPARISON},
+	[TOKEN_INSTANCE_OF] = {NULL,     binary, PREC_INSTANCEOF},
 	[TOKEN_IDENTIFIER] = {variable,     NULL,   PREC_NONE},
 	[TOKEN_STRING] = {string,     NULL,   PREC_NONE},
 	[TOKEN_STRING_ESCAPE] = {string_escape,     NULL,   PREC_NONE},
@@ -1257,6 +1259,7 @@ static ParseRule* getRule(TokenType type) {
 	return &rules[type];
 }
 
+COLD_FUNCTION
 ObjFunction* compile(C_STR source) {
 	Compiler compiler;
 

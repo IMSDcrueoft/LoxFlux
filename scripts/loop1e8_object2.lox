@@ -1,7 +1,7 @@
 class Object{}
 {
     var a = Object();
-    print @object.instanceOf(a,Object);
+    print a instanceOf Object;
 
     var start = @time.milli();
     for(a["i"] = 0;a["i"] < 1e8;){

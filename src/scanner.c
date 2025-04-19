@@ -163,8 +163,25 @@ static TokenType identifierType() {
 		}
 		break;
 	}
-	case 'i': return checkKeyword(1, 1, "f", TOKEN_IF);
-	case 'n': return checkKeyword(1, 2, "il", TOKEN_NIL);
+	case 'i': {
+		if (scanner.current - scanner.start > 1) {
+			switch (scanner.start[1]) {
+			case 'f': return checkKeyword(2, 0, "", TOKEN_IF);
+			case 'n': return checkKeyword(2, 8, "stanceOf", TOKEN_INSTANCE_OF);
+			}
+		}
+		break;
+	}
+	case 'm': return checkKeyword(1, 4, "atch", TOKEN_MATCH);
+	case 'n': {
+		if (scanner.current - scanner.start > 1) {
+			switch (scanner.start[1]) {
+			case 'i': return checkKeyword(2, 1, "l", TOKEN_NIL);
+			case 'o': return checkKeyword(2, 2, "ne", TOKEN_NONE);
+			}
+		}
+		break;
+	}
 	case 'o': return checkKeyword(1, 1, "r", TOKEN_OR);
 	case 'p': return checkKeyword(1, 4, "rint", TOKEN_PRINT);
 	case 'r': return checkKeyword(1, 5, "eturn", TOKEN_RETURN);
@@ -364,6 +381,7 @@ static Token string() {
 	return makeToken(isEscapeString ? TOKEN_STRING_ESCAPE : TOKEN_STRING);
 }
 
+COLD_FUNCTION
 Token scanToken()
 {
 	//we don't need this

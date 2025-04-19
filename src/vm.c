@@ -900,20 +900,25 @@ static InterpretResult run()
 		case OP_TRUE: stack_push(BOOL_VAL(true)); break;
 		case OP_FALSE: stack_push(BOOL_VAL(false)); break;
 		case OP_EQUAL: {
+			vm.stackTop[-2] = BOOL_VAL(valuesEqual(vm.stackTop[-2], vm.stackTop[-1]));
 			vm.stackTop--;
-			vm.stackTop[-1] = BOOL_VAL(valuesEqual(vm.stackTop[-1], vm.stackTop[0]));
 			break;
 		}
 		case OP_NOT_EQUAL: {
+			vm.stackTop[-2] = BOOL_VAL(!valuesEqual(vm.stackTop[-2], vm.stackTop[-1]));
 			vm.stackTop--;
-			vm.stackTop[-1] = BOOL_VAL(!valuesEqual(vm.stackTop[-1], vm.stackTop[0]));
 			break;
 		}
 		case OP_GREATER:  BINARY_OP(BOOL_VAL, > ); break;
 		case OP_LESS:     BINARY_OP(BOOL_VAL, < ); break;
 		case OP_GREATER_EQUAL:  BINARY_OP(BOOL_VAL, >= ); break;
 		case OP_LESS_EQUAL:     BINARY_OP(BOOL_VAL, <= ); break;
-
+		case OP_INSTANCE_OF: {
+			bool isInstanceOf = (IS_INSTANCE(vm.stackTop[-2]) && IS_CLASS(vm.stackTop[-1])) && (AS_INSTANCE(vm.stackTop[-2])->klass == AS_CLASS(vm.stackTop[-1]));
+			vm.stackTop[-2] = BOOL_VAL(isInstanceOf);
+			vm.stackTop--;
+			break;
+		}
 		case OP_ADD: {
 			// might cause gc,so can't decrease first
 			if (SAME_VALUE_TYPE(vm.stackTop[-2], vm.stackTop[-1])) {

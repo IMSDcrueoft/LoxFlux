@@ -82,6 +82,9 @@ typedef enum {
 	//allow user to get the global object
 	OP_MODULE_GLOBAL,
 
+	//instance
+	OP_INSTANCE_OF,
+
 	//for debugger
 	OP_DEBUGGER,
 } OpCode;

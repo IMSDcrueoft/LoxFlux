@@ -26,6 +26,7 @@ typedef enum {
 	PREC_OR,          // or
 	PREC_AND,         // and
 	PREC_EQUALITY,    // == !=
+	PREC_INSTANCEOF,  // instanceOf
 	PREC_COMPARISON,  // < > <= >=
 	PREC_TERM,        // + -
 	PREC_FACTOR,      // * / %
