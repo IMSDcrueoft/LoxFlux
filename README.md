@@ -54,7 +54,7 @@ Lox is a programming language designed for learning purposes. It is conceived as
 #### Local Variable
 
 - **Local variable range**: Expands to support up to 1024 variables(Configurable up to 65534).
-- **'const' keyword support**: Supported within blocks.
+- **'`const`' keyword support**: Supported within blocks.
 
 ---
 
@@ -88,14 +88,14 @@ Lox is a programming language designed for learning purposes. It is conceived as
 
 ### Loop
 
-- **'break' and 'continue' keywords**: Supported within loops.
+- **`break` and `continue` keywords**: Supported within loops.
 
 ---
 
 ### Instance
 
 - **Delete property**: Remove key-value pairs by assigning nil to the object.
-- **'instanceOf' keyword**:  Checks if an object is an instance of a specific class.
+- **`instanceOf` keyword**:  Checks if an object is an instance of a specific class.
 
 ---
 
