@@ -23,7 +23,8 @@ var append = @string.append;
         print utf8At(d,i);
     }
     print "final";
-    var e = append(d,b);
+    var e = Builder(d);
+    e = append(e,b);
     e = append(e,c);
     for(var i = 0,len = utf8Len(e);i<len;i=i+1){
         print utf8At(e,i);
