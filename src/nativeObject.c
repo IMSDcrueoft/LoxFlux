@@ -19,7 +19,12 @@ static Value isObjectNative(int argCount, Value* args)
 
 static Value isStringNative(int argCount, Value* args)
 {
-	return BOOL_VAL(argCount >= 1 && (IS_STRING(args[0]) || IS_STRING_BUILDER(args[0])));
+	return BOOL_VAL(argCount >= 1 && IS_STRING(args[0]));
+}
+
+static Value isStringBuilderNative(int argCount, Value* args)
+{
+	return BOOL_VAL(argCount >= 1 && IS_STRING_BUILDER(args[0]));
 }
 
 static Value isNumberNative(int argCount, Value* args)
@@ -89,12 +94,18 @@ static Value typeNative(int argCount, Value* args) {
 	return NIL_VAL;
 }
 
+//convert value to stringBuilder
+//static Value toStringNative(int argCount, Value* args) {
+//	return NIL_VAL;
+//}
+
 //dont need isNil
 
 COLD_FUNCTION
 void importNative_object() {
 	defineNative_object("isNumber", isNumberNative);
 	defineNative_object("isString", isStringNative);
+	defineNative_object("isStringBuilder", isStringBuilderNative);
 	defineNative_object("isFunction", isFunctionNative);
 	defineNative_object("isClass", isClassNative);
 	defineNative_object("isObject", isObjectNative);

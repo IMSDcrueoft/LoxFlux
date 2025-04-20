@@ -1,9 +1,8 @@
 # LoxFlux
 
-LoxFlux is being developed based on the cLox version of Lox language (A bytecode-virtual-machine based on stack) for learning and development purposes. 
-Please note that this project has not yet completed its basic functionalities, thus it should not be used for practical applications.
+LoxFlux is developed based on the cLox version of the Lox language (stack-based bytecode-virtual machine). Please note that the project has not yet completed its basic functions.
 
-此项目“LoxFlux”是基于Lox语言的cLox 版本(栈型字节码虚拟机)进行学习和开发的。请注意，该项目目前尚未完成基础功能，因此请勿将其用于实际应用中。
+此项目“LoxFlux”是基于Lox语言的cLox 版本(栈型字节码虚拟机)进行开发的。请注意，该项目目前尚未完成基础功能。
 
 - **Design metrics**: loxFlux should be fully compatible with the lox syntax, so lox scripts can be painlessly interpreted and executed in loxFlux (although error handling may vary, the "correct code" is the same).
 -  **设计指标**: loxFlux应是完整兼容lox语法的，因此lox脚本可以无痛的在loxFlux里解释执行(尽管错误处理可能有所不同，但“正确的代码”是一样的)。
@@ -219,12 +218,29 @@ The `@object` module provides utilities for type checking and object introspecti
   - `isObject`: Verifies if a value is an object.
   - `isArray`: Verifies if a value is an array.
   - `isArrayLike`: Verifies if a value is typedArray.
-  - `isString`: Verifies if a value is a string|stringBuilder.
+  - `isString`: Verifies if a value is a string.
+  - `isStringBuilder`: Verifies if a value is a stringBuilder.
   - `isNumber`: Verifies whether a value is a number.
   - `isBoolean`: Verifies whether a value is true|false.
   - `type`: Returns the string of item's subdivision type.
 
 These functions are particularly useful for runtime type validation and debugging, allowing developers to write robust and error-resistant code.
+
+---
+
+The `@string` module provides advanced string manipulation capabilities, supporting both basic operations and high-performance string building. It handles ASCII and UTF-8 encodings with memory-efficient strategies, ideal for text processing tasks.
+
+- **String Methods**:
+  - `length`: Returns the byte length of a string.  
+  - `utf8Len`: Returns the character count for UTF-8 strings (ignoring byte-level details). e.g.,`@string.utf8Len("αβγ")` → `3`
+  - `charAt`: Retrieves an ASCII character by byte position.  
+  - `utf8At`: Retrieves a UTF-8 character by logical character position. e.g.,`@string.utf8At("αβγ", 1)` → `"β"`
+  - `append`: Efficiently appends strings or other builders to a `StringBuilder`.
+  - `intern`: Converts a `StringBuilder` to an immutable string(will occupy the constant scale), or returns existing strings directly.
+- **StringBuiler Constructor**:
+  - `Builder`: Creates a mutable string buffer, optionally initialized with a string or another builder.  
+
+This module balances performance and safety for both simple text tasks and large-scale string processing.
 
 ---
 

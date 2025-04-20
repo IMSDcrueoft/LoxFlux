@@ -121,11 +121,13 @@ struct ObjString {
 	Obj obj;
 	uint32_t symbol; // used to boost global hash table
 	uint32_t length; // the real length,not include '\0'
-	uint64_t hash;
+	uint64_t hash; // the hash
 	char chars[]; // flexible array members FAM
 };
 
 //begin at 8 and align to 8, when < 64,mul 2, then *1.5 and align 8
+//ARRAYLIKE_MAX + 7 & ~7 => ARRAYLIKE_MAX
+#define ARRAYLIKE_MAX 0xfffffff8
 typedef struct {
 	Obj obj;
 	uint32_t length;
@@ -199,10 +201,9 @@ ObjArray* newArrayU16(uint64_t size);
 ObjArray* newArrayI16(uint64_t size);
 ObjArray* newArrayU8(uint64_t size);
 ObjArray* newArrayI8(uint64_t size);
+ObjArray* newStringBuilder();
 
 void reserveArray(ObjArray* array, uint64_t size);
 
-Value getStringValue(ObjString* string, uint32_t index);
-Value getStringBuilderValue(ObjArray* stringBuilder, uint32_t index);
 Value getTypedArrayElement(ObjArray* array, uint32_t index);
 void setTypedArrayElement(ObjArray* array, uint32_t index, Value val);

@@ -26,7 +26,7 @@ static Value pushNative(int argCount, Value* args) {
 		if (argCount >= 2) {
 			uint64_t newSize = (uint64_t)array->length + argCount - 1;
 
-			if (newSize > UINT32_MAX) {
+			if (newSize > ARRAYLIKE_MAX) {
 				fprintf(stderr, "Array size overflow\n");
 				exit(1);
 			}
@@ -129,7 +129,7 @@ static Value resizeNative(int argCount, Value* args) {
 		double size = AS_NUMBER(args[1]);
 
 		//no error
-		if (size > 0 && size <= UINT32_MAX) {
+		if (size > 0 && size <= ARRAYLIKE_MAX) {
 			length = (uint64_t)size;
 
 			if (length > array->length) {
@@ -199,7 +199,7 @@ static Value ArrayNative(int argCount, Value* args) {
 		double size = AS_NUMBER(args[0]);
 
 		//no error
-		if (size > 0 && size <= UINT32_MAX) {
+		if (size > 0 && size <= ARRAYLIKE_MAX) {
 			length = (uint32_t)size;
 		}
 		else {
@@ -225,7 +225,7 @@ static Value F64ArrayNative(int argCount, Value* args) {
 		double size = AS_NUMBER(args[0]);
 
 		//no error
-		if (size > 0 && size <= UINT32_MAX) {
+		if (size > 0 && size <= ARRAYLIKE_MAX) {
 			length = (uint32_t)size;
 		}
 		else {
@@ -248,7 +248,7 @@ static Value F32ArrayNative(int argCount, Value* args) {
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		double size = AS_NUMBER(args[0]);
 
-		if (size > 0 && size <= UINT32_MAX) {
+		if (size > 0 && size <= ARRAYLIKE_MAX) {
 			length = (uint32_t)size;
 		}
 		else {
@@ -271,7 +271,7 @@ static Value U32ArrayNative(int argCount, Value* args) {
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		double size = AS_NUMBER(args[0]);
 
-		if (size > 0 && size <= UINT32_MAX) {
+		if (size > 0 && size <= ARRAYLIKE_MAX) {
 			length = (uint32_t)size;
 		}
 		else {
@@ -294,7 +294,7 @@ static Value I32ArrayNative(int argCount, Value* args) {
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		double size = AS_NUMBER(args[0]);
 
-		if (size > 0 && size <= UINT32_MAX) {
+		if (size > 0 && size <= ARRAYLIKE_MAX) {
 			length = (uint32_t)size;
 		}
 		else {
@@ -317,7 +317,7 @@ static Value U16ArrayNative(int argCount, Value* args) {
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		double size = AS_NUMBER(args[0]);
 
-		if (size > 0 && size <= UINT32_MAX) {
+		if (size > 0 && size <= ARRAYLIKE_MAX) {
 			length = (uint32_t)size;
 		}
 		else {
@@ -340,7 +340,7 @@ static Value I16ArrayNative(int argCount, Value* args) {
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		double size = AS_NUMBER(args[0]);
 
-		if (size > 0 && size <= UINT32_MAX) {
+		if (size > 0 && size <= ARRAYLIKE_MAX) {
 			length = (uint32_t)size;
 		}
 		else {
@@ -363,7 +363,7 @@ static Value U8ArrayNative(int argCount, Value* args) {
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		double size = AS_NUMBER(args[0]);
 
-		if (size > 0 && size <= UINT32_MAX) {
+		if (size > 0 && size <= ARRAYLIKE_MAX) {
 			length = (uint32_t)size;
 		}
 		else {
@@ -386,7 +386,7 @@ static Value I8ArrayNative(int argCount, Value* args) {
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		double size = AS_NUMBER(args[0]);
 
-		if (size > 0 && size <= UINT32_MAX) {
+		if (size > 0 && size <= ARRAYLIKE_MAX) {
 			length = (uint32_t)size;
 		}
 		else {

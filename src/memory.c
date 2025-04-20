@@ -116,11 +116,24 @@ void freeObject(Obj* object) {
 		FREE_FLEX_NO_GC(ObjString, string, char, string->length + 1);//FAM object include'\0
 		break;
 	case OBJ_ARRAY:
+	{
+		//they share the same struct
+		ObjArray* array = (ObjArray*)object;
+		FREE_ARRAY(Value , array->payload, array->capacity);
+#if DEBUG_LOG_GC
+		printf("[gc] %p free buffer : %llu\n", (Unknown_ptr)array->payload, (uint64_t)array->capacity * sizeof(Value));
+#endif
+		FREE(ObjArray, object);
+		break;
+	}
 	case OBJ_ARRAY_F64: {
 		//they share the same struct
 		ObjArray* array = (ObjArray*)object;
-		FREE_ARRAY(char, array->payload, array->capacity * 8); //size 8 byte
-		FREE(OBJ_ARRAY, object);
+		FREE_ARRAY(double, array->payload, array->capacity); //size 8 byte
+#if DEBUG_LOG_GC
+		printf("[gc] %p free buffer : %llu\n", (Unknown_ptr)array->payload, (uint64_t)array->capacity * 8);
+#endif
+		FREE(ObjArray, object);
 		break;
 	}
 	case OBJ_ARRAY_F32:
@@ -128,16 +141,22 @@ void freeObject(Obj* object) {
 	case OBJ_ARRAY_I32: {
 		//they share the same struct
 		ObjArray* array = (ObjArray*)object;
-		FREE_ARRAY(char, array->payload, array->capacity * 4); //size 4 byte
-		FREE(OBJ_ARRAY, object);
+		FREE_ARRAY(uint32_t, array->payload, array->capacity); //size 4 byte
+#if DEBUG_LOG_GC
+		printf("[gc] %p free buffer : %llu\n", (Unknown_ptr)array->payload, (uint64_t)array->capacity * 4);
+#endif
+		FREE(ObjArray, object);
 		break;
 	}
 	case OBJ_ARRAY_U16:
 	case OBJ_ARRAY_I16: {
 		//they share the same struct
 		ObjArray* array = (ObjArray*)object;
-		FREE_ARRAY(char, array->payload, array->capacity * 2); //size 2 byte
-		FREE(OBJ_ARRAY, object);
+		FREE_ARRAY(uint16_t, array->payload, array->capacity); //size 2 byte
+#if DEBUG_LOG_GC
+		printf("[gc] %p free buffer : %llu\n", (Unknown_ptr)array->payload, (uint64_t)array->capacity * 2);
+#endif
+		FREE(ObjArray, object);
 		break;
 	}
 	case OBJ_ARRAY_U8:
@@ -145,8 +164,11 @@ void freeObject(Obj* object) {
 	case OBJ_STRING_BUILDER: {
 		//they share the same struct
 		ObjArray* array = (ObjArray*)object;
-		FREE_ARRAY(char, array->payload, array->capacity * 1); //size 1 byte
-		FREE(OBJ_ARRAY, object);
+		FREE_ARRAY(uint8_t, array->payload, array->capacity); //size 1 byte
+#if DEBUG_LOG_GC
+		printf("[gc] %p free buffer : %llu\n", (Unknown_ptr)array->payload, (uint64_t)array->capacity);
+#endif
+		FREE(ObjArray, object);
 		break;
 	}
 	}
