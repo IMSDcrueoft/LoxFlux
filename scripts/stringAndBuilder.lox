@@ -1,0 +1,31 @@
+var Builder = @string.Builder;
+var strLen = @string.length;
+var utf8Len = @string.utf8Len;
+var charAt = @string.charAt;
+var utf8At = @string.utf8At;
+var append = @string.append;
+
+{
+    var a = "aaa";
+    for(var i = 0,len = strLen(a);i<len;i=i+1){
+        print charAt(a,i);
+    }
+    var b = Builder("bbb");
+        for(var i = 0,len = strLen(b);i<len;i=i+1){
+        print charAt(b,i);
+    }
+    var c = "😈🤤😎😁";
+    for(var i = 0,len = utf8Len(c);i<len;i=i+1){
+        print utf8At(c,i);
+    }
+    var d = Builder(c);
+    for(var i = 0,len = utf8Len(d);i<len;i=i+1){
+        print utf8At(d,i);
+    }
+    print "final";
+    var e = append(d,b);
+    e = append(e,c);
+    for(var i = 0,len = utf8Len(e);i<len;i=i+1){
+        print utf8At(e,i);
+    }
+}
