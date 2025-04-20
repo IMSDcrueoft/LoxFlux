@@ -9,7 +9,10 @@
 #include "object.h"
 
 #define LOCAL_INIT 64
+//local var
 #define LOCAL_MAX UINT10_COUNT
+//array literal
+#define ARRAY_MAX UINT10_COUNT
 
 typedef struct {
 	Token current;

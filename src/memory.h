@@ -10,7 +10,7 @@
 #define GROW_CAPACITY(capacity) \
 	((capacity) < 16 ? 16 : (capacity << 1))
 
-Unknown_ptr reallocate(Unknown_ptr pointer, size_t oldSize, size_t newSize);
+void* reallocate(void* pointer, uint64_t oldSize, uint64_t newSize);
 
 #define GROW_ARRAY(type, pointer, oldCount, newCount) \
 	((type*)reallocate(pointer, sizeof(type) * (oldCount), sizeof(type) * (newCount)))
@@ -26,7 +26,7 @@ Unknown_ptr reallocate(Unknown_ptr pointer, size_t oldSize, size_t newSize);
 //used to free flex object
 #define FREE_FLEX(type,pointer,flexType,count) reallocate(pointer, sizeof(type) + sizeof(flexType) * count, 0)
 
-Unknown_ptr reallocate_no_gc(Unknown_ptr pointer, size_t oldSize, size_t newSize);
+void* reallocate_no_gc(void* pointer, uint64_t oldSize, uint64_t newSize);
 
 #define GROW_ARRAY_NO_GC(type, pointer, oldCount, newCount) \
 	((type*)reallocate_no_gc(pointer, sizeof(type) * (oldCount), sizeof(type) * (newCount)))

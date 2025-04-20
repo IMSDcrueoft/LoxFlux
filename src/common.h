@@ -21,9 +21,6 @@ _Static_assert(sizeof(void*) == 8, "This platform does not have 8-byte pointers.
 
 typedef char* STR;
 typedef const char* C_STR;
-typedef void* Unknown_ptr;
-typedef float float32_t;
-typedef double float64_t;
 
 #define UINT8_COUNT 0x100
 #define UINT10_MAX 0x3ff

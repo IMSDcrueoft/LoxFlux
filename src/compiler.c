@@ -999,12 +999,12 @@ static void arrayLiteral(bool canAssign) {
 	}
 	consume(TOKEN_RIGHT_SQUARE_BRACKET, "Expect ']' after array elements.");
 
-	if (elementCount >= UINT8_COUNT) {
+	if (elementCount >= ARRAY_MAX) {
 		error("Array literal is too long.");
 		return;
 	}
 
-	emitBytes(2, OP_NEW_ARRAY, (uint8_t)elementCount);  //make array
+	emitBytes(3, OP_NEW_ARRAY, (uint8_t)elementCount, (uint8_t)(elementCount >> 8));  //make array
 }
 
 static void subscript(bool canAssign) {

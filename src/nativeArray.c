@@ -145,7 +145,7 @@ static Value resizeNative(int argCount, Value* args) {
 				else {//typed array
 					switch (OBJ_GET_TYPE(array->obj)) {
 					case OBJ_ARRAY_F64: {//must fit ieee754
-						char* beginPtr = &ARRAY_ELEMENT(array, double, array->length);
+						void* beginPtr = &ARRAY_ELEMENT(array, double, array->length);
 						uint64_t size = 8ULL * (length - array->length);
 						memset(beginPtr, 0, size);
 						break;
@@ -153,21 +153,21 @@ static Value resizeNative(int argCount, Value* args) {
 					case OBJ_ARRAY_F32://must fit ieee754
 					case OBJ_ARRAY_U32:
 					case OBJ_ARRAY_I32: {
-						char* beginPtr = &ARRAY_ELEMENT(array, uint32_t, array->length);
+						void* beginPtr = &ARRAY_ELEMENT(array, uint32_t, array->length);
 						uint64_t size = 4ULL * (length - array->length);
 						memset(beginPtr, 0, size);
 						break;
 					}
 					case OBJ_ARRAY_U16:
 					case OBJ_ARRAY_I16: {
-						char* beginPtr = &ARRAY_ELEMENT(array, uint16_t, array->length);
+						void* beginPtr = &ARRAY_ELEMENT(array, uint16_t, array->length);
 						uint64_t size = 2ULL * (length - array->length);
 						memset(beginPtr, 0, size);
 						break;
 					}
 					case OBJ_ARRAY_U8:
 					case OBJ_ARRAY_I8: {
-						char* beginPtr = &ARRAY_ELEMENT(array, uint8_t, array->length);
+						void* beginPtr = &ARRAY_ELEMENT(array, uint8_t, array->length);
 						uint64_t size = 1ULL * (length - array->length);
 						memset(beginPtr, 0, size);
 						break;

@@ -39,7 +39,7 @@ static STR readFile(C_STR path) {
 	}
 
 	fseek(file, 0L, SEEK_END);
-	size_t fileSize = ftell(file);
+	uint64_t fileSize = ftell(file);
 	rewind(file);
 
 	STR buffer = (STR)malloc(fileSize + 1);
@@ -49,7 +49,7 @@ static STR readFile(C_STR path) {
 		exit(74);
 	}
 
-	size_t bytesRead = fread(buffer, sizeof(char), fileSize, file);
+	uint64_t bytesRead = fread(buffer, sizeof(char), fileSize, file);
 
 	if (bytesRead < fileSize) {
 		fprintf(stderr, "Could not read file \"%s\".\n", path);

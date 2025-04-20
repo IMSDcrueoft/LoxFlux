@@ -92,7 +92,7 @@ static uint32_t jumpInstruction(C_STR name, int32_t sign, Chunk* chunk, uint32_t
 }
 
 COLD_FUNCTION
-static uint32_t modifyLocalInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
+static uint32_t shortInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
 	uint32_t slot = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8);
 	printf("%-16s %4d\n", name, slot);
 	return offset + 3;
@@ -289,15 +289,15 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 		return simpleInstruction("OP_GET_SUBSCRIPT", offset);
 	case OP_SET_SUBSCRIPT:
 		return simpleInstruction("OP_SET_SUBSCRIPT", offset);
-	case OP_NEW_ARRAY:
-		return byteInstruction("OP_NEW_ARRAY", chunk, offset);
 
+	case OP_NEW_ARRAY:
+		return shortInstruction("OP_NEW_ARRAY", chunk, offset);
 	case OP_GET_LOCAL:
-		return modifyLocalInstruction("OP_GET_LOCAL", chunk, offset);
+		return shortInstruction("OP_GET_LOCAL", chunk, offset);
 	case OP_SET_LOCAL:
-		return modifyLocalInstruction("OP_SET_LOCAL", chunk, offset);
+		return shortInstruction("OP_SET_LOCAL", chunk, offset);
 	case OP_POP_N:
-		return modifyLocalInstruction("OP_POP_N", chunk, offset);
+		return shortInstruction("OP_POP_N", chunk, offset);
 
 	case OP_JUMP:
 		return jumpInstruction("OP_JUMP", 1, chunk, offset);
