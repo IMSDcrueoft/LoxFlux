@@ -237,6 +237,7 @@ The `@string` module provides advanced string manipulation capabilities, support
   - `utf8At`: Retrieves a UTF-8 character by logical character position. e.g.,`@string.utf8At("αβγ", 1)` → `"β"`
   - `append`: Efficiently appends strings or other builders to a `StringBuilder`.
   - `intern`: Converts a `StringBuilder` to an immutable string(will occupy the constant scale), or returns existing strings directly.
+  - `equals`: Compare whether the content of two strings|stringBuilders is the same.
 - **StringBuiler Constructor**:
   - `Builder`: Creates a mutable string buffer, optionally initialized with a string or another builder.  
 
