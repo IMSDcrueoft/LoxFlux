@@ -999,7 +999,7 @@ static void arrayLiteral(bool canAssign) {
 	}
 	consume(TOKEN_RIGHT_SQUARE_BRACKET, "Expect ']' after array elements.");
 
-	if (elementCount >= ARRAY_MAX) {
+	if (elementCount > ARRAY_MAX) {
 		error("Array literal is too long.");
 		return;
 	}

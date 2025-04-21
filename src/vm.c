@@ -970,7 +970,7 @@ static InterpretResult run()
 			break;
 		}
 		case OP_NEW_ARRAY: {
-			uint8_t size = READ_SHORT();
+			uint16_t size = READ_SHORT();
 			ObjArray* array = newArray(size);
 
 			//init the array
