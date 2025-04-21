@@ -9,7 +9,7 @@
 #include "allocator.h"
 #include "gc.h"
 
-Unknown_ptr reallocate_no_gc(Unknown_ptr pointer, size_t oldSize, size_t newSize)
+void* reallocate_no_gc(void* pointer, uint64_t oldSize, uint64_t newSize)
 {
 	vm.bytesAllocated_no_gc += newSize - oldSize;
 
@@ -24,7 +24,7 @@ Unknown_ptr reallocate_no_gc(Unknown_ptr pointer, size_t oldSize, size_t newSize
 		return NULL;
 	}
 
-	Unknown_ptr result = mem_realloc(pointer, newSize);
+	void* result = mem_realloc(pointer, newSize);
 
 #if LOG_EACH_MALLOC_INFO
 	printf("[mem] realloc %p -> %p, %zu\n", pointer, result, newSize);
@@ -38,7 +38,7 @@ Unknown_ptr reallocate_no_gc(Unknown_ptr pointer, size_t oldSize, size_t newSize
 	return result;
 }
 
-Unknown_ptr reallocate(Unknown_ptr pointer, size_t oldSize, size_t newSize)
+void* reallocate(void* pointer, uint64_t oldSize, uint64_t newSize)
 {
 	vm.bytesAllocated += newSize - oldSize;
 
@@ -62,7 +62,7 @@ Unknown_ptr reallocate(Unknown_ptr pointer, size_t oldSize, size_t newSize)
 		return NULL;
 	}
 
-	Unknown_ptr result = mem_realloc(pointer, newSize);
+	void* result = mem_realloc(pointer, newSize);
 
 #if LOG_EACH_MALLOC_INFO
 	printf("[mem] realloc %p -> %p, %zu\n", pointer, result, newSize);
@@ -78,7 +78,7 @@ Unknown_ptr reallocate(Unknown_ptr pointer, size_t oldSize, size_t newSize)
 
 void freeObject(Obj* object) {
 #if DEBUG_LOG_GC
-	printf("[gc] %p free (%s)\n", (Unknown_ptr)object, objTypeInfo[object->type]);
+	printf("[gc] %p free (%s)\n", (void*)object, objTypeInfo[object->type]);
 #endif
 
 	switch (object->type) {
@@ -121,7 +121,7 @@ void freeObject(Obj* object) {
 		ObjArray* array = (ObjArray*)object;
 		FREE_ARRAY(Value , array->payload, array->capacity);
 #if DEBUG_LOG_GC
-		printf("[gc] %p free buffer : %llu\n", (Unknown_ptr)array->payload, (uint64_t)array->capacity * sizeof(Value));
+		printf("[gc] %p free buffer : %llu\n", (void*)array->payload, (uint64_t)array->capacity * sizeof(Value));
 #endif
 		FREE(ObjArray, object);
 		break;
@@ -131,7 +131,7 @@ void freeObject(Obj* object) {
 		ObjArray* array = (ObjArray*)object;
 		FREE_ARRAY(double, array->payload, array->capacity); //size 8 byte
 #if DEBUG_LOG_GC
-		printf("[gc] %p free buffer : %llu\n", (Unknown_ptr)array->payload, (uint64_t)array->capacity * 8);
+		printf("[gc] %p free buffer : %llu\n", (void*)array->payload, (uint64_t)array->capacity * 8);
 #endif
 		FREE(ObjArray, object);
 		break;
@@ -143,7 +143,7 @@ void freeObject(Obj* object) {
 		ObjArray* array = (ObjArray*)object;
 		FREE_ARRAY(uint32_t, array->payload, array->capacity); //size 4 byte
 #if DEBUG_LOG_GC
-		printf("[gc] %p free buffer : %llu\n", (Unknown_ptr)array->payload, (uint64_t)array->capacity * 4);
+		printf("[gc] %p free buffer : %llu\n", (void*)array->payload, (uint64_t)array->capacity * 4);
 #endif
 		FREE(ObjArray, object);
 		break;
@@ -154,7 +154,7 @@ void freeObject(Obj* object) {
 		ObjArray* array = (ObjArray*)object;
 		FREE_ARRAY(uint16_t, array->payload, array->capacity); //size 2 byte
 #if DEBUG_LOG_GC
-		printf("[gc] %p free buffer : %llu\n", (Unknown_ptr)array->payload, (uint64_t)array->capacity * 2);
+		printf("[gc] %p free buffer : %llu\n", (void*)array->payload, (uint64_t)array->capacity * 2);
 #endif
 		FREE(ObjArray, object);
 		break;
@@ -166,7 +166,7 @@ void freeObject(Obj* object) {
 		ObjArray* array = (ObjArray*)object;
 		FREE_ARRAY(uint8_t, array->payload, array->capacity); //size 1 byte
 #if DEBUG_LOG_GC
-		printf("[gc] %p free buffer : %llu\n", (Unknown_ptr)array->payload, (uint64_t)array->capacity);
+		printf("[gc] %p free buffer : %llu\n", (void*)array->payload, (uint64_t)array->capacity);
 #endif
 		FREE(ObjArray, object);
 		break;

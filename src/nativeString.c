@@ -154,7 +154,12 @@ static uint32_t calculateBuilderCapacity(uint64_t initialLength) {
 		fprintf(stderr, "StringBuilder size overflow");
 		exit(1);
 	}
-	capacity = max(16, (((capacity * 3) >> 1) + 7) & ~7);
+	if (capacity < 64) {
+		capacity = max(16, ((capacity * 2) + 7) & ~7);
+	}
+	else {
+		capacity = (((capacity * 3) >> 1) + 7) & ~7;
+	}
 	return min(ARRAYLIKE_MAX, capacity);
 }
 
@@ -184,7 +189,7 @@ static Value builderNative(int argCount, Value* args) {
 			stringBuilder->capacity = capacity;
 			stringBuilder->payload = ALLOCATE(char, capacity);
 			memcpy(stringBuilder->payload, stringPtr, length);
-			stringBuilder->payload[stringBuilder->length] = '\0';
+			ARRAY_ELEMENT(stringBuilder, char, stringBuilder->length) = '\0';
 		}
 	}
 
@@ -192,7 +197,7 @@ static Value builderNative(int argCount, Value* args) {
 		stringBuilder->length = 0;
 		stringBuilder->capacity = 16;
 		stringBuilder->payload = ALLOCATE(char, 16);
-		stringBuilder->payload[stringBuilder->length] = '\0';
+		ARRAY_ELEMENT(stringBuilder, char, stringBuilder->length) = '\0';
 	}
 
 	return OBJ_VAL(stringBuilder);
@@ -232,9 +237,9 @@ static Value appendNative(int argCount, Value* args) {
 
 			if (stringPtr != NULL) {
 				growStringBuilder(stringBuilder, length);
-				memcpy(stringBuilder->payload + stringBuilder->length, stringPtr, length);
+				memcpy((char*)stringBuilder->payload + stringBuilder->length, stringPtr, length);
 				stringBuilder->length += length;
-				stringBuilder->payload[stringBuilder->length] = '\0';
+				ARRAY_ELEMENT(stringBuilder, char, stringBuilder->length) = '\0';
 			}
 		}
 

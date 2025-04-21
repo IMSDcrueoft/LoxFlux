@@ -37,7 +37,7 @@ const C_STR objTypeInfo[] = {
     (type*)allocateObject(byteSize, objectType)
 
 HOT_FUNCTION
-static Obj* allocateObject(size_t size, ObjType type) {
+static Obj* allocateObject(uint64_t size, ObjType type) {
 	Obj* object = NULL;
 
 	//link the objects
@@ -61,7 +61,7 @@ static Obj* allocateObject(size_t size, ObjType type) {
 	}
 
 #if DEBUG_LOG_GC
-	printf("[gc] %p allocate %zu for (%s)\n", (Unknown_ptr)object, size, objTypeInfo[type]);
+	printf("[gc] %p allocate %zu for (%s)\n", (void*)object, size, objTypeInfo[type]);
 #endif
 
 	return object;
@@ -137,7 +137,7 @@ ObjArray* newArray(uint64_t size)
 	ObjArray* array = ALLOCATE_OBJ(ObjArray, OBJ_ARRAY);
 	array->capacity = size;
 	array->length = 0;
-	array->payload = (char*)ALLOCATE(Value, size);
+	array->payload = ALLOCATE(Value, size);
 
 	return array;
 }
@@ -154,7 +154,7 @@ ObjArray* newArrayF64(uint64_t size)
 	ObjArray* array = ALLOCATE_OBJ(ObjArray, OBJ_ARRAY_F64);
 	array->capacity = size;
 	array->length = 0;
-	array->payload = (char*)ALLOCATE(double, size);
+	array->payload = ALLOCATE(double, size);
 
 	return array;
 }
@@ -171,7 +171,7 @@ ObjArray* newArrayF32(uint64_t size)
 	ObjArray* array = ALLOCATE_OBJ(ObjArray, OBJ_ARRAY_F32);
 	array->capacity = size;
 	array->length = 0;
-	array->payload = (char*)ALLOCATE(float, size);
+	array->payload = ALLOCATE(float, size);
 
 	return array;
 }
@@ -188,7 +188,7 @@ ObjArray* newArrayU32(uint64_t size)
 	ObjArray* array = ALLOCATE_OBJ(ObjArray, OBJ_ARRAY_U32);
 	array->capacity = size;
 	array->length = 0;
-	array->payload = (char*)ALLOCATE(uint32_t, size);
+	array->payload = ALLOCATE(uint32_t, size);
 
 	return array;
 }
@@ -205,7 +205,7 @@ ObjArray* newArrayI32(uint64_t size)
 	ObjArray* array = ALLOCATE_OBJ(ObjArray, OBJ_ARRAY_I32);
 	array->capacity = size;
 	array->length = 0;
-	array->payload = (char*)ALLOCATE(int32_t, size);
+	array->payload = ALLOCATE(int32_t, size);
 
 	return array;
 }
@@ -213,7 +213,7 @@ ObjArray* newArrayI32(uint64_t size)
 ObjArray* newArrayU16(uint64_t size)
 {
 	//align to 8
-	size = max(8, (size + 7) & ~7);
+	size = max(16, (size + 7) & ~7);
 	if (size > ARRAYLIKE_MAX) {
 		fprintf(stderr, "Array size overflow");
 		exit(1);
@@ -222,7 +222,7 @@ ObjArray* newArrayU16(uint64_t size)
 	ObjArray* array = ALLOCATE_OBJ(ObjArray, OBJ_ARRAY_U16);
 	array->capacity = size;
 	array->length = 0;
-	array->payload = (char*)ALLOCATE(uint16_t, size);
+	array->payload = ALLOCATE(uint16_t, size);
 
 	return array;
 }
@@ -230,7 +230,7 @@ ObjArray* newArrayU16(uint64_t size)
 ObjArray* newArrayI16(uint64_t size)
 {
 	//align to 8
-	size = max(8, (size + 7) & ~7);
+	size = max(16, (size + 7) & ~7);
 	if (size > ARRAYLIKE_MAX) {
 		fprintf(stderr, "Array size overflow");
 		exit(1);
@@ -239,7 +239,7 @@ ObjArray* newArrayI16(uint64_t size)
 	ObjArray* array = ALLOCATE_OBJ(ObjArray, OBJ_ARRAY_I16);
 	array->capacity = size;
 	array->length = 0;
-	array->payload = (char*)ALLOCATE(int16_t, size);
+	array->payload = ALLOCATE(int16_t, size);
 
 	return array;
 }
@@ -247,7 +247,7 @@ ObjArray* newArrayI16(uint64_t size)
 ObjArray* newArrayU8(uint64_t size)
 {
 	//align to 8
-	size = max(8, (size + 7) & ~7);
+	size = max(16, (size + 7) & ~7);
 	if (size > ARRAYLIKE_MAX) {
 		fprintf(stderr, "Array size overflow");
 		exit(1);
@@ -256,7 +256,7 @@ ObjArray* newArrayU8(uint64_t size)
 	ObjArray* array = ALLOCATE_OBJ(ObjArray, OBJ_ARRAY_U8);
 	array->capacity = size;
 	array->length = 0;
-	array->payload = (char*)ALLOCATE(uint8_t, size);
+	array->payload = ALLOCATE(uint8_t, size);
 
 	return array;
 }
@@ -264,7 +264,7 @@ ObjArray* newArrayU8(uint64_t size)
 ObjArray* newArrayI8(uint64_t size)
 {
 	//align to 8
-	size = max(8, (size + 7) & ~7);
+	size = max(16, (size + 7) & ~7);
 	if (size > ARRAYLIKE_MAX) {
 		fprintf(stderr, "Array size overflow");
 		exit(1);
@@ -273,7 +273,7 @@ ObjArray* newArrayI8(uint64_t size)
 	ObjArray* array = ALLOCATE_OBJ(ObjArray, OBJ_ARRAY_I8);
 	array->capacity = size;
 	array->length = 0;
-	array->payload = (char*)ALLOCATE(int8_t, size);
+	array->payload = ALLOCATE(int8_t, size);
 
 	return array;
 }
@@ -299,7 +299,7 @@ void reserveArray(ObjArray* array, uint64_t size)
 	}
 
 #define GROW_TYPED_ARRY(type, ptr, size) reallocate(ptr, sizeof(type) * array->capacity, sizeof(type) * size)
-	Unknown_ptr newPayload = NULL;
+	void* newPayload = NULL;
 
 	switch (OBJ_GET_TYPE(array->obj)) {
 	case OBJ_ARRAY:
@@ -334,7 +334,7 @@ void reserveArray(ObjArray* array, uint64_t size)
 		break;
 	}
 
-	array->payload = (char*)newPayload;
+	array->payload = newPayload;
 	array->capacity = size;
 #undef GROW_TYPED_ARRY
 }

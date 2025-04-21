@@ -55,7 +55,7 @@ static bool throwError(Value error, C_STR format, ...) {
 		CallFrame* frame = &vm.frames[i];
 
 		ObjFunction* function = frame->closure->function;
-		size_t instruction = frame->ip - function->chunk.code - 1;
+		uint64_t instruction = frame->ip - function->chunk.code - 1;
 
 		uint32_t line = getLine(&function->chunk.lines, (uint32_t)instruction);
 
@@ -98,7 +98,7 @@ static void runtimeError(C_STR format, ...) {
 	for (int32_t i = vm.frameCount - 1; i >= 0; i--) {
 		CallFrame* frame = &vm.frames[i];
 		ObjFunction* function = frame->closure->function;
-		size_t instruction = frame->ip - function->chunk.code - 1;
+		uint64_t instruction = frame->ip - function->chunk.code - 1;
 
 		uint32_t line = getLine(&function->chunk.lines, (uint32_t)instruction);
 
@@ -970,7 +970,7 @@ static InterpretResult run()
 			break;
 		}
 		case OP_NEW_ARRAY: {
-			uint8_t size = READ_BYTE();
+			uint8_t size = READ_SHORT();
 			ObjArray* array = newArray(size);
 
 			//init the array

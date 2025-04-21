@@ -132,7 +132,7 @@ typedef struct {
 	Obj obj;
 	uint32_t length;
 	uint32_t capacity;
-	char* payload;
+	void* payload;
 } ObjArray;
 
 #define OBJ_GET_TYPE(obj)			((obj).type)

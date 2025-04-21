@@ -85,7 +85,7 @@ void markObject(Obj* object)
 	}
 
 #if DEBUG_LOG_GC
-	printf("[gc] %p mark ", (Unknown_ptr)object);
+	printf("[gc] %p mark ", (void*)object);
 	printValue(OBJ_VAL(object));
 	printf("\n");
 #endif
@@ -103,7 +103,7 @@ void markObject(Obj* object)
 
 static void blackenObject(Obj* object) {
 #if DEBUG_LOG_GC
-	printf("[gc] %p blacken ", (Unknown_ptr)object);
+	printf("[gc] %p blacken ", (void*)object);
 	printValue(OBJ_VAL(object));
 	printf("\n");
 #endif
