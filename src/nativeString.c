@@ -6,6 +6,9 @@
 #include "nativeBuiltin.h"
 #include "vm.h"
 
+//const string limit,will truncate
+#define INTERN_STRING_WARN (1024)
+
 //String
 COLD_FUNCTION
 static Value lengthNative(int argCount, Value* args)
@@ -254,6 +257,9 @@ static Value internNative(int argCount, Value* args) {
 	if (argCount >= 1) {
 		if (IS_STRING_BUILDER(args[0])) {
 			ObjArray* stringBuilder = AS_ARRAY(args[0]);
+			if (stringBuilder->length > INTERN_STRING_WARN) {
+				fprintf(stderr, "[Warn] Extra-long intern string of length: %d", stringBuilder->length);
+			}
 			return OBJ_VAL(copyString(stringBuilder->payload, stringBuilder->length, false));
 		}
 		else if (IS_STRING(args[0])) {

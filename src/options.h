@@ -28,7 +28,7 @@
 // log memory info after execute
 #define LOG_MALLOC_INFO 1
 // kilo instructions per second
-#define LOG_MIPS 1
+#define LOG_MIPS 0
 
 #if !DEBUG_MODE
 #undef DEBUG_PRINT_CODE
