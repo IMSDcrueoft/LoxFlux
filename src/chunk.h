@@ -13,6 +13,18 @@ typedef enum {
 	OP_CONSTANT,		// 1 + 2 byte
 	OP_CONSTANT_LONG,   // 1 + 3 byte
 
+	//load local
+	OP_GET_LOCAL,
+	OP_SET_LOCAL,
+
+	OP_ADD,				// +
+	OP_SUBTRACT,		// -
+	OP_MULTIPLY,		// *
+	OP_DIVIDE,			// /
+	OP_MODULUS,			// %
+	OP_NOT,				// !
+	OP_NEGATE,			// -v
+
 	OP_NIL,
 	OP_TRUE,
 	OP_FALSE,
@@ -22,54 +34,48 @@ typedef enum {
 	OP_NOT_EQUAL,		//!=
 	OP_LESS_EQUAL,		//<=
 	OP_GREATER_EQUAL,	//>=
-	OP_ADD,				// +
-	OP_SUBTRACT,		// -
-	OP_MULTIPLY,		// *
-	OP_DIVIDE,			// /
-	OP_MODULUS,			// %
-	OP_NOT,				// !
-	OP_NEGATE,			// -v
-	OP_PRINT,			// print string or value
-	OP_POP,				// pop stack
-	OP_POP_N,			// pop multiple stack
+	
 	OP_JUMP,			// no condition jump
 	OP_JUMP_IF_FALSE,   // condition jump if false
 	OP_JUMP_IF_FALSE_POP,
 	OP_JUMP_IF_TRUE,    // condition jump if true
 	OP_JUMP_IF_TRUE_POP,
 	OP_LOOP,			// loop
+	OP_BITWISE,			//& | ~ ^ << >> >>>
 	OP_CALL,			// callFn
 	OP_RETURN,          // ret
-	OP_BITWISE,			//& | ~ ^ << >> >>>
+	OP_POP,				// pop stack
+	OP_POP_N,			// pop multiple stack
+
 	OP_SET_SUBSCRIPT,	// set subscript
 	OP_GET_SUBSCRIPT,	// get subscript
-	OP_INSTANCE_OF,		//instance
-	OP_THROW,			// throw
-
-	//load local
-	OP_GET_LOCAL,
-	OP_SET_LOCAL,
-	//up value
-	OP_GET_UPVALUE,
-	OP_SET_UPVALUE,
-	OP_CLOSE_UPVALUE,   // close upvalue
-	OP_NEW_ARRAY,		// array literal
-
-	OP_GET_GLOBAL,
-	OP_SET_GLOBAL,
-	OP_DEFINE_GLOBAL,	//define global
 
 	OP_GET_PROPERTY,	// modify property
 	OP_SET_PROPERTY,
 
 	OP_CLOSURE,			// getFn
 	OP_CLOSURE_LONG,	// getFn
+
+	OP_NEW_ARRAY,		// array literal
 	OP_CLASS,			// create class
+	//up value
+	OP_GET_UPVALUE,
+	OP_SET_UPVALUE,
+	OP_CLOSE_UPVALUE,   // close upvalue
+
+	OP_GET_GLOBAL,
+	OP_SET_GLOBAL,
+	OP_DEFINE_GLOBAL,	//define global
 
 	//load builtin module
 	OP_MODULE_BUILTIN,
 	//allow user to get the global object
 	OP_MODULE_GLOBAL,
+
+	//slow func
+	OP_PRINT,			// print string or value
+	OP_INSTANCE_OF,		//instance
+	OP_THROW,			// throw
 } OpCode;
 
 typedef enum {
