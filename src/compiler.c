@@ -167,7 +167,7 @@ static uint32_t makeConstant(Value value) {
 
 //we got very big range
 static void emitConstantCommond(uint32_t index) {
-	if (index <= UINT16_MAX) { // 18-bit index (16 + 2 bits)
+	if (index <= UINT16_MAX) { // 16-bit index (16 bits)
 		emitBytes(3, OP_CONSTANT, (uint8_t)index, (uint8_t)(index >> 8));
 	}
 	else if (index <= UINT24_MAX) { // 24-bit index
@@ -180,7 +180,7 @@ static void emitConstantCommond(uint32_t index) {
 
 //we got very big range
 static void emitClosureCommond(uint32_t index) {
-	if (index <= UINT16_MAX) { // 18-bit index (16 + 2 bits)
+	if (index <= UINT16_MAX) { // 16-bit index (16 bits)
 		emitBytes(3, OP_CLOSURE, (uint8_t)index, (uint8_t)(index >> 8));
 	}
 	else if (index <= UINT24_MAX) { // 24-bit index
@@ -1079,11 +1079,8 @@ static void string(bool canAssign) {
 }
 
 static void emitGlobalDefineCommond(uint32_t index) {
-	if (index <= UINT16_MAX) {
-		emitBytes(3, OP_DEFINE_GLOBAL, (uint8_t)index, (uint8_t)(index >> 8));
-	}
-	else if (index <= UINT24_MAX) {
-		emitBytes(4, OP_DEFINE_GLOBAL_LONG, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
+	if (index <= UINT24_MAX) {
+		emitBytes(4, OP_DEFINE_GLOBAL, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
 	}
 	else {
 		error("Too many constants in chunk.");
@@ -1091,11 +1088,8 @@ static void emitGlobalDefineCommond(uint32_t index) {
 }
 
 static void emitGlobalGetCommond(uint32_t index) {
-	if (index <= UINT16_MAX) {
-		emitBytes(3, OP_GET_GLOBAL, (uint8_t)index, (uint8_t)(index >> 8));
-	}
-	else if (index <= UINT24_MAX) {
-		emitBytes(4, OP_GET_GLOBAL_LONG, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
+	if (index <= UINT24_MAX) {
+		emitBytes(4, OP_GET_GLOBAL, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
 	}
 	else {
 		error("Too many constants in chunk.");
@@ -1103,11 +1097,8 @@ static void emitGlobalGetCommond(uint32_t index) {
 }
 
 static void emitGlobalSetCommond(uint32_t index) {
-	if (index <= UINT16_MAX) {
-		emitBytes(3, OP_SET_GLOBAL, (uint8_t)index, (uint8_t)(index >> 8));
-	}
-	else if (index <= UINT24_MAX) {
-		emitBytes(4, OP_SET_GLOBAL_LONG, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
+	if (index <= UINT24_MAX) {
+		emitBytes(4, OP_SET_GLOBAL, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
 	}
 	else {
 		error("Too many constants in chunk.");

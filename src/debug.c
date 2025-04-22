@@ -260,17 +260,11 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 		return bitwiseInStruction("OP_BITWISE", chunk, offset);
 
 	case OP_DEFINE_GLOBAL:
-		return modifyGlobalInstruction("OP_DEFINE_GLOBAL", chunk, offset);
-	case OP_DEFINE_GLOBAL_LONG:
-		return modifyGlobalLongInstruction("OP_DEFINE_GLOBAL_LONG", chunk, offset);
+		return modifyGlobalLongInstruction("OP_DEFINE_GLOBAL", chunk, offset);
 	case OP_GET_GLOBAL:
-		return modifyGlobalInstruction("OP_GET_GLOBAL", chunk, offset);
-	case OP_GET_GLOBAL_LONG:
-		return modifyGlobalLongInstruction("OP_GET_GLOBAL_LONG", chunk, offset);
+		return modifyGlobalLongInstruction("OP_GET_GLOBAL", chunk, offset);
 	case OP_SET_GLOBAL:
-		return modifyGlobalInstruction("OP_SET_GLOBAL", chunk, offset);
-	case OP_SET_GLOBAL_LONG:
-		return modifyGlobalLongInstruction("OP_SET_GLOBAL_LONG", chunk, offset);
+		return modifyGlobalLongInstruction("OP_SET_GLOBAL", chunk, offset);
 	case OP_CLASS:
 		return constantInstruction_long("OP_CLASS", chunk, offset);
 

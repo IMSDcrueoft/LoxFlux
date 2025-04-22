@@ -10,20 +10,12 @@
 #include "lineArray.h"
 
 typedef enum {
-	OP_CONSTANT,        // 1 + 2 byte
+	OP_CONSTANT,		// 1 + 2 byte
 	OP_CONSTANT_LONG,   // 1 + 3 byte
 
 	OP_NIL,
 	OP_TRUE,
 	OP_FALSE,
-
-	OP_DEFINE_GLOBAL,		//define global
-	OP_DEFINE_GLOBAL_LONG,	//define global
-	OP_GET_GLOBAL,
-	OP_GET_GLOBAL_LONG,
-	OP_SET_GLOBAL,
-	OP_SET_GLOBAL_LONG,
-
 	OP_EQUAL,			//==
 	OP_GREATER,			//>
 	OP_LESS,			//<
@@ -47,42 +39,37 @@ typedef enum {
 	OP_JUMP_IF_TRUE_POP,
 	OP_LOOP,			// loop
 	OP_CALL,			// callFn
-
-	OP_CLOSURE,			// getFn
-	OP_CLOSURE_LONG,	// getFn
-
-	OP_CLOSE_UPVALUE,   // close upvalue
-
-	OP_CLASS,			// create class
-
-	OP_GET_PROPERTY,	// modify property
-	OP_SET_PROPERTY,
-
+	OP_RETURN,          // ret
+	OP_BITWISE,			//& | ~ ^ << >> >>>
 	OP_SET_SUBSCRIPT,	// set subscript
 	OP_GET_SUBSCRIPT,	// get subscript
-
-	OP_NEW_ARRAY,		// array literal
-
-	OP_RETURN,          // ret
+	OP_INSTANCE_OF,		//instance
 	OP_THROW,			// throw
 
 	//load local
 	OP_GET_LOCAL,
 	OP_SET_LOCAL,
-
 	//up value
 	OP_GET_UPVALUE,
 	OP_SET_UPVALUE,
+	OP_CLOSE_UPVALUE,   // close upvalue
+	OP_NEW_ARRAY,		// array literal
+
+	OP_GET_GLOBAL,
+	OP_SET_GLOBAL,
+	OP_DEFINE_GLOBAL,	//define global
+
+	OP_GET_PROPERTY,	// modify property
+	OP_SET_PROPERTY,
+
+	OP_CLOSURE,			// getFn
+	OP_CLOSURE_LONG,	// getFn
+	OP_CLASS,			// create class
 
 	//load builtin module
 	OP_MODULE_BUILTIN,
 	//allow user to get the global object
 	OP_MODULE_GLOBAL,
-
-	//instance
-	OP_INSTANCE_OF,
-
-	OP_BITWISE,				//& | ~ ^ << >> >>>
 } OpCode;
 
 typedef enum {
