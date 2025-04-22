@@ -582,11 +582,8 @@ static void lambda(bool canAssign) {
 }
 
 static void emitClassCommond(uint32_t index) {
-	if (index <= UINT16_MAX) {
-		emitBytes(3, OP_CLASS, (uint8_t)index, (uint8_t)(index >> 8));
-	}
-	else if (index <= UINT24_MAX) {
-		emitBytes(4, OP_CLASS_LONG, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
+	if (index <= UINT24_MAX) {
+		emitBytes(4, OP_CLASS, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
 	}
 	else {
 		error("Too many constants in chunk.");
@@ -953,11 +950,8 @@ static void call(bool canAssign) {
 }
 
 static void emitPropGetCommond(uint32_t index) {
-	if (index <= UINT16_MAX) {
-		emitBytes(3, OP_GET_PROPERTY, (uint8_t)index, (uint8_t)(index >> 8));
-	}
-	else if (index <= UINT24_MAX) {
-		emitBytes(4, OP_GET_PROPERTY_LONG, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
+	if (index <= UINT24_MAX) {
+		emitBytes(4, OP_GET_PROPERTY, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
 	}
 	else {
 		error("Too many constants in chunk.");
@@ -965,11 +959,8 @@ static void emitPropGetCommond(uint32_t index) {
 }
 
 static void emitPropSetCommond(uint32_t index) {
-	if (index <= UINT16_MAX) {
-		emitBytes(3, OP_SET_PROPERTY, (uint8_t)index, (uint8_t)(index >> 8));
-	}
-	else if (index <= UINT24_MAX) {
-		emitBytes(4, OP_SET_PROPERTY_LONG, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
+	if (index <= UINT24_MAX) {
+		emitBytes(4, OP_SET_PROPERTY, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
 	}
 	else {
 		error("Too many constants in chunk.");
