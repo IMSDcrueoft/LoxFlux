@@ -128,7 +128,7 @@ ObjInstance* newInstance(ObjClass* klass) {
 ObjArray* newArray(uint64_t size)
 {
 	//align to 8
-	size = max(8, (size + 7) & ~7);
+	size = (size + 7) & ~7;
 	if (size > ARRAYLIKE_MAX) {
 		fprintf(stderr, "Array size overflow");
 		exit(1);
@@ -145,7 +145,7 @@ ObjArray* newArray(uint64_t size)
 ObjArray* newArrayF64(uint64_t size)
 {
 	//align to 8
-	size = max(8, (size + 7) & ~7);
+	size = (size + 7) & ~7;
 	if (size > ARRAYLIKE_MAX) {
 		fprintf(stderr, "Array size overflow");
 		exit(1);
@@ -162,7 +162,7 @@ ObjArray* newArrayF64(uint64_t size)
 ObjArray* newArrayF32(uint64_t size)
 {
 	//align to 8
-	size = max(8, (size + 7) & ~7);
+	size = (size + 7) & ~7;
 	if (size > ARRAYLIKE_MAX) {
 		fprintf(stderr, "Array size overflow");
 		exit(1);
@@ -179,7 +179,7 @@ ObjArray* newArrayF32(uint64_t size)
 ObjArray* newArrayU32(uint64_t size)
 {
 	//align to 8
-	size = max(8, (size + 7) & ~7);
+	size = (size + 7) & ~7;
 	if (size > ARRAYLIKE_MAX) {
 		fprintf(stderr, "Array size overflow");
 		exit(1);
@@ -196,7 +196,7 @@ ObjArray* newArrayU32(uint64_t size)
 ObjArray* newArrayI32(uint64_t size)
 {
 	//align to 8
-	size = max(8, (size + 7) & ~7);
+	size = (size + 7) & ~7;
 	if (size > ARRAYLIKE_MAX) {
 		fprintf(stderr, "Array size overflow");
 		exit(1);
@@ -213,7 +213,7 @@ ObjArray* newArrayI32(uint64_t size)
 ObjArray* newArrayU16(uint64_t size)
 {
 	//align to 8
-	size = max(16, (size + 7) & ~7);
+	size = (size + 7) & ~7;
 	if (size > ARRAYLIKE_MAX) {
 		fprintf(stderr, "Array size overflow");
 		exit(1);
@@ -230,7 +230,7 @@ ObjArray* newArrayU16(uint64_t size)
 ObjArray* newArrayI16(uint64_t size)
 {
 	//align to 8
-	size = max(16, (size + 7) & ~7);
+	size = (size + 7) & ~7;
 	if (size > ARRAYLIKE_MAX) {
 		fprintf(stderr, "Array size overflow");
 		exit(1);
@@ -247,7 +247,7 @@ ObjArray* newArrayI16(uint64_t size)
 ObjArray* newArrayU8(uint64_t size)
 {
 	//align to 8
-	size = max(16, (size + 7) & ~7);
+	size = (size + 7) & ~7;
 	if (size > ARRAYLIKE_MAX) {
 		fprintf(stderr, "Array size overflow");
 		exit(1);
@@ -264,7 +264,7 @@ ObjArray* newArrayU8(uint64_t size)
 ObjArray* newArrayI8(uint64_t size)
 {
 	//align to 8
-	size = max(16, (size + 7) & ~7);
+	size = (size + 7) & ~7;
 	if (size > ARRAYLIKE_MAX) {
 		fprintf(stderr, "Array size overflow");
 		exit(1);
@@ -291,7 +291,7 @@ ObjArray* newStringBuilder()
 COLD_FUNCTION
 void reserveArray(ObjArray* array, uint64_t size)
 {
-	size = max(8, (size + 7) & ~7);
+	size = (size + 7) & ~7;
 	if (size < array->capacity) return;
 	if (size > ARRAYLIKE_MAX) {
 		fprintf(stderr, "ArrayLike size overflow");

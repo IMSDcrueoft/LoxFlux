@@ -676,39 +676,12 @@ static InterpretResult run()
 			break;
 		}
 		case OP_CLASS: {
-			Value constant = READ_CONSTANT(READ_SHORT());
-			ObjString* name = AS_STRING(constant);
-			stack_push(OBJ_VAL(newClass(name)));
-			break;
-		}
-		case OP_CLASS_LONG: {
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			stack_push(OBJ_VAL(newClass(name)));
 			break;
 		}
 		case OP_GET_PROPERTY: {
-			if (!IS_INSTANCE(vm.stackTop[-1])) {
-				runtimeError("Only instances have properties.");
-				return INTERPRET_RUNTIME_ERROR;
-			}
-
-			ObjInstance* instance = AS_INSTANCE(vm.stackTop[-1]);
-			Value constant = READ_CONSTANT(READ_SHORT());
-			ObjString* name = AS_STRING(constant);
-
-			Value value;
-			if (tableGet(&instance->fields, name, &value)) {
-				stack_replace(value);
-				break;
-			}
-
-			//runtimeError("Undefined property '%s'.", name->chars);
-			//return INTERPRET_RUNTIME_ERROR;
-			stack_replace(NIL_VAL);//don't throw error
-			break;
-		}
-		case OP_GET_PROPERTY_LONG: {
 			if (!IS_INSTANCE(vm.stackTop[-1])) {
 				runtimeError("Only instances have properties.");
 				return INTERPRET_RUNTIME_ERROR;
@@ -730,25 +703,6 @@ static InterpretResult run()
 			break;
 		}
 		case OP_SET_PROPERTY: {
-			if (!IS_INSTANCE(vm.stackTop[-2])) {
-				runtimeError("Only instances have fields.");
-				return INTERPRET_RUNTIME_ERROR;
-			}
-
-			ObjInstance* instance = AS_INSTANCE(vm.stackTop[-2]);
-			Value constant = READ_CONSTANT(READ_SHORT());
-			ObjString* name = AS_STRING(constant);
-			if (NOT_NIL(vm.stackTop[-1])) {
-				tableSet(&instance->fields, name, vm.stackTop[-1]);
-			}
-			else {
-				tableDelete(&instance->fields, name);
-			}
-			Value value = stack_pop();
-			stack_replace(value);
-			break;
-		}
-		case OP_SET_PROPERTY_LONG: {
 			if (!IS_INSTANCE(vm.stackTop[-2])) {
 				runtimeError("Only instances have fields.");
 				return INTERPRET_RUNTIME_ERROR;
@@ -906,14 +860,6 @@ static InterpretResult run()
 			return INTERPRET_RUNTIME_ERROR;
 		}
 		case OP_DEFINE_GLOBAL: {
-			Value constant = READ_CONSTANT(READ_SHORT());
-			ObjString* name = AS_STRING(constant);
-			--vm.stackTop;
-
-			tableSet_g(&vm.globals.fields, name, *vm.stackTop);
-			break;
-		}
-		case OP_DEFINE_GLOBAL_LONG: {
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			--vm.stackTop;
@@ -922,18 +868,6 @@ static InterpretResult run()
 			break;
 		}
 		case OP_GET_GLOBAL: {
-			Value constant = READ_CONSTANT(READ_SHORT());
-			ObjString* name = AS_STRING(constant);
-			Value value;
-
-			if (!tableGet_g(&vm.globals.fields, name, &value)) {
-				runtimeError("Undefined variable '%s'.", name->chars);
-				return INTERPRET_RUNTIME_ERROR;
-			}
-			stack_push(value);
-			break;
-		}
-		case OP_GET_GLOBAL_LONG: {
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			Value value;
@@ -946,18 +880,6 @@ static InterpretResult run()
 			break;
 		}
 		case OP_SET_GLOBAL: {
-			Value constant = READ_CONSTANT(READ_SHORT());
-			ObjString* name = AS_STRING(constant);
-
-			if (tableSet_g(&vm.globals.fields, name, vm.stackTop[-1])) {
-				//lox dont allow setting undefined one
-				tableDelete_g(&vm.globals.fields, name);
-				runtimeError("Undefined variable '%s'.", name->chars);
-				return INTERPRET_RUNTIME_ERROR;
-			}
-			break;
-		}
-		case OP_SET_GLOBAL_LONG: {
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 
@@ -970,7 +892,7 @@ static InterpretResult run()
 			break;
 		}
 		case OP_NEW_ARRAY: {
-			uint8_t size = READ_SHORT();
+			uint16_t size = READ_SHORT();
 			ObjArray* array = newArray(size);
 
 			//init the array

@@ -100,7 +100,7 @@ Lox is a programming language designed for learning purposes. It is conceived as
 
 ### Array
 
-- **Array Literals**: Supports defining array literals directly in the code(no more than `255` within each `[]`), making array creation more intuitive and convenient.
+- **Array Literals**: Supports defining array literals directly in the code(no more than `1024` within each `[]`)(Configurable up to 65535), making array creation more intuitive and convenient.
 - **Syntax**: Use square brackets `[]` to define an array. Elements are separated by commas. Arrays can hold elements of any supported data type, including numbers, strings, objects, or even other arrays (nested arrays).
 - **Typed Array**: Typed arrays are pure arrays in compiled languages like C/CPP as we know them, and if you try to assign a non-numeric type to it, it will become `0`.
 
