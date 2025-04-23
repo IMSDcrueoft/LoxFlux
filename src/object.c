@@ -556,7 +556,7 @@ static void printFunction(ObjFunction* function) {
 
 static void printArrayLike(ObjArray* array, bool isExpand) {
 	if (OBJ_GET_TYPE(array->obj) == OBJ_STRING_BUILDER) {
-		printf("%s", array->payload);
+		printf("%s", (STR)array->payload);
 		return;
 	}
 

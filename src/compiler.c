@@ -217,6 +217,8 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	case TYPE_LAMBDA:
 		compiler->function->name = copyString("", 0, false);
 		break;
+	default:
+		break;
 	}
 
 	Local* local = &compiler->locals[compiler->localCount++];
