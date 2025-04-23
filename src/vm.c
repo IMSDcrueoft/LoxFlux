@@ -630,34 +630,11 @@ static InterpretResult run()
 		switch (instruction)
 		{
 		case OP_CONSTANT: {
-			Value constant = READ_CONSTANT(READ_SHORT());
-			stack_push(constant);
-			break;
-		}
-		case OP_CONSTANT_LONG: {
 			Value constant = READ_CONSTANT(READ_24bits());
 			stack_push(constant);
 			break;
 		}
 		case OP_CLOSURE: {
-			Value constant = READ_CONSTANT(READ_SHORT());
-			ObjFunction* function = AS_FUNCTION(constant);
-			ObjClosure* closure = newClosure(function);
-			stack_push(OBJ_VAL(closure));
-
-			for (uint32_t i = 0; i < closure->upvalueCount; i++) {
-				uint8_t isLocal = READ_BYTE();
-				uint16_t index = READ_SHORT();
-				if (isLocal) {
-					closure->upvalues[i] = captureUpvalue(frame->slots + index);
-				}
-				else {
-					closure->upvalues[i] = frame->closure->upvalues[index];
-				}
-			}
-			break;
-		}
-		case OP_CLOSURE_LONG: {
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjFunction* function = AS_FUNCTION(constant);
 			ObjClosure* closure = newClosure(function);

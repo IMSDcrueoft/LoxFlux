@@ -104,6 +104,15 @@ static void emitBytes(uint32_t count, uint8_t byte, ...) {
 	va_end(arguments);
 }
 
+static void emitConstantCommond(OpCode target, uint32_t index) {
+	if (index <= UINT24_MAX) {
+		emitBytes(4, target, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
+	}
+	else {
+		error("Too many constants in chunk.");
+	}
+}
+
 static int32_t emitJump(uint8_t instruction) {
 	emitByte(instruction);
 	emitBytes(2, 0xff, 0xff);
@@ -165,34 +174,8 @@ static uint32_t makeConstant(Value value) {
 	}
 }
 
-//we got very big range
-static void emitConstantCommond(uint32_t index) {
-	if (index <= UINT16_MAX) { // 16-bit index (16 bits)
-		emitBytes(3, OP_CONSTANT, (uint8_t)index, (uint8_t)(index >> 8));
-	}
-	else if (index <= UINT24_MAX) { // 24-bit index
-		emitBytes(4, OP_CONSTANT_LONG, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
-	}
-	else {
-		error("Too many constants in chunk.");
-	}
-}
-
-//we got very big range
-static void emitClosureCommond(uint32_t index) {
-	if (index <= UINT16_MAX) { // 16-bit index (16 bits)
-		emitBytes(3, OP_CLOSURE, (uint8_t)index, (uint8_t)(index >> 8));
-	}
-	else if (index <= UINT24_MAX) { // 24-bit index
-		emitBytes(4, OP_CLOSURE_LONG, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
-	}
-	else {
-		error("Too many constants in chunk.");
-	}
-}
-
 static void emitConstant(Value value) {
-	emitConstantCommond(makeConstant(value));
+	emitConstantCommond(OP_CONSTANT, makeConstant(value));
 }
 
 static void patchJump(int32_t offset) {
@@ -470,9 +453,6 @@ static void markInitialized(bool isConst) {
 	current->locals[current->localCount - 1].isConst = isConst;
 }
 
-static void emitGlobalDefineCommond(uint32_t index);
-static void emitGlobalGetCommond(uint32_t index);
-static void emitGlobalSetCommond(uint32_t index);
 static void defineVariable(uint32_t global) {
 	//it is a local one
 	if (current->scopeDepth > 0) {
@@ -480,7 +460,7 @@ static void defineVariable(uint32_t global) {
 		return;
 	}
 
-	emitGlobalDefineCommond(global);
+	emitConstantCommond(OP_DEFINE_GLOBAL, global);
 }
 
 static void defineConst(uint32_t global) {
@@ -547,17 +527,17 @@ static void function(FunctionType type) {
 	}
 
 	if (!check(TOKEN_RIGHT_PAREN)) {
-    do {
-      current->function->arity++;
-      if (current->function->arity > 255) {
-        errorAtCurrent("Can't have more than 255 parameters.");
-      }
+		do {
+			current->function->arity++;
+			if (current->function->arity > 255) {
+				errorAtCurrent("Can't have more than 255 parameters.");
+			}
 
-	  uint32_t constant = parseVariable("Expect parameter name.");
-	  defineVariable(constant);
+			uint32_t constant = parseVariable("Expect parameter name.");
+			defineVariable(constant);
 
-    } while (match(TOKEN_COMMA));
-  }
+		} while (match(TOKEN_COMMA));
+	}
 
 	consume(TOKEN_RIGHT_PAREN, "Expect ')' after parameters.");
 	consume(TOKEN_LEFT_BRACE, "Expect '{' before function body.");
@@ -566,8 +546,8 @@ static void function(FunctionType type) {
 	ObjFunction* function = endCompiler();
 
 	//create a closure
-	emitClosureCommond(makeConstant(OBJ_VAL(function)));
-  
+	emitConstantCommond(OP_CLOSURE, makeConstant(OBJ_VAL(function)));
+
 	//insert upValue index
 	for (uint32_t i = 0; i < function->upvalueCount; i++) {
 		emitByte(compiler.upvalues[i].isLocal ? 1 : 0);
@@ -578,28 +558,40 @@ static void function(FunctionType type) {
 }
 
 static void lambda(bool canAssign) {
-	function(TYPE_LAMBDA);
+	FunctionType type = TYPE_LAMBDA;
+	function(type);
 }
 
-static void emitClassCommond(uint32_t index) {
-	if (index <= UINT24_MAX) {
-		emitBytes(4, OP_CLASS, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
-	}
-	else {
-		error("Too many constants in chunk.");
-	}
+static void method() {
+	consume(TOKEN_IDENTIFIER, "Expect method name.");
+	uint32_t constant = identifierConstant(&parser.previous);
+
+	FunctionType type = TYPE_FUNCTION;
+	function(type);
+
+	emitConstantCommond(OP_METHOD, constant);
 }
 
+static void namedVariable(Token name, bool canAssign);
 static void classDeclaration() {
 	consume(TOKEN_IDENTIFIER, "Expect class name.");
+	Token className = parser.previous;
+
 	uint32_t nameConstant = identifierConstant(&parser.previous);
 	declareVariable();
 
-	emitClassCommond(nameConstant);
+	emitConstantCommond(OP_CLASS, nameConstant);
 	defineVariable(nameConstant);
 
+	//put the class back to stack
+	namedVariable(className, false);
 	consume(TOKEN_LEFT_BRACE, "Expect '{' before class body.");
+	while (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF)) {
+		method();
+	}
 	consume(TOKEN_RIGHT_BRACE, "Expect '}' after class body.");
+	//pop out the class
+	emitByte(OP_POP);
 }
 
 static void funDeclaration() {
@@ -658,7 +650,7 @@ static void forStatement() {
 	beginScope();
 
 	consume(TOKEN_LEFT_PAREN, "Expect '(' after 'for'.");
-	
+
 	if (match(TOKEN_SEMICOLON)) { //like this -> for(;;)
 		// No initializer.
 	}
@@ -670,7 +662,7 @@ static void forStatement() {
 	}
 
 	int32_t loopStart = currentChunk()->count;
-	
+
 	int32_t exitJump = -1;
 	if (!match(TOKEN_SEMICOLON)) {//for(; here ;)
 		expression();
@@ -899,7 +891,8 @@ static void declaration() {
 
 	if (match(TOKEN_CLASS)) {
 		classDeclaration();
-	} else if (match(TOKEN_FUN)) {
+	}
+	else if (match(TOKEN_FUN)) {
 		funDeclaration();
 	}
 	else if (match(TOKEN_VAR)) {
@@ -946,25 +939,7 @@ static void binary(bool canAssign) {
 
 static void call(bool canAssign) {
 	uint8_t argCount = argumentList();
-	emitBytes(2,OP_CALL, argCount);
-}
-
-static void emitPropGetCommond(uint32_t index) {
-	if (index <= UINT24_MAX) {
-		emitBytes(4, OP_GET_PROPERTY, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
-	}
-	else {
-		error("Too many constants in chunk.");
-	}
-}
-
-static void emitPropSetCommond(uint32_t index) {
-	if (index <= UINT24_MAX) {
-		emitBytes(4, OP_SET_PROPERTY, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
-	}
-	else {
-		error("Too many constants in chunk.");
-	}
+	emitBytes(2, OP_CALL, argCount);
 }
 
 static void dot(bool canAssign) {
@@ -973,10 +948,10 @@ static void dot(bool canAssign) {
 
 	if (canAssign && match(TOKEN_EQUAL)) {
 		expression();
-		emitPropSetCommond(name);
+		emitConstantCommond(OP_SET_PROPERTY, name);
 	}
 	else {
-		emitPropGetCommond(name);
+		emitConstantCommond(OP_GET_PROPERTY, name);
 	}
 }
 
@@ -1078,33 +1053,6 @@ static void string(bool canAssign) {
 	emitConstant(OBJ_VAL(copyString(parser.previous.start + 1, parser.previous.length - 2, false)));
 }
 
-static void emitGlobalDefineCommond(uint32_t index) {
-	if (index <= UINT24_MAX) {
-		emitBytes(4, OP_DEFINE_GLOBAL, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
-	}
-	else {
-		error("Too many constants in chunk.");
-	}
-}
-
-static void emitGlobalGetCommond(uint32_t index) {
-	if (index <= UINT24_MAX) {
-		emitBytes(4, OP_GET_GLOBAL, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
-	}
-	else {
-		error("Too many constants in chunk.");
-	}
-}
-
-static void emitGlobalSetCommond(uint32_t index) {
-	if (index <= UINT24_MAX) {
-		emitBytes(4, OP_SET_GLOBAL, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
-	}
-	else {
-		error("Too many constants in chunk.");
-	}
-}
-
 static void namedVariable(Token name, bool canAssign) {
 	LocalInfo args = resolveLocal(current, &name);
 	int32_t arg = args.arg;
@@ -1149,11 +1097,10 @@ static void namedVariable(Token name, bool canAssign) {
 
 			if (canAssign && match(TOKEN_EQUAL)) {
 				expression();
-
-				emitGlobalSetCommond(arg);
+				emitConstantCommond(OP_SET_GLOBAL, arg);
 			}
 			else {
-				emitGlobalGetCommond(arg);
+				emitConstantCommond(OP_GET_GLOBAL, arg);
 			}
 		}
 	}

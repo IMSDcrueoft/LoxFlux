@@ -138,7 +138,7 @@ static uint32_t constantInstruction_long(C_STR name, Chunk* chunk, uint32_t offs
 	printValue(vm.constants.values[constant]);
 	printf("'\n");
 
-	//OP_CONSTANT_LONG 4
+	//OP_CONSTANT 4
 	return offset + 4;
 }
 
@@ -180,40 +180,17 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 		return simpleInstruction("OP_NEGATE", offset);
 
 	case OP_CONSTANT:
-		return constantInstruction("OP_CONSTANT", chunk, offset);
-	case OP_CONSTANT_LONG:
-		return constantInstruction_long("OP_CONSTANT_LONG", chunk, offset);
+		return constantInstruction_long("OP_CONSTANT", chunk, offset);
 
 	case OP_CLOSURE:{
-		uint16_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8);
+		//24bit index
+		uint32_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8) | ((uint32_t)chunk->code[offset + 3] << 16);
 
 		printf("%-16s %4d '", "OP_CLOSURE", constant);
 		printValue(vm.constants.values[constant]);
 		printf("'\n");
 
-		//OP_CONSTANT_SHORT 3
-		offset += 3;
-
-		ObjFunction* function = AS_FUNCTION(vm.constants.values[constant]);
-		for (uint32_t j = 0; j < function->upvalueCount; j++) {
-			int32_t isLocal = chunk->code[offset++];
-			uint16_t index = chunk->code[offset++];
-			index |= (chunk->code[offset++] << 8);
-
-			printf("%04d      |                     %s %d\n",
-				offset - 3, isLocal ? "local" : "upvalue", index);
-		}
-		return offset;
-	}
-	case OP_CLOSURE_LONG:{
-		//24bit index
-		uint32_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8) | ((uint32_t)chunk->code[offset + 3] << 16);
-
-		printf("%-16s %4d '", "OP_CLOSURE_LONG", constant);
-		printValue(vm.constants.values[constant]);
-		printf("'\n");
-
-		//OP_CONSTANT_LONG 4
+		//OP_CONSTANT 4
 		offset += 4;
 
 		ObjFunction* function = AS_FUNCTION(vm.constants.values[constant]);

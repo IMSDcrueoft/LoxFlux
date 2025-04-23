@@ -83,6 +83,8 @@ void freeObject(Obj* object) {
 
 	switch (object->type) {
 	case OBJ_CLASS: {
+		ObjClass* klass = (ObjClass*)object;
+		table_free(&klass->methods);
 		FREE(ObjClass, object);
 		break;
 	}

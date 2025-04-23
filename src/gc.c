@@ -119,10 +119,11 @@ static void blackenObject(Obj* object) {
 		}
 		break;
 	}
-	case OBJ_UPVALUE:
+	case OBJ_UPVALUE: {
 		//When an upvalue is closed, it contains a reference to the closed-over value
 		markValue(((ObjUpvalue*)object)->closed);
 		break;
+	}
 		//won't be here
 	//case OBJ_FUNCTION: {
 	//	ObjFunction* function = (ObjFunction*)object;
@@ -132,11 +133,12 @@ static void blackenObject(Obj* object) {
 	//	//markArray(&function->chunk.constants);
 	//	break;
 	//}
-	//case OBJ_CLASS: {
-	//	ObjClass* klass = (ObjClass*)object;
-	//	markObject((Obj*)klass->name);
-	//	break;
-	//}
+	case OBJ_CLASS: {
+		ObjClass* klass = (ObjClass*)object;
+		//markObject((Obj*)klass->name);
+		markTable(&klass->methods);
+		break;
+	}
 	case OBJ_INSTANCE: {
 		ObjInstance* instance = (ObjInstance*)object;
 		ObjClass* klass = instance->klass;

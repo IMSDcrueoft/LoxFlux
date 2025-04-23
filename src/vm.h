@@ -13,7 +13,7 @@
 //the depth of call frames
 #define FRAMES_MAX UINT10_COUNT
 //customed vm stack begin size,the real limit is 16 * frameLimit(1024)
-#define STACK_INITIAL_SIZE (16 * FRAMES_MAX)
+#define STACK_INITIAL_SIZE (4 * 1024)
 
 typedef struct {
 	ObjClosure* closure;
