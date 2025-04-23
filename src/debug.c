@@ -99,38 +99,7 @@ static uint32_t shortInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
 }
 
 COLD_FUNCTION
-static uint32_t modifyGlobalInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
-	uint32_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8);
-	printf("%-16s %4d '", name, constant);
-	printValue(vm.constants.values[constant]);
-	printf("'\n");
-	return offset + 3;
-}
-
-COLD_FUNCTION
-static uint32_t modifyGlobalLongInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
-	uint32_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8) | ((uint32_t)chunk->code[offset + 3] << 16);
-	printf("%-16s %4d '", name, constant);
-	printValue(vm.constants.values[constant]);
-	printf("'\n");
-	return offset + 4;
-}
-
-COLD_FUNCTION
 static uint32_t constantInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
-	//16bit index
-	uint16_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8);
-
-	printf("%-16s %4d '", name, constant);
-	printValue(vm.constants.values[constant]);
-	printf("'\n");
-
-	//OP_CONSTANT_SHORT 3
-	return offset + 3;
-}
-
-COLD_FUNCTION
-static uint32_t constantInstruction_long(C_STR name, Chunk* chunk, uint32_t offset) {
 	//24bit index
 	uint32_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8) | ((uint32_t)chunk->code[offset + 3] << 16);
 
@@ -180,7 +149,7 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 		return simpleInstruction("OP_NEGATE", offset);
 
 	case OP_CONSTANT:
-		return constantInstruction_long("OP_CONSTANT", chunk, offset);
+		return constantInstruction("OP_CONSTANT", chunk, offset);
 
 	case OP_CLOSURE:{
 		//24bit index
@@ -237,14 +206,15 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 		return bitwiseInStruction("OP_BITWISE", chunk, offset);
 
 	case OP_DEFINE_GLOBAL:
-		return modifyGlobalLongInstruction("OP_DEFINE_GLOBAL", chunk, offset);
+		return constantInstruction("OP_DEFINE_GLOBAL", chunk, offset);
 	case OP_GET_GLOBAL:
-		return modifyGlobalLongInstruction("OP_GET_GLOBAL", chunk, offset);
+		return constantInstruction("OP_GET_GLOBAL", chunk, offset);
 	case OP_SET_GLOBAL:
-		return modifyGlobalLongInstruction("OP_SET_GLOBAL", chunk, offset);
+		return constantInstruction("OP_SET_GLOBAL", chunk, offset);
 	case OP_CLASS:
-		return constantInstruction_long("OP_CLASS", chunk, offset);
-
+		return constantInstruction("OP_CLASS", chunk, offset);
+	case OP_METHOD:
+		return constantInstruction("OP_METHOD", chunk, offset);
 	case OP_GET_PROPERTY:
 		return constantInstruction("OP_GET_PROPERTY", chunk, offset);
 	case OP_SET_PROPERTY:

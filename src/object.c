@@ -113,6 +113,7 @@ ObjClass* newClass(ObjString* name)
 {
 	ObjClass* klass = ALLOCATE_OBJ(ObjClass, OBJ_CLASS);
 	klass->name = name;
+	klass->methods.type = TABLE_NORMAL;
 	table_init(&klass->methods);
 	return klass;
 }
