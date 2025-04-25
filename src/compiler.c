@@ -587,7 +587,6 @@ static void method() {
 		type = TYPE_INITIALIZER;
 	}
 	function(type);
-
 	emitConstantCommond(OP_METHOD, constant);
 }
 

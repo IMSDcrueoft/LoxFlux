@@ -392,13 +392,6 @@ uint32_t addConstant(Value value)
 	}
 }
 
-static inline void defineMethod(ObjString* name) {
-	Value method = vm.stackTop[-1];
-	ObjClass* klass = AS_CLASS(vm.stackTop[-2]);
-	tableSet(&klass->methods, name, method);
-	vm.stackTop--;
-}
-
 HOT_FUNCTION
 static bool call(ObjClosure* closure, int argCount) {
 	if (argCount > closure->function->arity) {
@@ -433,6 +426,19 @@ static bool call_native(NativeFn native, int argCount) {
 	return true;
 }
 
+static inline void defineMethod(ObjString* name) {
+	Value method = vm.stackTop[-1];
+	ObjClass* klass = AS_CLASS(vm.stackTop[-2]);
+
+	if (name != vm.initString) {
+		tableSet(&klass->methods, name, method);
+	}
+	else {//inline cache
+		klass->initializer = method;
+	}
+	vm.stackTop--;
+}
+
 HOT_FUNCTION
 static bool callValue(Value callee, int argCount) {
 	if (IS_OBJ(callee)) {
@@ -448,16 +454,14 @@ static bool callValue(Value callee, int argCount) {
 			ObjClass* klass = AS_CLASS(callee);
 			STACK_PEEK(argCount) = OBJ_VAL(newInstance(klass));
 
-			//call init
-			Value initializer;
-			if (tableGet(&klass->methods, vm.initString, &initializer)) {
-				return call(AS_CLOSURE(initializer), argCount);
+			//call init with fast path
+			if (NOT_NIL(klass->initializer)) {
+				return call(AS_CLOSURE(klass->initializer), argCount);
 			}
 			else if (argCount != 0) {
 				runtimeError("Expected 0 arguments for initializer but got %d.", argCount);
 				return false;
 			}
-
 			return true;
 		}
 		}
