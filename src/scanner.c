@@ -234,7 +234,7 @@ static TokenType builtinType() {
 				switch (scanner.start[2])
 				{
 				case 't':return checkModule(3, 4, "ring", TOKEN_MODULE_STRING);
-				case 'y':return checkModule(3, 4, "stem", TOKEN_MODULE_SYSTEM);
+				case 'y':return checkModule(3, 1, "s", TOKEN_MODULE_SYSTEM);
 				}
 			}
 		case 't':return checkModule(2, 3, "ime", TOKEN_MODULE_TIME);

@@ -157,7 +157,7 @@ Lox is a programming language designed for learning purposes. It is conceived as
 
 There are some namespace objects that start with `'@'` available, and since they are not in the global scope, the initial state of the global scope is a "completely clean" state. 
 
-#### `@math` `@array` `@object` `@string` `@time` `@file` `@system`
+#### `@math` `@array` `@object` `@string` `@time` `@file` `@sys`
 
 The `@math` module provides a comprehensive set of mathematical functions and utilities, implemented as native bindings for efficiency and ease of use. These functions are accessible globally and can be used directly in scripts or applications.
 
@@ -253,7 +253,7 @@ This module balances performance and safety for both simple text tasks and large
 
 ---
 
-The `@system` module offers low-level system utilities, primarily focused on memory management and garbage collection. These functions provide insights into the runtime environment and allow fine-grained control over resource allocation.
+The `@sys` module offers low-level system utilities, primarily focused on memory management and garbage collection. These functions provide insights into the runtime environment and allow fine-grained control over resource allocation.
 
 - **Log**
   - `log`: Unlike the `print` keyword, it allows for multiple inputs and behaves slightly differently.It automatically expands the contents of the array and prints (but not recursively).

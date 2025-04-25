@@ -11,7 +11,7 @@ fun createPoint(x,y){
 }
 
 fun stress() {
-    @system.gcBegin(256 * 1024);
+    @sys.gcBegin(256 * 1024);
 
     var count = 1e7;
     while (count > 0) {
