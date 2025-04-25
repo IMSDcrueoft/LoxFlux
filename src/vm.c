@@ -1051,8 +1051,12 @@ static InterpretResult run()
 			stack_push(OBJ_VAL(newInstance(&vm.emptyClass)));
 			break;
 		}
-		case OP_DUP: {
-			stack_push(vm.stackTop[-1]);
+		case OP_NEW_PROPERTY: {
+			ObjInstance* instance = AS_INSTANCE(vm.stackTop[-2]);
+			Value constant = READ_CONSTANT(READ_24bits());
+			ObjString* name = AS_STRING(constant);
+			tableSet(&instance->fields, name, vm.stackTop[-1]);
+			stack_pop();
 			break;
 		}
 		case OP_GET_UPVALUE: {

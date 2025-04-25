@@ -1024,10 +1024,8 @@ static void objectLiteral(bool canAssign) {
 			uint32_t constant = identifierConstant(&parser.previous);
 
 			consume(TOKEN_COLON, "Expect ':' after property name.");
-			emitByte(OP_DUP); //copy the object
 			expression(); //get value
-			emitConstantCommond(OP_SET_PROPERTY, constant);
-			emitByte(OP_POP); //pop the property
+			emitConstantCommond(OP_NEW_PROPERTY, constant);
 
 			if (parser.hadError) {
 				--current->objectNestingDepth;
