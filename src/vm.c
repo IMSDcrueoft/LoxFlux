@@ -1033,17 +1033,11 @@ static InterpretResult run()
 			ObjArray* array = newArray(size);
 
 			//init the array
-			Value* valuePtr = vm.stackTop - size;
-			Value* values = (Value*)array->payload;
-
-			for (uint32_t i = 0; i < size; ++i) {
-				values[i] = valuePtr[i];
-			}
-
+			memcpy(array->payload, vm.stackTop - size, sizeof(Value) * size);
 			array->length = size;
 
 			//pop the values
-			*valuePtr = OBJ_VAL(array);
+			vm.stackTop[-size] = OBJ_VAL(array);
 			vm.stackTop -= (size - 1);
 			break;
 		}
