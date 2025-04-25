@@ -82,10 +82,10 @@ struct Obj {
 #define OBJ_PTR_SET_NEXT(obj,nextPtr)	(obj->boxedNext = (obj->boxedNext & UINT16_MAX) | ((uintptr_t)nextPtr << 16))
 #define OBJ_PTR_GET_NEXT(obj)			(Obj*)(obj->boxedNext >> 16)
 
-static inline Obj stateLess_obj_header() {
+static inline Obj stateLess_obj_header(ObjType objType) {
 	Obj o = { .boxedNext = (uintptr_t)NULL << 16 };
 	o.isMarked = 1;
-	o.type = OBJ_INSTANCE;
+	o.type = objType;
 	return o;
 }
 
@@ -102,8 +102,8 @@ struct Obj {
 #define OBJ_PTR_SET_NEXT(obj,nextPtr)	(obj->next = nextPtr)
 #define OBJ_PTR_GET_NEXT(obj)			(obj->next)
 
-static inline Obj stateLess_obj_header() {
-	return (Obj) { .next = NULL, .isMarked = 1, .type = OBJ_INSTANCE };
+static inline Obj stateLess_obj_header(ObjType objType) {
+	return (Obj) { .next = NULL, .isMarked = 1, .type = objType };
 }
 
 #endif

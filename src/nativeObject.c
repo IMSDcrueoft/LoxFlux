@@ -53,6 +53,11 @@ static Value isBooleanNative(int argCount, Value* args) {
 //	return NIL_VAL;
 //}
 
+//convert value to number
+//static Value toNumberNative(int argCount, Value* args) {
+//	return NIL_VAL;
+//}
+
 //dont need isNil
 
 COLD_FUNCTION

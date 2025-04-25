@@ -227,7 +227,7 @@ COLD_FUNCTION
 static void importBuiltins() {
 	for (uint32_t i = 0; i < BUILTIN_MODULE_COUNT; ++i) {
 		vm.builtins[i] = (ObjInstance){
-		.obj = stateLess_obj_header(),
+		.obj = stateLess_obj_header(OBJ_INSTANCE),
 		.klass = NULL,
 		.fields = {.type = TABLE_NORMAL}//remind this
 		};
@@ -305,7 +305,7 @@ void vm_init()
 	stack_reset();
 
 	vm.globals = (ObjInstance){
-		.obj = stateLess_obj_header(),
+		.obj = stateLess_obj_header(OBJ_INSTANCE),
 		.klass = NULL,
 		.fields = {.type = TABLE_GLOBAL}//remind this
 	};
@@ -338,8 +338,16 @@ void vm_init()
 	vm.ip_error = NULL;
 
 	vm.initString = NULL;
-	vm.initString = copyString("init", 4, false);
+	vm.initString = copyString("init", strlen("init"), false);
 	initTypeStrings();
+
+	//this is for literial object
+	vm.emptyClass = (ObjClass){
+		.obj = stateLess_obj_header(OBJ_CLASS),
+		.name = copyString("<object>", strlen("<object>"), false),
+		.initializer = NIL_VAL
+	};
+	table_init(&vm.emptyClass.methods);
 }
 
 COLD_FUNCTION
@@ -365,9 +373,11 @@ void vm_free()
 	vm.stackTop = NULL;
 	vm.stackBoundary = NULL;
 
+	vm.initString = NULL;
 	removeBuiltins();
 
 	vm.ip_error = NULL;
+	table_free(&vm.emptyClass.methods);
 }
 
 uint32_t getConstantSize()
