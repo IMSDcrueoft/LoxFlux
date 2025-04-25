@@ -220,9 +220,6 @@ These utilities are invaluable for working with structured data, especially in p
 
 The `@object` module provides utilities for type checking and object introspection. These functions are essential for determining the nature of values and ensuring type safety in dynamic environments.
 
-- **Object Methods**:
-  - `Object`: Construct an empty object.
-
 - **Type Checking**:
   - `isClass`: Verifies if a value is a class.
   - `isFunction`: Verifies if a value is a function|native-function.
