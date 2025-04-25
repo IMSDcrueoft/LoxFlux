@@ -997,7 +997,7 @@ static void arrayLiteral(bool canAssign) {
 			elementCount++;
 		} while (match(TOKEN_COMMA));
 	}
-	consume(TOKEN_RIGHT_SQUARE_BRACKET, "Expect ']' after array elements.");
+	consume(TOKEN_RIGHT_SQUARE_BRACKET, "Expect ']' to close the array.");
 
 	if (elementCount > ARRAY_MAX) {
 		error("Array literal is too long.");
@@ -1005,6 +1005,11 @@ static void arrayLiteral(bool canAssign) {
 	}
 
 	emitBytes(3, OP_NEW_ARRAY, (uint8_t)elementCount, (uint8_t)(elementCount >> 8));  //make array
+}
+
+static void objectLiteral(bool canAssign) {
+	consume(TOKEN_RIGHT_BRACE, "Expect '}' to close the object.");
+	emitByte(OP_NEW_OBJECT);
 }
 
 static void subscript(bool canAssign) {
@@ -1176,11 +1181,12 @@ static void unary(bool canAssign) {
 ParseRule rules[] = {
 	[TOKEN_LEFT_PAREN] = {grouping, call,   PREC_CALL},
 	[TOKEN_RIGHT_PAREN] = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_LEFT_BRACE] = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_LEFT_BRACE] = {objectLiteral,     NULL,   PREC_CALL},
 	[TOKEN_RIGHT_BRACE] = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_LEFT_SQUARE_BRACKET] = {arrayLiteral,	subscript,	PREC_CALL},
+	[TOKEN_RIGHT_SQUARE_BRACKET] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_COMMA] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_DOT] = {NULL,     dot,   PREC_CALL},
-	[TOKEN_LEFT_SQUARE_BRACKET] = {arrayLiteral,	subscript,	PREC_CALL},
 	[TOKEN_MINUS] = {unary   ,    binary, PREC_TERM     },
 	[TOKEN_PLUS] = {NULL,     binary, PREC_TERM    },
 	[TOKEN_SEMICOLON] = {NULL,     NULL,   PREC_NONE},

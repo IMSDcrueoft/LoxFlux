@@ -60,6 +60,7 @@ typedef enum {
 	OP_SET_UPVALUE,
 	OP_CLOSE_UPVALUE,   // close upvalue
 	OP_NEW_ARRAY,		// array literal
+	OP_NEW_OBJECT,		// object literal
 
 	//slow func
 	OP_INSTANCE_OF,		// instance

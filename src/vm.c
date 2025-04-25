@@ -341,7 +341,7 @@ void vm_init()
 	vm.initString = copyString("init", strlen("init"), false);
 	initTypeStrings();
 
-	//this is for literial object
+	//this is for literal object
 	vm.emptyClass = (ObjClass){
 		.obj = stateLess_obj_header(OBJ_CLASS),
 		.name = copyString("<object>", strlen("<object>"), false),
@@ -1045,6 +1045,10 @@ static InterpretResult run()
 			//pop the values
 			*valuePtr = OBJ_VAL(array);
 			vm.stackTop -= (size - 1);
+			break;
+		}
+		case OP_NEW_OBJECT: {
+			stack_push(OBJ_VAL(newInstance(&vm.emptyClass)));
 			break;
 		}
 		case OP_GET_UPVALUE: {
