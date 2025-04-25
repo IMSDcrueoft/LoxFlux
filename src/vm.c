@@ -227,7 +227,7 @@ COLD_FUNCTION
 static void importBuiltins() {
 	for (uint32_t i = 0; i < BUILTIN_MODULE_COUNT; ++i) {
 		vm.builtins[i] = (ObjInstance){
-		.obj = STATELESS_OBJ_HEADER,
+		.obj = stateLess_obj_header(),
 		.klass = NULL,
 		.fields = {.type = TABLE_NORMAL}//remind this
 		};
@@ -305,7 +305,7 @@ void vm_init()
 	stack_reset();
 
 	vm.globals = (ObjInstance){
-		.obj = STATELESS_OBJ_HEADER,
+		.obj = stateLess_obj_header(),
 		.klass = NULL,
 		.fields = {.type = TABLE_GLOBAL}//remind this
 	};
