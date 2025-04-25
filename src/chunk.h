@@ -61,6 +61,7 @@ typedef enum {
 	OP_CLOSE_UPVALUE,   // close upvalue
 	OP_NEW_ARRAY,		// array literal
 	OP_NEW_OBJECT,		// object literal
+	OP_DUP,				// copy the stackTop
 
 	//slow func
 	OP_INSTANCE_OF,		// instance

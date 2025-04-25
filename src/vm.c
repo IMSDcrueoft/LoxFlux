@@ -1051,6 +1051,10 @@ static InterpretResult run()
 			stack_push(OBJ_VAL(newInstance(&vm.emptyClass)));
 			break;
 		}
+		case OP_DUP: {
+			stack_push(vm.stackTop[-1]);
+			break;
+		}
 		case OP_GET_UPVALUE: {
 			uint8_t slot = READ_BYTE();
 			stack_push(*frame->closure->upvalues[slot]->location);

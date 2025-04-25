@@ -127,7 +127,7 @@ Lox is a programming language designed for learning purposes. It is conceived as
 
 ### Instance
 
-- **Object Lierals**: Supports defining object literals directly with '{}'.
+- **Object Lierals**: Supports defining object literals directly with '{k1:v1,k2:v2}'(note that the key must be a bare identifier, not a "key":value).
 - **Delete property**: Remove key-value pairs by assigning nil to the object.
 - **`instanceOf` keyword**:  Checks if an object is an instance of a specific class.
 - **`typeof` keyword**: Returns the string of item's subdivision type.

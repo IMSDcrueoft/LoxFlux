@@ -995,6 +995,8 @@ static void arrayLiteral(bool canAssign) {
 		do {
 			expression(); //parse values
 			elementCount++;
+
+			if (parser.hadError) return;
 		} while (match(TOKEN_COMMA));
 	}
 	consume(TOKEN_RIGHT_SQUARE_BRACKET, "Expect ']' to close the array.");
@@ -1009,6 +1011,22 @@ static void arrayLiteral(bool canAssign) {
 
 static void objectLiteral(bool canAssign) {
 	emitByte(OP_NEW_OBJECT);
+
+	if (!check(TOKEN_RIGHT_SQUARE_BRACKET) && !check(TOKEN_EOF)) {
+		do {
+			consume(TOKEN_IDENTIFIER, "Expect property name.");
+			uint32_t constant = identifierConstant(&parser.previous);
+
+			consume(TOKEN_COLON, "Expect ':' after property name.");
+			emitByte(OP_DUP); //copy the object
+			expression(); //get value
+			emitConstantCommond(OP_SET_PROPERTY, constant);
+			emitByte(OP_POP); //pop the property
+
+			if (parser.hadError) return;
+		} while (match(TOKEN_COMMA));
+	}
+
 	consume(TOKEN_RIGHT_BRACE, "Expect '}' to close the object.");
 }
 
