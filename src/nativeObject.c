@@ -48,6 +48,10 @@ static Value isBooleanNative(int argCount, Value* args) {
 	return BOOL_VAL(argCount >= 1 && IS_BOOL(args[0]));
 }
 
+static Value objectNative(int argCount, Value* args) {
+	return OBJ_VAL(newInstance(&vm.emptyClass));
+}
+
 //convert value to stringBuilder
 //static Value toStringNative(int argCount, Value* args) {
 //	return NIL_VAL;
@@ -62,6 +66,7 @@ static Value isBooleanNative(int argCount, Value* args) {
 
 COLD_FUNCTION
 void importNative_object() {
+	defineNative_object("Object", objectNative);
 	defineNative_object("isNumber", isNumberNative);
 	defineNative_object("isString", isStringNative);
 	defineNative_object("isStringBuilder", isStringBuilderNative);
