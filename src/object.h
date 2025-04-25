@@ -9,6 +9,8 @@
 #include "table.h"
 #include "chunk.h"
 
+#define ENABLE_COMPRESSION_OBJ_HEADER 0
+
 typedef enum {
 	//objects that don't gc
 	OBJ_STRING,
@@ -64,6 +66,9 @@ typedef enum {
 extern const C_STR objTypeInfo[];
 #endif
 
+#if ENABLE_COMPRESSION_OBJ_HEADER
+
+#else
 struct Obj {
 	struct
 	{
@@ -73,6 +78,11 @@ struct Obj {
 	};
 	struct Obj* next;	//ptr: The user-space pointer's high 16 bits can be 0 directly,the high 16 bits of the pointer depends on the 47th bit
 };
+#define STATELESS_OBJ_HEADER			(Obj){.type = OBJ_INSTANCE,.next = NULL,.isMarked = true}
+#define OBJ_PTR_SET_NEXT(obj,nextPtr)	(obj->next = nextPtr)
+#define OBJ_PTR_GET_NEXT(obj)			(obj->next)
+
+#endif
 
 typedef struct {
 	Obj obj;

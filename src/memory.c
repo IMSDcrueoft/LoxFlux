@@ -189,7 +189,7 @@ void freeObjects()
 #endif
 	Obj* object = vm.objects;
 	while (object != NULL) {
-		Obj* next = object->next;
+		Obj* next = OBJ_PTR_GET_NEXT(object);
 		freeObject(object);
 		object = next;
 	}
@@ -203,7 +203,7 @@ void freeObjects()
 #endif
 	Obj* object_no_gc = vm.objects_no_gc;
 	while (object_no_gc != NULL) {
-		Obj* next = object_no_gc->next;
+		Obj* next = OBJ_PTR_GET_NEXT(object_no_gc);
 		freeObject(object_no_gc);
 		object_no_gc = next;
 	}

@@ -182,13 +182,13 @@ static void sweep() {
 			//object->isMarked = false;//clear the mark
 
 			previous = object;
-			object = object->next;
+			object = OBJ_PTR_GET_NEXT(object);
 		}
 		else {
 			Obj* unreached = object;
-			object = object->next;
+			object = OBJ_PTR_GET_NEXT(object);
 			if (previous != NULL) {
-				previous->next = object;
+				OBJ_PTR_SET_NEXT(previous, object);
 			}
 			else {
 				vm.objects = object;
