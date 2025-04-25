@@ -112,6 +112,17 @@ static uint32_t constantInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
 }
 
 COLD_FUNCTION
+static uint32_t invokeInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
+	//24bit index
+	uint32_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8) | ((uint32_t)chunk->code[offset + 3] << 16);
+	uint8_t argCount = chunk->code[offset + 4];
+	printf("%-16s (%d args) %4d '", name, argCount, constant);
+	printValue(vm.constants.values[constant]);
+	printf("'\n");
+	return offset + 5;
+}
+
+COLD_FUNCTION
 uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 	printf("%04d ", offset);
 
@@ -127,6 +138,8 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 	switch (instruction) {
 	case OP_CALL:
 		return byteInstruction("OP_CALL", chunk, offset);
+	case OP_INVOKE:
+		return invokeInstruction("OP_INVOKE", chunk, offset);
 	case OP_RETURN:
 		return simpleInstruction("OP_RETURN", offset);
 	case OP_THROW:

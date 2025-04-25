@@ -17,6 +17,7 @@
 //shared parser
 Parser parser;
 Compiler* current = NULL;
+ClassCompiler* currentClass = NULL;
 
 static Chunk* currentChunk() {
 	return &current->function->chunk;
@@ -131,7 +132,13 @@ static void emitLoop(int32_t loopStart) {
 }
 
 static void emitReturn() {
-	emitBytes(2, OP_NIL, OP_RETURN);
+	if (current->type == TYPE_INITIALIZER) {
+		//16bits index get_local
+		emitBytes(4, OP_GET_LOCAL, 0, 0, OP_RETURN);
+	}
+	else {
+		emitBytes(2, OP_NIL, OP_RETURN);
+	}
 }
 
 static uint32_t makeConstant(Value value) {
@@ -224,8 +231,15 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	Local* local = &compiler->locals[compiler->localCount++];
 	local->depth = 0;
 	local->isCaptured = false;
-	local->name.start = "";
-	local->name.length = 0;
+
+	if (type != TYPE_FUNCTION && type != TYPE_LAMBDA) {
+		local->name.start = "this";
+		local->name.length = 4;
+	}
+	else {
+		local->name.start = "";
+		local->name.length = 0;
+	}
 
 	if (compiler->enclosing == NULL) {
 		compiler->nestingDepth = 0;
@@ -568,7 +582,10 @@ static void method() {
 	consume(TOKEN_IDENTIFIER, "Expect method name.");
 	uint32_t constant = identifierConstant(&parser.previous);
 
-	FunctionType type = TYPE_FUNCTION;
+	FunctionType type = TYPE_METHOD;
+	if (parser.previous.length == 4 && memcmp(parser.previous.start, "init", 4) == 0) {
+		type = TYPE_INITIALIZER;
+	}
 	function(type);
 
 	emitConstantCommond(OP_METHOD, constant);
@@ -585,6 +602,10 @@ static void classDeclaration() {
 	emitConstantCommond(OP_CLASS, nameConstant);
 	defineVariable(nameConstant);
 
+	//link the chain
+	ClassCompiler classCompiler = { .enclosing = currentClass };
+	currentClass = &classCompiler;
+
 	//put the class back to stack
 	namedVariable(className, false);
 	consume(TOKEN_LEFT_BRACE, "Expect '{' before class body.");
@@ -594,6 +615,9 @@ static void classDeclaration() {
 	consume(TOKEN_RIGHT_BRACE, "Expect '}' after class body.");
 	//pop out the class
 	emitByte(OP_POP);
+
+	//resume
+	currentClass = currentClass->enclosing;
 }
 
 static void funDeclaration() {
@@ -752,6 +776,10 @@ static void returnStatement() {
 		emitReturn();
 	}
 	else {
+		if (current->type == TYPE_INITIALIZER) {
+			error("Can't return a value from an initializer.");
+		}
+
 		expression();
 		consume(TOKEN_SEMICOLON, "Expect ';' after return value.");
 		emitByte(OP_RETURN);
@@ -952,6 +980,11 @@ static void dot(bool canAssign) {
 		expression();
 		emitConstantCommond(OP_SET_PROPERTY, name);
 	}
+	else if (match(TOKEN_LEFT_PAREN)) {
+		uint8_t argCount = argumentList();
+		emitConstantCommond(OP_INVOKE, name);
+		emitByte(argCount);
+	}
 	else {
 		emitConstantCommond(OP_GET_PROPERTY, name);
 	}
@@ -1112,6 +1145,15 @@ static void variable(bool canAssign) {
 	namedVariable(parser.previous, canAssign);
 }
 
+static void this_(bool canAssign) {
+	if (currentClass == NULL) {
+		error("Can't use 'this' outside of a class.");
+		return;
+	}
+
+	variable(false);
+}
+
 static void string_escape(bool canAssign) {
 	emitConstant(OBJ_VAL(copyString(parser.previous.start + 1, parser.previous.length - 2, true)));
 }
@@ -1189,7 +1231,7 @@ ParseRule rules[] = {
 	[TOKEN_THROW] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_RETURN] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_SUPER] = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_THIS] = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_THIS] = {this_,     NULL,   PREC_NONE},
 	[TOKEN_TRUE] = {literal,     NULL,   PREC_NONE},
 	[TOKEN_VAR] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_CONST] = {NULL,     NULL,   PREC_NONE},

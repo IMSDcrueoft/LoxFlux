@@ -64,6 +64,7 @@ typedef struct {
 	//ip for debug error
 	uint8_t** ip_error;
 
+	ObjString* initString;
 	ObjString* typeStrings[TYPE_STRING_COUNT];
 
 	//id for compiled functions

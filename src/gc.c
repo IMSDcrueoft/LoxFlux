@@ -66,6 +66,8 @@ static void markRoots() {
 	//markConstants(&vm.constants);
 
 	markCompilerRoots();
+
+	//markObject((Obj*)vm.initString);
 }
 
 void markObject(Obj* object)

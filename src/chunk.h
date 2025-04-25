@@ -44,6 +44,7 @@ typedef enum {
 	OP_POP_N,			// pop multiple stack
 	OP_BITWISE,			//& | ~ ^ << >> >>>
 	OP_CALL,			// callFn
+	OP_INVOKE,			// call with xxx.()
 	OP_RETURN,          // ret
 
 	OP_SET_SUBSCRIPT,	// set subscript

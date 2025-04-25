@@ -67,6 +67,8 @@ typedef struct LoopContext{
 typedef enum {
 	TYPE_FUNCTION,
 	TYPE_LAMBDA,
+	TYPE_METHOD, //class method
+	TYPE_INITIALIZER, //class init
 	TYPE_SCRIPT
 } FunctionType;
 
@@ -90,6 +92,10 @@ typedef struct Compiler {
 	LoopContext* currentLoop;
 	Upvalue upvalues[UINT8_COUNT];
 } Compiler;
+
+typedef struct ClassCompiler {
+	struct ClassCompiler* enclosing;
+} ClassCompiler;
 
 ObjFunction* compile(C_STR source);
 void markCompilerRoots();
