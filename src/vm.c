@@ -227,7 +227,7 @@ COLD_FUNCTION
 static void importBuiltins() {
 	for (uint32_t i = 0; i < BUILTIN_MODULE_COUNT; ++i) {
 		vm.builtins[i] = (ObjInstance){
-		.obj = {.type = OBJ_INSTANCE,.next = NULL,.isMarked = true},
+		.obj = stateLess_obj_header(),
 		.klass = NULL,
 		.fields = {.type = TABLE_NORMAL}//remind this
 		};
@@ -264,6 +264,10 @@ static void removeBuiltins() {
 
 COLD_FUNCTION
 static void initTypeStrings() {
+	for (uint32_t i = 0; i < TYPE_STRING_COUNT; ++i) {
+		vm.typeStrings[i] = NULL;
+	}
+
 	vm.typeStrings[TYPE_STRING_BOOL] = copyString("boolean", (uint32_t)strlen("boolean"), false);
 	vm.typeStrings[TYPE_STRING_NIL] = copyString("nil", (uint32_t)strlen("nil"), false);
 	vm.typeStrings[TYPE_STRING_NUMBER] = copyString("number", (uint32_t)strlen("number"), false);
@@ -301,7 +305,7 @@ void vm_init()
 	stack_reset();
 
 	vm.globals = (ObjInstance){
-		.obj = {.type = OBJ_INSTANCE,.next = NULL,.isMarked = true},
+		.obj = stateLess_obj_header(),
 		.klass = NULL,
 		.fields = {.type = TABLE_GLOBAL}//remind this
 	};
@@ -333,6 +337,8 @@ void vm_init()
 
 	vm.ip_error = NULL;
 
+	vm.initString = NULL;
+	vm.initString = copyString("init", 4, false);
 	initTypeStrings();
 }
 
@@ -346,6 +352,10 @@ void vm_free()
 	table_free(&vm.strings);
 	numberTable_free(&vm.numbers);
 
+	vm.initString = NULL;
+	for (uint32_t i = 0; i < TYPE_STRING_COUNT; ++i) {
+		vm.typeStrings[i] = NULL;
+	}
 	freeObjects();
 
 	//realease the stack
@@ -416,15 +426,42 @@ static bool call_native(NativeFn native, int argCount) {
 	return true;
 }
 
+static inline void defineMethod(ObjString* name) {
+	Value method = vm.stackTop[-1];
+	ObjClass* klass = AS_CLASS(vm.stackTop[-2]);
+
+	if (name != vm.initString) {
+		tableSet(&klass->methods, name, method);
+	}
+	else {//inline cache
+		klass->initializer = method;
+	}
+	vm.stackTop--;
+}
+
 HOT_FUNCTION
 static bool callValue(Value callee, int argCount) {
 	if (IS_OBJ(callee)) {
 		switch (OBJ_TYPE(callee)) {
 		case OBJ_CLOSURE: return call(AS_CLOSURE(callee), argCount);
 		case OBJ_NATIVE: return call_native(AS_NATIVE(callee), argCount);
+		case OBJ_BOUND_METHOD: {
+			ObjBoundMethod* bound = AS_BOUND_METHOD(callee);
+			STACK_PEEK(argCount) = bound->receiver;//bind 'this' to logic slot[0]
+			return call(bound->method, argCount);
+		}
 		case OBJ_CLASS: {
 			ObjClass* klass = AS_CLASS(callee);
-			vm.stackTop[-argCount - 1] = OBJ_VAL(newInstance(klass));
+			STACK_PEEK(argCount) = OBJ_VAL(newInstance(klass));
+
+			//call init with fast path
+			if (NOT_NIL(klass->initializer)) {
+				return call(AS_CLOSURE(klass->initializer), argCount);
+			}
+			else if (argCount != 0) {
+				runtimeError("Expected 0 arguments for initializer but got %d.", argCount);
+				return false;
+			}
 			return true;
 		}
 		}
@@ -432,6 +469,48 @@ static bool callValue(Value callee, int argCount) {
 
 	runtimeError("Can only call functions and classes.");
 	return false;
+}
+
+HOT_FUNCTION
+static inline bool invokeFromClass(ObjClass* klass, ObjString* name, int argCount) {
+	Value method;
+	if ((klass == NULL) || !tableGet(&klass->methods, name, &method)) {
+		runtimeError("Undefined property '%s'.", name->chars);
+		return false;
+	}
+	return call(AS_CLOSURE(method), argCount);
+}
+
+HOT_FUNCTION
+static inline bool invoke(ObjString* name, int argCount) {
+	Value receiver = STACK_PEEK(argCount);
+	if (!IS_INSTANCE(receiver)) {
+		runtimeError("Only instances have methods.");
+		return false;
+	}
+	ObjInstance* instance = AS_INSTANCE(receiver);
+
+	Value value;
+	if (tableGet(&instance->fields, name, &value)) {
+		STACK_PEEK(argCount) = value;
+		return callValue(value, argCount);
+	}
+
+	return invokeFromClass(instance->klass, name, argCount);
+}
+
+HOT_FUNCTION
+static void bindMethod(ObjClass* klass, ObjString* name) {
+	Value method;
+	if (tableGet(&klass->methods, name, &method)) {
+		ObjBoundMethod* bound = newBoundMethod(vm.stackTop[-1], AS_CLOSURE(method));
+		stack_replace(OBJ_VAL(bound));
+	}
+	else {
+		//don't throw
+		//runtimeError("Undefined property '%s'.", name->chars);
+		stack_replace(NIL_VAL);
+	}
 }
 
 HOT_FUNCTION
@@ -630,34 +709,11 @@ static InterpretResult run()
 		switch (instruction)
 		{
 		case OP_CONSTANT: {
-			Value constant = READ_CONSTANT(READ_SHORT());
-			stack_push(constant);
-			break;
-		}
-		case OP_CONSTANT_LONG: {
 			Value constant = READ_CONSTANT(READ_24bits());
 			stack_push(constant);
 			break;
 		}
 		case OP_CLOSURE: {
-			Value constant = READ_CONSTANT(READ_SHORT());
-			ObjFunction* function = AS_FUNCTION(constant);
-			ObjClosure* closure = newClosure(function);
-			stack_push(OBJ_VAL(closure));
-
-			for (uint32_t i = 0; i < closure->upvalueCount; i++) {
-				uint8_t isLocal = READ_BYTE();
-				uint16_t index = READ_SHORT();
-				if (isLocal) {
-					closure->upvalues[i] = captureUpvalue(frame->slots + index);
-				}
-				else {
-					closure->upvalues[i] = frame->closure->upvalues[index];
-				}
-			}
-			break;
-		}
-		case OP_CLOSURE_LONG: {
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjFunction* function = AS_FUNCTION(constant);
 			ObjClosure* closure = newClosure(function);
@@ -681,6 +737,12 @@ static InterpretResult run()
 			stack_push(OBJ_VAL(newClass(name)));
 			break;
 		}
+		case OP_METHOD: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			ObjString* name = AS_STRING(constant);
+			defineMethod(name);
+			break;
+		}
 		case OP_GET_PROPERTY: {
 			if (!IS_INSTANCE(vm.stackTop[-1])) {
 				runtimeError("Only instances have properties.");
@@ -696,10 +758,10 @@ static InterpretResult run()
 				stack_replace(value);
 				break;
 			}
-
-			//runtimeError("Undefined property '%s'.", name->chars);
-			//return INTERPRET_RUNTIME_ERROR;
-			stack_replace(NIL_VAL);//don't throw error
+			//don't throw error
+			if (instance->klass != NULL) {
+				bindMethod(instance->klass, name);
+			}
 			break;
 		}
 		case OP_SET_PROPERTY: {
@@ -731,19 +793,17 @@ static InterpretResult run()
 					ObjArray* array = AS_ARRAY(target);
 					double num_index = AS_NUMBER(index);
 
+					vm.stackTop--;
 					if (ARRAY_IN_RANGE(array, num_index)) {
 						if (OBJ_IS_TYPE(array, OBJ_ARRAY)) {
-							vm.stackTop[-2] = ARRAY_ELEMENT(array, Value, (uint32_t)num_index);
-							vm.stackTop--;
+							stack_replace(ARRAY_ELEMENT(array, Value, (uint32_t)num_index));
 						}
 						else {
-							vm.stackTop[-2] = getTypedArrayElement(array, (uint32_t)num_index);
-							vm.stackTop--;
+							stack_replace(getTypedArrayElement(array, (uint32_t)num_index));
 						}
 					}
 					else {
-						vm.stackTop[-2] = NIL_VAL;
-						vm.stackTop--;
+						stack_replace(NIL_VAL);
 					}
 					break;
 				}
@@ -756,15 +816,16 @@ static InterpretResult run()
 				if (IS_STRING(index)) {
 					ObjInstance* instance = AS_INSTANCE(target);
 					ObjString* name = AS_STRING(index);
-
 					Value value;
+
+					vm.stackTop--;
 					if (tableGet(&instance->fields, name, &value)) {
-						vm.stackTop[-2] = value;
-						vm.stackTop--;
+						stack_replace(value);
+						break;
 					}
-					else {
-						vm.stackTop[-2] = NIL_VAL;
-						vm.stackTop--;
+					//don't throw error
+					if (instance->klass != NULL) {
+						bindMethod(instance->klass, name);
 					}
 					break;
 				}
@@ -779,14 +840,12 @@ static InterpretResult run()
 					ObjString* string = AS_STRING(target);
 					double num_index = AS_NUMBER(index);
 
-					if (ARRAY_IN_RANGE(string, num_index)) {
-						//return ascii
-						vm.stackTop[-2] = NUMBER_VAL((uint8_t)(string->chars[(uint32_t)num_index]));
-						vm.stackTop--;
+					vm.stackTop--;
+					if (ARRAY_IN_RANGE(string, num_index)) {//return ascii
+						stack_replace(NUMBER_VAL((uint8_t)(string->chars[(uint32_t)num_index])));
 					}
 					else {
-						vm.stackTop[-2] = NIL_VAL;
-						vm.stackTop--;
+						stack_replace(NIL_VAL);
 					}
 					break;
 				}
@@ -1062,7 +1121,22 @@ static InterpretResult run()
 		case OP_CALL: {
 			uint8_t argCount = READ_BYTE();
 			frame->ip = ip;//change before call
+
 			if (!callValue(STACK_PEEK(argCount), argCount)) {
+				return INTERPRET_RUNTIME_ERROR;
+			}
+			//we entered the function
+			frame = &vm.frames[vm.frameCount - 1];
+			ip = frame->ip;//restore after call
+			break;
+		}
+		case OP_INVOKE: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			ObjString* method = AS_STRING(constant);
+			uint8_t argCount = READ_BYTE();
+
+			frame->ip = ip;//change before call
+			if (!invoke(method, argCount)) {
 				return INTERPRET_RUNTIME_ERROR;
 			}
 			//we entered the function

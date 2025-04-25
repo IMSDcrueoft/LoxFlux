@@ -46,16 +46,16 @@ static Obj* allocateObject(uint64_t size, ObjType type) {
 	case OBJ_NATIVE:
 	case OBJ_STRING:
 		object = (Obj*)reallocate_no_gc(NULL, 0, size);
+		OBJ_PTR_SET_NEXT(object, vm.objects_no_gc);
 		object->type = type;
 		object->isMarked = !usingMark;
-		object->next = vm.objects_no_gc;
 		vm.objects_no_gc = object;
 		break;
 	default:
 		object = (Obj*)reallocate(NULL, 0, size);
+		OBJ_PTR_SET_NEXT(object, vm.objects);
 		object->type = type;
 		object->isMarked = !usingMark;
-		object->next = vm.objects;
 		vm.objects = object;
 		break;
 	}
@@ -102,6 +102,14 @@ ObjClosure* newClosure(ObjFunction* function) {
 	return closure;
 }
 
+ObjBoundMethod* newBoundMethod(Value receiver, ObjClosure* method)
+{
+	ObjBoundMethod* bound = ALLOCATE_OBJ(ObjBoundMethod, OBJ_BOUND_METHOD);
+	bound->receiver = receiver;
+	bound->method = method;
+	return bound;
+}
+
 //create native function
 ObjNative* newNative(NativeFn function) {
 	ObjNative* native = ALLOCATE_OBJ(ObjNative, OBJ_NATIVE);
@@ -113,6 +121,9 @@ ObjClass* newClass(ObjString* name)
 {
 	ObjClass* klass = ALLOCATE_OBJ(ObjClass, OBJ_CLASS);
 	klass->name = name;
+	klass->initializer = NIL_VAL;
+	klass->methods.type = TABLE_NORMAL;
+	table_init(&klass->methods);
 	return klass;
 }
 
@@ -288,7 +299,7 @@ ObjArray* newStringBuilder()
 	return stringBuilder;
 }
 
-COLD_FUNCTION
+HOT_FUNCTION
 void reserveArray(ObjArray* array, uint64_t size)
 {
 	size = (size + 7) & ~7;
@@ -554,7 +565,7 @@ static void printFunction(ObjFunction* function) {
 
 static void printArrayLike(ObjArray* array, bool isExpand) {
 	if (OBJ_GET_TYPE(array->obj) == OBJ_STRING_BUILDER) {
-		printf("%s", array->payload);
+		printf("%s", (STR)array->payload);
 		return;
 	}
 
@@ -657,6 +668,9 @@ void printObject(Value value, bool isExpand) {
 		}
 		break;
 	}
+	case OBJ_BOUND_METHOD:
+		printFunction(AS_BOUND_METHOD(value)->method->function);
+		break;
 	case OBJ_CLOSURE:
 		printFunction(AS_CLOSURE(value)->function);
 		break;

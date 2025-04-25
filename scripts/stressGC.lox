@@ -22,7 +22,9 @@ fun stress() {
     @system.gc(); // do full gc
 }
 
+var start = @time.milli();
 for(var i = 0; i < 10;){
     stress();
     i = i + 1;
 }
+print @time.milli() - start;

@@ -83,6 +83,8 @@ void freeObject(Obj* object) {
 
 	switch (object->type) {
 	case OBJ_CLASS: {
+		ObjClass* klass = (ObjClass*)object;
+		table_free(&klass->methods);
 		FREE(ObjClass, object);
 		break;
 	}
@@ -97,6 +99,10 @@ void freeObject(Obj* object) {
 		FREE_ARRAY(ObjUpvalue*, closure->upvalues, closure->upvalueCount);
 
 		FREE(ObjClosure, object);
+		break;
+	}
+	case OBJ_BOUND_METHOD: {
+		FREE(ObjBoundMethod, object);
 		break;
 	}
 	case OBJ_UPVALUE:
@@ -183,7 +189,7 @@ void freeObjects()
 #endif
 	Obj* object = vm.objects;
 	while (object != NULL) {
-		Obj* next = object->next;
+		Obj* next = OBJ_PTR_GET_NEXT(object);
 		freeObject(object);
 		object = next;
 	}
@@ -197,7 +203,7 @@ void freeObjects()
 #endif
 	Obj* object_no_gc = vm.objects_no_gc;
 	while (object_no_gc != NULL) {
-		Obj* next = object_no_gc->next;
+		Obj* next = OBJ_PTR_GET_NEXT(object_no_gc);
 		freeObject(object_no_gc);
 		object_no_gc = next;
 	}

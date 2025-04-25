@@ -66,6 +66,8 @@ static void markRoots() {
 	//markConstants(&vm.constants);
 
 	markCompilerRoots();
+
+	//markObject((Obj*)vm.initString);
 }
 
 void markObject(Obj* object)
@@ -109,6 +111,11 @@ static void blackenObject(Obj* object) {
 #endif
 
 	switch (object->type) {
+	case OBJ_UPVALUE: {
+		//When an upvalue is closed, it contains a reference to the closed-over value
+		markValue(((ObjUpvalue*)object)->closed);
+		break;
+	}
 	case OBJ_CLOSURE: {
 		ObjClosure* closure = (ObjClosure*)object;
 		//no need
@@ -119,10 +126,12 @@ static void blackenObject(Obj* object) {
 		}
 		break;
 	}
-	case OBJ_UPVALUE:
-		//When an upvalue is closed, it contains a reference to the closed-over value
-		markValue(((ObjUpvalue*)object)->closed);
+	case OBJ_BOUND_METHOD: {
+		ObjBoundMethod* bound = (ObjBoundMethod*)object;
+		markValue(bound->receiver);
+		markObject((Obj*)bound->method);
 		break;
+	}
 		//won't be here
 	//case OBJ_FUNCTION: {
 	//	ObjFunction* function = (ObjFunction*)object;
@@ -132,11 +141,13 @@ static void blackenObject(Obj* object) {
 	//	//markArray(&function->chunk.constants);
 	//	break;
 	//}
-	//case OBJ_CLASS: {
-	//	ObjClass* klass = (ObjClass*)object;
-	//	markObject((Obj*)klass->name);
-	//	break;
-	//}
+	case OBJ_CLASS: {
+		ObjClass* klass = (ObjClass*)object;
+		//markObject((Obj*)klass->name);
+		markValue(klass->initializer);
+		markTable(&klass->methods);
+		break;
+	}
 	case OBJ_INSTANCE: {
 		ObjInstance* instance = (ObjInstance*)object;
 		ObjClass* klass = instance->klass;
@@ -171,13 +182,13 @@ static void sweep() {
 			//object->isMarked = false;//clear the mark
 
 			previous = object;
-			object = object->next;
+			object = OBJ_PTR_GET_NEXT(object);
 		}
 		else {
 			Obj* unreached = object;
-			object = object->next;
+			object = OBJ_PTR_GET_NEXT(object);
 			if (previous != NULL) {
-				previous->next = object;
+				OBJ_PTR_SET_NEXT(previous, object);
 			}
 			else {
 				vm.objects = object;
