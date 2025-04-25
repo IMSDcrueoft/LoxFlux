@@ -215,6 +215,7 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	compiler->localCapacity = LOCAL_INIT;
 
 	compiler->function = newFunction();
+	compiler->objectNestingDepth = 0;
 
 	//it's a function
 	switch (type) {
@@ -246,9 +247,8 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	}
 	else {
 		compiler->nestingDepth = compiler->enclosing->nestingDepth + 1;
-
-		if (compiler->nestingDepth == 8) {
-			error("Can't compile more than 8 nesting function.");
+		if (compiler->nestingDepth == FUNCTION_MAX_NESTING) {
+			error("Too many nested functions.");
 		}
 	}
 }
@@ -991,13 +991,15 @@ static void dot(bool canAssign) {
 
 static void arrayLiteral(bool canAssign) {
 	uint32_t elementCount = 0;
-	if (!check(TOKEN_RIGHT_SQUARE_BRACKET)) {
+	if (!check(TOKEN_RIGHT_SQUARE_BRACKET) && !check(TOKEN_EOF)) {
 		do {
 			expression(); //parse values
 			elementCount++;
+
+			if (parser.hadError) return;
 		} while (match(TOKEN_COMMA));
 	}
-	consume(TOKEN_RIGHT_SQUARE_BRACKET, "Expect ']' after array elements.");
+	consume(TOKEN_RIGHT_SQUARE_BRACKET, "Expect ']' to close the array.");
 
 	if (elementCount > ARRAY_MAX) {
 		error("Array literal is too long.");
@@ -1005,6 +1007,35 @@ static void arrayLiteral(bool canAssign) {
 	}
 
 	emitBytes(3, OP_NEW_ARRAY, (uint8_t)elementCount, (uint8_t)(elementCount >> 8));  //make array
+}
+
+static void objectLiteral(bool canAssign) {
+	if (current->objectNestingDepth == OBJECT_MAX_NESTING) {
+		error("Too many nested objects.");
+		return;
+	}
+
+	++current->objectNestingDepth;
+	emitByte(OP_NEW_OBJECT);
+
+	if (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF)) {
+		do {
+			consume(TOKEN_IDENTIFIER, "Expect property name.");
+			uint32_t constant = identifierConstant(&parser.previous);
+
+			consume(TOKEN_COLON, "Expect ':' after property name.");
+			expression(); //get value
+			emitConstantCommond(OP_NEW_PROPERTY, constant);
+
+			if (parser.hadError) {
+				--current->objectNestingDepth;
+				return;
+			}
+		} while (match(TOKEN_COMMA));
+	}
+
+	consume(TOKEN_RIGHT_BRACE, "Expect '}' to close the object.");
+	--current->objectNestingDepth;
 }
 
 static void subscript(bool canAssign) {
@@ -1168,6 +1199,7 @@ static void unary(bool canAssign) {
 	case TOKEN_BANG: emitByte(OP_NOT); break;
 	case TOKEN_MINUS: emitByte(OP_NEGATE); break;
 	case TOKEN_BIT_NOT: emitBytes(2, OP_BITWISE, BIT_OP_NOT); break;
+	case TOKEN_TYPE_OF: emitByte(OP_TYPE_OF); break;
 	default: return; // Unreachable.
 	}
 }
@@ -1175,11 +1207,12 @@ static void unary(bool canAssign) {
 ParseRule rules[] = {
 	[TOKEN_LEFT_PAREN] = {grouping, call,   PREC_CALL},
 	[TOKEN_RIGHT_PAREN] = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_LEFT_BRACE] = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_LEFT_BRACE] = {objectLiteral,     NULL,   PREC_CALL},
 	[TOKEN_RIGHT_BRACE] = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_LEFT_SQUARE_BRACKET] = {arrayLiteral,	subscript,	PREC_CALL},
+	[TOKEN_RIGHT_SQUARE_BRACKET] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_COMMA] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_DOT] = {NULL,     dot,   PREC_CALL},
-	[TOKEN_LEFT_SQUARE_BRACKET] = {arrayLiteral,	subscript,	PREC_CALL},
 	[TOKEN_MINUS] = {unary   ,    binary, PREC_TERM     },
 	[TOKEN_PLUS] = {NULL,     binary, PREC_TERM    },
 	[TOKEN_SEMICOLON] = {NULL,     NULL,   PREC_NONE},
@@ -1195,6 +1228,7 @@ ParseRule rules[] = {
 	[TOKEN_LESS] = {NULL,     binary, PREC_COMPARISON},
 	[TOKEN_LESS_EQUAL] = {NULL,     binary, PREC_COMPARISON},
 	[TOKEN_INSTANCE_OF] = {NULL,     binary, PREC_INSTANCEOF},
+	[TOKEN_TYPE_OF] = {unary,	NULL, PREC_UNARY},
 	[TOKEN_BIT_AND] = {NULL,	binary, PREC_BITWISE},
 	[TOKEN_BIT_OR] = {NULL,		binary, PREC_BITWISE},
 	[TOKEN_BIT_XOR] = {NULL,	binary, PREC_BITWISE},

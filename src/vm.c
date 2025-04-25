@@ -227,7 +227,7 @@ COLD_FUNCTION
 static void importBuiltins() {
 	for (uint32_t i = 0; i < BUILTIN_MODULE_COUNT; ++i) {
 		vm.builtins[i] = (ObjInstance){
-		.obj = stateLess_obj_header(),
+		.obj = stateLess_obj_header(OBJ_INSTANCE),
 		.klass = NULL,
 		.fields = {.type = TABLE_NORMAL}//remind this
 		};
@@ -305,7 +305,7 @@ void vm_init()
 	stack_reset();
 
 	vm.globals = (ObjInstance){
-		.obj = stateLess_obj_header(),
+		.obj = stateLess_obj_header(OBJ_INSTANCE),
 		.klass = NULL,
 		.fields = {.type = TABLE_GLOBAL}//remind this
 	};
@@ -338,8 +338,16 @@ void vm_init()
 	vm.ip_error = NULL;
 
 	vm.initString = NULL;
-	vm.initString = copyString("init", 4, false);
+	vm.initString = copyString("init", strlen("init"), false);
 	initTypeStrings();
+
+	//this is for literal object
+	vm.emptyClass = (ObjClass){
+		.obj = stateLess_obj_header(OBJ_CLASS),
+		.name = copyString("<object>", strlen("<object>"), false),
+		.initializer = NIL_VAL
+	};
+	table_init(&vm.emptyClass.methods);
 }
 
 COLD_FUNCTION
@@ -365,9 +373,11 @@ void vm_free()
 	vm.stackTop = NULL;
 	vm.stackBoundary = NULL;
 
+	vm.initString = NULL;
 	removeBuiltins();
 
 	vm.ip_error = NULL;
+	table_free(&vm.emptyClass.methods);
 }
 
 uint32_t getConstantSize()
@@ -390,6 +400,74 @@ uint32_t addConstant(Value value)
 		valueHoles_pop(&vm.constantHoles);
 		return index;
 	}
+}
+
+static void getTypeof() {
+	Value val = vm.stackTop[-1];
+
+	switch (val.type) {
+	case VAL_BOOL: 
+		stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_BOOL]));
+		return;
+	case VAL_NIL: 
+		stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_NIL]));
+		return;
+	case VAL_NUMBER: 
+		stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_NUMBER]));
+		return;
+	case VAL_OBJ: {
+		switch (OBJ_TYPE(val)) {
+		case OBJ_STRING:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_STRING]));
+			return;
+		case OBJ_STRING_BUILDER:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_STRING_BUILDER]));
+			return;
+		case OBJ_CLOSURE:
+		case OBJ_BOUND_METHOD:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_FUNCTION]));
+			return;
+		case OBJ_NATIVE:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_NATIVE]));
+			return;
+		case OBJ_CLASS:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_CLASS]));
+			return;
+		case OBJ_INSTANCE:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_OBJECT]));
+			return;
+		case OBJ_ARRAY:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_ARRAY]));
+			return;
+		case OBJ_ARRAY_F64:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_ARRAY_F64]));
+			return;
+		case OBJ_ARRAY_F32:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_ARRAY_F32]));
+			return;
+		case OBJ_ARRAY_U32:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_ARRAY_U32]));
+			return;
+		case OBJ_ARRAY_I32:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_ARRAY_I32]));
+			return;
+		case OBJ_ARRAY_U16:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_ARRAY_U16]));
+			return;
+		case OBJ_ARRAY_I16:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_ARRAY_I16]));
+			return;
+		case OBJ_ARRAY_U8:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_ARRAY_U8]));
+			return;
+		case OBJ_ARRAY_I8:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_ARRAY_I8]));
+			return;
+		}
+	}
+	}
+
+	stack_replace(NIL_VAL);
 }
 
 HOT_FUNCTION
@@ -955,18 +1033,24 @@ static InterpretResult run()
 			ObjArray* array = newArray(size);
 
 			//init the array
-			Value* valuePtr = vm.stackTop - size;
-			Value* values = (Value*)array->payload;
-
-			for (uint32_t i = 0; i < size; ++i) {
-				values[i] = valuePtr[i];
-			}
-
+			memcpy(array->payload, vm.stackTop - size, sizeof(Value) * size);
 			array->length = size;
 
 			//pop the values
-			*valuePtr = OBJ_VAL(array);
+			vm.stackTop[-size] = OBJ_VAL(array);
 			vm.stackTop -= (size - 1);
+			break;
+		}
+		case OP_NEW_OBJECT: {
+			stack_push(OBJ_VAL(newInstance(&vm.emptyClass)));
+			break;
+		}
+		case OP_NEW_PROPERTY: {
+			ObjInstance* instance = AS_INSTANCE(vm.stackTop[-2]);
+			Value constant = READ_CONSTANT(READ_24bits());
+			ObjString* name = AS_STRING(constant);
+			tableSet(&instance->fields, name, vm.stackTop[-1]);
+			stack_pop();
 			break;
 		}
 		case OP_GET_UPVALUE: {
@@ -1000,6 +1084,10 @@ static InterpretResult run()
 			bool isInstanceOf = (IS_INSTANCE(vm.stackTop[-2]) && IS_CLASS(vm.stackTop[-1])) && (AS_INSTANCE(vm.stackTop[-2])->klass == AS_CLASS(vm.stackTop[-1]));
 			vm.stackTop[-2] = BOOL_VAL(isInstanceOf);
 			vm.stackTop--;
+			break;
+		}
+		case OP_TYPE_OF: {
+			getTypeof();
 			break;
 		}
 		case OP_ADD: {

@@ -60,9 +60,12 @@ typedef enum {
 	OP_SET_UPVALUE,
 	OP_CLOSE_UPVALUE,   // close upvalue
 	OP_NEW_ARRAY,		// array literal
+	OP_NEW_OBJECT,		// object literal
+	OP_NEW_PROPERTY,	// set property but no pop
 
 	//slow func
 	OP_INSTANCE_OF,		// instance
+	OP_TYPE_OF,			// typeof
 	OP_CLASS,			// create class
 	OP_METHOD,			// make class func
 	OP_PRINT,			// print string or value

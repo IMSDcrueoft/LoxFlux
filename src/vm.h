@@ -64,6 +64,9 @@ typedef struct {
 	//ip for debug error
 	uint8_t** ip_error;
 
+	//literal object
+	ObjClass emptyClass;
+
 	ObjString* initString;
 	ObjString* typeStrings[TYPE_STRING_COUNT];
 

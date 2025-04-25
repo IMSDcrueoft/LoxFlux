@@ -10,9 +10,13 @@
 
 #define LOCAL_INIT 64
 //local var
-#define LOCAL_MAX UINT10_COUNT
+#define LOCAL_MAX 1024
 //array literal
-#define ARRAY_MAX UINT10_COUNT
+#define ARRAY_MAX 1024
+//object literal
+#define OBJECT_MAX_NESTING 12
+//function nesting
+#define FUNCTION_MAX_NESTING 8
 
 typedef struct {
 	Token current;
@@ -34,7 +38,7 @@ typedef enum {
 	PREC_COMPARISON,  // <, >, <=, >=
 	PREC_TERM,        // +, -
 	PREC_FACTOR,      // *, /, %
-	PREC_UNARY,       // !, -, ~
+	PREC_UNARY,       // !, -, ~, typeof
 	PREC_CALL,        // ., (), []
 	PREC_OPERATE,
 	PREC_PRIMARY
@@ -82,7 +86,8 @@ typedef struct Compiler {
 
 	ObjFunction* function;
 	FunctionType type;
-	uint32_t nestingDepth;
+	uint16_t nestingDepth;
+	uint16_t objectNestingDepth;
 
 	uint16_t localCount;
 	uint16_t scopeDepth;
