@@ -16,8 +16,9 @@ typedef enum {
 	OBJ_FUNCTION,
 
 	//objects gc able
-	OBJ_CLOSURE,
 	OBJ_UPVALUE,
+	OBJ_CLOSURE,
+	OBJ_BOUND_METHOD,
 	OBJ_CLASS,
 	OBJ_INSTANCE,
 
@@ -91,11 +92,16 @@ typedef struct ObjUpvalue {
 
 typedef struct {
 	Obj obj;
-
 	uint32_t upvalueCount;
 	ObjUpvalue** upvalues;
 	ObjFunction* function;
 } ObjClosure;
+
+typedef struct {
+	Obj obj;
+	Value receiver;
+	ObjClosure* method;
+} ObjBoundMethod;
 
 //argCount and argValues
 typedef Value(*NativeFn)(int argCount, Value* args);
@@ -144,6 +150,7 @@ typedef struct {
 #define IS_CLOSURE(value)			isObjType(value, OBJ_CLOSURE)
 #define IS_FUNCTION(value)			isObjType(value, OBJ_FUNCTION)
 #define IS_NATIVE(value)			isObjType(value, OBJ_NATIVE)
+#define IS_BOUND_METHOD(value)		isObjType(value, OBJ_BOUND_METHOD)
 #define IS_CLASS(value)				isObjType(value, OBJ_CLASS)
 #define IS_INSTANCE(value)			isObjType(value, OBJ_INSTANCE)
 #define IS_STRING(value)			isObjType(value, OBJ_STRING)
@@ -154,13 +161,14 @@ typedef struct {
 #define ARRAY_ELEMENT(array, type, index)	(((type*)array->payload)[index])
 #define ARRAY_IN_RANGE(array, index)		((index >= 0) && (index < array->length))
 
-#define AS_CLOSURE(value)	((ObjClosure*)AS_OBJ(value))
-#define AS_FUNCTION(value)	((ObjFunction*)AS_OBJ(value))
-#define AS_CLASS(value)		((ObjClass*)AS_OBJ(value))
-#define AS_INSTANCE(value)	((ObjInstance*)AS_OBJ(value))
-#define AS_NATIVE(value)	(((ObjNative*)AS_OBJ(value))->function)
-#define AS_STRING(value)	((ObjString*)AS_OBJ(value))
-#define AS_ARRAY(value)		((ObjArray*)AS_OBJ(value))
+#define AS_CLOSURE(value)			((ObjClosure*)AS_OBJ(value))
+#define AS_FUNCTION(value)			((ObjFunction*)AS_OBJ(value))
+#define AS_BOUND_METHOD(value)		((ObjBoundMethod*)AS_OBJ(value))
+#define AS_CLASS(value)				((ObjClass*)AS_OBJ(value))
+#define AS_INSTANCE(value)			((ObjInstance*)AS_OBJ(value))
+#define AS_NATIVE(value)			(((ObjNative*)AS_OBJ(value))->function)
+#define AS_STRING(value)			((ObjString*)AS_OBJ(value))
+#define AS_ARRAY(value)				((ObjArray*)AS_OBJ(value))
 
 static inline bool isObjType(Value value, ObjType type) {
 	return IS_OBJ(value) && AS_OBJ(value)->type == type;
@@ -190,6 +198,7 @@ NumberEntry* getNumberEntryInPool(Value* value);
 ObjUpvalue* newUpvalue(Value* slot);
 ObjFunction* newFunction();
 ObjClosure* newClosure(ObjFunction* function);
+ObjBoundMethod* newBoundMethod(Value receiver, ObjClosure* method);
 ObjNative* newNative(NativeFn function);
 ObjClass* newClass(ObjString* name);
 ObjInstance* newInstance(ObjClass* klass);

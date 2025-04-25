@@ -102,6 +102,14 @@ ObjClosure* newClosure(ObjFunction* function) {
 	return closure;
 }
 
+ObjBoundMethod* newBoundMethod(Value receiver, ObjClosure* method)
+{
+	ObjBoundMethod* bound = ALLOCATE_OBJ(ObjBoundMethod, OBJ_BOUND_METHOD);
+	bound->receiver = receiver;
+	bound->method = method;
+	return bound;
+}
+
 //create native function
 ObjNative* newNative(NativeFn function) {
 	ObjNative* native = ALLOCATE_OBJ(ObjNative, OBJ_NATIVE);
@@ -290,7 +298,7 @@ ObjArray* newStringBuilder()
 	return stringBuilder;
 }
 
-COLD_FUNCTION
+HOT_FUNCTION
 void reserveArray(ObjArray* array, uint64_t size)
 {
 	size = (size + 7) & ~7;
@@ -659,6 +667,9 @@ void printObject(Value value, bool isExpand) {
 		}
 		break;
 	}
+	case OBJ_BOUND_METHOD:
+		printFunction(AS_BOUND_METHOD(value)->method->function);
+		break;
 	case OBJ_CLOSURE:
 		printFunction(AS_CLOSURE(value)->function);
 		break;

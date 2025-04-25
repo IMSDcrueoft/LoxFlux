@@ -60,16 +60,15 @@ typedef enum {
 	OP_CLOSE_UPVALUE,   // close upvalue
 	OP_NEW_ARRAY,		// array literal
 
-	OP_METHOD,			// make class func
+	//slow func
 	OP_INSTANCE_OF,		// instance
 	OP_CLASS,			// create class
+	OP_METHOD,			// make class func
+	OP_PRINT,			// print string or value
+	OP_THROW,			// throw
 
 	OP_MODULE_BUILTIN,	//load builtin module
 	OP_MODULE_GLOBAL,	//allow user to get the global object
-
-	//slow func
-	OP_PRINT,			// print string or value
-	OP_THROW,			// throw
 } OpCode;
 
 typedef enum {

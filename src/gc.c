@@ -109,6 +109,11 @@ static void blackenObject(Obj* object) {
 #endif
 
 	switch (object->type) {
+	case OBJ_UPVALUE: {
+		//When an upvalue is closed, it contains a reference to the closed-over value
+		markValue(((ObjUpvalue*)object)->closed);
+		break;
+	}
 	case OBJ_CLOSURE: {
 		ObjClosure* closure = (ObjClosure*)object;
 		//no need
@@ -119,9 +124,10 @@ static void blackenObject(Obj* object) {
 		}
 		break;
 	}
-	case OBJ_UPVALUE: {
-		//When an upvalue is closed, it contains a reference to the closed-over value
-		markValue(((ObjUpvalue*)object)->closed);
+	case OBJ_BOUND_METHOD: {
+		ObjBoundMethod* bound = (ObjBoundMethod*)object;
+		markValue(bound->receiver);
+		markObject((Obj*)bound->method);
 		break;
 	}
 		//won't be here

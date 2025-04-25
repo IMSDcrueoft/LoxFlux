@@ -41,7 +41,7 @@ static Value isArrayLikeNative(int argCount, Value* args) {
 }
 
 static Value isFunctionNative(int argCount, Value* args) {
-	return BOOL_VAL(argCount >= 1 && (IS_CLOSURE(args[0]) || IS_NATIVE(args[0])));
+	return BOOL_VAL(argCount >= 1 && (IS_CLOSURE(args[0]) || IS_NATIVE(args[0]) || IS_BOUND_METHOD(args[0])));
 }
 
 static Value isBooleanNative(int argCount, Value* args) {
@@ -61,6 +61,7 @@ static Value typeNative(int argCount, Value* args) {
 			case OBJ_STRING_BUILDER:
 				return OBJ_VAL(vm.typeStrings[TYPE_STRING_STRING_BUILDER]);
 			case OBJ_CLOSURE:
+			case OBJ_BOUND_METHOD:
 				return OBJ_VAL(vm.typeStrings[TYPE_STRING_FUNCTION]);
 			case OBJ_NATIVE:
 				return OBJ_VAL(vm.typeStrings[TYPE_STRING_NATIVE]);

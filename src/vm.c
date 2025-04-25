@@ -382,6 +382,13 @@ uint32_t addConstant(Value value)
 	}
 }
 
+static inline void defineMethod(ObjString* name) {
+	Value method = vm.stackTop[-1];
+	ObjClass* klass = AS_CLASS(vm.stackTop[-2]);
+	tableSet(&klass->methods, name, method);
+	vm.stackTop--;
+}
+
 HOT_FUNCTION
 static bool call(ObjClosure* closure, int argCount) {
 	if (argCount > closure->function->arity) {
@@ -422,6 +429,10 @@ static bool callValue(Value callee, int argCount) {
 		switch (OBJ_TYPE(callee)) {
 		case OBJ_CLOSURE: return call(AS_CLOSURE(callee), argCount);
 		case OBJ_NATIVE: return call_native(AS_NATIVE(callee), argCount);
+		case OBJ_BOUND_METHOD: {
+			ObjBoundMethod* bound = AS_BOUND_METHOD(callee);
+			return call(bound->method, argCount);
+		}
 		case OBJ_CLASS: {
 			ObjClass* klass = AS_CLASS(callee);
 			vm.stackTop[-argCount - 1] = OBJ_VAL(newInstance(klass));
@@ -432,6 +443,20 @@ static bool callValue(Value callee, int argCount) {
 
 	runtimeError("Can only call functions and classes.");
 	return false;
+}
+
+HOT_FUNCTION
+static void bindMethod(ObjClass* klass, ObjString* name) {
+	Value method;
+	if (tableGet(&klass->methods, name, &method)) {
+		ObjBoundMethod* bound = newBoundMethod(vm.stackTop[-1], AS_CLOSURE(method));
+		stack_replace(OBJ_VAL(bound));
+	}
+	else {
+		//don't throw
+		//runtimeError("Undefined property '%s'.", name->chars);
+		stack_replace(NIL_VAL);
+	}
 }
 
 HOT_FUNCTION
@@ -658,6 +683,12 @@ static InterpretResult run()
 			stack_push(OBJ_VAL(newClass(name)));
 			break;
 		}
+		case OP_METHOD: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			ObjString* name = AS_STRING(constant);
+			defineMethod(name);
+			break;
+		}
 		case OP_GET_PROPERTY: {
 			if (!IS_INSTANCE(vm.stackTop[-1])) {
 				runtimeError("Only instances have properties.");
@@ -673,10 +704,10 @@ static InterpretResult run()
 				stack_replace(value);
 				break;
 			}
-
-			//runtimeError("Undefined property '%s'.", name->chars);
-			//return INTERPRET_RUNTIME_ERROR;
-			stack_replace(NIL_VAL);//don't throw error
+			//don't throw error
+			if (instance->klass != NULL) {
+				bindMethod(instance->klass, name);
+			}
 			break;
 		}
 		case OP_SET_PROPERTY: {
@@ -708,19 +739,17 @@ static InterpretResult run()
 					ObjArray* array = AS_ARRAY(target);
 					double num_index = AS_NUMBER(index);
 
+					vm.stackTop--;
 					if (ARRAY_IN_RANGE(array, num_index)) {
 						if (OBJ_IS_TYPE(array, OBJ_ARRAY)) {
-							vm.stackTop[-2] = ARRAY_ELEMENT(array, Value, (uint32_t)num_index);
-							vm.stackTop--;
+							stack_replace(ARRAY_ELEMENT(array, Value, (uint32_t)num_index));
 						}
 						else {
-							vm.stackTop[-2] = getTypedArrayElement(array, (uint32_t)num_index);
-							vm.stackTop--;
+							stack_replace(getTypedArrayElement(array, (uint32_t)num_index));
 						}
 					}
 					else {
-						vm.stackTop[-2] = NIL_VAL;
-						vm.stackTop--;
+						stack_replace(NIL_VAL);
 					}
 					break;
 				}
@@ -733,15 +762,16 @@ static InterpretResult run()
 				if (IS_STRING(index)) {
 					ObjInstance* instance = AS_INSTANCE(target);
 					ObjString* name = AS_STRING(index);
-
 					Value value;
+
+					vm.stackTop--;
 					if (tableGet(&instance->fields, name, &value)) {
-						vm.stackTop[-2] = value;
-						vm.stackTop--;
+						stack_replace(value);
+						break;
 					}
-					else {
-						vm.stackTop[-2] = NIL_VAL;
-						vm.stackTop--;
+					//don't throw error
+					if (instance->klass != NULL) {
+						bindMethod(instance->klass, name);
 					}
 					break;
 				}
@@ -756,14 +786,12 @@ static InterpretResult run()
 					ObjString* string = AS_STRING(target);
 					double num_index = AS_NUMBER(index);
 
-					if (ARRAY_IN_RANGE(string, num_index)) {
-						//return ascii
-						vm.stackTop[-2] = NUMBER_VAL((uint8_t)(string->chars[(uint32_t)num_index]));
-						vm.stackTop--;
+					vm.stackTop--;
+					if (ARRAY_IN_RANGE(string, num_index)) {//return ascii
+						stack_replace(NUMBER_VAL((uint8_t)(string->chars[(uint32_t)num_index])));
 					}
 					else {
-						vm.stackTop[-2] = NIL_VAL;
-						vm.stackTop--;
+						stack_replace(NIL_VAL);
 					}
 					break;
 				}

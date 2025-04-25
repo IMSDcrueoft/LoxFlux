@@ -101,6 +101,10 @@ void freeObject(Obj* object) {
 		FREE(ObjClosure, object);
 		break;
 	}
+	case OBJ_BOUND_METHOD: {
+		FREE(ObjBoundMethod, object);
+		break;
+	}
 	case OBJ_UPVALUE:
 		FREE(ObjUpvalue, object);
 		break;
