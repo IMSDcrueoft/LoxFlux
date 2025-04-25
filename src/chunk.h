@@ -24,18 +24,6 @@ typedef enum {
 	OP_NOT,				// !
 	OP_NEGATE,			// -v
 
-	//load local
-	OP_GET_LOCAL,
-	OP_SET_LOCAL,
-
-	OP_ADD,				// +
-	OP_SUBTRACT,		// -
-	OP_MULTIPLY,		// *
-	OP_DIVIDE,			// /
-	OP_MODULUS,			// %
-	OP_NOT,				// !
-	OP_NEGATE,			// -v
-
 	OP_NIL,
 	OP_TRUE,
 	OP_FALSE,
@@ -45,7 +33,7 @@ typedef enum {
 	OP_NOT_EQUAL,		//!=
 	OP_LESS_EQUAL,		//<=
 	OP_GREATER_EQUAL,	//>=
-	
+
 	OP_JUMP,			// no condition jump
 	OP_LOOP,			// loop
 	OP_JUMP_IF_FALSE,   // condition jump if false
