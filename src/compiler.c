@@ -991,7 +991,7 @@ static void dot(bool canAssign) {
 
 static void arrayLiteral(bool canAssign) {
 	uint32_t elementCount = 0;
-	if (!check(TOKEN_RIGHT_SQUARE_BRACKET)) {
+	if (!check(TOKEN_RIGHT_SQUARE_BRACKET) && !check(TOKEN_EOF)) {
 		do {
 			expression(); //parse values
 			elementCount++;
@@ -1008,8 +1008,8 @@ static void arrayLiteral(bool canAssign) {
 }
 
 static void objectLiteral(bool canAssign) {
-	consume(TOKEN_RIGHT_BRACE, "Expect '}' to close the object.");
 	emitByte(OP_NEW_OBJECT);
+	consume(TOKEN_RIGHT_BRACE, "Expect '}' to close the object.");
 }
 
 static void subscript(bool canAssign) {
