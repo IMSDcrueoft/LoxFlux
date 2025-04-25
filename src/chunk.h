@@ -24,6 +24,18 @@ typedef enum {
 	OP_NOT,				// !
 	OP_NEGATE,			// -v
 
+	//load local
+	OP_GET_LOCAL,
+	OP_SET_LOCAL,
+
+	OP_ADD,				// +
+	OP_SUBTRACT,		// -
+	OP_MULTIPLY,		// *
+	OP_DIVIDE,			// /
+	OP_MODULUS,			// %
+	OP_NOT,				// !
+	OP_NEGATE,			// -v
+
 	OP_NIL,
 	OP_TRUE,
 	OP_FALSE,
