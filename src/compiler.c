@@ -215,6 +215,7 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	compiler->localCapacity = LOCAL_INIT;
 
 	compiler->function = newFunction();
+	compiler->objectNestingDepth = 0;
 
 	//it's a function
 	switch (type) {
@@ -246,9 +247,8 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	}
 	else {
 		compiler->nestingDepth = compiler->enclosing->nestingDepth + 1;
-
-		if (compiler->nestingDepth == 8) {
-			error("Can't compile more than 8 nesting function.");
+		if (compiler->nestingDepth == FUNCTION_MAX_NESTING) {
+			error("Too many nested functions.");
 		}
 	}
 }
@@ -1010,9 +1010,15 @@ static void arrayLiteral(bool canAssign) {
 }
 
 static void objectLiteral(bool canAssign) {
+	if (current->objectNestingDepth == OBJECT_MAX_NESTING) {
+		error("Too many nested objects.");
+		return;
+	}
+
+	++current->objectNestingDepth;
 	emitByte(OP_NEW_OBJECT);
 
-	if (!check(TOKEN_RIGHT_SQUARE_BRACKET) && !check(TOKEN_EOF)) {
+	if (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF)) {
 		do {
 			consume(TOKEN_IDENTIFIER, "Expect property name.");
 			uint32_t constant = identifierConstant(&parser.previous);
@@ -1023,11 +1029,15 @@ static void objectLiteral(bool canAssign) {
 			emitConstantCommond(OP_SET_PROPERTY, constant);
 			emitByte(OP_POP); //pop the property
 
-			if (parser.hadError) return;
+			if (parser.hadError) {
+				--current->objectNestingDepth;
+				return;
+			}
 		} while (match(TOKEN_COMMA));
 	}
 
 	consume(TOKEN_RIGHT_BRACE, "Expect '}' to close the object.");
+	--current->objectNestingDepth;
 }
 
 static void subscript(bool canAssign) {
