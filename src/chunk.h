@@ -63,6 +63,7 @@ typedef enum {
 
 	//slow func
 	OP_INSTANCE_OF,		// instance
+	OP_TYPE_OF,			// typeof
 	OP_CLASS,			// create class
 	OP_METHOD,			// make class func
 	OP_PRINT,			// print string or value

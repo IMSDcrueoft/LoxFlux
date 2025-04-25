@@ -198,6 +198,7 @@ static TokenType identifierType() {
 				}
 				break;
 			}
+			case 'y': return checkKeyword(2, 4, "peof", TOKEN_TYPE_OF);
 			case 'r': return checkKeyword(2, 2, "ue", TOKEN_TRUE);
 			}
 		}

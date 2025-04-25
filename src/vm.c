@@ -392,6 +392,74 @@ uint32_t addConstant(Value value)
 	}
 }
 
+static void getTypeof() {
+	Value val = vm.stackTop[-1];
+
+	switch (val.type) {
+	case VAL_BOOL: 
+		stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_BOOL]));
+		return;
+	case VAL_NIL: 
+		stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_NIL]));
+		return;
+	case VAL_NUMBER: 
+		stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_NUMBER]));
+		return;
+	case VAL_OBJ: {
+		switch (OBJ_TYPE(val)) {
+		case OBJ_STRING:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_STRING]));
+			return;
+		case OBJ_STRING_BUILDER:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_STRING_BUILDER]));
+			return;
+		case OBJ_CLOSURE:
+		case OBJ_BOUND_METHOD:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_FUNCTION]));
+			return;
+		case OBJ_NATIVE:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_NATIVE]));
+			return;
+		case OBJ_CLASS:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_CLASS]));
+			return;
+		case OBJ_INSTANCE:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_OBJECT]));
+			return;
+		case OBJ_ARRAY:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_ARRAY]));
+			return;
+		case OBJ_ARRAY_F64:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_ARRAY_F64]));
+			return;
+		case OBJ_ARRAY_F32:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_ARRAY_F32]));
+			return;
+		case OBJ_ARRAY_U32:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_ARRAY_U32]));
+			return;
+		case OBJ_ARRAY_I32:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_ARRAY_I32]));
+			return;
+		case OBJ_ARRAY_U16:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_ARRAY_U16]));
+			return;
+		case OBJ_ARRAY_I16:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_ARRAY_I16]));
+			return;
+		case OBJ_ARRAY_U8:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_ARRAY_U8]));
+			return;
+		case OBJ_ARRAY_I8:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_ARRAY_I8]));
+			return;
+		}
+	}
+	}
+
+	stack_replace(NIL_VAL);
+}
+
 HOT_FUNCTION
 static bool call(ObjClosure* closure, int argCount) {
 	if (argCount > closure->function->arity) {
@@ -1000,6 +1068,10 @@ static InterpretResult run()
 			bool isInstanceOf = (IS_INSTANCE(vm.stackTop[-2]) && IS_CLASS(vm.stackTop[-1])) && (AS_INSTANCE(vm.stackTop[-2])->klass == AS_CLASS(vm.stackTop[-1]));
 			vm.stackTop[-2] = BOOL_VAL(isInstanceOf);
 			vm.stackTop--;
+			break;
+		}
+		case OP_TYPE_OF: {
+			getTypeof();
 			break;
 		}
 		case OP_ADD: {

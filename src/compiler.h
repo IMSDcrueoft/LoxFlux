@@ -34,7 +34,7 @@ typedef enum {
 	PREC_COMPARISON,  // <, >, <=, >=
 	PREC_TERM,        // +, -
 	PREC_FACTOR,      // *, /, %
-	PREC_UNARY,       // !, -, ~
+	PREC_UNARY,       // !, -, ~, typeof
 	PREC_CALL,        // ., (), []
 	PREC_OPERATE,
 	PREC_PRIMARY

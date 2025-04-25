@@ -1168,6 +1168,7 @@ static void unary(bool canAssign) {
 	case TOKEN_BANG: emitByte(OP_NOT); break;
 	case TOKEN_MINUS: emitByte(OP_NEGATE); break;
 	case TOKEN_BIT_NOT: emitBytes(2, OP_BITWISE, BIT_OP_NOT); break;
+	case TOKEN_TYPE_OF: emitByte(OP_TYPE_OF); break;
 	default: return; // Unreachable.
 	}
 }
@@ -1195,6 +1196,7 @@ ParseRule rules[] = {
 	[TOKEN_LESS] = {NULL,     binary, PREC_COMPARISON},
 	[TOKEN_LESS_EQUAL] = {NULL,     binary, PREC_COMPARISON},
 	[TOKEN_INSTANCE_OF] = {NULL,     binary, PREC_INSTANCEOF},
+	[TOKEN_TYPE_OF] = {unary,	NULL, PREC_UNARY},
 	[TOKEN_BIT_AND] = {NULL,	binary, PREC_BITWISE},
 	[TOKEN_BIT_OR] = {NULL,		binary, PREC_BITWISE},
 	[TOKEN_BIT_XOR] = {NULL,	binary, PREC_BITWISE},
