@@ -129,7 +129,7 @@ Lox is a programming language designed for learning purposes. It is conceived as
 
 - **Delete property**: Remove key-value pairs by assigning nil to the object.
 - **`instanceOf` keyword**:  Checks if an object is an instance of a specific class.
-
+- **`init()`**: Inline caching class init() method.
 ---
 
 ### Comment
