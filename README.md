@@ -125,11 +125,13 @@ Lox is a programming language designed for learning purposes. It is conceived as
 
 ---
 
-### Instance
+### Objects
 
 - **Delete property**: Remove key-value pairs by assigning nil to the object.
 - **`instanceOf` keyword**:  Checks if an object is an instance of a specific class.
+- **`typeof` keyword**: Returns the string of item's subdivision type.
 - **`init()`**: Inline caching class init() method.
+
 ---
 
 ### Comment
@@ -228,7 +230,6 @@ The `@object` module provides utilities for type checking and object introspecti
   - `isStringBuilder`: Verifies if a value is a stringBuilder.
   - `isNumber`: Verifies whether a value is a number.
   - `isBoolean`: Verifies whether a value is true|false.
-  - `type`: Returns the string of item's subdivision type.
 
 These functions are particularly useful for runtime type validation and debugging, allowing developers to write robust and error-resistant code.
 
