@@ -1,0 +1,11 @@
+var x = 1.3;
+match {
+    none: x = 0; //expect error
+    x < 0: print "Yes";
+    none: {
+        print "No";
+        x = -x;
+        print x;
+    }
+}
+print "end";

@@ -754,6 +754,38 @@ static void ifStatement() {
 	patchJump(elseJump);
 }
 
+static void matchCaseStatement() {
+	if (!match(TOKEN_NONE)) {
+		expression();
+		int32_t thenJump = emitJump(OP_JUMP_IF_FALSE_POP);
+		consume(TOKEN_COLON, "Expect ':' after condition.");
+		statement();
+
+		int32_t elseJump = emitJump(OP_JUMP);
+		patchJump(thenJump);
+
+		//prevent endless stack overflow
+		if (parser.hadError) return;
+
+		//seek '}' or next case
+		if (!match(TOKEN_RIGHT_BRACE)) {
+			matchCaseStatement();
+		}
+		patchJump(elseJump);
+	}
+	else {
+		consume(TOKEN_COLON, "Expect ':' after 'none'.");
+		statement();
+		//'none' must be the last case
+		consume(TOKEN_RIGHT_BRACE, "Expect '}' after 'none' case.");
+	}
+}
+
+static void matchStatement() {
+	consume(TOKEN_LEFT_BRACE, "Expect '{' after 'match'.");
+	matchCaseStatement();
+}
+
 static void printStatement() {
 	expression();
 	consume(TOKEN_SEMICOLON, "Expect ';' after value.");
@@ -865,6 +897,7 @@ static void synchronize() {
 		case TOKEN_CONST:
 		case TOKEN_FOR:
 		case TOKEN_IF:
+		case TOKEN_MATCH:
 		case TOKEN_WHILE:
 		case TOKEN_PRINT:
 		case TOKEN_RETURN:
@@ -885,6 +918,9 @@ static void statement() {
 	}
 	else if (match(TOKEN_IF)) {
 		ifStatement();
+	}
+	else if (match(TOKEN_MATCH)) {
+		matchStatement();
 	}
 	else if (match(TOKEN_RETURN)) {
 		returnStatement();
@@ -1216,6 +1252,7 @@ ParseRule rules[] = {
 	[TOKEN_MINUS] = {unary   ,    binary, PREC_TERM     },
 	[TOKEN_PLUS] = {NULL,     binary, PREC_TERM    },
 	[TOKEN_SEMICOLON] = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_COLON] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_SLASH] = {NULL,     binary, PREC_FACTOR  },
 	[TOKEN_STAR] = {NULL,     binary, PREC_FACTOR  },
 	[TOKEN_PERCENT] = {NULL,     binary, PREC_FACTOR  },
@@ -1258,6 +1295,8 @@ ParseRule rules[] = {
 	[TOKEN_FUN] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_LAMBDA] = {lambda,	NULL,	PREC_NONE},
 	[TOKEN_IF] = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_MATCH] = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_NONE] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_NIL] = {literal,     NULL,   PREC_NONE},
 	[TOKEN_OR] = {NULL,     or_,   PREC_OR},
 	[TOKEN_PRINT] = {NULL,     NULL,   PREC_NONE},

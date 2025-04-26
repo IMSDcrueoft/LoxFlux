@@ -1,0 +1,5 @@
+var x = 1.3;
+match {
+    //expect error, no case in match
+}
+print "end";
