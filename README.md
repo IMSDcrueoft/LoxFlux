@@ -125,6 +125,19 @@ Lox is a programming language designed for learning purposes. It is conceived as
 
 ---
 
+### Match Syntactic
+
+```ebnf
+matchState ::= "match" "{" caseState "}"
+caseState  ::= (condState|noneState) | (condState+ noneState?)
+condState  ::= condition ":" statement
+noneState  ::= "none" ":" statement
+```
+
+- **`match`**: The match statement block is to simplify `if else if ...` chain, and is used to replace the `switch(...) {case:...}`, the `none` branch must be at the end. In order not to introduce complex syntax, pattern matching like "rust language" is not used.
+
+---
+
 ### Instance
 
 - **Object Lierals**: Supports defining object literals directly with '{k1:v1,k2:v2}'(note that the key must be a bare identifier, not a "key":value).
