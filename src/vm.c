@@ -508,10 +508,8 @@ static inline void defineMethod(ObjString* name) {
 	Value method = vm.stackTop[-1];
 	ObjClass* klass = AS_CLASS(vm.stackTop[-2]);
 
-	if (name != vm.initString) {
-		tableSet(&klass->methods, name, method);
-	}
-	else {//inline cache
+	tableSet(&klass->methods, name, method);
+	if (name == vm.initString) {//inline cache
 		klass->initializer = method;
 	}
 	vm.stackTop--;
