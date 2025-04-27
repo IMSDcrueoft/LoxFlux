@@ -131,6 +131,7 @@ Lox is a programming language designed for learning purposes. It is conceived as
 
 ### Loop
 
+- **do-while**: Supported `while`,`for` and `do-while` loop.
 - **`break` and `continue` keywords**: Supported within loops.
 
 ---
