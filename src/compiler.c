@@ -26,10 +26,12 @@ static void statement();
 static ParseRule* getRule(TokenType type);
 static void namedVariable(Token name, bool canAssign);
 
+COLD_FUNCTION
 static Chunk* currentChunk() {
 	return &current->function->chunk;
 }
 
+COLD_FUNCTION
 static void errorAt(Token* token, C_STR message) {
 	//check the panicMode
 	if (parser.panicMode) return;
@@ -52,14 +54,17 @@ static void errorAt(Token* token, C_STR message) {
 	parser.hadError = true;
 }
 
+COLD_FUNCTION
 static void error(C_STR message) {
 	errorAt(&parser.previous, message);
 }
 
+COLD_FUNCTION
 static void errorAtCurrent(C_STR message) {
 	errorAt(&parser.current, message);
 }
 
+COLD_FUNCTION
 static void advance() {
 	parser.previous = parser.current;
 
@@ -71,6 +76,7 @@ static void advance() {
 	}
 }
 
+COLD_FUNCTION
 static void consume(TokenType type, C_STR message) {
 	if (parser.current.type == type) {
 		advance();
@@ -80,21 +86,25 @@ static void consume(TokenType type, C_STR message) {
 	errorAtCurrent(message);
 }
 
+COLD_FUNCTION
 static bool check(TokenType type) {
 	return parser.current.type == type;
 }
 
+COLD_FUNCTION
 static bool match(TokenType type) {
 	if (!check(type)) return false;
 	advance();
 	return true;
 }
 
+COLD_FUNCTION
 static void emitByte(uint8_t byte) {
 	chunk_write(currentChunk(), byte, parser.previous.line);
 }
 
 //dynamic args
+COLD_FUNCTION
 static void emitBytes(uint32_t count, uint8_t byte, ...) {
 	//write the first
 	emitByte(byte);
@@ -112,6 +122,7 @@ static void emitBytes(uint32_t count, uint8_t byte, ...) {
 	va_end(arguments);
 }
 
+COLD_FUNCTION
 static void emitConstantCommond(OpCode target, uint32_t index) {
 	if (index <= UINT24_MAX) {
 		emitBytes(4, target, (uint8_t)index, (uint8_t)(index >> 8), (uint8_t)(index >> 16));
@@ -121,14 +132,15 @@ static void emitConstantCommond(OpCode target, uint32_t index) {
 	}
 }
 
+COLD_FUNCTION
 static int32_t emitJump(uint8_t instruction) {
 	emitByte(instruction);
 	emitBytes(2, 0xff, 0xff);
 	return currentChunk()->count - 2;
 }
 
-
 // generate loop
+COLD_FUNCTION
 static void emitLoop(int32_t loopStart) {
 	emitByte(OP_LOOP);
 
@@ -138,6 +150,7 @@ static void emitLoop(int32_t loopStart) {
 	emitBytes(2, offset & 0xff, (offset >> 8) & 0xff);
 }
 
+COLD_FUNCTION
 static void emitReturn() {
 	if (current->type == TYPE_INITIALIZER) {
 		//16bits index get_local
@@ -148,6 +161,7 @@ static void emitReturn() {
 	}
 }
 
+COLD_FUNCTION
 static uint32_t makeConstant(Value value) {
 	switch (value.type) {
 	case VAL_NUMBER: {
@@ -188,10 +202,12 @@ static uint32_t makeConstant(Value value) {
 	}
 }
 
+COLD_FUNCTION
 static void emitConstant(Value value) {
 	emitConstantCommond(OP_CONSTANT, makeConstant(value));
 }
 
+COLD_FUNCTION
 static void patchJump(int32_t offset) {
 	// -2 to adjust for the bytecode for the jump offset itself.
 	int32_t jump = currentChunk()->count - offset - 2;
@@ -205,6 +221,7 @@ static void patchJump(int32_t offset) {
 	currentChunk()->code[offset + 1] = (jump >> 8) & 0xff;
 }
 
+COLD_FUNCTION
 static void initCompiler(Compiler* compiler, FunctionType type) {
 	compiler->enclosing = current;
 	current = compiler;//must set now
@@ -260,12 +277,14 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	}
 }
 
+COLD_FUNCTION
 static void freeLocals(Compiler* compiler) {
 	FREE_ARRAY_NO_GC(Local, compiler->locals, compiler->localCapacity);
 	compiler->locals = NULL;
 	compiler->localCapacity = 0;
 }
 
+COLD_FUNCTION
 static ObjFunction* endCompiler() {
 	emitReturn();
 
@@ -280,10 +299,12 @@ static ObjFunction* endCompiler() {
 	return function;
 }
 
+COLD_FUNCTION
 static void beginScope() {
 	current->scopeDepth++;
 }
 
+COLD_FUNCTION
 static void emitPopCount(uint16_t popCount) {
 	if (popCount == 0) return;
 	if (popCount > 1) { // 16-bit index
@@ -294,6 +315,7 @@ static void emitPopCount(uint16_t popCount) {
 	}
 }
 
+COLD_FUNCTION
 static void endScope() {
 	current->scopeDepth--;
 
@@ -319,6 +341,7 @@ static void endScope() {
 	}
 }
 
+COLD_FUNCTION
 static void parsePrecedence(Precedence precedence) {
 	advance();
 
@@ -349,10 +372,12 @@ static void parsePrecedence(Precedence precedence) {
 	}
 }
 
+COLD_FUNCTION
 static uint32_t identifierConstant(Token* name) {
 	return makeConstant(OBJ_VAL(copyString(name->start, name->length, false)));
 }
 
+COLD_FUNCTION
 static void addLocal(Token name) {
 	if (current->localCount == LOCAL_MAX) {
 		error("Too many nested local variables in scope.");
@@ -373,11 +398,13 @@ static void addLocal(Token name) {
 	local->isConst = false;
 }
 
+COLD_FUNCTION
 static bool identifiersEqual(Token* a, Token* b) {
 	if (a->length != b->length) return false;
 	return memcmp(a->start, b->start, a->length) == 0;
 }
 
+COLD_FUNCTION
 static void declareVariable() {
 	//it is global
 	if (current->scopeDepth == 0) return;
@@ -404,6 +431,7 @@ typedef struct {
 	bool isConst;
 } LocalInfo;
 
+COLD_FUNCTION
 static LocalInfo resolveLocal(Compiler* compiler, Token* name) {
 	for (int32_t i = compiler->localCount - 1; i >= 0; i--) {
 		Local* local = &compiler->locals[i];
@@ -420,6 +448,7 @@ static LocalInfo resolveLocal(Compiler* compiler, Token* name) {
 	return (LocalInfo) { .arg = -1, .isConst = false };
 }
 
+COLD_FUNCTION
 static uint32_t addUpvalue(Compiler* compiler, int32_t index, bool isLocal) {
 	uint32_t upvalueCount = compiler->function->upvalueCount;
 
@@ -441,6 +470,7 @@ static uint32_t addUpvalue(Compiler* compiler, int32_t index, bool isLocal) {
 	return compiler->function->upvalueCount++;
 }
 
+COLD_FUNCTION
 static LocalInfo resolveUpvalue(Compiler* compiler, Token* name) {
 	if (compiler->enclosing == NULL) return (LocalInfo) { .arg = -1, .isConst = false };
 
@@ -462,6 +492,7 @@ static LocalInfo resolveUpvalue(Compiler* compiler, Token* name) {
 	return (LocalInfo) { .arg = -1, .isConst = false };
 }
 
+COLD_FUNCTION
 static uint32_t parseVariable(C_STR errorMessage) {
 	consume(TOKEN_IDENTIFIER, errorMessage);
 
@@ -472,6 +503,7 @@ static uint32_t parseVariable(C_STR errorMessage) {
 	return identifierConstant(&parser.previous);
 }
 
+COLD_FUNCTION
 static void markInitialized(bool isConst) {
 	if (current->scopeDepth == 0) return;
 	//only defined local vars could be used
@@ -479,6 +511,7 @@ static void markInitialized(bool isConst) {
 	current->locals[current->localCount - 1].isConst = isConst;
 }
 
+COLD_FUNCTION
 static void defineVariable(uint32_t global) {
 	//it is a local one
 	if (current->scopeDepth > 0) {
@@ -489,6 +522,7 @@ static void defineVariable(uint32_t global) {
 	emitConstantCommond(OP_DEFINE_GLOBAL, global);
 }
 
+COLD_FUNCTION
 static void defineConst(uint32_t global) {
 	//it is a local one
 	if (current->scopeDepth > 0) {
@@ -500,6 +534,7 @@ static void defineConst(uint32_t global) {
 	}
 }
 
+COLD_FUNCTION
 static uint8_t argumentList() {
 	uint8_t argCount = 0;
 	if (!check(TOKEN_RIGHT_PAREN)) {
@@ -517,6 +552,7 @@ static uint8_t argumentList() {
 	return argCount;
 }
 
+COLD_FUNCTION
 static void and_(bool canAssign) {
 	int32_t endJump = emitJump(OP_JUMP_IF_FALSE);
 
@@ -526,10 +562,12 @@ static void and_(bool canAssign) {
 	patchJump(endJump);
 }
 
+COLD_FUNCTION
 static void expression() {
 	parsePrecedence(PREC_ASSIGNMENT);
 }
 
+COLD_FUNCTION
 static void block() {
 	while (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF)) {
 		declaration();
@@ -538,6 +576,7 @@ static void block() {
 	consume(TOKEN_RIGHT_BRACE, "Expect '}' after block.");
 }
 
+COLD_FUNCTION
 static void function(FunctionType type) {
 	Compiler compiler;
 	initCompiler(&compiler, type);
@@ -581,11 +620,13 @@ static void function(FunctionType type) {
 	freeLocals(&compiler);
 }
 
+COLD_FUNCTION
 static void lambda(bool canAssign) {
 	FunctionType type = TYPE_LAMBDA;
 	function(type);
 }
 
+COLD_FUNCTION
 static void method() {
 	consume(TOKEN_IDENTIFIER, "Expect method name.");
 	uint32_t constant = identifierConstant(&parser.previous);
@@ -598,6 +639,7 @@ static void method() {
 	emitConstantCommond(OP_METHOD, constant);
 }
 
+COLD_FUNCTION
 static void classDeclaration() {
 	consume(TOKEN_IDENTIFIER, "Expect class name.");
 	Token className = parser.previous;
@@ -626,6 +668,7 @@ static void classDeclaration() {
 	currentClass = currentClass->enclosing;
 }
 
+COLD_FUNCTION
 static void funDeclaration() {
 	uint32_t arg = parseVariable("Expect function name.");
 	markInitialized(false);
@@ -633,6 +676,7 @@ static void funDeclaration() {
 	defineVariable(arg);
 }
 
+COLD_FUNCTION
 static void varDeclaration() {
 	do {
 		uint32_t arg = parseVariable("Expect variable name.");
@@ -652,6 +696,7 @@ static void varDeclaration() {
 	consume(TOKEN_SEMICOLON, "Expect ';' after variable declaration.");
 }
 
+COLD_FUNCTION
 static void constDeclaration() {
 	do {
 		uint32_t arg = parseVariable("Expect constant name.");
@@ -670,12 +715,14 @@ static void constDeclaration() {
 	consume(TOKEN_SEMICOLON, "Expect ';' after constant declaration.");
 }
 
+COLD_FUNCTION
 static void expressionStatement() {
 	expression();
 	consume(TOKEN_SEMICOLON, "Expect ';' after expression.");
 	emitByte(OP_POP);
 }
 
+COLD_FUNCTION
 static void forStatement() {
 	//for is a block
 	beginScope();
@@ -745,6 +792,7 @@ static void forStatement() {
 	endScope();
 }
 
+COLD_FUNCTION
 static void ifStatement() {
 	consume(TOKEN_LEFT_PAREN, "Expect '(' after 'if'.");
 	expression();
@@ -760,6 +808,7 @@ static void ifStatement() {
 	patchJump(elseJump);
 }
 
+COLD_FUNCTION
 static void branchCaseStatement() {
 	if (!match(TOKEN_NONE)) {
 		expression();
@@ -787,23 +836,27 @@ static void branchCaseStatement() {
 	}
 }
 
+COLD_FUNCTION
 static void branchStatement() {
 	consume(TOKEN_LEFT_BRACE, "Expect '{' after 'match'.");
 	branchCaseStatement();
 }
 
+COLD_FUNCTION
 static void printStatement() {
 	expression();
 	consume(TOKEN_SEMICOLON, "Expect ';' after value.");
 	emitByte(OP_PRINT);
 }
 
+COLD_FUNCTION
 static void throwStatement() {
 	expression();
 	consume(TOKEN_SEMICOLON, "Expect ';' after value.");
 	emitByte(OP_THROW);
 }
 
+COLD_FUNCTION
 static void returnStatement() {
 	if (current->type == TYPE_SCRIPT) {
 		error("Can't return from top-level code.");
@@ -823,6 +876,7 @@ static void returnStatement() {
 	}
 }
 
+COLD_FUNCTION
 static void whileStatement() {
 	int32_t loopStart = currentChunk()->count;
 
@@ -853,6 +907,7 @@ static void whileStatement() {
 }
 
 //only the loop itself can fix the jump position
+COLD_FUNCTION
 static void breakStatement() {
 	if (current->currentLoop == NULL) {
 		error("Cannot use 'break' outside of a loop.");
@@ -879,6 +934,7 @@ static void breakStatement() {
 	consume(TOKEN_SEMICOLON, "Expect ';' after 'break'.");
 }
 
+COLD_FUNCTION
 static void continueStatement() {
 	if (current->currentLoop == NULL) {
 		error("Cannot use 'continue' outside of a loop.");
@@ -891,6 +947,7 @@ static void continueStatement() {
 	consume(TOKEN_SEMICOLON, "Expect ';' after 'continue'.");
 }
 
+COLD_FUNCTION
 static void synchronize() {
 	parser.panicMode = false;
 
@@ -918,6 +975,7 @@ static void synchronize() {
 	}
 }
 
+COLD_FUNCTION
 static void statement() {
 	if (match(TOKEN_PRINT)) {
 		printStatement();
@@ -956,6 +1014,7 @@ static void statement() {
 	}
 }
 
+COLD_FUNCTION
 static void declaration() {
 	//might went panicMode
 	if (parser.panicMode) synchronize();
@@ -980,6 +1039,7 @@ static void declaration() {
 	if (parser.panicMode) synchronize();
 }
 
+COLD_FUNCTION
 static void binary(bool canAssign) {
 	TokenType operatorType = parser.previous.type;
 	ParseRule* rule = getRule(operatorType);
@@ -1008,11 +1068,13 @@ static void binary(bool canAssign) {
 	}
 }
 
+COLD_FUNCTION
 static void call(bool canAssign) {
 	uint8_t argCount = argumentList();
 	emitBytes(2, OP_CALL, argCount);
 }
 
+COLD_FUNCTION
 static void dot(bool canAssign) {
 	consume(TOKEN_IDENTIFIER, "Expect property name after '.'.");
 	uint32_t name = identifierConstant(&parser.previous);
@@ -1031,6 +1093,7 @@ static void dot(bool canAssign) {
 	}
 }
 
+COLD_FUNCTION
 static void arrayLiteral(bool canAssign) {
 	uint32_t elementCount = 0;
 	if (!check(TOKEN_RIGHT_SQUARE_BRACKET) && !check(TOKEN_EOF)) {
@@ -1051,6 +1114,7 @@ static void arrayLiteral(bool canAssign) {
 	emitBytes(3, OP_NEW_ARRAY, (uint8_t)elementCount, (uint8_t)(elementCount >> 8));  //make array
 }
 
+COLD_FUNCTION
 static void objectLiteral(bool canAssign) {
 	if (current->objectNestingDepth == OBJECT_MAX_NESTING) {
 		error("Too many nested objects.");
@@ -1092,6 +1156,7 @@ static void objectLiteral(bool canAssign) {
 	--current->objectNestingDepth;
 }
 
+COLD_FUNCTION
 static void subscript(bool canAssign) {
 	expression();
 	consume(TOKEN_RIGHT_SQUARE_BRACKET, "Expect ']' after subscript.");
@@ -1105,6 +1170,7 @@ static void subscript(bool canAssign) {
 }
 
 //check builtin
+COLD_FUNCTION
 static void builtinLiteral(bool canAssign) {
 	switch (parser.previous.type)
 	{
@@ -1120,6 +1186,7 @@ static void builtinLiteral(bool canAssign) {
 	}
 }
 
+COLD_FUNCTION
 static void literal(bool canAssign) {
 	switch (parser.previous.type) {
 	case TOKEN_FALSE: emitByte(OP_FALSE); break;
@@ -1129,27 +1196,33 @@ static void literal(bool canAssign) {
 	}
 }
 
+COLD_FUNCTION
 static void grouping(bool canAssign) {
 	expression();
 	consume(TOKEN_RIGHT_PAREN, "Expect ')' after expression.");
 }
 
+COLD_FUNCTION
 static void emitNumber(double value) {
 	emitConstant(NUMBER_VAL(value));
 }
 
+COLD_FUNCTION
 static void number(bool canAssign) {
 	emitNumber(strtod(parser.previous.start, NULL));
 }
 
+COLD_FUNCTION
 static void number_bin(bool canAssign) {
 	emitNumber(strtol(parser.previous.start + 2, NULL, 2));
 }
 
+COLD_FUNCTION
 static void number_hex(bool canAssign) {
 	emitNumber(strtol(parser.previous.start + 2, NULL, 16));
 }
 
+COLD_FUNCTION
 static void or_(bool canAssign) {
 	//if false
 	//int32_t elseJump = emitJump(OP_JUMP_IF_FALSE);
@@ -1168,10 +1241,12 @@ static void or_(bool canAssign) {
 	patchJump(ifJump);
 }
 
+COLD_FUNCTION
 static void string(bool canAssign) {
 	emitConstant(OBJ_VAL(copyString(parser.previous.start + 1, parser.previous.length - 2, false)));
 }
 
+COLD_FUNCTION
 static void namedVariable(Token name, bool canAssign) {
 	LocalInfo args = resolveLocal(current, &name);
 	int32_t arg = args.arg;
@@ -1225,10 +1300,12 @@ static void namedVariable(Token name, bool canAssign) {
 	}
 }
 
+COLD_FUNCTION
 static void variable(bool canAssign) {
 	namedVariable(parser.previous, canAssign);
 }
 
+COLD_FUNCTION
 static void this_(bool canAssign) {
 	if (currentClass == NULL) {
 		error("Can't use 'this' outside of a class.");
@@ -1238,10 +1315,12 @@ static void this_(bool canAssign) {
 	variable(false);
 }
 
+COLD_FUNCTION
 static void string_escape(bool canAssign) {
 	emitConstant(OBJ_VAL(copyString(parser.previous.start + 1, parser.previous.length - 2, true)));
 }
 
+COLD_FUNCTION
 static void unary(bool canAssign) {
 	TokenType operatorType = parser.previous.type;
 
@@ -1332,6 +1411,7 @@ ParseRule rules[] = {
 	[TOKEN_CONTINUE] = {NULL,     NULL,   PREC_NONE},
 };
 
+COLD_FUNCTION
 static ParseRule* getRule(TokenType type) {
 	return &rules[type];
 }
@@ -1360,6 +1440,7 @@ ObjFunction* compile(C_STR source) {
 	return parser.hadError ? NULL : function;
 }
 
+HOT_FUNCTION
 void markCompilerRoots()
 {
 	Compiler* compiler = current;
