@@ -851,6 +851,27 @@ static void whileStatement() {
 	current->currentLoop = current->currentLoop->enclosing;
 }
 
+static void doWhileStatement() {
+	int32_t loopStart = currentChunk()->count;
+	//record the loop
+	LoopContext loop = (LoopContext){ .start = loopStart, .enclosing = current->currentLoop,.breakJumps = NULL,.breakJumpCount = 0 ,.enterParamCount = current->localCount };
+	loop.breakJumpCapacity = 8;
+	loop.breakJumps = ALLOCATE_NO_GC(int32_t, loop.breakJumpCapacity);
+	current->currentLoop = &loop;
+
+	statement();
+
+	consume(TOKEN_WHILE, "Expect 'while' after 'do' to form a valid 'do-while'.");
+	consume(TOKEN_LEFT_PAREN, "Expect '(' after 'while'.");
+	expression();
+	consume(TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
+	consume(TOKEN_SEMICOLON, "Expect ';' after 'do-while' loop.");
+
+	int32_t exitJump = emitJump(OP_JUMP_IF_FALSE_POP);
+	emitLoop(loopStart);
+	patchJump(exitJump);
+}
+
 //only the loop itself can fix the jump position
 static void breakStatement() {
 	if (current->currentLoop == NULL) {
@@ -932,6 +953,9 @@ static void statement() {
 	}
 	else if (match(TOKEN_WHILE)) {
 		whileStatement();
+	}
+	else if (match(TOKEN_DO)) {
+		doWhileStatement();
 	}
 	else if (match(TOKEN_FOR)) {
 		forStatement();
@@ -1324,6 +1348,7 @@ ParseRule rules[] = {
 	[TOKEN_TRUE] = {literal,     NULL,   PREC_NONE},
 	[TOKEN_VAR] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_CONST] = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_DO] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_WHILE] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_ERROR] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_EOF] = {NULL,     NULL,   PREC_NONE},
