@@ -1062,8 +1062,20 @@ static void objectLiteral(bool canAssign) {
 
 	if (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF)) {
 		do {
-			consume(TOKEN_IDENTIFIER, "Expect property name.");
-			uint32_t constant = identifierConstant(&parser.previous);
+			uint32_t constant = UINT32_MAX;//limit is 2^24-1
+
+			if (match(TOKEN_IDENTIFIER)) {
+				constant = identifierConstant(&parser.previous);
+			}
+			else if (match(TOKEN_STRING)) {
+				constant = makeConstant(OBJ_VAL(copyString(parser.previous.start + 1, parser.previous.length - 2, false)));
+			}
+			else if (match(TOKEN_STRING_ESCAPE)) {
+				constant = makeConstant(OBJ_VAL(copyString(parser.previous.start + 1, parser.previous.length - 2, true)));
+			}
+			else {
+				errorAtCurrent("Expect property name.");
+			}
 
 			consume(TOKEN_COLON, "Expect ':' after property name.");
 			expression(); //get value
