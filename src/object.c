@@ -351,6 +351,7 @@ void reserveArray(ObjArray* array, uint64_t size)
 }
 
 //it don't check index so be careful
+HOT_FUNCTION
 Value getTypedArrayElement(ObjArray* array, uint32_t index)
 {
 	switch (OBJ_GET_TYPE(array->obj)) {
@@ -377,6 +378,7 @@ Value getTypedArrayElement(ObjArray* array, uint32_t index)
 	}
 }
 
+HOT_FUNCTION
 void setTypedArrayElement(ObjArray* array, uint32_t index, Value val)
 {
 	val = IS_NUMBER(val) ? val : NUMBER_VAL(0);
