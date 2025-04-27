@@ -870,6 +870,12 @@ static void doWhileStatement() {
 	int32_t exitJump = emitJump(OP_JUMP_IF_FALSE_POP);
 	emitLoop(loopStart);
 	patchJump(exitJump);
+
+	while (loop.breakJumpCount > 0) {
+		patchJump(loop.breakJumps[--loop.breakJumpCount]);
+	}
+	FREE_ARRAY(int32_t, loop.breakJumps, loop.breakJumpCapacity);
+	current->currentLoop = current->currentLoop->enclosing;
 }
 
 //only the loop itself can fix the jump position

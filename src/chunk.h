@@ -39,7 +39,6 @@ typedef enum {
 	OP_JUMP_IF_FALSE,   // condition jump if false
 	OP_JUMP_IF_FALSE_POP,
 	OP_JUMP_IF_TRUE,    // condition jump if true
-	OP_JUMP_IF_TRUE_POP,
 	OP_POP,				// pop stack
 	OP_POP_N,			// pop multiple stack
 	OP_BITWISE,			//& | ~ ^ << >> >>>
