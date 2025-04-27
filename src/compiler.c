@@ -334,6 +334,12 @@ static void parsePrecedence(Precedence precedence) {
 	while (precedence <= getRule(parser.current.type)->precedence) {
 		advance();
 		ParseFn infixRule = getRule(parser.previous.type)->infix;
+
+		if (infixRule == NULL) {
+			error("Syntax error.");
+			break;
+		}
+
 		infixRule(canAssign);
 	}
 
