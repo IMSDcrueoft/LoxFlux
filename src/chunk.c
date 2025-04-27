@@ -35,6 +35,7 @@ void chunk_free(Chunk* chunk) {
 }
 
 //beginError:where error begins
+COLD_FUNCTION
 void chunk_free_errorCode(Chunk* chunk, uint32_t beginError) {
 	if (chunk == NULL || beginError > chunk->count) {
 		return;

@@ -10,7 +10,6 @@
 #define INTERN_STRING_WARN (1024)
 
 //String
-COLD_FUNCTION
 static Value lengthNative(int argCount, Value* args)
 {
 	if (argCount >= 1) {
@@ -24,7 +23,6 @@ static Value lengthNative(int argCount, Value* args)
 	return NAN_VAL;
 }
 
-COLD_FUNCTION
 static Value UTF8LenNative(int argCount, Value* args) {
 	if (argCount >= 1) {
 		C_STR stringPtr = NULL;
@@ -70,7 +68,6 @@ static Value UTF8LenNative(int argCount, Value* args) {
 	return NAN_VAL;
 }
 
-COLD_FUNCTION
 static Value charAtNative(int argCount, Value* args) {
 	if (argCount >= 2 && IS_NUMBER(args[1])) {
 		C_STR stringPtr = NULL;
@@ -99,7 +96,6 @@ static Value charAtNative(int argCount, Value* args) {
 	return NIL_VAL;
 }
 
-COLD_FUNCTION
 static Value utf8AtNative(int argCount, Value* args) {
 	if (argCount >= 2 && IS_NUMBER(args[1])) {
 		C_STR stringPtr = NULL;
@@ -218,7 +214,6 @@ static void growStringBuilder(ObjArray* builder, uint32_t appendLen) {
 	}
 }
 
-COLD_FUNCTION
 static Value appendNative(int argCount, Value* args) {
 	if (argCount >= 1 && IS_STRING_BUILDER(args[0])) {
 		ObjArray* stringBuilder = AS_ARRAY(args[0]);
@@ -270,7 +265,6 @@ static Value internNative(int argCount, Value* args) {
 	return NIL_VAL;
 }
 
-COLD_FUNCTION
 static Value equalsNative(int argCount, Value* args) {
 	if (argCount >= 2) {
 		if (IS_STRING_BUILDER(args[0])) {
