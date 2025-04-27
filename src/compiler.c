@@ -19,6 +19,12 @@ Parser parser;
 Compiler* current = NULL;
 ClassCompiler* currentClass = NULL;
 
+static void declaration();
+static void expression();
+static void statement();
+//need to declare first
+static ParseRule* getRule(TokenType type);
+
 static Chunk* currentChunk() {
 	return &current->function->chunk;
 }
@@ -312,9 +318,6 @@ static void endScope() {
 	}
 }
 
-//need to declare first
-static ParseRule* getRule(TokenType type);
-
 static void parsePrecedence(Precedence precedence) {
 	advance();
 
@@ -490,7 +493,6 @@ static void defineConst(uint32_t global) {
 	}
 }
 
-static void expression();
 static uint8_t argumentList() {
 	uint8_t argCount = 0;
 	if (!check(TOKEN_RIGHT_PAREN)) {
@@ -521,7 +523,6 @@ static void expression() {
 	parsePrecedence(PREC_ASSIGNMENT);
 }
 
-static void declaration();
 static void block() {
 	while (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF)) {
 		declaration();
@@ -669,7 +670,6 @@ static void expressionStatement() {
 	emitByte(OP_POP);
 }
 
-static void statement();
 static void forStatement() {
 	//for is a block
 	beginScope();
