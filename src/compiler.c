@@ -336,7 +336,7 @@ static void parsePrecedence(Precedence precedence) {
 		ParseFn infixRule = getRule(parser.previous.type)->infix;
 
 		if (infixRule == NULL) {
-			error("Syntax error.");
+			error("Syntax error, no infix syntax at current location.");
 			break;
 		}
 
