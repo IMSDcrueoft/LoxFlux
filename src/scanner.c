@@ -8,7 +8,6 @@
 //shared scanner
 Scanner scanner;
 
-COLD_FUNCTION
 void scanner_init(C_STR source)
 {
 	scanner.start = source;
@@ -392,7 +391,6 @@ static Token string() {
 	return makeToken(isEscapeString ? TOKEN_STRING_ESCAPE : TOKEN_STRING);
 }
 
-COLD_FUNCTION
 Token scanToken()
 {
 	//we don't need this

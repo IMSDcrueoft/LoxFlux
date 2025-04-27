@@ -26,7 +26,6 @@ void table_free(Table* table)
 	table_init(table);
 }
 
-COLD_FUNCTION
 void table_init_static(Table* table, uint32_t capacity, Entry* static_address)
 {
 	table->inlineCaching = 0;
@@ -40,7 +39,6 @@ void table_init_static(Table* table, uint32_t capacity, Entry* static_address)
 	}
 }
 
-COLD_FUNCTION
 void table_free_static(Table* table)
 {
 	table_init_static(table, table->capacity, table->entries);
@@ -330,7 +328,6 @@ Entry* tableGetStringEntry(Table* table, ObjString* key)
 	}
 }
 
-COLD_FUNCTION
 void numberTable_init(NumberTable* table)
 {
 	table->count = 0;
@@ -338,7 +335,6 @@ void numberTable_init(NumberTable* table)
 	table->entries = NULL;
 }
 
-COLD_FUNCTION
 void numberTable_free(NumberTable* table)
 {
 	FREE_ARRAY_NO_GC(NumberEntry, table->entries, table->capacity);
