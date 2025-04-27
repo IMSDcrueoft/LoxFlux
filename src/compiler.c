@@ -19,6 +19,13 @@ Parser parser;
 Compiler* current = NULL;
 ClassCompiler* currentClass = NULL;
 
+static void declaration();
+static void expression();
+static void statement();
+//need to declare first
+static ParseRule* getRule(TokenType type);
+static void namedVariable(Token name, bool canAssign);
+
 static Chunk* currentChunk() {
 	return &current->function->chunk;
 }
@@ -119,7 +126,6 @@ static int32_t emitJump(uint8_t instruction) {
 	emitBytes(2, 0xff, 0xff);
 	return currentChunk()->count - 2;
 }
-
 
 // generate loop
 static void emitLoop(int32_t loopStart) {
@@ -312,9 +318,6 @@ static void endScope() {
 	}
 }
 
-//need to declare first
-static ParseRule* getRule(TokenType type);
-
 static void parsePrecedence(Precedence precedence) {
 	advance();
 
@@ -331,6 +334,12 @@ static void parsePrecedence(Precedence precedence) {
 	while (precedence <= getRule(parser.current.type)->precedence) {
 		advance();
 		ParseFn infixRule = getRule(parser.previous.type)->infix;
+
+		if (infixRule == NULL) {
+			error("Syntax error, no infix syntax at current location.");
+			break;
+		}
+
 		infixRule(canAssign);
 	}
 
@@ -490,7 +499,6 @@ static void defineConst(uint32_t global) {
 	}
 }
 
-static void expression();
 static uint8_t argumentList() {
 	uint8_t argCount = 0;
 	if (!check(TOKEN_RIGHT_PAREN)) {
@@ -521,7 +529,6 @@ static void expression() {
 	parsePrecedence(PREC_ASSIGNMENT);
 }
 
-static void declaration();
 static void block() {
 	while (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF)) {
 		declaration();
@@ -590,7 +597,6 @@ static void method() {
 	emitConstantCommond(OP_METHOD, constant);
 }
 
-static void namedVariable(Token name, bool canAssign);
 static void classDeclaration() {
 	consume(TOKEN_IDENTIFIER, "Expect class name.");
 	Token className = parser.previous;
@@ -669,7 +675,6 @@ static void expressionStatement() {
 	emitByte(OP_POP);
 }
 
-static void statement();
 static void forStatement() {
 	//for is a block
 	beginScope();
@@ -754,7 +759,7 @@ static void ifStatement() {
 	patchJump(elseJump);
 }
 
-static void matchCaseStatement() {
+static void branchCaseStatement() {
 	if (!match(TOKEN_NONE)) {
 		expression();
 		int32_t thenJump = emitJump(OP_JUMP_IF_FALSE_POP);
@@ -769,7 +774,7 @@ static void matchCaseStatement() {
 
 		//seek '}' or next case
 		if (!match(TOKEN_RIGHT_BRACE)) {
-			matchCaseStatement();
+			branchCaseStatement();
 		}
 		patchJump(elseJump);
 	}
@@ -781,9 +786,9 @@ static void matchCaseStatement() {
 	}
 }
 
-static void matchStatement() {
+static void branchStatement() {
 	consume(TOKEN_LEFT_BRACE, "Expect '{' after 'match'.");
-	matchCaseStatement();
+	branchCaseStatement();
 }
 
 static void printStatement() {
@@ -846,6 +851,33 @@ static void whileStatement() {
 	current->currentLoop = current->currentLoop->enclosing;
 }
 
+static void doWhileStatement() {
+	int32_t loopStart = currentChunk()->count;
+	//record the loop
+	LoopContext loop = (LoopContext){ .start = loopStart, .enclosing = current->currentLoop,.breakJumps = NULL,.breakJumpCount = 0 ,.enterParamCount = current->localCount };
+	loop.breakJumpCapacity = 8;
+	loop.breakJumps = ALLOCATE_NO_GC(int32_t, loop.breakJumpCapacity);
+	current->currentLoop = &loop;
+
+	statement();
+
+	consume(TOKEN_WHILE, "Expect 'while' after 'do' to form a valid 'do-while'.");
+	consume(TOKEN_LEFT_PAREN, "Expect '(' after 'while'.");
+	expression();
+	consume(TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
+	consume(TOKEN_SEMICOLON, "Expect ';' after 'do-while' loop.");
+
+	int32_t exitJump = emitJump(OP_JUMP_IF_FALSE_POP);
+	emitLoop(loopStart);
+	patchJump(exitJump);
+
+	while (loop.breakJumpCount > 0) {
+		patchJump(loop.breakJumps[--loop.breakJumpCount]);
+	}
+	FREE_ARRAY(int32_t, loop.breakJumps, loop.breakJumpCapacity);
+	current->currentLoop = current->currentLoop->enclosing;
+}
+
 //only the loop itself can fix the jump position
 static void breakStatement() {
 	if (current->currentLoop == NULL) {
@@ -897,7 +929,7 @@ static void synchronize() {
 		case TOKEN_CONST:
 		case TOKEN_FOR:
 		case TOKEN_IF:
-		case TOKEN_MATCH:
+		case TOKEN_BRANCH:
 		case TOKEN_WHILE:
 		case TOKEN_PRINT:
 		case TOKEN_RETURN:
@@ -919,14 +951,17 @@ static void statement() {
 	else if (match(TOKEN_IF)) {
 		ifStatement();
 	}
-	else if (match(TOKEN_MATCH)) {
-		matchStatement();
+	else if (match(TOKEN_BRANCH)) {
+		branchStatement();
 	}
 	else if (match(TOKEN_RETURN)) {
 		returnStatement();
 	}
 	else if (match(TOKEN_WHILE)) {
 		whileStatement();
+	}
+	else if (match(TOKEN_DO)) {
+		doWhileStatement();
 	}
 	else if (match(TOKEN_FOR)) {
 		forStatement();
@@ -1056,8 +1091,20 @@ static void objectLiteral(bool canAssign) {
 
 	if (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF)) {
 		do {
-			consume(TOKEN_IDENTIFIER, "Expect property name.");
-			uint32_t constant = identifierConstant(&parser.previous);
+			uint32_t constant = UINT32_MAX;//limit is 2^24-1
+
+			if (match(TOKEN_IDENTIFIER)) {
+				constant = identifierConstant(&parser.previous);
+			}
+			else if (match(TOKEN_STRING)) {
+				constant = makeConstant(OBJ_VAL(copyString(parser.previous.start + 1, parser.previous.length - 2, false)));
+			}
+			else if (match(TOKEN_STRING_ESCAPE)) {
+				constant = makeConstant(OBJ_VAL(copyString(parser.previous.start + 1, parser.previous.length - 2, true)));
+			}
+			else {
+				errorAtCurrent("Expect property name.");
+			}
 
 			consume(TOKEN_COLON, "Expect ':' after property name.");
 			expression(); //get value
@@ -1295,7 +1342,7 @@ ParseRule rules[] = {
 	[TOKEN_FUN] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_LAMBDA] = {lambda,	NULL,	PREC_NONE},
 	[TOKEN_IF] = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_MATCH] = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_BRANCH] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_NONE] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_NIL] = {literal,     NULL,   PREC_NONE},
 	[TOKEN_OR] = {NULL,     or_,   PREC_OR},
@@ -1307,6 +1354,7 @@ ParseRule rules[] = {
 	[TOKEN_TRUE] = {literal,     NULL,   PREC_NONE},
 	[TOKEN_VAR] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_CONST] = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_DO] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_WHILE] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_ERROR] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_EOF] = {NULL,     NULL,   PREC_NONE},
@@ -1318,7 +1366,6 @@ static ParseRule* getRule(TokenType type) {
 	return &rules[type];
 }
 
-COLD_FUNCTION
 ObjFunction* compile(C_STR source) {
 	Compiler compiler;
 

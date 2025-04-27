@@ -8,7 +8,6 @@
 //shared scanner
 Scanner scanner;
 
-COLD_FUNCTION
 void scanner_init(C_STR source)
 {
 	scanner.start = source;
@@ -136,22 +135,34 @@ static TokenType checkKeyword(uint32_t start, uint32_t length, C_STR rest, Token
 static TokenType identifierType() {
 	switch (scanner.start[0]) {
 	case 'a': return checkKeyword(1, 2, "nd", TOKEN_AND);
-	case 'b': return checkKeyword(1, 4, "reak", TOKEN_BREAK);
-	case 'c': if (scanner.current - scanner.start > 1) {
-		switch (scanner.start[1]) {
-		case 'l': return checkKeyword(2, 3, "ass", TOKEN_CLASS);
-		case 'o': {
-			if ((scanner.current - scanner.start > 3) && (scanner.start[2] == 'n')) {
-				switch (scanner.start[3])
-				{
-				case 's': return checkKeyword(4, 1, "t", TOKEN_CONST);
-				case 't': return checkKeyword(4, 4, "inue", TOKEN_CONTINUE);
-				}
+	case 'b': {
+		if ((scanner.current - scanner.start > 2) && (scanner.start[1] == 'r')) {
+			switch (scanner.start[2]) {
+			case 'e':return checkKeyword(3, 2, "ak", TOKEN_BREAK);
+			case 'a':return checkKeyword(3, 3, "nch", TOKEN_BRANCH);
 			}
-		}
 		}
 		break;
 	}
+	case 'c': {
+		if (scanner.current - scanner.start > 1) {
+			switch (scanner.start[1]) {
+			case 'l': return checkKeyword(2, 3, "ass", TOKEN_CLASS);
+			case 'o': {
+				if ((scanner.current - scanner.start > 3) && (scanner.start[2] == 'n')) {
+					switch (scanner.start[3])
+					{
+					case 's': return checkKeyword(4, 1, "t", TOKEN_CONST);
+					case 't': return checkKeyword(4, 4, "inue", TOKEN_CONTINUE);
+					}
+				}
+				break;
+			}
+			}
+		}
+		break;
+	}
+	case 'd': return checkKeyword(1, 1, "o", TOKEN_DO);
 	case 'e': return checkKeyword(1, 3, "lse", TOKEN_ELSE);
 	case 'f': {
 		if (scanner.current - scanner.start > 1) {
@@ -172,7 +183,7 @@ static TokenType identifierType() {
 		}
 		break;
 	}
-	case 'm': return checkKeyword(1, 4, "atch", TOKEN_MATCH);
+	case 'l': return checkKeyword(1, 5, "ambda", TOKEN_LAMBDA);
 	case 'n': {
 		if (scanner.current - scanner.start > 1) {
 			switch (scanner.start[1]) {
@@ -206,7 +217,6 @@ static TokenType identifierType() {
 	}
 	case 'v': return checkKeyword(1, 2, "ar", TOKEN_VAR);
 	case 'w': return checkKeyword(1, 4, "hile", TOKEN_WHILE);
-	case 'l': return checkKeyword(1, 5, "ambda", TOKEN_LAMBDA);
 	}
 
 	return TOKEN_IDENTIFIER;
@@ -382,7 +392,6 @@ static Token string() {
 	return makeToken(isEscapeString ? TOKEN_STRING_ESCAPE : TOKEN_STRING);
 }
 
-COLD_FUNCTION
 Token scanToken()
 {
 	//we don't need this

@@ -2,7 +2,7 @@ var count1 = 0,count2 = 0,count3 = 0;
 
 for(var i = 0;i < 10;i = i + 1){
     var j = i % 3;
-    match {
+    branch {
         i == 9: {
             var test1,test2,test3;
             break;//should pop them ,and pop j

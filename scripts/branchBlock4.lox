@@ -1,0 +1,5 @@
+var x = 1.3;
+branch {
+    //expect error, no case in branch
+}
+print "end";

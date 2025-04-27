@@ -100,9 +100,19 @@ Lox is a programming language designed for learning purposes. It is conceived as
 
 ### Array
 
-- **Array Literals**: Supports defining array literals directly in the code(no more than `1024` within each `[]`)(Configurable up to 65535), making array creation more intuitive and convenient.
+- **Array Literals**: Supports defining array literals directly in the code(no more than `1024` within each `[]`)(Configurable up to 65535), making array creation more intuitive and convenient(nesting is supported).
 - **Syntax**: Use square brackets `[]` to define an array. Elements are separated by commas. Arrays can hold elements of any supported data type, including numbers, strings, objects, or even other arrays (nested arrays).
 - **Typed Array**: Typed arrays are pure arrays in compiled languages like C/CPP as we know them, and if you try to assign a non-numeric type to it, it will become `0`.
+
+---
+
+### Instance
+
+- **Object Lierals**: Supports defining object literals directly with `{k1:v1,"k2":v2}`,making object creation more intuitive and convenient(Nesting is supported).
+- **Delete property**: Remove key-value pairs by assigning nil to the object.
+- **`instanceOf` keyword**:  Checks if an object is an instance of a specific class.
+- **`typeof` keyword**: Returns the string of item's subdivision type.
+- **`init()`**: Inline caching class init() method.
 
 ---
 
@@ -121,30 +131,21 @@ Lox is a programming language designed for learning purposes. It is conceived as
 
 ### Loop
 
+- **do-while**: Supported `while`,`for` and `do-while` loop.
 - **`break` and `continue` keywords**: Supported within loops.
 
 ---
 
-### Match Syntactic
+### Branch Syntactic
 
 ```ebnf
-matchState ::= "match" "{" caseState "}"
+branchState ::= "branch" "{" caseState "}"
 caseState  ::= (condState|noneState) | (condState+ noneState?)
 condState  ::= condition ":" statement
 noneState  ::= "none" ":" statement
 ```
 
-- **`match`**: The match statement block is to simplify `if else if ...` chain, and is used to replace the `switch(...) {case:...}`, the `none` branch must be at the end. In order not to introduce complex syntax, pattern matching like "rust language" is not used.
-
----
-
-### Instance
-
-- **Object Lierals**: Supports defining object literals directly with '{k1:v1,k2:v2}'(note that the key must be a bare identifier, not a "key":value).
-- **Delete property**: Remove key-value pairs by assigning nil to the object.
-- **`instanceOf` keyword**:  Checks if an object is an instance of a specific class.
-- **`typeof` keyword**: Returns the string of item's subdivision type.
-- **`init()`**: Inline caching class init() method.
+- **`branch`**: The branch statement block is to simplify `if else if ...` chain, and is used to replace the `switch(...) {case:...}`, the `none` branch must be at the end.
 
 ---
 
