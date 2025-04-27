@@ -24,6 +24,7 @@ static void expression();
 static void statement();
 //need to declare first
 static ParseRule* getRule(TokenType type);
+static void namedVariable(Token name, bool canAssign);
 
 static Chunk* currentChunk() {
 	return &current->function->chunk;
@@ -597,7 +598,6 @@ static void method() {
 	emitConstantCommond(OP_METHOD, constant);
 }
 
-static void namedVariable(Token name, bool canAssign);
 static void classDeclaration() {
 	consume(TOKEN_IDENTIFIER, "Expect class name.");
 	Token className = parser.previous;
