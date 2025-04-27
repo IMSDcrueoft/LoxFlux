@@ -1,0 +1,27 @@
+// Test Case 1: Identifier Key
+// The key is a valid identifier (e.g., "key").
+var obj1 = {
+    key: "value1"
+};
+print "Test Case 1 - Identifier Key:";
+print obj1.key;  // Expected output: value1
+
+// Test Case 2: String Keys
+// The keys are strings, including spaces and Unicode characters.
+var obj2 = {
+    "key with space": "value2",  // A string key with spaces
+    "😊": "smiley"              // A string key with a Unicode emoji
+};
+print "Test Case 2 - String Keys:";
+print obj2["key with space"];  // Expected output: value2
+print obj2["😊"];              // Expected output: smiley
+
+// Test Case 3: Escaped String Keys
+// The keys include escaped characters (\ and ").
+var obj3 = {
+    "key\\with\\backslashes": "value3",  // A string key with escaped backslashes
+    "key\"with\"quotes": "value4"       // A string key with escaped quotes
+};
+print "Test Case 3 - Escaped String Keys:";
+print obj3["key\\with\\backslashes"];  // Expected output: value3
+print obj3["key\"with\"quotes"];      // Expected output: value4
