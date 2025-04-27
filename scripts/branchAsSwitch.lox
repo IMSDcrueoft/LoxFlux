@@ -1,5 +1,5 @@
 var x = 1;
-match {
+branch {
     x == 0: print 0;
     x == 1: {
         var a = x*x,b = 1/(a+1),c= b*b;

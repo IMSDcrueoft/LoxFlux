@@ -136,19 +136,30 @@ static TokenType checkKeyword(uint32_t start, uint32_t length, C_STR rest, Token
 static TokenType identifierType() {
 	switch (scanner.start[0]) {
 	case 'a': return checkKeyword(1, 2, "nd", TOKEN_AND);
-	case 'b': return checkKeyword(1, 4, "reak", TOKEN_BREAK);
-	case 'c': if (scanner.current - scanner.start > 1) {
-		switch (scanner.start[1]) {
-		case 'l': return checkKeyword(2, 3, "ass", TOKEN_CLASS);
-		case 'o': {
-			if ((scanner.current - scanner.start > 3) && (scanner.start[2] == 'n')) {
-				switch (scanner.start[3])
-				{
-				case 's': return checkKeyword(4, 1, "t", TOKEN_CONST);
-				case 't': return checkKeyword(4, 4, "inue", TOKEN_CONTINUE);
-				}
+	case 'b': {
+		if ((scanner.current - scanner.start > 2) && (scanner.start[1] == 'r')) {
+			switch (scanner.start[2]) {
+			case 'e':return checkKeyword(3, 2, "ak", TOKEN_BREAK);
+			case 'a':return checkKeyword(3, 3, "nch", TOKEN_BRANCH);
 			}
 		}
+		break;
+	}
+	case 'c': {
+		if (scanner.current - scanner.start > 1) {
+			switch (scanner.start[1]) {
+			case 'l': return checkKeyword(2, 3, "ass", TOKEN_CLASS);
+			case 'o': {
+				if ((scanner.current - scanner.start > 3) && (scanner.start[2] == 'n')) {
+					switch (scanner.start[3])
+					{
+					case 's': return checkKeyword(4, 1, "t", TOKEN_CONST);
+					case 't': return checkKeyword(4, 4, "inue", TOKEN_CONTINUE);
+					}
+				}
+				break;
+			}
+			}
 		}
 		break;
 	}
@@ -172,7 +183,6 @@ static TokenType identifierType() {
 		}
 		break;
 	}
-	case 'm': return checkKeyword(1, 4, "atch", TOKEN_MATCH);
 	case 'n': {
 		if (scanner.current - scanner.start > 1) {
 			switch (scanner.start[1]) {

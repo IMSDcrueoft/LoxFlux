@@ -754,7 +754,7 @@ static void ifStatement() {
 	patchJump(elseJump);
 }
 
-static void matchCaseStatement() {
+static void branchCaseStatement() {
 	if (!match(TOKEN_NONE)) {
 		expression();
 		int32_t thenJump = emitJump(OP_JUMP_IF_FALSE_POP);
@@ -769,7 +769,7 @@ static void matchCaseStatement() {
 
 		//seek '}' or next case
 		if (!match(TOKEN_RIGHT_BRACE)) {
-			matchCaseStatement();
+			branchCaseStatement();
 		}
 		patchJump(elseJump);
 	}
@@ -781,9 +781,9 @@ static void matchCaseStatement() {
 	}
 }
 
-static void matchStatement() {
+static void branchStatement() {
 	consume(TOKEN_LEFT_BRACE, "Expect '{' after 'match'.");
-	matchCaseStatement();
+	branchCaseStatement();
 }
 
 static void printStatement() {
@@ -897,7 +897,7 @@ static void synchronize() {
 		case TOKEN_CONST:
 		case TOKEN_FOR:
 		case TOKEN_IF:
-		case TOKEN_MATCH:
+		case TOKEN_BRANCH:
 		case TOKEN_WHILE:
 		case TOKEN_PRINT:
 		case TOKEN_RETURN:
@@ -919,8 +919,8 @@ static void statement() {
 	else if (match(TOKEN_IF)) {
 		ifStatement();
 	}
-	else if (match(TOKEN_MATCH)) {
-		matchStatement();
+	else if (match(TOKEN_BRANCH)) {
+		branchStatement();
 	}
 	else if (match(TOKEN_RETURN)) {
 		returnStatement();
@@ -1295,7 +1295,7 @@ ParseRule rules[] = {
 	[TOKEN_FUN] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_LAMBDA] = {lambda,	NULL,	PREC_NONE},
 	[TOKEN_IF] = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_MATCH] = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_BRANCH] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_NONE] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_NIL] = {literal,     NULL,   PREC_NONE},
 	[TOKEN_OR] = {NULL,     or_,   PREC_OR},
