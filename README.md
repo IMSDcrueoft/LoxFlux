@@ -2,10 +2,7 @@
 
 LoxFlux is developed based on the cLox version of the Lox language (stack-based bytecode-virtual machine). Please note that the project has not yet completed its basic functions.
 
-此项目“LoxFlux”是基于Lox语言的cLox 版本(栈型字节码虚拟机)进行开发的。请注意，该项目目前尚未完成基础功能。
-
 - **Design metrics**: loxFlux should be fully compatible with the lox syntax, so lox scripts can be painlessly interpreted and executed in loxFlux (although error handling may vary, the "correct code" is the same).
--  **设计指标**: loxFlux应是完整兼容lox语法的，因此lox脚本可以无痛的在loxFlux里解释执行(尽管错误处理可能有所不同，但“正确的代码”是一样的)。
 
 ## Introduction of Lox
 
