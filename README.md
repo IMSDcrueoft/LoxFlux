@@ -168,7 +168,7 @@ noneState  ::= "none" ":" statement
 
 There are some namespace objects that start with `'@'` available, and since they are not in the global scope, the initial state of the global scope is a "completely clean" state. 
 
-#### `@math` `@array` `@object` `@string` `@time` `@file` `@sys`
+#### `@math` `@array` `@object` `@string` `@time` `@ctor` `@sys`
 
 The `@math` module provides a comprehensive set of mathematical functions and utilities, implemented as native bindings for efficiency and ease of use. These functions are accessible globally and can be used directly in scripts or applications.
 
