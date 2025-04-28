@@ -237,16 +237,7 @@ ObjBoundMethod* newBoundMethod(Value receiver, ObjClosure* method);
 ObjNative* newNative(NativeFn function);
 ObjClass* newClass(ObjString* name);
 ObjInstance* newInstance(ObjClass* klass);
-ObjArray* newArray(uint64_t size);
-ObjArray* newArrayF64(uint64_t size);
-ObjArray* newArrayF32(uint64_t size);
-ObjArray* newArrayU32(uint64_t size);
-ObjArray* newArrayI32(uint64_t size);
-ObjArray* newArrayU16(uint64_t size);
-ObjArray* newArrayI16(uint64_t size);
-ObjArray* newArrayU8(uint64_t size);
-ObjArray* newArrayI8(uint64_t size);
-ObjArray* newStringBuilder();
+ObjArray* newArray(ObjType type);
 
 void reserveArray(ObjArray* array, uint64_t size);
 

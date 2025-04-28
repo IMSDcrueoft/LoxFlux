@@ -208,7 +208,10 @@ static Value ArrayNative(int argCount, Value* args) {
 		}
 	}
 
-	ObjArray* array = newArray(length);
+	ObjArray* array = newArray(OBJ_ARRAY);
+	stack_push(OBJ_VAL(array));
+	reserveArray(array, length);
+
 	while (array->length < length)
 	{
 		((Value*)array->payload)[array->length] = NIL_VAL;
@@ -234,7 +237,9 @@ static Value F64ArrayNative(int argCount, Value* args) {
 		}
 	}
 
-	ObjArray* array = newArrayF64(length);
+	ObjArray* array = newArray(OBJ_ARRAY_F64);
+	stack_push(OBJ_VAL(array));
+	reserveArray(array, length);
 	uint64_t size = 8ULL * length;
 	memset(array->payload, 0, size);//must fit ieee754
 
@@ -257,7 +262,9 @@ static Value F32ArrayNative(int argCount, Value* args) {
 		}
 	}
 
-	ObjArray* array = newArrayF32(length);
+	ObjArray* array = newArray(OBJ_ARRAY_F32);
+	stack_push(OBJ_VAL(array));
+	reserveArray(array, length);
 	uint64_t size = 4ULL * length;
 	memset(array->payload, 0, size); // must fit ieee754
 
@@ -280,7 +287,9 @@ static Value U32ArrayNative(int argCount, Value* args) {
 		}
 	}
 
-	ObjArray* array = newArrayU32(length);
+	ObjArray* array = newArray(OBJ_ARRAY_U32);
+	stack_push(OBJ_VAL(array));
+	reserveArray(array, length);
 	uint64_t size = 4ULL * length;
 	memset(array->payload, 0, size);
 
@@ -303,7 +312,9 @@ static Value I32ArrayNative(int argCount, Value* args) {
 		}
 	}
 
-	ObjArray* array = newArrayI32(length);
+	ObjArray* array = newArray(OBJ_ARRAY_I32);
+	stack_push(OBJ_VAL(array));
+	reserveArray(array, length);
 	uint64_t size = 4ULL * length;
 	memset(array->payload, 0, size);
 
@@ -326,7 +337,9 @@ static Value U16ArrayNative(int argCount, Value* args) {
 		}
 	}
 
-	ObjArray* array = newArrayU16(length);
+	ObjArray* array = newArray(OBJ_ARRAY_U16);
+	stack_push(OBJ_VAL(array));
+	reserveArray(array, length);
 	uint64_t size = 2ULL * length;
 	memset(array->payload, 0, size);
 
@@ -349,7 +362,9 @@ static Value I16ArrayNative(int argCount, Value* args) {
 		}
 	}
 
-	ObjArray* array = newArrayI16(length);
+	ObjArray* array = newArray(OBJ_ARRAY_I16);
+	stack_push(OBJ_VAL(array));
+	reserveArray(array, length);
 	uint64_t size = 2ULL * length;
 	memset(array->payload, 0, size);
 
@@ -372,7 +387,9 @@ static Value U8ArrayNative(int argCount, Value* args) {
 		}
 	}
 
-	ObjArray* array = newArrayU8(length);
+	ObjArray* array = newArray(OBJ_ARRAY_U8);
+	stack_push(OBJ_VAL(array));
+	reserveArray(array, length);
 	uint64_t size = 1ULL * length;
 	memset(array->payload, 0, size);
 
@@ -395,7 +412,9 @@ static Value I8ArrayNative(int argCount, Value* args) {
 		}
 	}
 
-	ObjArray* array = newArrayI8(length);
+	ObjArray* array = newArray(OBJ_ARRAY_I8);
+	stack_push(OBJ_VAL(array));
+	reserveArray(array, length);
 	uint64_t size = 1ULL * length;
 	memset(array->payload, 0, size);
 

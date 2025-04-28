@@ -498,8 +498,9 @@ static bool call(ObjClosure* closure, int argCount) {
 
 HOT_FUNCTION
 static bool call_native(NativeFn native, int argCount) {
-	Value result = native(argCount, vm.stackTop - argCount);
-	vm.stackTop -= argCount;
+	Value* stackTop = vm.stackTop - argCount;//store top, we don't know if native push stack (avoiding gc)
+	Value result = native(argCount, stackTop);
+	vm.stackTop = stackTop;//restore the top
 	stack_replace(result);
 	return true;
 }
@@ -1028,15 +1029,21 @@ static InterpretResult run()
 		}
 		case OP_NEW_ARRAY: {
 			uint16_t size = READ_SHORT();
-			ObjArray* array = newArray(size);
+			ObjArray* array = newArray(OBJ_ARRAY);
+			//push to prevent gc
+			stack_push(OBJ_VAL(array));
 
-			//init the array
-			memcpy(array->payload, vm.stackTop - size, sizeof(Value) * size);
-			array->length = size;
+			if (size > 0) {
+				reserveArray(array, size);//allocate after push stack
 
-			//pop the values
-			vm.stackTop[-size] = OBJ_VAL(array);
-			vm.stackTop -= (size - 1);
+				//init the array
+				memcpy(array->payload, vm.stackTop - size - 1, sizeof(Value) * size);
+				array->length = size;
+
+				//pop the values and the temp array at top
+				STACK_PEEK(size) = OBJ_VAL(array);
+				vm.stackTop -= size;
+			}
 			break;
 		}
 		case OP_NEW_OBJECT: {

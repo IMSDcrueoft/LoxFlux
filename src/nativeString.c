@@ -164,7 +164,8 @@ static uint32_t calculateBuilderCapacity(uint64_t initialLength) {
 
 //The builder accepts one parameter string/stringBuilder as the initial value
 static Value builderNative(int argCount, Value* args) {
-	ObjArray* stringBuilder = newStringBuilder();
+	ObjArray* stringBuilder = newArray(OBJ_STRING_BUILDER);
+	stack_push(OBJ_VAL(stringBuilder));
 	
 	//Select an adaptation scheme based on the type
 	if (argCount >= 1) {

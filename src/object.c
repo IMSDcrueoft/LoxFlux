@@ -136,167 +136,13 @@ ObjInstance* newInstance(ObjClass* klass) {
 	return instance;
 }
 
-ObjArray* newArray(uint64_t size)
-{
-	//align to 8
-	size = (size + 7) & ~7;
-	if (size > ARRAYLIKE_MAX) {
-		fprintf(stderr, "Array size overflow");
-		exit(1);
-	}
-
-	ObjArray* array = ALLOCATE_OBJ(ObjArray, OBJ_ARRAY);
-	array->capacity = size;
+HOT_FUNCTION
+ObjArray* newArray(ObjType type) {
+	ObjArray* array = ALLOCATE_OBJ(ObjArray, type);
+	array->capacity = 0;
 	array->length = 0;
-	array->payload = ALLOCATE(Value, size);
-
+	array->payload = NULL;
 	return array;
-}
-
-ObjArray* newArrayF64(uint64_t size)
-{
-	//align to 8
-	size = (size + 7) & ~7;
-	if (size > ARRAYLIKE_MAX) {
-		fprintf(stderr, "Array size overflow");
-		exit(1);
-	}
-
-	ObjArray* array = ALLOCATE_OBJ(ObjArray, OBJ_ARRAY_F64);
-	array->capacity = size;
-	array->length = 0;
-	array->payload = ALLOCATE(double, size);
-
-	return array;
-}
-
-ObjArray* newArrayF32(uint64_t size)
-{
-	//align to 8
-	size = (size + 7) & ~7;
-	if (size > ARRAYLIKE_MAX) {
-		fprintf(stderr, "Array size overflow");
-		exit(1);
-	}
-
-	ObjArray* array = ALLOCATE_OBJ(ObjArray, OBJ_ARRAY_F32);
-	array->capacity = size;
-	array->length = 0;
-	array->payload = ALLOCATE(float, size);
-
-	return array;
-}
-
-ObjArray* newArrayU32(uint64_t size)
-{
-	//align to 8
-	size = (size + 7) & ~7;
-	if (size > ARRAYLIKE_MAX) {
-		fprintf(stderr, "Array size overflow");
-		exit(1);
-	}
-
-	ObjArray* array = ALLOCATE_OBJ(ObjArray, OBJ_ARRAY_U32);
-	array->capacity = size;
-	array->length = 0;
-	array->payload = ALLOCATE(uint32_t, size);
-
-	return array;
-}
-
-ObjArray* newArrayI32(uint64_t size)
-{
-	//align to 8
-	size = (size + 7) & ~7;
-	if (size > ARRAYLIKE_MAX) {
-		fprintf(stderr, "Array size overflow");
-		exit(1);
-	}
-
-	ObjArray* array = ALLOCATE_OBJ(ObjArray, OBJ_ARRAY_I32);
-	array->capacity = size;
-	array->length = 0;
-	array->payload = ALLOCATE(int32_t, size);
-
-	return array;
-}
-
-ObjArray* newArrayU16(uint64_t size)
-{
-	//align to 8
-	size = (size + 7) & ~7;
-	if (size > ARRAYLIKE_MAX) {
-		fprintf(stderr, "Array size overflow");
-		exit(1);
-	}
-
-	ObjArray* array = ALLOCATE_OBJ(ObjArray, OBJ_ARRAY_U16);
-	array->capacity = size;
-	array->length = 0;
-	array->payload = ALLOCATE(uint16_t, size);
-
-	return array;
-}
-
-ObjArray* newArrayI16(uint64_t size)
-{
-	//align to 8
-	size = (size + 7) & ~7;
-	if (size > ARRAYLIKE_MAX) {
-		fprintf(stderr, "Array size overflow");
-		exit(1);
-	}
-
-	ObjArray* array = ALLOCATE_OBJ(ObjArray, OBJ_ARRAY_I16);
-	array->capacity = size;
-	array->length = 0;
-	array->payload = ALLOCATE(int16_t, size);
-
-	return array;
-}
-
-ObjArray* newArrayU8(uint64_t size)
-{
-	//align to 8
-	size = (size + 7) & ~7;
-	if (size > ARRAYLIKE_MAX) {
-		fprintf(stderr, "Array size overflow");
-		exit(1);
-	}
-
-	ObjArray* array = ALLOCATE_OBJ(ObjArray, OBJ_ARRAY_U8);
-	array->capacity = size;
-	array->length = 0;
-	array->payload = ALLOCATE(uint8_t, size);
-
-	return array;
-}
-
-ObjArray* newArrayI8(uint64_t size)
-{
-	//align to 8
-	size = (size + 7) & ~7;
-	if (size > ARRAYLIKE_MAX) {
-		fprintf(stderr, "Array size overflow");
-		exit(1);
-	}
-
-	ObjArray* array = ALLOCATE_OBJ(ObjArray, OBJ_ARRAY_I8);
-	array->capacity = size;
-	array->length = 0;
-	array->payload = ALLOCATE(int8_t, size);
-
-	return array;
-}
-
-ObjArray* newStringBuilder()
-{
-	ObjArray* stringBuilder = ALLOCATE_OBJ(ObjArray, OBJ_STRING_BUILDER);
-	stringBuilder->capacity = 0;
-	stringBuilder->length = 0;
-	stringBuilder->payload = NULL;
-
-	return stringBuilder;
 }
 
 HOT_FUNCTION
@@ -309,45 +155,45 @@ void reserveArray(ObjArray* array, uint64_t size)
 		exit(1);
 	}
 
-#define GROW_TYPED_ARRY(type, ptr, size) reallocate(ptr, sizeof(type) * array->capacity, sizeof(type) * size)
+#define GROW_TYPED_ARRAY(type, ptr, size) reallocate(ptr, sizeof(type) * array->capacity, sizeof(type) * size)
 	void* newPayload = NULL;
 
 	switch (OBJ_GET_TYPE(array->obj)) {
 	case OBJ_ARRAY:
-		newPayload = GROW_TYPED_ARRY(Value, array->payload, size);
+		newPayload = GROW_TYPED_ARRAY(Value, array->payload, size);
 		break;
 	case OBJ_ARRAY_F64:
-		newPayload = GROW_TYPED_ARRY(double, array->payload, size);
+		newPayload = GROW_TYPED_ARRAY(double, array->payload, size);
 		break;
 	case OBJ_ARRAY_F32:
-		newPayload = GROW_TYPED_ARRY(float, array->payload, size);
+		newPayload = GROW_TYPED_ARRAY(float, array->payload, size);
 		break;
 	case OBJ_ARRAY_U32:
-		newPayload = GROW_TYPED_ARRY(uint32_t, array->payload, size);
+		newPayload = GROW_TYPED_ARRAY(uint32_t, array->payload, size);
 		break;
 	case OBJ_ARRAY_I32:
-		newPayload = GROW_TYPED_ARRY(int32_t, array->payload, size);
+		newPayload = GROW_TYPED_ARRAY(int32_t, array->payload, size);
 		break;
 	case OBJ_ARRAY_U16:
-		newPayload = GROW_TYPED_ARRY(uint16_t, array->payload, size);
+		newPayload = GROW_TYPED_ARRAY(uint16_t, array->payload, size);
 		break;
 	case OBJ_ARRAY_I16:
-		newPayload = GROW_TYPED_ARRY(int16_t, array->payload, size);
+		newPayload = GROW_TYPED_ARRAY(int16_t, array->payload, size);
 		break;
 	case OBJ_ARRAY_U8:
-		newPayload = GROW_TYPED_ARRY(uint8_t, array->payload, size);
+		newPayload = GROW_TYPED_ARRAY(uint8_t, array->payload, size);
 		break;
 	case OBJ_ARRAY_I8:
-		newPayload = GROW_TYPED_ARRY(int8_t, array->payload, size);
+		newPayload = GROW_TYPED_ARRAY(int8_t, array->payload, size);
 		break;
 	case OBJ_STRING_BUILDER:
-		newPayload = GROW_TYPED_ARRY(char, array->payload, size);
+		newPayload = GROW_TYPED_ARRAY(char, array->payload, size);
 		break;
 	}
 
 	array->payload = newPayload;
 	array->capacity = size;
-#undef GROW_TYPED_ARRY
+#undef GROW_TYPED_ARRAY
 }
 
 //it don't check index so be careful
