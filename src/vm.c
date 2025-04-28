@@ -870,7 +870,7 @@ static InterpretResult run()
 					ObjArray* array = AS_ARRAY(target);
 					double num_index = AS_NUMBER(index);
 
-					vm.stackTop--;
+					vm.stackTop--;//it is number,so pop is allowed
 					if (ARRAY_IN_RANGE(array, num_index)) {
 						if (OBJ_IS_TYPE(array, OBJ_ARRAY)) {
 							stack_replace(ARRAY_ELEMENT(array, Value, (uint32_t)num_index));
@@ -895,7 +895,7 @@ static InterpretResult run()
 					ObjString* name = AS_STRING(index);
 					Value value;
 
-					vm.stackTop--;
+					vm.stackTop--;//it is string,we don't gc string so pop is allowed
 					if (tableGet(&instance->fields, name, &value)) {
 						stack_replace(value);
 						break;
@@ -917,7 +917,7 @@ static InterpretResult run()
 					ObjString* string = AS_STRING(target);
 					double num_index = AS_NUMBER(index);
 
-					vm.stackTop--;
+					vm.stackTop--;//it is number,so pop is allowed
 					if (ARRAY_IN_RANGE(string, num_index)) {//return ascii
 						stack_replace(NUMBER_VAL((uint8_t)(string->chars[(uint32_t)num_index])));
 					}
@@ -949,15 +949,13 @@ static InterpretResult run()
 					if (ARRAY_IN_RANGE(array, num_index)) {
 						if (OBJ_IS_TYPE(array, OBJ_ARRAY)) {
 							vm.stackTop[-3] = ARRAY_ELEMENT(array, Value, (uint32_t)num_index) = value;
-							vm.stackTop -= 2;
 						}
 						else {
 							setTypedArrayElement(array, (uint32_t)num_index, value);
-
 							vm.stackTop[-3] = value;
-							vm.stackTop -= 2;
 						}
 
+						vm.stackTop -= 2;
 						break;
 					}
 					else {
@@ -998,9 +996,9 @@ static InterpretResult run()
 		case OP_DEFINE_GLOBAL: {
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
-			--vm.stackTop;
-
-			tableSet_g(&vm.globals.fields, name, *vm.stackTop);
+			
+			tableSet_g(&vm.globals.fields, name, vm.stackTop[-1]);
+			vm.stackTop--;//can not dec first,because gc will kill it
 			break;
 		}
 		case OP_GET_GLOBAL: {
@@ -1203,7 +1201,7 @@ static InterpretResult run()
 		case OP_JUMP_IF_FALSE_POP: {
 			uint16_t offset = READ_SHORT();
 			if (isFalsey(vm.stackTop[-1])) ip += offset;
-			--vm.stackTop;
+			vm.stackTop--;
 			break;
 		}
 		case OP_JUMP_IF_TRUE: {

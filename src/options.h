@@ -7,11 +7,11 @@
 // switch on this to use debug
 #define DEBUG_MODE 0
 // log the compiled codes
-#define DEBUG_PRINT_CODE 1
+#define DEBUG_PRINT_CODE 0
 // this is too slow and print too much.
 #define DEBUG_TRACE_EXECUTION 0
 // stress gc
-#define DEBUG_STRESS_GC 0
+#define DEBUG_STRESS_GC 1
 // log gc info
 #define DEBUG_LOG_GC 0
 
