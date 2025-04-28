@@ -83,7 +83,7 @@
     <ClCompile Include="src\nativeArray.c">
       <Filter>loxFlux\source</Filter>
     </ClCompile>
-    <ClCompile Include="src\nativeFile.c">
+    <ClCompile Include="src\nativeCtor.c">
       <Filter>loxFlux\source</Filter>
     </ClCompile>
     <ClCompile Include="src\nativeObject.c">

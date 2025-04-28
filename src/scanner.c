@@ -239,7 +239,7 @@ static TokenType builtinType() {
 		case 'm':return checkModule(2, 3, "ath", TOKEN_MODULE_MATH);
 		case 'a':return checkModule(2, 4, "rray", TOKEN_MODULE_ARRAY);
 		case 'o':return checkModule(2, 5, "bject", TOKEN_MODULE_OBJECT);
-		case 's':
+		case 's': {
 			if (scanner.current - scanner.start > 2) {
 				switch (scanner.start[2])
 				{
@@ -247,8 +247,10 @@ static TokenType builtinType() {
 				case 'y':return checkModule(3, 1, "s", TOKEN_MODULE_SYSTEM);
 				}
 			}
+			break;
+		}
+		case 'c':return checkModule(2, 3, "tor", TOKEN_MODULE_CTOR);
 		case 't':return checkModule(2, 3, "ime", TOKEN_MODULE_TIME);
-		case 'f':return checkModule(2, 3, "ile", TOKEN_MODULE_FILE);
 		case 'g':return checkModule(2, 5, "lobal", TOKEN_MODULE_GLOBAL);
 		}
 	}
@@ -262,7 +264,7 @@ static Token mention() {
 	TokenType type = builtinType();
 
 	if (type == TOKEN_NIL) {
-		return errorToken("Unexpected module (Available modules : @global, @math, @array, @object, @string, @time, @file, @system).");
+		return errorToken("Unexpected module (Available modules : @global, @math, @array, @object, @string, @time, @ctor, @system).");
 	}
 
 	return makeToken(type);

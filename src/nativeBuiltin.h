@@ -14,7 +14,7 @@ typedef enum {
 	MODULE_OBJECT,
 	MODULE_STRING,
 	MODULE_TIME,
-	MODULE_FILE,
+	MODULE_CTOR,
 	MODULE_SYSTEM,
 
 	MODULE_GLOBAL,//as the size too
@@ -27,7 +27,6 @@ void importNative_array();
 void importNative_object();
 void importNative_string();
 void importNative_time();
-void importNative_file();
+void importNative_ctor();
 void importNative_system();
-
 void importNative_global();

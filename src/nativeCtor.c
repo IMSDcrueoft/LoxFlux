@@ -5,8 +5,8 @@
 */
 #include "nativeBuiltin.h"
 #include "vm.h"
-//File
+//ctor
 
 COLD_FUNCTION
-void importNative_file() {
+void importNative_ctor() {
 }

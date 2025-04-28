@@ -171,7 +171,7 @@
     <ClCompile Include="src\compiler.c" />
     <ClCompile Include="src\debug.c" />
     <ClCompile Include="src\entrance.c" />
-    <ClCompile Include="src\nativeFile.c" />
+    <ClCompile Include="src\nativeCtor.c" />
     <ClCompile Include="src\gc.c" />
     <ClCompile Include="src\lineArray.c" />
     <ClCompile Include="src\memory.c" />

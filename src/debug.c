@@ -35,8 +35,8 @@ static uint32_t builtinInStruction(C_STR name, Chunk* chunk, uint32_t offset) {
 	case MODULE_TIME:
 		printf("%-16s %-10s\n", name, "@time");
 		break;
-	case MODULE_FILE:
-		printf("%-16s %-10s\n", name, "@file");
+	case MODULE_CTOR:
+		printf("%-16s %-10s\n", name, "@ctor");
 		break;
 	case MODULE_SYSTEM:
 		printf("%-16s %-10s\n", name, "@sys");

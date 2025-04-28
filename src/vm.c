@@ -194,8 +194,8 @@ void defineNative_time(C_STR name, NativeFn function) {
 }
 
 COLD_FUNCTION
-void defineNative_file(C_STR name, NativeFn function) {
-	tableSet(&vm.builtins[MODULE_FILE].fields,
+void defineNative_ctor(C_STR name, NativeFn function) {
+	tableSet(&vm.builtins[MODULE_CTOR].fields,
 		copyString(name, (uint32_t)strlen(name), false),
 		OBJ_VAL(newNative(function))
 	);
@@ -239,7 +239,7 @@ static void importBuiltins() {
 	table_init(&vm.builtins[MODULE_OBJECT].fields);
 	table_init(&vm.builtins[MODULE_STRING].fields);
 	table_init(&vm.builtins[MODULE_TIME].fields);
-	table_init(&vm.builtins[MODULE_FILE].fields);
+	table_init(&vm.builtins[MODULE_CTOR].fields);
 	table_init(&vm.builtins[MODULE_SYSTEM].fields);
 
 	importNative_math();
@@ -247,7 +247,7 @@ static void importBuiltins() {
 	importNative_object();
 	importNative_string();
 	importNative_time();
-	importNative_file();
+	importNative_ctor();
 	importNative_system();
 
 	for (uint32_t i = 0; i < BUILTIN_MODULE_COUNT; ++i) {
