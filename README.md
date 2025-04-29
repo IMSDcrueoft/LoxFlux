@@ -142,7 +142,7 @@ condState  ::= condition ":" statement
 noneState  ::= "none" ":" statement
 ```
 
-- **`branch`**: The branch statement block is to simplify `if else if ...` chain, and is used to replace the `switch(...) {case:...}`, the `none` branch must be at the end.
+- **`branch`**: branch: This statement block simplifies `if-else if` chains and serves as an alternative to `switch-case` statements. The `none` branch (equivalent to default in switch statements) must appear last.
 
 ---
 
