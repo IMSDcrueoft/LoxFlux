@@ -211,5 +211,5 @@ void freeObjects()
 
 void log_malloc_info()
 {
-	mi_stats_print(NULL);
+	mem_print_stats(NULL);
 }

@@ -930,6 +930,7 @@ static void synchronize() {
 		case TOKEN_FOR:
 		case TOKEN_IF:
 		case TOKEN_BRANCH:
+		case TOKEN_DO:
 		case TOKEN_WHILE:
 		case TOKEN_PRINT:
 		case TOKEN_RETURN:
