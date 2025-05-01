@@ -787,7 +787,7 @@ static void branchCaseStatement() {
 }
 
 static void branchStatement() {
-	consume(TOKEN_LEFT_BRACE, "Expect '{' after 'match'.");
+	consume(TOKEN_LEFT_BRACE, "Expect '{' after 'branch'.");
 	branchCaseStatement();
 }
 
