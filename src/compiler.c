@@ -787,7 +787,7 @@ static void branchCaseStatement() {
 }
 
 static void branchStatement() {
-	consume(TOKEN_LEFT_BRACE, "Expect '{' after 'match'.");
+	consume(TOKEN_LEFT_BRACE, "Expect '{' after 'branch'.");
 	branchCaseStatement();
 }
 
@@ -930,6 +930,7 @@ static void synchronize() {
 		case TOKEN_FOR:
 		case TOKEN_IF:
 		case TOKEN_BRANCH:
+		case TOKEN_DO:
 		case TOKEN_WHILE:
 		case TOKEN_PRINT:
 		case TOKEN_RETURN:

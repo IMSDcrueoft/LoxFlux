@@ -147,62 +147,6 @@ static Value utf8AtNative(int argCount, Value* args) {
 	return NIL_VAL;
 }
 
-static uint32_t calculateBuilderCapacity(uint64_t initialLength) {
-	uint64_t capacity = initialLength + 1;
-	if (capacity > ARRAYLIKE_MAX) {
-		fprintf(stderr, "StringBuilder size overflow");
-		exit(1);
-	}
-	if (capacity < 64) {
-		capacity = max(16, ((capacity * 2) + 7) & ~7);
-	}
-	else {
-		capacity = (((capacity * 3) >> 1) + 7) & ~7;
-	}
-	return min(ARRAYLIKE_MAX, capacity);
-}
-
-//The builder accepts one parameter string/stringBuilder as the initial value
-static Value builderNative(int argCount, Value* args) {
-	ObjArray* stringBuilder = newArray(OBJ_STRING_BUILDER);
-	stack_push(OBJ_VAL(stringBuilder));
-	
-	//Select an adaptation scheme based on the type
-	if (argCount >= 1) {
-		C_STR stringPtr = NULL;
-		uint32_t length = 0;
-
-		if (IS_STRING(args[0])) {
-			ObjString* string = AS_STRING(args[0]);
-			stringPtr = &string->chars[0];
-			length = string->length;
-		}
-		else if (IS_STRING_BUILDER(args[0])) {
-			ObjArray* string = AS_ARRAY(args[0]);
-			stringPtr = string->payload;
-			length = string->length;
-		}
-
-		if (stringPtr != NULL) {
-			uint32_t capacity = calculateBuilderCapacity(length);
-			stringBuilder->length = length;
-			stringBuilder->capacity = capacity;
-			stringBuilder->payload = ALLOCATE(char, capacity);
-			memcpy(stringBuilder->payload, stringPtr, length);
-			ARRAY_ELEMENT(stringBuilder, char, stringBuilder->length) = '\0';
-		}
-	}
-
-	if (stringBuilder->capacity == 0) {
-		stringBuilder->length = 0;
-		stringBuilder->capacity = 16;
-		stringBuilder->payload = ALLOCATE(char, 16);
-		ARRAY_ELEMENT(stringBuilder, char, stringBuilder->length) = '\0';
-	}
-
-	return OBJ_VAL(stringBuilder);
-}
-
 static void growStringBuilder(ObjArray* builder, uint32_t appendLen) {
 	uint64_t capacity = (uint64_t)builder->length + appendLen + 1;
 	if (capacity > builder->capacity) {
@@ -303,7 +247,6 @@ void importNative_string() {
 	defineNative_string("charAt", charAtNative);
 	defineNative_string("utf8Len", UTF8LenNative);
 	defineNative_string("utf8At", utf8AtNative);
-	defineNative_string("Builder", builderNative);
 	defineNative_string("append", appendNative);
 	defineNative_string("intern", internNative);
 	defineNative_string("equals", equalsNative);

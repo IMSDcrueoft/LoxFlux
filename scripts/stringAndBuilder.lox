@@ -1,4 +1,4 @@
-var Builder = @string.Builder;
+var Builder = @ctor.StringBuilder;
 var strLen = @string.length;
 var utf8Len = @string.utf8Len;
 var charAt = @string.charAt;
