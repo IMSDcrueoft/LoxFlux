@@ -253,6 +253,19 @@ This module balances performance and safety for both simple text tasks and large
 
 ---
 
+The @time module provides precise timing functions for measuring and working with time intervals. These functions are implemented as native bindings for efficiency and accuracy, making them suitable for performance-critical applications, benchmarking, and timestamp generation.
+
+- **Time Methods**:
+  - `nano`: Returns the current time in nanoseconds (1e-9 seconds) since an arbitrary reference point (e.g., system startup).
+  - `micro`: Returns the current time in microseconds (1e-6 seconds) since an arbitrary reference point.
+  - `milli`: Returns the current time in milliseconds (1e-3 seconds) since an arbitrary reference point.
+  - `second`: Returns the current time in seconds since an arbitrary reference point.
+  - `utc`: Returns the current UTC time in milliseconds since the Unix epoch (January 1, 1970).
+
+These utilities enable precise time management in applications requiring performance optimization or temporal coordination.
+
+---
+
 The `@ctor` moudle provides built-in types of constructors.
 
 - **Object Constructors**:
