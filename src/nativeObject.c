@@ -40,6 +40,10 @@ static Value isArrayLikeNative(int argCount, Value* args) {
 	return BOOL_VAL(argCount >= 1 && isArrayLike(args[0]));
 }
 
+static Value isTypedArrayNative(int argCount, Value* args) {
+	return BOOL_VAL(argCount >= 1 && isTypedArray(args[0]));
+}
+
 static Value isFunctionNative(int argCount, Value* args) {
 	return BOOL_VAL(argCount >= 1 && (IS_CLOSURE(args[0]) || IS_NATIVE(args[0]) || IS_BOUND_METHOD(args[0])));
 }
@@ -69,6 +73,7 @@ void importNative_object() {
 	defineNative_object("isClass", isClassNative);
 	defineNative_object("isObject", isObjectNative);
 	defineNative_object("isArray", isArrayNative);
+	defineNative_object("isTypedArray", isTypedArrayNative);
 	defineNative_object("isArrayLike", isArrayLikeNative);
 	defineNative_object("isBoolean", isBooleanNative);
 }

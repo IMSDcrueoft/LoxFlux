@@ -7,6 +7,10 @@
 #include "vm.h"
 //ctor
 
+static Value objectNative(int argCount, Value* args) {
+	return OBJ_VAL(newInstance(&vm.emptyClass));
+}
+
 static Value ArrayNative(int argCount, Value* args) {
 	uint32_t length = 0;
 
@@ -295,6 +299,8 @@ static Value stringBuilderNative(int argCount, Value* args) {
 
 COLD_FUNCTION
 void importNative_ctor() {
+	defineNative_ctor("Object", objectNative);
+
 	defineNative_ctor("Array", ArrayNative);
 	defineNative_ctor("F64Array", F64ArrayNative);
 	defineNative_ctor("F32Array", F32ArrayNative);

@@ -1,5 +1,5 @@
 {
-    var arr = @array.F64Array(1);
+    var arr = @ctor.F64Array(1);
     print @array.length(arr);
     @array.resize(arr,16);
     print @array.length(arr);
