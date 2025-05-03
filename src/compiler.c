@@ -25,6 +25,8 @@ static void statement();
 //need to declare first
 static ParseRule* getRule(TokenType type);
 static void namedVariable(Token name, bool canAssign);
+static void variable(bool canAssign);
+static Token syntheticToken(C_STR text);
 
 static Chunk* currentChunk() {
 	return &current->function->chunk;
@@ -608,8 +610,28 @@ static void classDeclaration() {
 	defineVariable(nameConstant);
 
 	//link the chain
-	ClassCompiler classCompiler = { .enclosing = currentClass };
+	ClassCompiler classCompiler = { .enclosing = currentClass,.hasSuperclass = false };
 	currentClass = &classCompiler;
+
+	//check class clsnname < super {}
+	if (match(TOKEN_LESS)) {
+		consume(TOKEN_IDENTIFIER, "Expect superclass name.");
+		variable(false);
+
+		if (identifiersEqual(&className, &parser.previous)) {
+			error("A class can't inherit from itself.");
+		}
+
+		beginScope();
+		addLocal(syntheticToken("super"));
+		defineVariable(0);
+
+		namedVariable(className, false);
+		emitByte(OP_INHERIT);
+
+		//set flag
+		classCompiler.hasSuperclass = true;
+	}
 
 	//put the class back to stack
 	namedVariable(className, false);
@@ -620,6 +642,11 @@ static void classDeclaration() {
 	consume(TOKEN_RIGHT_BRACE, "Expect '}' after class body.");
 	//pop out the class
 	emitByte(OP_POP);
+
+	//end the scope of super
+	if (classCompiler.hasSuperclass) {
+		endScope();
+	}
 
 	//resume
 	currentClass = currentClass->enclosing;
@@ -1259,6 +1286,12 @@ static void variable(bool canAssign) {
 	namedVariable(parser.previous, canAssign);
 }
 
+static Token syntheticToken(C_STR text) {
+	return (Token) {
+		.start = text, .length = strlen(text)
+	};
+}
+
 static void this_(bool canAssign) {
 	if (currentClass == NULL) {
 		error("Can't use 'this' outside of a class.");
@@ -1266,6 +1299,23 @@ static void this_(bool canAssign) {
 	}
 
 	variable(false);
+}
+
+static void super_(bool canAssign) {
+	if (currentClass == NULL) {
+		error("Can't use 'super' outside of a class.");
+	}
+	else if (!currentClass->hasSuperclass) {
+		error("Can't use 'super' in a class with no superclass.");
+	}
+
+	consume(TOKEN_DOT, "Expect '.' after 'super'.");
+	consume(TOKEN_IDENTIFIER, "Expect superclass method name.");
+	uint32_t name = identifierConstant(&parser.previous);
+
+	namedVariable(syntheticToken("this"), false);//load instance
+	namedVariable(syntheticToken("super"), false);//load class
+	emitConstantCommond(OP_GET_SUPER, name);//get method
 }
 
 static void string_escape(bool canAssign) {
@@ -1350,7 +1400,7 @@ ParseRule rules[] = {
 	[TOKEN_PRINT] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_THROW] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_RETURN] = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_SUPER] = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_SUPER] = {super_,     NULL,   PREC_NONE},
 	[TOKEN_THIS] = {this_,     NULL,   PREC_NONE},
 	[TOKEN_TRUE] = {literal,     NULL,   PREC_NONE},
 	[TOKEN_VAR] = {NULL,     NULL,   PREC_NONE},
