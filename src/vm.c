@@ -820,6 +820,26 @@ static InterpretResult run()
 			defineMethod(name);
 			break;
 		}
+		case OP_INHERIT: {
+			Value superclass = vm.stackTop[-2];
+			if (IS_CLASS(superclass)) {
+				ObjClass* subclass = AS_CLASS(vm.stackTop[-1]);
+				tableAddAll(&AS_CLASS(superclass)->methods, &subclass->methods);
+				stack_pop(); // Subclass.
+			}
+			else {
+				runtimeError("Superclass must be a class.");
+				return INTERPRET_RUNTIME_ERROR;
+			}
+			break;
+		}
+		case OP_GET_SUPER: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			ObjString* name = AS_STRING(constant);
+			ObjClass* superclass = AS_CLASS(stack_pop());
+			bindMethod(superclass, name);
+			break;
+		}
 		case OP_GET_PROPERTY: {
 			if (!IS_INSTANCE(vm.stackTop[-1])) {
 				runtimeError("Only instances have properties.");
@@ -1231,6 +1251,20 @@ static InterpretResult run()
 				return INTERPRET_RUNTIME_ERROR;
 			}
 			//we entered the function
+			frame = &vm.frames[vm.frameCount - 1];
+			ip = frame->ip;//restore after call
+			break;
+		}
+		case OP_SUPER_INVOKE: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			ObjString* method = AS_STRING(constant);
+			uint8_t argCount = READ_BYTE();
+
+			ObjClass* superclass = AS_CLASS(stack_pop());
+			frame->ip = ip;//change before call
+			if (!invokeFromClass(superclass, method, argCount)) {
+				return INTERPRET_RUNTIME_ERROR;
+			}
 			frame = &vm.frames[vm.frameCount - 1];
 			ip = frame->ip;//restore after call
 			break;

@@ -44,12 +44,14 @@ typedef enum {
 	OP_BITWISE,			//& | ~ ^ << >> >>>
 	OP_CALL,			// callFn
 	OP_INVOKE,			// call with xxx.()
+	OP_SUPER_INVOKE,	// call with super.()
 	OP_RETURN,          // ret
 
 	OP_SET_SUBSCRIPT,	// set subscript
 	OP_GET_SUBSCRIPT,	// get subscript
 	OP_GET_PROPERTY,	// modify property
 	OP_SET_PROPERTY,
+	OP_GET_SUPER,		//get super
 	OP_GET_GLOBAL,
 	OP_SET_GLOBAL,
 	OP_DEFINE_GLOBAL,	//define global
@@ -66,6 +68,7 @@ typedef enum {
 	OP_INSTANCE_OF,		// instance
 	OP_TYPE_OF,			// typeof
 	OP_CLASS,			// create class
+	OP_INHERIT,			// super class
 	OP_METHOD,			// make class func
 	OP_PRINT,			// print string or value
 	OP_THROW,			// throw
