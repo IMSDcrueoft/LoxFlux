@@ -44,6 +44,7 @@ typedef enum {
 	OP_BITWISE,			//& | ~ ^ << >> >>>
 	OP_CALL,			// callFn
 	OP_INVOKE,			// call with xxx.()
+	OP_SUPER_INVOKE,	// call with super.()
 	OP_RETURN,          // ret
 
 	OP_SET_SUBSCRIPT,	// set subscript

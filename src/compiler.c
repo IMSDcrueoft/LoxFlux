@@ -1314,8 +1314,17 @@ static void super_(bool canAssign) {
 	uint32_t name = identifierConstant(&parser.previous);
 
 	namedVariable(syntheticToken("this"), false);//load instance
-	namedVariable(syntheticToken("super"), false);//load class
-	emitConstantCommond(OP_GET_SUPER, name);//get method
+
+	if (match(TOKEN_LEFT_PAREN)) {
+		uint8_t argCount = argumentList();
+		namedVariable(syntheticToken("super"), false);
+		emitConstantCommond(OP_SUPER_INVOKE, name);//super call
+		emitByte(argCount);
+	}
+	else {
+		namedVariable(syntheticToken("super"), false);//load class
+		emitConstantCommond(OP_GET_SUPER, name);//get method
+	}
 }
 
 static void string_escape(bool canAssign) {

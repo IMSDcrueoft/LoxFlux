@@ -1255,6 +1255,20 @@ static InterpretResult run()
 			ip = frame->ip;//restore after call
 			break;
 		}
+		case OP_SUPER_INVOKE: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			ObjString* method = AS_STRING(constant);
+			uint8_t argCount = READ_BYTE();
+
+			ObjClass* superclass = AS_CLASS(stack_pop());
+			frame->ip = ip;//change before call
+			if (!invokeFromClass(superclass, method, argCount)) {
+				return INTERPRET_RUNTIME_ERROR;
+			}
+			frame = &vm.frames[vm.frameCount - 1];
+			ip = frame->ip;//restore after call
+			break;
+		}
 		case OP_RETURN: {
 			Value result = stack_pop();
 			//close all remaining upValues of function
