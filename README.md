@@ -256,7 +256,7 @@ This module balances performance and safety for both simple text tasks and large
 The `@ctor` moudle provides built-in types of constructors.
 
 - **Object Constructors**:
-  - `Array`: Creates an empty object that can hold string-value pairs of any supported type.
+  - `Object`: Creates an empty object that can hold string-value pairs of any supported type.
 
 - **Array Constructors**:
   - `Array`: Creates a generic dynamic array that can hold elements of any supported type.
