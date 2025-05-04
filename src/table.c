@@ -9,6 +9,9 @@
 #include "hash.h"
 #include "gc.h"
 
+#define TABLE_MAX_LOAD 0.75 // 3/4
+#define MUL_3_DIV_4(x) ((x) * 3 / 4)
+
 void table_init(Table* table)
 {
 	table->inlineCaching = 0;
@@ -21,24 +24,6 @@ void table_free(Table* table)
 {
 	FREE_ARRAY(Entry, table->entries, table->capacity);
 	table_init(table);
-}
-
-void table_init_static(Table* table, uint32_t capacity, Entry* static_address)
-{
-	table->inlineCaching = 0;
-	table->count = 0;
-	table->capacity = capacity;
-	table->entries = static_address;
-
-	for (uint32_t i = 0; i < table->capacity; ++i) {
-		table->entries[i].key = NULL;
-		table->entries[i].value = NIL_VAL;
-	}
-}
-
-void table_free_static(Table* table)
-{
-	table_init_static(table, table->capacity, table->entries);
 }
 
 HOT_FUNCTION
@@ -277,50 +262,5 @@ void markTable(Table* table) {
 		Entry* entry = &table->entries[i];
 		//markObject((Obj*)entry->key);
 		markValue(entry->value);
-	}
-}
-
-ObjString* tableFindString(Table* table, C_STR chars, uint32_t length, uint64_t hash)
-{
-	if (table->count == 0) return NULL;
-
-	uint32_t index = hash & (table->capacity - 1);
-
-	while (true) {
-		Entry* entry = &table->entries[index];
-		if (entry->key == NULL) {
-			// Stop if we find an empty non-tombstone entry.
-			if (IS_NIL(entry->value)) return NULL;
-		}
-		else if (entry->key->length == length &&
-			entry->key->hash == hash &&
-			memcmp(entry->key->chars, chars, length) == 0) {
-			// We found it.
-			return entry->key;
-		}
-
-		index = (index + 1) & (table->capacity - 1);
-	}
-}
-
-Entry* tableGetStringEntry(Table* table, ObjString* key)
-{
-	//check it
-	Entry* entry = NULL;
-
-	uint32_t index = key->hash & (table->capacity - 1);
-
-	while (true) {
-		entry = &table->entries[index];
-
-		if (entry->key == key) {
-			return entry;
-		}
-		else if (entry->key == NULL) {
-			// Stop if we find an empty non-tombstone entry.
-			if (IS_NIL(entry->value)) return NULL;
-		}
-
-		index = (index + 1) & (table->capacity - 1);
 	}
 }

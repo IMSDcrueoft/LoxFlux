@@ -311,8 +311,7 @@ void vm_init()
 	};
 	table_init(&vm.globals.fields);
 
-	table_init(&vm.strings);
-	vm.strings.type = TABLE_NORMAL;
+	stringTable_init(&vm.strings);
 	numberTable_init(&vm.numbers);
 
 	vm.objects = NULL;
@@ -357,7 +356,7 @@ void vm_free()
 	valueHoles_free(&vm.constantHoles);
 
 	table_free(&vm.globals.fields);
-	table_free(&vm.strings);
+	stringTable_free(&vm.strings);
 	numberTable_free(&vm.numbers);
 
 	vm.initString = NULL;

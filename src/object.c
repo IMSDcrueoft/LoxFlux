@@ -286,7 +286,7 @@ ObjString* copyString(C_STR chars, uint32_t length, bool escapeChars)
 			string->symbol = INVALID_OBJ_STRING_SYMBOL;
 
 			//stack_push(OBJ_VAL(string));
-			tableSet(&vm.strings, string, BOOL_VAL(true));
+			tableSet_string(&vm.strings, string);
 			//stack_pop();
 		}
 
@@ -359,7 +359,7 @@ ObjString* copyString(C_STR chars, uint32_t length, bool escapeChars)
 		ObjString* interned = deduplicateString(string->chars, string->length, string->hash);
 		if (interned == NULL) {
 			//stack_push(OBJ_VAL(string));
-			tableSet(&vm.strings, string, BOOL_VAL(true));
+			tableSet_string(&vm.strings, string);
 			//stack_pop();
 			return string;
 		}
@@ -388,7 +388,7 @@ ObjString* connectString(ObjString* strA, ObjString* strB) {
 	ObjString* interned = deduplicateString(string->chars, string->length, string->hash);
 	if (interned == NULL) {
 		//stack_push(OBJ_VAL(string));
-		tableSet(&vm.strings, string, BOOL_VAL(true));
+		tableSet_string(&vm.strings, string);
 		//stack_pop();
 		return string;
 	}
@@ -544,7 +544,7 @@ void printObject(Value value, bool isExpand) {
 	}
 }
 
-Entry* getStringEntryInPool(ObjString* string)
+StringEntry* getStringEntryInPool(ObjString* string)
 {
 	return tableGetStringEntry(&vm.strings, string);
 }

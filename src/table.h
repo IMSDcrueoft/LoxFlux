@@ -7,9 +7,6 @@
 #include "common.h"
 #include "value.h"
 
-#define TABLE_MAX_LOAD 0.75 // 3/4
-#define MUL_3_DIV_4(x) (((x << 1) + (x)) >> 2)
-
 typedef struct {
 	ObjString* key;
 	Value value;
@@ -21,6 +18,11 @@ typedef struct {
 	bool isValid;
 	uint32_t index;//index of constant array
 } NumberEntry;
+
+typedef struct {
+	ObjString* key;
+	uint32_t index;//index of constant array
+} StringEntry;
 
 typedef enum {
 	TABLE_NORMAL,
@@ -42,12 +44,14 @@ typedef struct {
 	NumberEntry* entries;
 } NumberTable;
 
+typedef struct {
+	uint32_t count;
+	uint32_t capacity;
+	StringEntry* entries;
+} StringTable;
+
 void table_init(Table* table);
 void table_free(Table* table);
-
-// the entries are not in heap,don't free it
-void table_init_static(Table* table, uint32_t capacity, Entry* static_address);
-void table_free_static(Table* table);
 
 bool tableGet(Table* table, ObjString* key, Value* value);
 bool tableSet(Table* table, ObjString* key, Value value);
@@ -59,12 +63,16 @@ bool tableGet_g(Table* table, ObjString* key, Value* value);
 bool tableSet_g(Table* table, ObjString* key, Value value);
 bool tableDelete_g(Table* table, ObjString* key);
 
-ObjString* tableFindString(Table* table, C_STR chars,uint32_t length, uint64_t hash);
-
 //void tableRemoveWhite(Table* table);
 void markTable(Table* table);
 
-Entry* tableGetStringEntry(Table* table, ObjString* string);
+ObjString* tableFindString(StringTable* table, C_STR chars,uint32_t length, uint64_t hash);
+
+void stringTable_init(StringTable* table);
+void stringTable_free(StringTable* table);
+bool tableSet_string(StringTable* table, ObjString* key);
+StringEntry* tableGetStringEntry(StringTable* table, ObjString* key);
+
 //if not value exist, set add return the entry pointer
 void numberTable_init(NumberTable* table);
 void numberTable_free(NumberTable* table);

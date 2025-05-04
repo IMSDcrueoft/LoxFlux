@@ -35,7 +35,7 @@ typedef struct {
 	ValueHoles constantHoles;
 
 	//pool
-	Table strings;
+	StringTable strings;
 	//pool
 	NumberTable numbers;
 

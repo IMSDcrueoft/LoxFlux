@@ -7,6 +7,9 @@
 #include "table.h"
 #include "hash.h"
 
+#define TABLE_MAX_LOAD 0.75 // 3/4
+#define MUL_3_DIV_4(x) ((x) * 3 / 4)
+
 void numberTable_init(NumberTable* table)
 {
 	table->count = 0;
@@ -46,7 +49,7 @@ static void adjustNumberCapacity(NumberTable* table, uint32_t capacity) {
 
 	for (uint32_t i = 0; i < capacity; ++i) {
 		entries[i].binary = 0;
-		entries[i].hash = UINT32_MAX;
+		entries[i].hash = UINT64_MAX;
 		entries[i].isValid = false;
 		entries[i].index = UINT32_MAX;
 	}

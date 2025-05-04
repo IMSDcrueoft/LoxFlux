@@ -224,7 +224,7 @@ ObjString* connectString(ObjString* strA, ObjString* strB);
 
 void printObject(Value value, bool isExpand);
 
-Entry* getStringEntryInPool(ObjString* string);
+StringEntry* getStringEntryInPool(ObjString* string);
 NumberEntry* getNumberEntryInPool(Value* value);
 
 ObjUpvalue* newUpvalue(Value* slot);

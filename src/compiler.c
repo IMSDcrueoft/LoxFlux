@@ -150,8 +150,7 @@ static void emitReturn() {
 }
 
 static uint32_t makeConstant(Value value) {
-	switch (value.type) {
-	case VAL_NUMBER: {
+	if (IS_NUMBER(value)) {
 		//deduplicate in pool
 		NumberEntry* entry = getNumberEntryInPool(&value);
 
@@ -162,29 +161,18 @@ static uint32_t makeConstant(Value value) {
 			return entry->index;
 		}
 	}
-	case VAL_OBJ: {
-		switch (OBJ_TYPE(value)) {
-		case OBJ_STRING: {
-			//find if string is in constant,because it is in pool
-			Entry* entry = getStringEntryInPool(AS_STRING(value));
+	else if (IS_STRING(value)) {
+		//find if string is in constant,because it is in pool
+		StringEntry* entry = getStringEntryInPool(AS_STRING(value));
 
-			if (IS_BOOL(entry->value)) {
-				uint32_t index = addConstant(value) & UINT24_MAX;
-				entry->value.type = VAL_NIL;
-				AS_BINARY(entry->value) = AS_BINARY(NIL_VAL) | index;
-				return index;
-			}
-			else {
-				return (AS_BINARY(entry->value) & UINT24_MAX);
-			}
-			break;
+		if (entry->index == UINT32_MAX) {
+			return (entry->index = addConstant(value) & UINT24_MAX);//set value and return
 		}
-		default:
-			return addConstant(value);
+		else {
+			return entry->index;
 		}
-		break;
 	}
-	default://object type
+	else {
 		return addConstant(value);
 	}
 }
