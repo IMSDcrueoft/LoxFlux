@@ -404,17 +404,19 @@ uint32_t addConstant(Value value)
 static void getTypeof() {
 	Value val = vm.stackTop[-1];
 
-	switch (val.type) {
-	case VAL_BOOL: 
-		stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_BOOL]));
-		return;
-	case VAL_NIL: 
-		stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_NIL]));
-		return;
-	case VAL_NUMBER: 
+	if (IS_NUMBER(val)) {
 		stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_NUMBER]));
 		return;
-	case VAL_OBJ: {
+	}
+	else if (IS_BOOL(val)) {
+		stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_BOOL]));
+		return;
+	}
+	else if (IS_NIL(val)) {
+		stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_NIL]));
+		return;
+	}
+	else {
 		switch (OBJ_TYPE(val)) {
 		case OBJ_STRING:
 			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_STRING]));
@@ -463,7 +465,6 @@ static void getTypeof() {
 			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_ARRAY_I8]));
 			return;
 		}
-	}
 	}
 
 	stack_replace(NIL_VAL);
@@ -665,7 +666,7 @@ static bool bitInstruction(uint8_t bitOpType) {
 	{
 	case BIT_OP_NOT: {
 		if (IS_NUMBER(vm.stackTop[-1])) {
-			AS_NUMBER(vm.stackTop[-1]) = ~(int32_t)AS_NUMBER(vm.stackTop[-1]);
+			vm.stackTop[-1] = NUMBER_VAL(~(int32_t)AS_NUMBER(vm.stackTop[-1]));
 			return true;
 		}
 	}
@@ -1141,7 +1142,7 @@ static InterpretResult run()
 
 		case OP_NEGATE: {
 			if (IS_NUMBER(vm.stackTop[-1])) {
-				AS_NUMBER(vm.stackTop[-1]) = -AS_NUMBER(vm.stackTop[-1]);
+				vm.stackTop[-1] = NUMBER_VAL(-AS_NUMBER(vm.stackTop[-1]));
 				break;
 			}
 			else {
