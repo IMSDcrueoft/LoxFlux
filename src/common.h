@@ -27,3 +27,8 @@ typedef const char* C_STR;
 #define UINT10_COUNT 0x400
 #define UINT24_MAX 0xffffff
 #define UINT24_COUNT 0x1000000
+
+//use nan boxing
+#define NAN_BOXING 0
+//compress the ptr to 48bits
+#define COMPRESS_OBJ_HEADER 1

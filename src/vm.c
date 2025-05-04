@@ -1115,18 +1115,16 @@ static InterpretResult run()
 		}
 		case OP_ADD: {
 			// might cause gc,so can't decrease first
-			if (SAME_VALUE_TYPE(vm.stackTop[-2], vm.stackTop[-1])) {
-				if (IS_NUMBER(vm.stackTop[-2])) { // && IS_NUMBER(vm.stackTop[-1])) {
-					vm.stackTop[-2] = NUMBER_VAL(AS_NUMBER(vm.stackTop[-2]) + AS_NUMBER(vm.stackTop[-1]));
-					vm.stackTop--;
-					break;
-				}
-				else if (IS_STRING(vm.stackTop[-2]) && IS_STRING(vm.stackTop[-1])) {
-					ObjString* result = connectString(AS_STRING(vm.stackTop[-2]), AS_STRING(vm.stackTop[-1]));
-					vm.stackTop[-2] = OBJ_VAL(result);
-					vm.stackTop--;
-					break;
-				}
+			if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
+				vm.stackTop[-2] = NUMBER_VAL(AS_NUMBER(vm.stackTop[-2]) + AS_NUMBER(vm.stackTop[-1]));
+				vm.stackTop--;
+				break;
+			}
+			else if (IS_STRING(vm.stackTop[-2]) && IS_STRING(vm.stackTop[-1])) {
+				ObjString* result = connectString(AS_STRING(vm.stackTop[-2]), AS_STRING(vm.stackTop[-1]));
+				vm.stackTop[-2] = OBJ_VAL(result);
+				vm.stackTop--;
+				break;
 			}
 
 			runtimeError("Operands must be two numbers or two strings.");
