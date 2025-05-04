@@ -179,6 +179,7 @@
     <ClCompile Include="src\nativeMath.c" />
     <ClCompile Include="src\nativeSystem.c" />
     <ClCompile Include="src\nativeTime.c" />
+    <ClCompile Include="src\numberTable.c" />
     <ClCompile Include="src\object.c" />
     <ClCompile Include="src\nativeObject.c" />
     <ClCompile Include="src\scanner.c" />

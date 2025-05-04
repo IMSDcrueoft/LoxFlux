@@ -89,6 +89,9 @@
     <ClCompile Include="src\nativeObject.c">
       <Filter>loxFlux\source</Filter>
     </ClCompile>
+    <ClCompile Include="src\numberTable.c">
+      <Filter>loxFlux\source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\chunk.h">
