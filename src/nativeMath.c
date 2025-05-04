@@ -61,11 +61,11 @@ static Value seedNative(int argCount, Value* args) {
 }
 
 static Value isNaNNative(int argCount, Value* args) {
-	return BOOL_VAL(argCount >= 1 || IS_NUMBER(args[0]) && isnan(AS_NUMBER(args[0])));
+	return BOOL_VAL(argCount >= 1 && IS_NUMBER(args[0]) && isnan(AS_NUMBER(args[0])));
 }
 
 static Value isFiniteNative(int argCount, Value* args) {
-	return BOOL_VAL(argCount >= 1 || IS_NUMBER(args[0]) && isfinite(AS_NUMBER(args[0])));
+	return BOOL_VAL(argCount >= 1 && IS_NUMBER(args[0]) && isfinite(AS_NUMBER(args[0])));
 }
 
 static Value absNative(int argCount, Value* args) {
