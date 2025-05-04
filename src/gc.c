@@ -174,9 +174,6 @@ static void sweep() {
 	Obj* previous = NULL;
 	Obj* object = vm.objects;
 
-	const Value* constantBegin = vm.constants.values;
-	const Value* constantEnd = vm.constants.values + vm.constants.capacity;
-
 	while (object != NULL) {
 		if (object->isMarked == usingMark) {
 			//object->isMarked = false;//clear the mark
