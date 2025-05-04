@@ -60,10 +60,12 @@ static Value seedNative(int argCount, Value* args) {
 	return NAN_VAL;
 }
 
+COLD_FUNCTION
 static Value isNaNNative(int argCount, Value* args) {
 	return BOOL_VAL(argCount >= 1 && IS_NUMBER(args[0]) && isnan(AS_NUMBER(args[0])));
 }
 
+COLD_FUNCTION
 static Value isFiniteNative(int argCount, Value* args) {
 	return BOOL_VAL(argCount >= 1 && IS_NUMBER(args[0]) && isfinite(AS_NUMBER(args[0])));
 }
