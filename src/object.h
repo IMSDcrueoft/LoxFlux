@@ -9,9 +9,6 @@
 #include "table.h"
 #include "chunk.h"
 
-//compress the ptr to 48bits
-#define ENABLE_COMPRESSION_OBJ_HEADER 1
-
 typedef enum {
 	//objects that don't gc
 	OBJ_STRING,
@@ -67,7 +64,7 @@ typedef enum {
 extern const C_STR objTypeInfo[];
 #endif
 
-#if ENABLE_COMPRESSION_OBJ_HEADER
+#if COMPRESS_OBJ_HEADER
 struct Obj {
 	union {
 		struct
@@ -227,7 +224,7 @@ ObjString* connectString(ObjString* strA, ObjString* strB);
 
 void printObject(Value value, bool isExpand);
 
-Entry* getStringEntryInPool(ObjString* string);
+StringEntry* getStringEntryInPool(ObjString* string);
 NumberEntry* getNumberEntryInPool(Value* value);
 
 ObjUpvalue* newUpvalue(Value* slot);

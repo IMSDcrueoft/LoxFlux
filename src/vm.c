@@ -311,8 +311,7 @@ void vm_init()
 	};
 	table_init(&vm.globals.fields);
 
-	table_init(&vm.strings);
-	vm.strings.type = TABLE_NORMAL;
+	stringTable_init(&vm.strings);
 	numberTable_init(&vm.numbers);
 
 	vm.objects = NULL;
@@ -357,7 +356,7 @@ void vm_free()
 	valueHoles_free(&vm.constantHoles);
 
 	table_free(&vm.globals.fields);
-	table_free(&vm.strings);
+	stringTable_free(&vm.strings);
 	numberTable_free(&vm.numbers);
 
 	vm.initString = NULL;
@@ -405,17 +404,19 @@ uint32_t addConstant(Value value)
 static void getTypeof() {
 	Value val = vm.stackTop[-1];
 
-	switch (val.type) {
-	case VAL_BOOL: 
-		stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_BOOL]));
-		return;
-	case VAL_NIL: 
-		stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_NIL]));
-		return;
-	case VAL_NUMBER: 
+	if (IS_NUMBER(val)) {
 		stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_NUMBER]));
 		return;
-	case VAL_OBJ: {
+	}
+	else if (IS_BOOL(val)) {
+		stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_BOOL]));
+		return;
+	}
+	else if (IS_NIL(val)) {
+		stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_NIL]));
+		return;
+	}
+	else {
 		switch (OBJ_TYPE(val)) {
 		case OBJ_STRING:
 			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_STRING]));
@@ -464,7 +465,6 @@ static void getTypeof() {
 			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_ARRAY_I8]));
 			return;
 		}
-	}
 	}
 
 	stack_replace(NIL_VAL);
@@ -666,7 +666,7 @@ static bool bitInstruction(uint8_t bitOpType) {
 	{
 	case BIT_OP_NOT: {
 		if (IS_NUMBER(vm.stackTop[-1])) {
-			AS_NUMBER(vm.stackTop[-1]) = ~(int32_t)AS_NUMBER(vm.stackTop[-1]);
+			vm.stackTop[-1] = NUMBER_VAL(~(int32_t)AS_NUMBER(vm.stackTop[-1]));
 			return true;
 		}
 	}
@@ -1115,18 +1115,16 @@ static InterpretResult run()
 		}
 		case OP_ADD: {
 			// might cause gc,so can't decrease first
-			if (SAME_VALUE_TYPE(vm.stackTop[-2], vm.stackTop[-1])) {
-				if (IS_NUMBER(vm.stackTop[-2])) { // && IS_NUMBER(vm.stackTop[-1])) {
-					vm.stackTop[-2] = NUMBER_VAL(AS_NUMBER(vm.stackTop[-2]) + AS_NUMBER(vm.stackTop[-1]));
-					vm.stackTop--;
-					break;
-				}
-				else if (IS_STRING(vm.stackTop[-2]) && IS_STRING(vm.stackTop[-1])) {
-					ObjString* result = connectString(AS_STRING(vm.stackTop[-2]), AS_STRING(vm.stackTop[-1]));
-					vm.stackTop[-2] = OBJ_VAL(result);
-					vm.stackTop--;
-					break;
-				}
+			if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
+				vm.stackTop[-2] = NUMBER_VAL(AS_NUMBER(vm.stackTop[-2]) + AS_NUMBER(vm.stackTop[-1]));
+				vm.stackTop--;
+				break;
+			}
+			else if (IS_STRING(vm.stackTop[-2]) && IS_STRING(vm.stackTop[-1])) {
+				ObjString* result = connectString(AS_STRING(vm.stackTop[-2]), AS_STRING(vm.stackTop[-1]));
+				vm.stackTop[-2] = OBJ_VAL(result);
+				vm.stackTop--;
+				break;
 			}
 
 			runtimeError("Operands must be two numbers or two strings.");
@@ -1144,7 +1142,7 @@ static InterpretResult run()
 
 		case OP_NEGATE: {
 			if (IS_NUMBER(vm.stackTop[-1])) {
-				AS_NUMBER(vm.stackTop[-1]) = -AS_NUMBER(vm.stackTop[-1]);
+				vm.stackTop[-1] = NUMBER_VAL(-AS_NUMBER(vm.stackTop[-1]));
 				break;
 			}
 			else {
