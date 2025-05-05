@@ -97,6 +97,7 @@ typedef struct {
 
 void chuck_init(Chunk* chunk);
 void chunk_write(Chunk* chunk, uint8_t byte, uint32_t line);
+void chunk_fallback(Chunk* chunk, uint32_t byteCount);
 void chunk_free(Chunk* chunk);
 
 //free the error complied code

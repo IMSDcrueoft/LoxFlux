@@ -27,6 +27,14 @@ void chunk_write(Chunk* chunk, uint8_t byte, uint32_t line) {
 	chunk->count++;
 }
 
+void chunk_fallback(Chunk* chunk, uint32_t byteCount)
+{
+	if (chunk->count > byteCount) {
+		chunk->count -= byteCount;
+		lineArray_fallback(&chunk->lines, chunk->count);
+	}
+}
+
 COLD_FUNCTION
 void chunk_free(Chunk* chunk) {
 	FREE_ARRAY_NO_GC(uint8_t, chunk->code, chunk->capacity);

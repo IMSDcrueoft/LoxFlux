@@ -12,13 +12,14 @@ typedef struct {
 } RangeLine;
 
 typedef struct {
-	uint32_t count;    //limit to 4G
+	uint32_t index;    //limit to 4G
 	uint32_t capacity; //limit to 4G
 	RangeLine* ranges;
 } LineArray;
 
 void lineArray_init(LineArray* array);
 void lineArray_write(LineArray* array, uint32_t line, uint32_t offset);
+void lineArray_fallback(LineArray* array, uint32_t targetOffset);
 void lineArray_free(LineArray* array);
 
 //getLine info by bin search
