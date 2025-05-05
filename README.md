@@ -15,42 +15,56 @@ Lox is a programming language designed for learning purposes. It is conceived as
 
 ## List of LoxFlux features
 
-### Numbers
+#### Performance
+
+- **Constant range**: Expands to `0x00ffffff` (16,777,215)(will reduce perf).
+- **Local variable range**: Expands to support up to 1023 nested variables(Configurable up to 65534)(will reduce perf).
+- **Constant deduplication**: For both numbers and strings.
+- **Optimized global variable access**: Achieves `O(1)` time complexity. With dynamic index updates, direct index fetching can be achieved in almost all cases. Indexes are rarely invalidated, unless you frequently delete and then declare global variables that don't exist.
+- **Optional object header compression**: Object headers are compressed from 16 bytes to 8 bytes by compressing the 64-bit pointer to 48 bits.
+- **Optional NaN Boxing**: Compress the generic type value from 16 bytes to 8 bytes(from clox).
+
+---
+
+### Comment
+
+- **Line & Block comment support**: Using `//` `/* */`.
+
+---
+
+### Numbers and Strings
 
 - **Binary literal**: Use `0b` or `0B` prefix, e.g., `0b1010`.
 - **Hexadecimal literal**: Use `0x` or `0X` prefix, e.g., `0xFF`.
 - **Scientific notation**: Supports formats like `1.2e+3` and `123E-2`.
-
----
-
-### String
-
 - **Escape characters**: Supports escaping with backslash `\`, such as `\"` for double quotes; Example: `"\"hello world\""` renders as `"hello world"`.
-
----
-
-### Constants
-
-- **Constant range**: Expands to `0x00ffffff` (16,777,215).
-- **Constant deduplication**: For numbers and strings.
 
 ---
 
 ### Variable
 
 - **Allows multiple definitions of variable constants**: (e.g., `var a = 1,b = 2,c = a + b;`).
-
-#### Global Variable
-
-- **Optimized global variable access**: Achieves `O(1)` time complexity. With dynamic index updates, direct index fetching can be achieved in almost all cases. Indexes are rarely invalidated, unless you frequently delete and then declare global variables that don't exist.
-- **Global instance**: Use `@global` to explicitly get the global table, create and delete attributes, use it like a simple object.
+- **`const` keyword support**: Supported within blocks.
 
 ---
 
-#### Local Variable
+### Loop
 
-- **Local variable range**: Expands to support up to 1023 nested variables(Configurable up to 65534).
-- **`const` keyword support**: Supported within blocks.
+- **do-while**: Supported `while`,`for` and `do-while` loop.
+- **`break` and `continue` keywords**: Supported within loops.
+
+---
+
+### New Branch Syntactic
+
+```ebnf
+branchState ::= "branch" "{" caseState "}"
+caseState  ::= (condState|noneState) | (condState+ noneState?)
+condState  ::= condition ":" statement
+noneState  ::= "none" ":" statement
+```
+
+- **`branch`**: branch: This statement block simplifies `if-else if` chains and serves as an alternative to `switch-case` statements. The `none` branch (equivalent to default in switch statements) must appear last.
 
 ---
 
@@ -126,38 +140,6 @@ Lox is a programming language designed for learning purposes. It is conceived as
 
 --- 
 
-### Loop
-
-- **do-while**: Supported `while`,`for` and `do-while` loop.
-- **`break` and `continue` keywords**: Supported within loops.
-
----
-
-### Branch Syntactic
-
-```ebnf
-branchState ::= "branch" "{" caseState "}"
-caseState  ::= (condState|noneState) | (condState+ noneState?)
-condState  ::= condition ":" statement
-noneState  ::= "none" ":" statement
-```
-
-- **`branch`**: branch: This statement block simplifies `if-else if` chains and serves as an alternative to `switch-case` statements. The `none` branch (equivalent to default in switch statements) must appear last.
-
----
-
-### Comment
-
-- **Block comment support**: Using `/* */`.
-
----
-
-### Optional object header compression switch
-
-- **48-bit pointer**: Compress the object header from 16 bytes to 8 bytes.
-
----
-
 ### GC
 
 - **Detached static objects and dynamic objects**: Static objects such as strings/functions, they don't usually bloat very much, so I think it's a viable option not to recycle them.
@@ -168,7 +150,11 @@ noneState  ::= "none" ":" statement
 
 There are some namespace objects that start with `'@'` available, and since they are not in the global scope, the initial state of the global scope is a "completely clean" state. 
 
-#### `@math` `@array` `@object` `@string` `@time` `@ctor` `@sys`
+#### `@global` `@math` `@array` `@object` `@string` `@time` `@ctor` `@sys`
+
+The `@global` allows you to explicitly get the global table, create and delete attributes, use it like a simple object.
+
+---
 
 The `@math` module provides a comprehensive set of mathematical functions and utilities, implemented as native bindings for efficiency and ease of use. These functions are accessible globally and can be used directly in scripts or applications.
 
