@@ -1,6 +1,6 @@
 # LoxFlux
 
-LoxFlux is developed based on the cLox version of the Lox language (stack-based bytecode-virtual machine). Please note that the project has not yet completed its basic functions.
+LoxFlux is developed based on the cLox version of the Lox language (stack-based bytecode-virtual machine). Please note that the project has only completed most of its basic functions and is still being improved.
 
 - **Design metrics**: loxFlux should be fully compatible with the lox syntax, so lox scripts can be painlessly interpreted and executed in loxFlux (although error handling may vary, the "correct code" is the same).
 
