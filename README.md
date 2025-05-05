@@ -268,10 +268,8 @@ These utilities enable precise time management in applications requiring perform
 
 The `@ctor` moudle provides built-in types of constructors.
 
-- **Object Constructors**:
+- **Constructors**:
   - `Object`: Creates an empty object that can hold string-value pairs of any supported type.
-
-- **Array Constructors**:
   - `Array`: Creates a generic dynamic array that can hold elements of any supported type.
   - `F64Array`: Creates a fixed-size array of 64-bit floating-point numbers (IEEE 754 double precision).
   - `F32Array`: Creates a fixed-size array of 32-bit floating-point numbers (IEEE 754 single precision).
@@ -281,7 +279,6 @@ The `@ctor` moudle provides built-in types of constructors.
   - `I16Array`: Creates a fixed-size array of 16-bit signed integers.
   - `U8Array`: Creates a fixed-size array of 8-bit unsigned integers (commonly used for byte-level operations).
   - `I8Array`: Creates a fixed-size array of 8-bit signed integers.
-- **StringBuiler Constructor**:
   - `StringBuilder`: Creates a mutable string buffer, optionally initialized with a string or another builder.  
 
 ---
