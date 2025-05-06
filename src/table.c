@@ -75,50 +75,6 @@ static Entry* findEntry(Entry* entries, uint32_t capacity, ObjString* key, Table
 	}
 }
 
-//for global table
-HOT_FUNCTION
-static Entry* findEntry_g(Entry* entries, uint32_t capacity, ObjString* key, TableType type) {
-	//check it
-	Entry* entry = NULL;
-
-	//find by cache symbol
-	if ((key->symbol != INVALID_OBJ_STRING_SYMBOL)) {
-		entry = &entries[key->symbol];
-
-		if (entry->key == key) {
-			// We found the key.
-			return entry;
-		}
-	}
-
-	uint32_t index = key->hash & (capacity - 1);
-	Entry* tombstone = NULL;
-
-	while (true) {
-		entry = &entries[index];
-
-		if (entry->key == NULL) {
-			if (IS_NIL(entry->value)) {
-				key->symbol = index;
-				// if we find hole after tombstone ,it means the tombstone is target else return the hole
-				// Empty entry.
-				return tombstone != NULL ? tombstone : entry;
-			}
-			else {
-				// We found a tombstone.
-				if (tombstone == NULL) tombstone = entry;
-			}
-		}
-		else if (entry->key == key) {
-			key->symbol = index;
-			// We found the key.
-			return entry;
-		}
-
-		index = (index + 1) & (capacity - 1);
-	}
-}
-
 static void adjustCapacity(Table* table, uint32_t capacity) {
 	//we need re input, so don't reallocate
 	Entry* entries = ALLOCATE(Entry, capacity);
@@ -204,11 +160,54 @@ void tableAddAll(Table* from, Table* to)
 	}
 }
 
+//for global table
+HOT_FUNCTION
+static Entry* findEntry_g(Entry* entries, uint32_t capacity, ObjString* key, TableType type) {
+	uint32_t index = key->hash & (capacity - 1);
+	Entry* tombstone = NULL;
+
+	while (true) {
+		Entry* entry = &entries[index];
+
+		if (entry->key == NULL) {
+			if (IS_NIL(entry->value)) {
+				key->symbol = index;
+				// if we find hole after tombstone ,it means the tombstone is target else return the hole
+				// Empty entry.
+				return tombstone != NULL ? tombstone : entry;
+			}
+			else {
+				// We found a tombstone.
+				if (tombstone == NULL) tombstone = entry;
+			}
+		}
+		else if (entry->key == key) {
+			key->symbol = index;
+			// We found the key.
+			return entry;
+		}
+
+		index = (index + 1) & (capacity - 1);
+	}
+}
+
 HOT_FUNCTION
 bool tableGet_g(Table* table, ObjString* key, Value* value) {
 	if (table->count == 0) return false;
 
-	Entry* entry = findEntry_g(table->entries, table->capacity, key, table->type);
+	Entry* entry = NULL;
+	//find by cache symbol
+	if ((key->symbol != INVALID_OBJ_STRING_SYMBOL)) {
+		entry = &table->entries[key->symbol];
+
+		if (entry->key == key) {
+			// We found the key.
+			*value = entry->value;
+			return true;
+		}
+	}
+
+	entry = findEntry_g(table->entries, table->capacity, key, table->type);
 	if (entry->key == NULL) return false;
 
 	*value = entry->value;
@@ -224,7 +223,19 @@ bool tableSet_g(Table* table, ObjString* key, Value value)
 		adjustCapacity(table, capacity);
 	}
 
-	Entry* entry = findEntry_g(table->entries, table->capacity, key, table->type);
+	Entry* entry = NULL;
+	//find by cache symbol
+	if ((key->symbol != INVALID_OBJ_STRING_SYMBOL)) {
+		entry = &table->entries[key->symbol];
+
+		if (entry->key == key) {
+			// We found the key.
+			entry->value = value;
+			return false;
+		}
+	}
+
+	entry = findEntry_g(table->entries, table->capacity, key, table->type);
 	bool isNewKey = entry->key == NULL;
 	if (isNewKey && IS_NIL(entry->value)) table->count++;
 
@@ -237,8 +248,21 @@ HOT_FUNCTION
 bool tableDelete_g(Table* table, ObjString* key) {
 	if (table->count == 0) return false;
 
+	Entry* entry = NULL;
+	//find by cache symbol
+	if ((key->symbol != INVALID_OBJ_STRING_SYMBOL)) {
+		entry = &table->entries[key->symbol];
+
+		if (entry->key == key) {
+			// We found the key.
+			entry->key = NULL;
+			entry->value = BOOL_VAL(true);//value of tombstone is true
+			return true;
+		}
+	}
+
 	// Find the entry.
-	Entry* entry = findEntry_g(table->entries, table->capacity, key, table->type);
+	entry = findEntry_g(table->entries, table->capacity, key, table->type);
 	if (entry->key == NULL) return false;
 
 	// Place a tombstone in the entry. 
