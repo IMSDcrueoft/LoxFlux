@@ -17,12 +17,16 @@ Lox is a programming language designed for learning purposes. It is conceived as
 
 #### Performance
 
+- **Shared constants**: Use a shared constant table instead of a function holding its own constant table individually.
 - **Constant range**: Expands to `0x00ffffff` (16,777,215)(will reduce perf).
-- **Local variable range**: Expands to support up to 1023 nested variables(Configurable up to 65534)(will reduce perf).
+- **Local variable range**: Expands to support up to 1023 nested variables(Configurable up to 65534).
 - **Constant deduplication**: For both numbers and strings.
 - **Optimized global variable access**: Achieves `O(1)` time complexity. With dynamic index updates, direct index fetching can be achieved in almost all cases. Indexes are rarely invalidated, unless you frequently delete and then declare global variables that don't exist.
 - **Optional object header compression**: Object headers are compressed from 16 bytes to 8 bytes by compressing the 64-bit pointer to 48 bits.
 - **Optional NaN Boxing**: Compress the generic type value from 16 bytes to 8 bytes(from clox).
+- **Inline `init()`**: The inline caching class init() method helps reduce the overhead of object creation.
+- **Flip-up GC marking**: Flipping tags can avoid reverting to the write of tags during the recycling process, and favor concurrent tags (if actually implemented).
+- **Detached static and dynamic objects**: Static objects such as strings/functions, they don't usually bloat very much, so I think it's a viable option not to recycle them.
 
 ---
 
@@ -123,7 +127,6 @@ noneState  ::= "none" ":" statement
 - **Delete property**: Remove key-value pairs by assigning nil to the object.
 - **`instanceOf` keyword**:  Checks if an object is an instance of a specific class.
 - **`typeof` keyword**: Returns the string of item's subdivision type.
-- **`init()`**: Inline caching class init() method.
 
 ---
 
@@ -137,12 +140,6 @@ noneState  ::= "none" ":" statement
 - **Object Key Access**: In addition to arrays, subscript notation also supports accessing object properties by key.
 - **Syntax**: Use square brackets `[]` with a string representing the key name.
 - **Assignment via Subscript for Objects**: Modify object properties by assigning new values using the subscript operator.
-
---- 
-
-### GC
-
-- **Detached static objects and dynamic objects**: Static objects such as strings/functions, they don't usually bloat very much, so I think it's a viable option not to recycle them.
 
 ---
 
