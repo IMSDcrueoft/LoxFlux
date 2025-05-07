@@ -48,14 +48,14 @@ static Obj* allocateObject(uint64_t size, ObjType type) {
 		object = (Obj*)reallocate_no_gc(NULL, 0, size);
 		OBJ_PTR_SET_NEXT(object, vm.objects_no_gc);
 		object->type = type;
-		object->isMarked = !usingMark;
+		object->isMarked = !vm.gcMark;
 		vm.objects_no_gc = object;
 		break;
 	default:
 		object = (Obj*)reallocate(NULL, 0, size);
 		OBJ_PTR_SET_NEXT(object, vm.objects);
 		object->type = type;
-		object->isMarked = !usingMark;
+		object->isMarked = !vm.gcMark;
 		vm.objects = object;
 		break;
 	}

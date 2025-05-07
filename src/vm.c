@@ -327,6 +327,8 @@ void vm_init()
 	vm.bytesAllocated = 0;
 	vm.bytesAllocated_no_gc = 0;
 	vm.nextGC = GC_HEAP_BEGIN;
+	vm.beginGC = GC_HEAP_BEGIN;
+	vm.gcMark = 1; //bool value 
 
 	//import the builtins
 	importBuiltins();

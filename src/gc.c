@@ -10,10 +10,6 @@
 #include "memory.h"
 #include "timer.h"
 
-//Flip tagging, although the performance is not high (about 4% gap), is more suitable for concurrent tagging
-uint8_t usingMark = 1;
-uint64_t gc_heap_begin = GC_HEAP_BEGIN;
-
 void markValue(Value value)
 {
 	if (IS_OBJ(value)) markObject(AS_OBJ(value));
@@ -30,7 +26,7 @@ void markValue(Value value)
 //	for (uint32_t i = 0; i < array->count; i++) {
 //		Value value = array->values[i];
 //		if (IS_OBJ(value)) {
-//			AS_OBJ(value)->isMarked = usingMark;
+//			AS_OBJ(value)->isMarked = vm.gcMark;
 //			blackenObject(AS_OBJ(value));
 //		}
 //	}
@@ -75,7 +71,7 @@ void markObject(Obj* object)
 	//skip the null and things that don't need mark
 	if (object == NULL) return;
 	//skip marked one
-	if (object->isMarked == usingMark) return;
+	if (object->isMarked == vm.gcMark) return;
 
 	switch (object->type) {
 	case OBJ_FUNCTION:
@@ -91,7 +87,7 @@ void markObject(Obj* object)
 	printValue(OBJ_VAL(object));
 	printf("\n");
 #endif
-	object->isMarked = usingMark;
+	object->isMarked = vm.gcMark;
 
 	if (vm.grayCapacity < vm.grayCount + 1) {
 		vm.grayCapacity = GROW_CAPACITY(vm.grayCapacity);
@@ -132,15 +128,15 @@ static void blackenObject(Obj* object) {
 		markObject((Obj*)bound->method);
 		break;
 	}
-		//won't be here
-	//case OBJ_FUNCTION: {
-	//	ObjFunction* function = (ObjFunction*)object;
-	//	markObject((Obj*)function->name);
+						 //won't be here
+					 //case OBJ_FUNCTION: {
+					 //	ObjFunction* function = (ObjFunction*)object;
+					 //	markObject((Obj*)function->name);
 
-	//	//I don't have this field in design
-	//	//markArray(&function->chunk.constants);
-	//	break;
-	//}
+					 //	//I don't have this field in design
+					 //	//markArray(&function->chunk.constants);
+					 //	break;
+					 //}
 	case OBJ_CLASS: {
 		ObjClass* klass = (ObjClass*)object;
 		//markObject((Obj*)klass->name);
@@ -175,7 +171,7 @@ static void sweep() {
 	Obj* object = vm.objects;
 
 	while (object != NULL) {
-		if (object->isMarked == usingMark) {
+		if (object->isMarked == vm.gcMark) {
 			//object->isMarked = false;//clear the mark
 
 			previous = object;
@@ -212,9 +208,9 @@ void garbageCollect()
 	sweep();
 
 	//flip the mark
-	usingMark = !usingMark;
+	vm.gcMark = !vm.gcMark;
 	//reset the limit
-	vm.nextGC = max(vm.bytesAllocated * GC_HEAP_GROW_FACTOR, gc_heap_begin);
+	vm.nextGC = max(vm.bytesAllocated * GC_HEAP_GROW_FACTOR, vm.beginGC);
 
 #if DEBUG_LOG_GC
 	printf("-- gc end\n");
@@ -234,5 +230,5 @@ void changeNextGC(uint64_t newSize)
 
 void changeBeginGC(uint64_t newSize)
 {
-	gc_heap_begin = newSize;
+	vm.beginGC = newSize;
 }

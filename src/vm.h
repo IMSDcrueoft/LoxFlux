@@ -59,6 +59,10 @@ typedef struct {
 	//Excludes space used by stacks/constants/compilations
 	uint64_t bytesAllocated_no_gc;
 	uint64_t bytesAllocated;
+
+	//Flip tagging, is more suitable for concurrent tagging
+	uint8_t gcMark;
+	uint64_t beginGC;
 	uint64_t nextGC;
 
 	//ip for debug error
