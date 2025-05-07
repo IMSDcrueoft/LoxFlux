@@ -32,6 +32,11 @@ static Chunk* currentChunk() {
 	return &current->function->chunk;
 }
 
+//do optimize here
+static void analyzeChunk() {
+	//check opStack
+}
+
 static void errorAt(Token* token, C_STR message) {
 	//check the panicMode
 	if (parser.panicMode) return;
@@ -212,6 +217,8 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	compiler->function = newFunction();
 	compiler->objectNestingDepth = 0;
 
+	opStack_init(&compiler->stack);
+
 	//it's a function
 	switch (type) {
 	case TYPE_FUNCTION:
@@ -256,6 +263,7 @@ static void freeLocals(Compiler* compiler) {
 
 static ObjFunction* endCompiler() {
 	emitReturn();
+	opStack_free(&current->stack);
 
 	ObjFunction* function = current->function;
 #if DEBUG_PRINT_CODE
