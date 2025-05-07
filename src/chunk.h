@@ -95,10 +95,28 @@ typedef struct {
 	LineArray lines; //codes are nearby,so it's based on offset
 } Chunk;
 
+//recommand ops when compiling
+typedef struct {
+	uint32_t count;    //limit to 4G
+	uint32_t capacity; //limit to 4G
+
+	uint8_t* code;
+} OPStack;
+
 void chuck_init(Chunk* chunk);
 void chunk_write(Chunk* chunk, uint8_t byte, uint32_t line);
 void chunk_fallback(Chunk* chunk, uint32_t byteCount);
 void chunk_free(Chunk* chunk);
 
-//free the error complied code
+//chech opStack first,than use this to override old codes
+#define CHUNK_PEEK(chunk, offset) chunk->code[chunk->count - offset - 1]
+
+//free the error complied code (not used)
 void chunk_free_errorCode(Chunk* chunk, uint32_t beginError);
+
+void opStack_init(OPStack* stack);
+void opStack_push(OPStack* stack, uint8_t byte);
+//we don't know the offset of the code,so we use this to get the opType
+uint8_t opStack_peep(OPStack* stack, uint8_t offset);
+void opStack_pop(OPStack* stack);
+void opStack_free(OPStack* stack);
