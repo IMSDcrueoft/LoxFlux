@@ -92,6 +92,12 @@ void opStack_pop(OPStack* stack)
 	}
 }
 
+//logic clear
+void opStack_clear(OPStack* stack)
+{
+	stack->count = 0;
+}
+
 void opStack_free(OPStack* stack)
 {
 	FREE_ARRAY_NO_GC(uint8_t, stack->code, stack->capacity);

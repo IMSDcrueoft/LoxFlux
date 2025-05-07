@@ -119,4 +119,5 @@ void opStack_push(OPStack* stack, uint8_t byte);
 //we don't know the offset of the code,so we use this to get the opType
 uint8_t opStack_peep(OPStack* stack, uint8_t offset);
 void opStack_pop(OPStack* stack);
+void opStack_clear(OPStack* stack);
 void opStack_free(OPStack* stack);

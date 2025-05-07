@@ -124,8 +124,7 @@ static void emitConstantCommond(OpCode target, uint32_t index) {
 }
 
 static int32_t emitJump(uint8_t instruction) {
-	emitByte(instruction);
-	emitBytes(2, 0xff, 0xff);
+	emitBytes(3, instruction, 0xff, 0xff);
 	return currentChunk()->count - 2;
 }
 
