@@ -77,6 +77,21 @@ static Value logNative(int argCount, Value* args) {
 	return NIL_VAL;
 }
 
+static Value errorNative(int argCount, Value* args) {
+	if (argCount >= 1) {
+		if (IS_STRING(args[0])) {
+			ObjString* string = AS_STRING(args[0]);
+			fprintf(stderr, "%s\n", string->chars);
+		}
+		else if (IS_STRING_BUILDER(args[0])) {
+			ObjArray* string = AS_ARRAY(args[0]);
+			fprintf(stderr, "%s\n", (char*)string->payload);
+		}
+	}
+
+	return NIL_VAL;
+}
+
 #undef KiB16
 #undef GiB1
 
@@ -89,4 +104,5 @@ void importNative_system() {
 	defineNative_system("static", staticBytesNative);
 
 	defineNative_system("log", logNative);
+	defineNative_system("error", errorNative);
 }
