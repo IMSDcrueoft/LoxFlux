@@ -27,51 +27,75 @@ bool valuesEqual(Value a, Value b)
 #endif
 }
 
-static void remove_trailing_zeros(STR str) {
-	STR dot = strchr(str, '.');
-	if (!dot) return;
+/* Remove redundant zeros from scientific notation (internal helper) */
+static void remove_scientific_zeros(char* buffer) {
+	char* e = strchr(buffer, 'e');
+	if (!e) return;
 
-	STR end = str + strlen(str) - 1;
-	while (end > dot && *end == '0') {
-		*end-- = '\0';
-	}
+	// Trim trailing zeros before exponent
+	char* p = e - 1;
+	while (p > buffer && *p == '0') p--;
+	if (*p == '.') p--;  // Keep digit before decimal if needed
 
-	if (*end == '.') {
-		*end = '\0';
-	}
+	memmove(p + 1, e, strlen(e) + 1);
 }
 
-static void remove_scientific_zeros(STR str) {
-	STR e_pos = strchr(str, 'e');
-	if (!e_pos) return;
+/* Remove trailing zeros after decimal point (internal helper) */
+static void remove_trailing_zeros(char* buffer) {
+	char* p = strchr(buffer, '.');
+	if (!p) return;
 
-	*e_pos = '\0';
-	remove_trailing_zeros(str);
-	*e_pos = 'e';
+	// Scan from end to first non-zero
+	p = buffer + strlen(buffer) - 1;
+	while (p > buffer && *p == '0') p--;
+	if (*p == '.') p--;  // Trim decimal if nothing after it
+
+	*(p + 1) = '\0';
 }
 
-void print_adaptive_double(double value) {
-	double int_part;
-	double fractional = modf(value, &int_part);
-
-	if (fabs(fractional) < 1e-10) {
-		printf("%.0f", int_part);
+/**
+ * Converts double to optimal string representation
+ * @param value Input double value
+ * @param buffer Output buffer
+ * @param bufferSize Size of output buffer
+ *
+ * Features:
+ * - Auto-detects pure integers (prints without decimal)
+ * - Chooses between scientific and standard notation
+ * - Handles special values (NaN, Inf)
+ * - Removes unnecessary zeros
+ */
+void convert_adaptive_double(double value, char* buffer, uint32_t bufferSize) {
+	// Handle special floating-point values
+	if (isnan(value)) {
+		snprintf(buffer, bufferSize, "NaN");
+		return;
+	}
+	if (isinf(value)) {
+		snprintf(buffer, bufferSize, value > 0 ? "Infinity" : "-Infinity");
 		return;
 	}
 
-	const double abs_value = fabs(value);
-	char buffer[40];
-
-	if (abs_value >= 1e9 || (abs_value <= 1e-5 && value != 0.0)) {
-		snprintf(buffer, sizeof(buffer), "%.15e", value);
-		remove_scientific_zeros(buffer);
-	}
-	else {
-		snprintf(buffer, sizeof(buffer), "%.15f", value);
-		remove_trailing_zeros(buffer);
+	// Check for integer values
+	double int_part;
+	if (fabs(modf(value, &int_part)) < DBL_EPSILON) {
+		snprintf(buffer, bufferSize, "%.0f", int_part);
+		return;
 	}
 
-	printf("%s", buffer);
+	// Generate both possible representations
+	char sci_buf[32], float_buf[32];
+	snprintf(sci_buf, sizeof(sci_buf), "%.15e", value);
+	snprintf(float_buf, sizeof(float_buf), "%.15f", value);
+	remove_scientific_zeros(sci_buf);
+	remove_trailing_zeros(float_buf);
+
+	// Select the more compact representation
+	const uint32_t sci_len = strlen(sci_buf);
+	const uint32_t float_len = strlen(float_buf);
+	const char* chosen = (sci_len < float_len) ? sci_buf : float_buf;
+
+	snprintf(buffer, bufferSize, "%s", chosen);
 }
 
 void printValue(Value value) {
@@ -83,7 +107,9 @@ void printValue(Value value) {
 		printf("nil");
 	}
 	else if (IS_NUMBER(value)) {
-		print_adaptive_double(AS_NUMBER(value));
+		char buffer[40];
+		convert_adaptive_double(AS_NUMBER(value), buffer, sizeof(buffer));
+		printf("%s", buffer);
 	}
 	else if (IS_OBJ(value)) {
 		printObject(value, false);
@@ -95,7 +121,10 @@ void printValue(Value value) {
 		break;
 	case VAL_NIL: printf("nil"); break;
 	case VAL_NUMBER: {
-		print_adaptive_double(AS_NUMBER(value)); break;
+		char buffer[40];
+		convert_adaptive_double(AS_NUMBER(value), buffer, sizeof(buffer));
+		printf("%s", buffer);
+		break;
 	}
 	case VAL_OBJ: printObject(value, false); break;
 	}
@@ -112,7 +141,9 @@ void printValue_sys(Value value)
 		printf("nil");
 	}
 	else if (IS_NUMBER(value)) {
-		print_adaptive_double(AS_NUMBER(value));
+		char buffer[40];
+		convert_adaptive_double(AS_NUMBER(value), buffer, sizeof(buffer));
+		printf("%s", buffer);
 	}
 	else if (IS_OBJ(value)) {
 		printObject(value, true);
@@ -124,7 +155,10 @@ void printValue_sys(Value value)
 		break;
 	case VAL_NIL: printf("nil"); break;
 	case VAL_NUMBER: {
-		print_adaptive_double(AS_NUMBER(value)); break;
+		char buffer[40];
+		convert_adaptive_double(AS_NUMBER(value), buffer, sizeof(buffer));
+		printf("%s", buffer);
+		break;
 	}
 	case VAL_OBJ: printObject(value, true); break;
 	}

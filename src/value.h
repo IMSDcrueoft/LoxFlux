@@ -114,7 +114,7 @@ typedef struct {
 } ValueHoles;
 
 bool valuesEqual(Value a, Value b);
-void print_adaptive_double(double value);
+void convert_adaptive_double(double value, char* buffer, uint32_t bufferSize);//buffer size should > 32
 void printValue(Value value);
 void printValue_sys(Value value);
 
