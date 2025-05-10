@@ -11,9 +11,9 @@
 #include "nativeBuiltin.h"
 
 //the depth of call frames
-#define FRAMES_MAX UINT10_COUNT
-//customed vm stack begin size,the real limit is 16 * frameLimit(1024)
-#define STACK_INITIAL_SIZE (4 * 1024)
+#define FRAMES_MAX 1024
+//customed vm stack begin size
+#define STACK_INITIAL_SIZE 4096
 
 typedef struct {
 	ObjClosure* closure;
