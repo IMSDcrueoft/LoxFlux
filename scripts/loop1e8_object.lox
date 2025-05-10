@@ -1,7 +1,8 @@
-class Object{}
 {
-    var a = Object();
-    print a instanceOf Object;
+    var a = {
+        a:nil,b:nil,c:nil,d:nil,e:nil,f:nil,
+        g:nil,h:nil,i:nil,j:nil,k:nil,l:nil
+    };
 
     var start = @time.milli();
     for(a.i = 0;a.i < 1e8;){

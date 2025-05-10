@@ -48,14 +48,14 @@ static Obj* allocateObject(uint64_t size, ObjType type) {
 		object = (Obj*)reallocate_no_gc(NULL, 0, size);
 		OBJ_PTR_SET_NEXT(object, vm.objects_no_gc);
 		object->type = type;
-		object->isMarked = !usingMark;
+		object->isMarked = !vm.gcMark;
 		vm.objects_no_gc = object;
 		break;
 	default:
 		object = (Obj*)reallocate(NULL, 0, size);
 		OBJ_PTR_SET_NEXT(object, vm.objects);
 		object->type = type;
-		object->isMarked = !usingMark;
+		object->isMarked = !vm.gcMark;
 		vm.objects = object;
 		break;
 	}
@@ -450,18 +450,24 @@ static void printArrayLike(ObjArray* array, bool isExpand) {
 	}
 	else {
 		if (array->length > 0) {
+			char buffer[40];
+
 			printf("[ ");
 			for (uint32_t i = 0; i < array->length;) {
 				switch (OBJ_GET_TYPE(array->obj)) {
 				case OBJ_ARRAY: //don't expand now ,or it's too slow and too much
 					printValue(ARRAY_ELEMENT(array, Value, i));
 					break;
-				case OBJ_ARRAY_F64:
-					print_adaptive_double(ARRAY_ELEMENT(array, double, i));
+				case OBJ_ARRAY_F64: {
+					convert_adaptive_double(ARRAY_ELEMENT(array, double, i), buffer, sizeof(buffer));
+					printf("%s", buffer);
 					break;
-				case OBJ_ARRAY_F32:
-					print_adaptive_double(ARRAY_ELEMENT(array, float, i));
+				}
+				case OBJ_ARRAY_F32: {
+					convert_adaptive_double(ARRAY_ELEMENT(array, float, i), buffer, sizeof(buffer));
+					printf("%s", buffer);
 					break;
+				}
 				case OBJ_ARRAY_U32:
 					printf("%d", ARRAY_ELEMENT(array, uint32_t, i));
 					break;

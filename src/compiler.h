@@ -85,6 +85,8 @@ typedef struct Compiler {
 	struct Compiler* enclosing;
 
 	ObjFunction* function;
+	OPStack stack; //the command stack for optimizer
+
 	FunctionType type;
 	uint16_t nestingDepth;
 	uint16_t objectNestingDepth;

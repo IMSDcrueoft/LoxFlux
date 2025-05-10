@@ -1,4 +1,5 @@
 # LoxFlux
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/IMSDcrueoft/loxFlux)
 
 LoxFlux is developed based on the cLox version of the Lox language (stack-based bytecode-virtual machine). Please note that the project has only completed most of its basic functions and is still being improved.
 
@@ -17,12 +18,16 @@ Lox is a programming language designed for learning purposes. It is conceived as
 
 #### Performance
 
+- **Shared constants**: Use a shared constant table instead of a function holding its own constant table individually.
 - **Constant range**: Expands to `0x00ffffff` (16,777,215)(will reduce perf).
-- **Local variable range**: Expands to support up to 1023 nested variables(Configurable up to 65534)(will reduce perf).
+- **Local variable range**: Expands to support up to 1023 nested variables(Configurable up to 65534).
 - **Constant deduplication**: For both numbers and strings.
-- **Optimized global variable access**: Achieves `O(1)` time complexity. With dynamic index updates, direct index fetching can be achieved in almost all cases. Indexes are rarely invalidated, unless you frequently delete and then declare global variables that don't exist.
+- **Optimized global variable access**: Achieves `O(1)` time complexity. With dynamic update key indexes, direct index fetching can be achieved in almost all cases. Indexes are rarely invalidated, unless you frequently delete and then declare global variables that don't exist.
 - **Optional object header compression**: Object headers are compressed from 16 bytes to 8 bytes by compressing the 64-bit pointer to 48 bits.
 - **Optional NaN Boxing**: Compress the generic type value from 16 bytes to 8 bytes(from clox).
+- **Inline `init()`**: The inline caching class init() method helps reduce the overhead of object creation.
+- **Flip-up GC marking**: Flipping tags can avoid reverting to the write of tags during the recycling process, and favor concurrent tags (if actually implemented).
+- **Detached static and dynamic objects**: Static objects such as strings/functions, they don't usually bloat very much, so I think it's a viable option not to recycle them.
 
 ---
 
@@ -119,11 +124,10 @@ noneState  ::= "none" ":" statement
 
 ### Instance
 
-- **Object Lierals**: Supports defining object literals directly with `{k1:v1,"k2":v2}`,making object creation more intuitive and convenient(Nesting is supported).
+- **Object Literals**: Supports defining object literals directly with `{k1:v1,"k2":v2}`,making object creation more intuitive and convenient(Nesting is supported).
 - **Delete property**: Remove key-value pairs by assigning nil to the object.
 - **`instanceOf` keyword**:  Checks if an object is an instance of a specific class.
 - **`typeof` keyword**: Returns the string of item's subdivision type.
-- **`init()`**: Inline caching class init() method.
 
 ---
 
@@ -137,12 +141,6 @@ noneState  ::= "none" ":" statement
 - **Object Key Access**: In addition to arrays, subscript notation also supports accessing object properties by key.
 - **Syntax**: Use square brackets `[]` with a string representing the key name.
 - **Assignment via Subscript for Objects**: Modify object properties by assigning new values using the subscript operator.
-
---- 
-
-### GC
-
-- **Detached static objects and dynamic objects**: Static objects such as strings/functions, they don't usually bloat very much, so I think it's a viable option not to recycle them.
 
 ---
 
@@ -234,6 +232,8 @@ The `@string` module provides advanced string manipulation capabilities, support
   - `append`: Efficiently appends strings or other builders to a `StringBuilder`.
   - `intern`: Converts a `StringBuilder` to an immutable string(will occupy the constant scale), or returns existing strings directly.
   - `equals`: Compare whether the content of two strings|stringBuilders is the same.
+  - `parseInt`: Parses string to integer (supports hex/octal/binary prefixes)	and base(2 to 36).
+  - `parseFloat`: Parses string to float (supports scientific notation).
 
 This module balances performance and safety for both simple text tasks and large-scale string processing.
 
@@ -273,6 +273,7 @@ The `@sys` module offers low-level system utilities, primarily focused on memory
 
 - **Log**
   - `log`: Unlike the `print` keyword, it allows for multiple inputs and behaves slightly differently.It automatically expands the contents of the array and prints (but not recursively).
+  - `error`: Output string|stringBuilder information to stderr.
 
 - **Garbage Collection**:
   - `gc`: Triggers a full garbage collection cycle.
