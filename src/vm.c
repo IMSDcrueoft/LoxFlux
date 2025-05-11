@@ -1019,6 +1019,7 @@ static InterpretResult run()
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			
+			//it's not a new key,no cache
 			tableSet_g(&vm.globals.fields, name, vm.stackTop[-1]);
 			vm.stackTop--;//can not dec first,because gc will kill it
 			break;
@@ -1026,8 +1027,19 @@ static InterpretResult run()
 		case OP_GET_GLOBAL: {
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
-			Value value;
 
+			//inline find by cache symbol
+			if ((name->symbol != INVALID_OBJ_STRING_SYMBOL)) {
+				Entry* entry = &vm.globals.fields.entries[name->symbol];
+
+				if (entry->key == name) {
+					// We found the key.
+					stack_push(entry->value);
+					break;
+				}
+			}
+
+			Value value;
 			if (!tableGet_g(&vm.globals.fields, name, &value)) {
 				runtimeError("Undefined variable '%s'.", name->chars);
 				return INTERPRET_RUNTIME_ERROR;
@@ -1039,9 +1051,19 @@ static InterpretResult run()
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 
+			//inline find by cache symbol(if we found it,it's not new key)
+			if ((name->symbol != INVALID_OBJ_STRING_SYMBOL)) {
+				Entry* entry = &vm.globals.fields.entries[name->symbol];
+				if (entry->key == name) {
+					// We found the key.
+					entry->value = vm.stackTop[-1];
+					break;
+				}
+			}
+
 			if (tableSet_g(&vm.globals.fields, name, vm.stackTop[-1])) {
 				//lox dont allow setting undefined one
-				tableDelete_g(&vm.globals.fields, name);
+				tableDelete(&vm.globals.fields, name);
 				runtimeError("Undefined variable '%s'.", name->chars);
 				return INTERPRET_RUNTIME_ERROR;
 			}

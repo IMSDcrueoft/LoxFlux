@@ -22,7 +22,7 @@ Lox is a programming language designed for learning purposes. It is conceived as
 - **Constant range**: Expands to `0x00ffffff` (16,777,215)(will reduce perf).
 - **Local variable range**: Expands to support up to 1023 nested variables(Configurable up to 65534).
 - **Constant deduplication**: For both numbers and strings.
-- **Optimized global variable access**: Achieves `O(1)` time complexity. With dynamic update key indexes, direct index fetching can be achieved in almost all cases. Indexes are rarely invalidated, unless you frequently delete and then declare global variables that don't exist.
+- **Optimized global variable access**: Achieves `O(1)` time complexity, the access overhead is close to that of local variables. With dynamic update key indexes, direct index fetching can be achieved in almost all cases. Indexes are rarely invalidated, unless you frequently delete and then declare global variables that don't exist.
 - **Optional object header compression**: Object headers are compressed from 16 bytes to 8 bytes by compressing the 64-bit pointer to 48 bits.
 - **Optional NaN Boxing**: Compress the generic type value from 16 bytes to 8 bytes(from clox).
 - **Inline `init()`**: The inline caching class init() method helps reduce the overhead of object creation.

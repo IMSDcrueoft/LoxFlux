@@ -191,30 +191,18 @@ static Entry* findEntry_g(Entry* entries, uint32_t capacity, ObjString* key, Tab
 	}
 }
 
-HOT_FUNCTION
+//not hot
 bool tableGet_g(Table* table, ObjString* key, Value* value) {
 	if (table->count == 0) return false;
 
-	Entry* entry = NULL;
-	//find by cache symbol
-	if ((key->symbol != INVALID_OBJ_STRING_SYMBOL)) {
-		entry = &table->entries[key->symbol];
-
-		if (entry->key == key) {
-			// We found the key.
-			*value = entry->value;
-			return true;
-		}
-	}
-
-	entry = findEntry_g(table->entries, table->capacity, key, table->type);
+	Entry* entry = findEntry_g(table->entries, table->capacity, key, table->type);
 	if (entry->key == NULL) return false;
 
 	*value = entry->value;
 	return true;
 }
 
-HOT_FUNCTION
+//not hot
 bool tableSet_g(Table* table, ObjString* key, Value value)
 {
 	//if (table->count + 1 > table->capacity * TABLE_MAX_LOAD) {
@@ -223,52 +211,13 @@ bool tableSet_g(Table* table, ObjString* key, Value value)
 		adjustCapacity(table, capacity);
 	}
 
-	Entry* entry = NULL;
-	//find by cache symbol
-	if ((key->symbol != INVALID_OBJ_STRING_SYMBOL)) {
-		entry = &table->entries[key->symbol];
-
-		if (entry->key == key) {
-			// We found the key.
-			entry->value = value;
-			return false;
-		}
-	}
-
-	entry = findEntry_g(table->entries, table->capacity, key, table->type);
+	Entry* entry = findEntry_g(table->entries, table->capacity, key, table->type);
 	bool isNewKey = entry->key == NULL;
 	if (isNewKey && IS_NIL(entry->value)) table->count++;
 
 	entry->key = key;
 	entry->value = value;
 	return isNewKey;
-}
-
-HOT_FUNCTION
-bool tableDelete_g(Table* table, ObjString* key) {
-	if (table->count == 0) return false;
-
-	Entry* entry = NULL;
-	//find by cache symbol
-	if ((key->symbol != INVALID_OBJ_STRING_SYMBOL)) {
-		entry = &table->entries[key->symbol];
-
-		if (entry->key == key) {
-			// We found the key.
-			entry->key = NULL;
-			entry->value = BOOL_VAL(true);//value of tombstone is true
-			return true;
-		}
-	}
-
-	// Find the entry.
-	entry = findEntry_g(table->entries, table->capacity, key, table->type);
-	if (entry->key == NULL) return false;
-
-	// Place a tombstone in the entry. 
-	entry->key = NULL;
-	entry->value = BOOL_VAL(true);//value of tombstone is true
-	return true;
 }
 
 //void tableRemoveWhite(Table* table)
