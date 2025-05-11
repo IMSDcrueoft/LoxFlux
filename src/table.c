@@ -160,42 +160,11 @@ void tableAddAll(Table* from, Table* to)
 	}
 }
 
-//for global table
-HOT_FUNCTION
-static Entry* findEntry_g(Entry* entries, uint32_t capacity, ObjString* key, TableType type) {
-	uint32_t index = key->hash & (capacity - 1);
-	Entry* tombstone = NULL;
-
-	while (true) {
-		Entry* entry = &entries[index];
-
-		if (entry->key == NULL) {
-			if (IS_NIL(entry->value)) {
-				key->symbol = index;
-				// if we find hole after tombstone ,it means the tombstone is target else return the hole
-				// Empty entry.
-				return tombstone != NULL ? tombstone : entry;
-			}
-			else {
-				// We found a tombstone.
-				if (tombstone == NULL) tombstone = entry;
-			}
-		}
-		else if (entry->key == key) {
-			key->symbol = index;
-			// We found the key.
-			return entry;
-		}
-
-		index = (index + 1) & (capacity - 1);
-	}
-}
-
 //not hot
 bool tableGet_g(Table* table, ObjString* key, Value* value) {
 	if (table->count == 0) return false;
 
-	Entry* entry = findEntry_g(table->entries, table->capacity, key, table->type);
+	Entry* entry = findEntry(table->entries, table->capacity, key, table->type);
 	if (entry->key == NULL) return false;
 
 	*value = entry->value;
@@ -211,7 +180,7 @@ bool tableSet_g(Table* table, ObjString* key, Value value)
 		adjustCapacity(table, capacity);
 	}
 
-	Entry* entry = findEntry_g(table->entries, table->capacity, key, table->type);
+	Entry* entry = findEntry(table->entries, table->capacity, key, table->type);
 	bool isNewKey = entry->key == NULL;
 	if (isNewKey && IS_NIL(entry->value)) table->count++;
 
