@@ -31,6 +31,17 @@ Lox is a programming language designed for learning purposes. It is conceived as
 
 ---
 
+#### Performance test (v0.9.6 dev on AMD R7 5800X)
+
+|program|loxFlux|clox|
+|---|---|---|
+|fib30|76ms|84ms|
+|fib35|855ms|930ms|
+|fib40|9488ms|10254ms|
+|global loop 1e8|1214ms|2044ms|
+
+---
+
 ### Comment
 
 - **Line & Block comment support**: Using `//` `/* */`.
