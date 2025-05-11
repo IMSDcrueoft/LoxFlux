@@ -202,15 +202,20 @@ void garbageCollect()
 	uint64_t time_gc = get_nanoseconds();
 	uint64_t before = vm.bytesAllocated;
 #endif
+	//mark the state
+	vm.gcWorking = 1;
+
 	markRoots();
 	traceReferences();
 	//tableRemoveWhite(&vm.strings);
 	sweep();
 
-	//flip the mark
-	vm.gcMark = !vm.gcMark;
 	//reset the limit
 	vm.nextGC = max(vm.bytesAllocated * GC_HEAP_GROW_FACTOR, vm.beginGC);
+	//flip the mark
+	vm.gcMark = !vm.gcMark;
+	//mark the state
+	vm.gcWorking = 0;
 
 #if DEBUG_LOG_GC
 	printf("-- gc end\n");

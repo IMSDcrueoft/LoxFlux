@@ -329,6 +329,7 @@ void vm_init()
 	vm.nextGC = GC_HEAP_BEGIN;
 	vm.beginGC = GC_HEAP_BEGIN;
 	vm.gcMark = 1; //bool value 
+	vm.gcWorking = 0; //bool value
 
 	//import the builtins
 	importBuiltins();
