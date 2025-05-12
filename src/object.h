@@ -153,6 +153,12 @@ typedef struct {
 	Obj obj;
 	ObjClass* klass;
 	Table fields;
+
+	//struct InlineCache {
+	//	uint8_t counter[4];  //LFU
+	//	uint8_t isSuper[4];  //mark if from super
+	//	Entry* entry[4];	 //entry ptr
+	//};
 } ObjInstance;
 
 #define INVALID_OBJ_STRING_SYMBOL UINT32_MAX
