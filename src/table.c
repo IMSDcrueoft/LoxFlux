@@ -117,7 +117,7 @@ bool tableGet(Table* table, ObjString* key, Value* value) {
 HOT_FUNCTION
 bool tableSet(Table* table, ObjString* key, Value value)
 {
-	if (table->type == TABLE_MODULE) return false;// not allowed
+	if (table->type == TABLE_FREEZE) return false;// not allowed
 
 	//if (table->count + 1 > table->capacity * TABLE_MAX_LOAD) {
 	if ((table->count + 1) > MUL_3_DIV_4((uint64_t)(table->capacity))) {
@@ -136,7 +136,7 @@ bool tableSet(Table* table, ObjString* key, Value value)
 
 HOT_FUNCTION
 bool tableDelete(Table* table, ObjString* key) {
-	if (table->type == TABLE_MODULE) return false;// not allowed
+	if (table->type == TABLE_FREEZE) return false;// not allowed
 
 	if (table->count == 0) return false;
 
@@ -158,35 +158,6 @@ void tableAddAll(Table* from, Table* to)
 			tableSet(to, entry->key, entry->value);
 		}
 	}
-}
-
-//not hot
-bool tableGet_g(Table* table, ObjString* key, Value* value) {
-	if (table->count == 0) return false;
-
-	Entry* entry = findEntry(table->entries, table->capacity, key, table->type);
-	if (entry->key == NULL) return false;
-
-	*value = entry->value;
-	return true;
-}
-
-//not hot
-bool tableSet_g(Table* table, ObjString* key, Value value)
-{
-	//if (table->count + 1 > table->capacity * TABLE_MAX_LOAD) {
-	if ((table->count + 1) > MUL_3_DIV_4((uint64_t)(table->capacity))) {
-		uint32_t capacity = GROW_CAPACITY(table->capacity);
-		adjustCapacity(table, capacity);
-	}
-
-	Entry* entry = findEntry(table->entries, table->capacity, key, table->type);
-	bool isNewKey = entry->key == NULL;
-	if (isNewKey && IS_NIL(entry->value)) table->count++;
-
-	entry->key = key;
-	entry->value = value;
-	return isNewKey;
 }
 
 //void tableRemoveWhite(Table* table)

@@ -27,7 +27,7 @@ typedef struct {
 typedef enum {
 	TABLE_NORMAL,
 	TABLE_GLOBAL,
-	TABLE_MODULE
+	TABLE_FREEZE
 } TableType;
 
 typedef struct {
@@ -57,10 +57,6 @@ bool tableGet(Table* table, ObjString* key, Value* value);
 bool tableSet(Table* table, ObjString* key, Value value);
 bool tableDelete(Table* table, ObjString* key);
 void tableAddAll(Table* from, Table* to);
-
-//globol table fn
-bool tableGet_g(Table* table, ObjString* key, Value* value);
-bool tableSet_g(Table* table, ObjString* key, Value value);
 
 //void tableRemoveWhite(Table* table);
 void markTable(Table* table);
