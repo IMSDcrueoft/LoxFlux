@@ -32,7 +32,8 @@ typedef enum {
 
 typedef struct {
 	TableType type;
-	uint32_t inlineCaching; //cache offset
+	uint32_t padding;
+
 	uint32_t count;
 	uint32_t capacity;
 	Entry* entries;

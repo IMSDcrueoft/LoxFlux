@@ -14,7 +14,6 @@
 
 void table_init(Table* table)
 {
-	table->inlineCaching = 0;
 	table->count = 0;
 	table->capacity = 0;
 	table->entries = NULL;
