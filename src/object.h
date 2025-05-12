@@ -149,15 +149,34 @@ typedef struct {
 	Table methods;
 } ObjClass;
 
+//uint8_t inline access_slot(uint8_t lru_state, uint8_t slot) {
+//	const uint8_t lru_transition[6][3] = {
+//		/* 0:0,1,2 */ {0,2,4},
+//		/* 1:0,2,1 */ {0,3,1},
+//		/* 2:1,0,2 */ {2,1,5},
+//		/* 3:1,2,0 */ {3,1,3},
+//		/* 4:2,0,1 */ {4,5,4},
+//		/* 5:2,1,0 */ {5,5,5},
+//	};
+//
+//	return lru_transition[lru_state][slot];
+//}
+//
+//uint8_t inline get_replacement_slot(uint8_t lru_state) {
+//	//const uint8_t lru_victim[6] = { 0, 0, 1, 1, 2, 2 };
+//	//return lru_victim[lru_state];
+//	return lru_state >> 1;
+//}
+
 typedef struct {
 	Obj obj;
 	ObjClass* klass;
 	Table fields;
 
 	//struct InlineCache {
-	//	uint8_t counter[4];  //LFU
-	//	uint8_t isSuper[4];  //mark if from super
-	//	Entry* entry[4];	 //entry ptr
+	//	uint16_t lruState;	  //LRU
+	//	uint16_t isSuper[3];  //mark if from super
+	//	Entry* entry[3];	  //entry ptr
 	//};
 } ObjInstance;
 
