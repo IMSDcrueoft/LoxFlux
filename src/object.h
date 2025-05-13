@@ -150,7 +150,7 @@ typedef struct {
 } ObjClass;
 
 //uint8_t inline access_slot(uint8_t lru_state, uint8_t slot) {
-//	const uint8_t lru_transition[9][3] = {
+//	const uint8_t lru_transition[6][3] = {
 //		/* [replace,mid,recent] ,the recent-slot will move to back */
 //		/* 0:0,1,2 */ {3,1,0},
 //		/* 1:0,2,1 */ {5,1,0},
