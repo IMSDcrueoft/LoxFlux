@@ -72,7 +72,6 @@ typedef enum {
 	OP_METHOD,			// make class func
 
 	OP_MODULE_BUILTIN,	//load builtin module
-	OP_MODULE_GLOBAL,	//allow user to get the global object
 
 	OP_PRINT,			// print string or value
 	OP_THROW,			// throw

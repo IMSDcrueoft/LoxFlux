@@ -251,7 +251,6 @@ static TokenType builtinType() {
 		}
 		case 'c':return checkModule(2, 3, "tor", TOKEN_MODULE_CTOR);
 		case 't':return checkModule(2, 3, "ime", TOKEN_MODULE_TIME);
-		case 'g':return checkModule(2, 5, "lobal", TOKEN_MODULE_GLOBAL);
 		}
 	}
 
@@ -264,7 +263,7 @@ static Token mention() {
 	TokenType type = builtinType();
 
 	if (type == TOKEN_NIL) {
-		return errorToken("Unexpected module (Available modules : @global, @math, @array, @object, @string, @time, @ctor, @system).");
+		return errorToken("Unexpected module (Available modules : @math, @array, @object, @string, @time, @ctor, @system).");
 	}
 
 	return makeToken(type);

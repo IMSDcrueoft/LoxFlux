@@ -1,4 +1,5 @@
 # LoxFlux
+![Version](https://img.shields.io/badge/version-0.9.6-blue)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/IMSDcrueoft/LoxFlux)
 
 LoxFlux is developed based on the cLox version of the Lox language (stack-based bytecode-virtual machine). Please note that the project has only completed most of its basic functions and is still being improved.
@@ -22,12 +23,23 @@ Lox is a programming language designed for learning purposes. It is conceived as
 - **Constant range**: Expands to `0x00ffffff` (16,777,215)(will reduce perf).
 - **Local variable range**: Expands to support up to 1023 nested variables(Configurable up to 65534).
 - **Constant deduplication**: For both numbers and strings.
-- **Optimized global variable access**: Achieves `O(1)` time complexity, the access overhead is close to that of local variables. With dynamic update key indexes, direct index fetching can be achieved in almost all cases. Indexes are rarely invalidated, unless you frequently delete and then declare global variables that don't exist.
+- **Optimized global variable access**: Achieves `O(1)` time complexity, the access overhead is close to that of local variables. With dynamic update key indexes, direct index fetching can be achieved in almost all cases. Indexes are rarely invalidated, unless you frequently declare new global variables.
 - **Optional object header compression**: Object headers are compressed from 16 bytes to 8 bytes by compressing the 64-bit pointer to 48 bits.
 - **Optional NaN Boxing**: Compress the generic type value from 16 bytes to 8 bytes(from clox).
 - **Inline `init()`**: The inline caching class init() method helps reduce the overhead of object creation.
 - **Flip-up GC marking**: Flipping tags can avoid reverting to the write of tags during the recycling process, and favor concurrent tags (if actually implemented).
 - **Detached static and dynamic objects**: Static objects such as strings/functions, they don't usually bloat very much, so I think it's a viable option not to recycle them.
+
+---
+
+#### Performance test (v0.9.6 dev on AMD R7 5800X)
+
+|program|loxFlux|clox|
+|---|---|---|
+|fib30|76ms|84ms|
+|fib35|855ms|930ms|
+|fib40|9488ms|10254ms|
+|global loop 1e8|1214ms|2044ms|
 
 ---
 
@@ -148,11 +160,7 @@ noneState  ::= "none" ":" statement
 
 There are some namespace objects that start with `'@'` available, and since they are not in the global scope, the initial state of the global scope is a "completely clean" state. 
 
-#### `@global` `@math` `@array` `@object` `@string` `@time` `@ctor` `@sys`
-
-The `@global` allows you to explicitly get the global table, create and delete attributes, use it like a simple object.
-
----
+#### `@math` `@array` `@object` `@string` `@time` `@ctor` `@sys`
 
 The `@math` module provides a comprehensive set of mathematical functions and utilities, implemented as native bindings for efficiency and ease of use. These functions are accessible globally and can be used directly in scripts or applications.
 

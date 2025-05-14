@@ -62,6 +62,9 @@ typedef struct {
 
 	//Flip tagging, is more suitable for concurrent tagging
 	uint8_t gcMark;
+	//mark if the gc is running
+	uint8_t gcWorking;
+
 	uint64_t beginGC;
 	uint64_t nextGC;
 

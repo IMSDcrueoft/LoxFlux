@@ -251,7 +251,7 @@ static void importBuiltins() {
 	importNative_system();
 
 	for (uint32_t i = 0; i < BUILTIN_MODULE_COUNT; ++i) {
-		vm.builtins[i].fields.type = TABLE_MODULE;//remind this,we can't set first
+		vm.builtins[i].fields.type = TABLE_FREEZE;//remind this,we can't set first
 	}
 }
 
@@ -329,6 +329,7 @@ void vm_init()
 	vm.nextGC = GC_HEAP_BEGIN;
 	vm.beginGC = GC_HEAP_BEGIN;
 	vm.gcMark = 1; //bool value 
+	vm.gcWorking = 0; //bool value
 
 	//import the builtins
 	importBuiltins();
@@ -1020,7 +1021,7 @@ static InterpretResult run()
 			ObjString* name = AS_STRING(constant);
 			
 			//it's not a new key,no cache
-			tableSet_g(&vm.globals.fields, name, vm.stackTop[-1]);
+			tableSet(&vm.globals.fields, name, vm.stackTop[-1]);
 			vm.stackTop--;//can not dec first,because gc will kill it
 			break;
 		}
@@ -1040,7 +1041,7 @@ static InterpretResult run()
 			}
 
 			Value value;
-			if (!tableGet_g(&vm.globals.fields, name, &value)) {
+			if (!tableGet(&vm.globals.fields, name, &value)) {
 				runtimeError("Undefined variable '%s'.", name->chars);
 				return INTERPRET_RUNTIME_ERROR;
 			}
@@ -1061,7 +1062,7 @@ static InterpretResult run()
 				}
 			}
 
-			if (tableSet_g(&vm.globals.fields, name, vm.stackTop[-1])) {
+			if (tableSet(&vm.globals.fields, name, vm.stackTop[-1])) {
 				//lox dont allow setting undefined one
 				tableDelete(&vm.globals.fields, name);
 				runtimeError("Undefined variable '%s'.", name->chars);
@@ -1311,7 +1312,6 @@ static InterpretResult run()
 			break;
 		}
 
-		case OP_MODULE_GLOBAL:stack_push(OBJ_VAL(&vm.globals)); break;
 		case OP_MODULE_BUILTIN: {
 			uint8_t moduleIndex = READ_BYTE();
 			stack_push(OBJ_VAL(&vm.builtins[moduleIndex]));

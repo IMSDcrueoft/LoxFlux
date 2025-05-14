@@ -14,7 +14,6 @@
 
 void table_init(Table* table)
 {
-	table->inlineCaching = 0;
 	table->count = 0;
 	table->capacity = 0;
 	table->entries = NULL;
@@ -117,7 +116,7 @@ bool tableGet(Table* table, ObjString* key, Value* value) {
 HOT_FUNCTION
 bool tableSet(Table* table, ObjString* key, Value value)
 {
-	if (table->type == TABLE_MODULE) return false;// not allowed
+	if (table->type == TABLE_FREEZE) return false;// not allowed
 
 	//if (table->count + 1 > table->capacity * TABLE_MAX_LOAD) {
 	if ((table->count + 1) > MUL_3_DIV_4((uint64_t)(table->capacity))) {
@@ -136,7 +135,7 @@ bool tableSet(Table* table, ObjString* key, Value value)
 
 HOT_FUNCTION
 bool tableDelete(Table* table, ObjString* key) {
-	if (table->type == TABLE_MODULE) return false;// not allowed
+	if (table->type == TABLE_FREEZE) return false;// not allowed
 
 	if (table->count == 0) return false;
 
@@ -158,66 +157,6 @@ void tableAddAll(Table* from, Table* to)
 			tableSet(to, entry->key, entry->value);
 		}
 	}
-}
-
-//for global table
-HOT_FUNCTION
-static Entry* findEntry_g(Entry* entries, uint32_t capacity, ObjString* key, TableType type) {
-	uint32_t index = key->hash & (capacity - 1);
-	Entry* tombstone = NULL;
-
-	while (true) {
-		Entry* entry = &entries[index];
-
-		if (entry->key == NULL) {
-			if (IS_NIL(entry->value)) {
-				key->symbol = index;
-				// if we find hole after tombstone ,it means the tombstone is target else return the hole
-				// Empty entry.
-				return tombstone != NULL ? tombstone : entry;
-			}
-			else {
-				// We found a tombstone.
-				if (tombstone == NULL) tombstone = entry;
-			}
-		}
-		else if (entry->key == key) {
-			key->symbol = index;
-			// We found the key.
-			return entry;
-		}
-
-		index = (index + 1) & (capacity - 1);
-	}
-}
-
-//not hot
-bool tableGet_g(Table* table, ObjString* key, Value* value) {
-	if (table->count == 0) return false;
-
-	Entry* entry = findEntry_g(table->entries, table->capacity, key, table->type);
-	if (entry->key == NULL) return false;
-
-	*value = entry->value;
-	return true;
-}
-
-//not hot
-bool tableSet_g(Table* table, ObjString* key, Value value)
-{
-	//if (table->count + 1 > table->capacity * TABLE_MAX_LOAD) {
-	if ((table->count + 1) > MUL_3_DIV_4((uint64_t)(table->capacity))) {
-		uint32_t capacity = GROW_CAPACITY(table->capacity);
-		adjustCapacity(table, capacity);
-	}
-
-	Entry* entry = findEntry_g(table->entries, table->capacity, key, table->type);
-	bool isNewKey = entry->key == NULL;
-	if (isNewKey && IS_NIL(entry->value)) table->count++;
-
-	entry->key = key;
-	entry->value = value;
-	return isNewKey;
 }
 
 //void tableRemoveWhite(Table* table)

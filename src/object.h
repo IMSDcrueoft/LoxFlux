@@ -149,10 +149,35 @@ typedef struct {
 	Table methods;
 } ObjClass;
 
+//const uint8_t lru_transition[6][3] = {
+//	/* [replace,mid,recent] ,the recent-slot will move to back */
+//	/* 0:0,1,2 */ {3,1,0},
+//	/* 1:0,2,1 */ {5,1,0},
+//	/* 2:1,0,2 */ {3,1,2},
+//	/* 3:1,2,0 */ {3,4,2},
+//	/* 4:2,0,1 */ {5,4,0},
+//	/* 5:2,1,0 */ {5,4,2}
+//};
+//uint8_t inline access_slot(uint8_t lru_state, uint8_t slot) {
+//	return lru_transition[lru_state][slot];
+//}
+//
+//const uint8_t lru_victim[6] = { 0, 0, 1, 1, 2, 2 };
+//uint8_t inline get_replacement_slot(uint8_t lru_state) {
+//	// return lru_victim[lru_state];
+//	return lru_state >> 1;
+//}
+
 typedef struct {
 	Obj obj;
 	ObjClass* klass;
 	Table fields;
+
+	//struct InlineCache {
+	//	uint16_t lruState;	  //LRU
+	//	uint16_t isSuper[3];  //mark if from super
+	//	Entry* entry[3];	  //entry ptr
+	//};
 } ObjInstance;
 
 #define INVALID_OBJ_STRING_SYMBOL UINT32_MAX
