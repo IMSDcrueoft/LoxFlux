@@ -5,4 +5,4 @@ pair.first = 1;
 pair.milli = 2;
 print pair.first + pair.milli; // 3.
 
-print @global.Pair;
+print Pair;

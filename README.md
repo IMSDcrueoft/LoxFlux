@@ -23,7 +23,7 @@ Lox is a programming language designed for learning purposes. It is conceived as
 - **Constant range**: Expands to `0x00ffffff` (16,777,215)(will reduce perf).
 - **Local variable range**: Expands to support up to 1023 nested variables(Configurable up to 65534).
 - **Constant deduplication**: For both numbers and strings.
-- **Optimized global variable access**: Achieves `O(1)` time complexity, the access overhead is close to that of local variables. With dynamic update key indexes, direct index fetching can be achieved in almost all cases. Indexes are rarely invalidated, unless you frequently delete and then declare global variables that don't exist.
+- **Optimized global variable access**: Achieves `O(1)` time complexity, the access overhead is close to that of local variables. With dynamic update key indexes, direct index fetching can be achieved in almost all cases. Indexes are rarely invalidated, unless you frequently declare new global variables.
 - **Optional object header compression**: Object headers are compressed from 16 bytes to 8 bytes by compressing the 64-bit pointer to 48 bits.
 - **Optional NaN Boxing**: Compress the generic type value from 16 bytes to 8 bytes(from clox).
 - **Inline `init()`**: The inline caching class init() method helps reduce the overhead of object creation.
@@ -160,11 +160,7 @@ noneState  ::= "none" ":" statement
 
 There are some namespace objects that start with `'@'` available, and since they are not in the global scope, the initial state of the global scope is a "completely clean" state. 
 
-#### `@global` `@math` `@array` `@object` `@string` `@time` `@ctor` `@sys`
-
-The `@global` allows you to explicitly get the global table, create and delete attributes, use it like a simple object.
-
----
+#### `@math` `@array` `@object` `@string` `@time` `@ctor` `@sys`
 
 The `@math` module provides a comprehensive set of mathematical functions and utilities, implemented as native bindings for efficiency and ease of use. These functions are accessible globally and can be used directly in scripts or applications.
 

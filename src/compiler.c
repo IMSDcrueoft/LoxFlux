@@ -1160,7 +1160,6 @@ static void subscript(bool canAssign) {
 static void builtinLiteral(bool canAssign) {
 	switch (parser.previous.type)
 	{
-	case TOKEN_MODULE_GLOBAL:emitByte(OP_MODULE_GLOBAL); break;
 	case TOKEN_MODULE_MATH:emitBytes(2, OP_MODULE_BUILTIN, MODULE_MATH); break;
 	case TOKEN_MODULE_ARRAY:emitBytes(2, OP_MODULE_BUILTIN, MODULE_ARRAY); break;
 	case TOKEN_MODULE_OBJECT:emitBytes(2, OP_MODULE_BUILTIN, MODULE_OBJECT); break;
@@ -1381,7 +1380,6 @@ ParseRule rules[] = {
 	[TOKEN_NUMBER] = {number  ,   NULL,   PREC_NONE  },
 	[TOKEN_NUMBER_BIN] = {number_bin  ,   NULL,   PREC_NONE  },
 	[TOKEN_NUMBER_HEX] = {number_hex  ,   NULL,   PREC_NONE  },
-	[TOKEN_MODULE_GLOBAL] = {builtinLiteral,     NULL,   PREC_NONE},
 	[TOKEN_MODULE_MATH] = {builtinLiteral,     NULL,   PREC_NONE},
 	[TOKEN_MODULE_ARRAY] = {builtinLiteral,     NULL,   PREC_NONE},
 	[TOKEN_MODULE_OBJECT] = {builtinLiteral,     NULL,   PREC_NONE},

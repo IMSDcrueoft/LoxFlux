@@ -1312,7 +1312,6 @@ static InterpretResult run()
 			break;
 		}
 
-		case OP_MODULE_GLOBAL:stack_push(OBJ_VAL(&vm.globals)); break;
 		case OP_MODULE_BUILTIN: {
 			uint8_t moduleIndex = READ_BYTE();
 			stack_push(OBJ_VAL(&vm.builtins[moduleIndex]));
