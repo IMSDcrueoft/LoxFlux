@@ -245,22 +245,22 @@ static Value parseIntNative(int argCount, Value* args) {
 	if (argCount >= 1) {
 		C_STR stringPtr = NULL;
 		uint32_t length = 0;
-		int32_t base = 0; // Default to auto-detection (decimal/octal/hexadecimal)  
+		int32_t base = 0; // Default to auto-detection (decimal/octal/hexadecimal)
 		bool isNegative = false;
 
-		// Check if radix (base) argument is provided  
+		// Check if radix (base) argument is provided
 		if (argCount >= 2 && IS_NUMBER(args[1])) {
 			double baseValue = AS_NUMBER(args[1]);
-			// Validate base is integer between 2-36  
+			// Validate base is integer between 2-36
 			if (baseValue >= 2 && baseValue <= 36 && (int32_t)baseValue == baseValue) {
 				base = (int32_t)baseValue;
 			}
 			else {
-				return NAN_VAL; // Invalid radix value  
+				return NAN_VAL; // Invalid radix value
 			}
 		}
 
-		// Get string pointer and length from either String or StringBuilder  
+		// Get string pointer and length from either String or StringBuilder
 		if (IS_STRING(args[0])) {
 			ObjString* string = AS_STRING(args[0]);
 			stringPtr = &string->chars[0];
@@ -276,17 +276,17 @@ static Value parseIntNative(int argCount, Value* args) {
 			STR endPtr = NULL;
 			C_STR startPtr = stringPtr;
 
-			// Handle negative sign if present  
+			// Handle negative sign if present
 			if (*startPtr == '-') {
 				isNegative = true;
 				startPtr++;
 				length--;
 			}
 
-			// Check for binary prefix (0b or 0B or 0x or 0X)  
+			// Check for binary prefix (0b or 0B or 0x or 0X)
 			if (length >= 2 && startPtr[0] == '0') {
 				if (startPtr[1] == 'b' || startPtr[1] == 'B') {
-					// Found binary prefix - override user's radix and force base 2  
+					// Found binary prefix - override user's radix and force base 2
 					int64_t value = strtol(startPtr + 2, &endPtr, 2);
 					if (endPtr != startPtr + 2) {
 						if (isNegative) value = -value;
@@ -294,8 +294,8 @@ static Value parseIntNative(int argCount, Value* args) {
 					}
 				}
 				else if (startPtr[1] == 'x' || startPtr[1] == 'X') {
-					// Found hex prefix - override user's radix and force base 16  
-					// strtol automatically handles 0x prefix when base is 16  
+					// Found hex prefix - override user's radix and force base 16
+					// strtol automatically handles 0x prefix when base is 16
 					int64_t value = strtol(startPtr, &endPtr, 16);
 					if (endPtr != startPtr) {
 						if (isNegative) value = -value;
@@ -304,7 +304,7 @@ static Value parseIntNative(int argCount, Value* args) {
 				}
 			}
 			else {
-				// No special prefix - use user-specified radix or auto-detect  
+				// No special prefix - use user-specified radix or auto-detect
 				int64_t value = strtol(startPtr, &endPtr, base);
 				if (endPtr != startPtr) {
 					if (isNegative) value = -value;
@@ -314,7 +314,7 @@ static Value parseIntNative(int argCount, Value* args) {
 		}
 	}
 
-	return NAN_VAL; // Return NaN if parsing fails  
+	return NAN_VAL; // Return NaN if parsing fails
 }
 
 static Value parseFloatNative(int argCount, Value* args) {
@@ -337,7 +337,7 @@ static Value parseFloatNative(int argCount, Value* args) {
 			STR endPtr = NULL;
 			double value = strtod(stringPtr, &endPtr);
 
-			// Check if conversion was successful  
+			// Check if conversion was successful
 			if (endPtr != stringPtr) {
 				return NUMBER_VAL(value);
 			}

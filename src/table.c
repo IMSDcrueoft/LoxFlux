@@ -143,7 +143,7 @@ bool tableDelete(Table* table, ObjString* key) {
 	Entry* entry = findEntry(table->entries, table->capacity, key, table->type);
 	if (entry->key == NULL) return false;
 
-	// Place a tombstone in the entry. 
+	// Place a tombstone in the entry.
 	entry->key = NULL;
 	entry->value = BOOL_VAL(true);//value of tombstone is true
 	return true;

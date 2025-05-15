@@ -328,7 +328,7 @@ void vm_init()
 	vm.bytesAllocated_no_gc = 0;
 	vm.nextGC = GC_HEAP_BEGIN;
 	vm.beginGC = GC_HEAP_BEGIN;
-	vm.gcMark = 1; //bool value 
+	vm.gcMark = 1; //bool value
 	vm.gcWorking = 0; //bool value
 
 	//import the builtins
@@ -1019,7 +1019,7 @@ static InterpretResult run()
 		case OP_DEFINE_GLOBAL: {
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
-			
+
 			//it's not a new key,no cache
 			tableSet(&vm.globals.fields, name, vm.stackTop[-1]);
 			vm.stackTop--;//can not dec first,because gc will kill it

@@ -59,7 +59,7 @@ typedef struct {
 	bool isConst; //is a const
 } Local;
 
-typedef struct LoopContext{
+typedef struct LoopContext {
 	int32_t start;
 	uint32_t enterParamCount;
 	uint16_t breakJumpCount;

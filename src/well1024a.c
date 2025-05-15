@@ -32,7 +32,7 @@ void well1024a_init(uint32_t seed) {
 }
 
 void well1024a_init64(uint64_t seed) {
-	well1024a_initArray((uint32_t[]) { seed >> 32, seed & UINT32_MAX }, 2);
+	well1024a_initArray((uint32_t[]) { seed >> 32, seed& UINT32_MAX }, 2);
 	well1024.index = 0; // reset
 }
 
