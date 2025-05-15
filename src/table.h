@@ -54,7 +54,7 @@ typedef struct {
 void table_init(Table* table);
 void table_free(Table* table);
 
-bool tableGet(Table* table, ObjString* key, Value* value);
+bool tableGet(Table* table, ObjString* key, Value* value_out);
 bool tableSet(Table* table, ObjString* key, Value value);
 bool tableDelete(Table* table, ObjString* key);
 void tableAddAll(Table* from, Table* to);

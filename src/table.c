@@ -103,13 +103,13 @@ static void adjustCapacity(Table* table, uint32_t capacity) {
 }
 
 HOT_FUNCTION
-bool tableGet(Table* table, ObjString* key, Value* value) {
+bool tableGet(Table* table, ObjString* key, Value* value_out) {
 	if (table->count == 0) return false;
 
 	Entry* entry = findEntry(table->entries, table->capacity, key, table->type);
 	if (entry->key == NULL) return false;
 
-	*value = entry->value;
+	*value_out = entry->value;
 	return true;
 }
 
