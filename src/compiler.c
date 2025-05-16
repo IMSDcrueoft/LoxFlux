@@ -555,7 +555,6 @@ static void function(FunctionType type) {
 
 			uint32_t constant = parseVariable("Expect parameter name.");
 			defineVariable(constant);
-
 		} while (match(TOKEN_COMMA));
 	}
 
@@ -1228,7 +1227,6 @@ static void namedVariable(Token name, bool canAssign) {
 	int32_t arg = args.arg;
 
 	if (arg != -1) {//it's a local var
-
 		if (canAssign && match(TOKEN_EQUAL)) {
 			expression();
 

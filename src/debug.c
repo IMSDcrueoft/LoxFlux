@@ -166,7 +166,7 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 	case OP_CONSTANT:
 		return constantInstruction("OP_CONSTANT", chunk, offset);
 
-	case OP_CLOSURE:{
+	case OP_CLOSURE: {
 		//24bit index
 		uint32_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8) | ((uint32_t)chunk->code[offset + 3] << 16);
 

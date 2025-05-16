@@ -9,8 +9,8 @@
 #define STATE_SIZE 32
 
 typedef struct {
-    uint32_t state[STATE_SIZE];
-    uint32_t index;
+	uint32_t state[STATE_SIZE];
+	uint32_t index;
 } well1024a;
 
 // init by array

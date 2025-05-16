@@ -3,8 +3,8 @@
 * Copyright (c) 2025 IMSDcrueoft (https://github.com/IMSDcrueoft)
 * See LICENSE file in the root directory for full license text.
 */
-#include "memory.h"  
-#include "object.h"  
+#include "memory.h"
+#include "object.h"
 #include "vm.h"
 #include "allocator.h"
 #include "gc.h"
@@ -125,7 +125,7 @@ void freeObject(Obj* object) {
 	{
 		//they share the same struct
 		ObjArray* array = (ObjArray*)object;
-		FREE_ARRAY(Value , array->payload, array->capacity);
+		FREE_ARRAY(Value, array->payload, array->capacity);
 #if DEBUG_LOG_GC
 		printf("[gc] %p free buffer : %llu\n", (void*)array->payload, (uint64_t)array->capacity * sizeof(Value));
 #endif
@@ -183,7 +183,6 @@ void freeObject(Obj* object) {
 
 void freeObjects()
 {
-
 #if DEBUG_LOG_GC
 	printf("-- free dynamic objects\n");
 #endif

@@ -54,7 +54,7 @@ typedef struct {
 void table_init(Table* table);
 void table_free(Table* table);
 
-bool tableGet(Table* table, ObjString* key, Value* value);
+bool tableGet(Table* table, ObjString* key, Value* value_out);
 bool tableSet(Table* table, ObjString* key, Value value);
 bool tableDelete(Table* table, ObjString* key);
 void tableAddAll(Table* from, Table* to);
@@ -62,7 +62,7 @@ void tableAddAll(Table* from, Table* to);
 //void tableRemoveWhite(Table* table);
 void markTable(Table* table);
 
-ObjString* tableFindString(StringTable* table, C_STR chars,uint32_t length, uint64_t hash);
+ObjString* tableFindString(StringTable* table, C_STR chars, uint32_t length, uint64_t hash);
 
 void stringTable_init(StringTable* table);
 void stringTable_free(StringTable* table);
@@ -72,4 +72,4 @@ StringEntry* tableGetStringEntry(StringTable* table, ObjString* key);
 //if not value exist, set add return the entry pointer
 void numberTable_init(NumberTable* table);
 void numberTable_free(NumberTable* table);
-NumberEntry* tableGetNumberEntry(NumberTable* table, Value *value);
+NumberEntry* tableGetNumberEntry(NumberTable* table, Value* value);
