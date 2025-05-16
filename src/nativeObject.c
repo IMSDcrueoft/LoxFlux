@@ -56,17 +56,7 @@ static Value getGlobalNative(int argCount, Value* args) {
 	if (argCount >= 1) {
 		if (IS_STRING(args[0])) {
 			ObjString* name = AS_STRING(args[0]);
-
-			//inline find by cache symbol
-			if ((name->symbol != INVALID_OBJ_STRING_SYMBOL)) {
-				Entry* entry = &vm.globals.entries[name->symbol];
-
-				if (entry->key == name) {
-					// We found the key.
-					return entry->value;
-				}
-			}
-
+			//inline cache make no sense here
 			Value value;
 			if (tableGet(&vm.globals, name, &value)) {
 				return value;
@@ -82,16 +72,7 @@ static Value setGlobalNative(int argCount, Value* args) {
 		if (IS_STRING(args[0])) {
 			ObjString* name = AS_STRING(args[0]);
 			Value value = (argCount >= 2) ? args[1] : NIL_VAL;
-
-			//inline find by cache symbol(if we found it,it's not new key)
-			if ((name->symbol != INVALID_OBJ_STRING_SYMBOL)) {
-				Entry* entry = &vm.globals.entries[name->symbol];
-				if (entry->key == name) {
-					// We found the key.
-					entry->value = value;
-				}
-			}
-
+			//inline cache make no sense here
 			tableSet(&vm.globals, name, value);
 			return BOOL_VAL(true);
 		}

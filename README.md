@@ -1,5 +1,5 @@
 # LoxFlux
-![Version](https://img.shields.io/badge/version-0.9.6-blue)
+![Version](https://img.shields.io/badge/version-0.9.7-blue)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/IMSDcrueoft/LoxFlux)
 
 LoxFlux is developed based on the cLox version of the Lox language (stack-based bytecode-virtual machine). Please note that the project has only completed most of its basic functions and is still being improved.
@@ -36,10 +36,10 @@ Lox is a programming language designed for learning purposes. It is conceived as
 
 |program|loxFlux|clox|
 |---|---|---|
-|fib30|76ms|84ms|
-|fib35|855ms|930ms|
-|fib40|9488ms|10254ms|
-|global loop 1e8|1214ms|2044ms|
+|fib30|75ms|84ms|
+|fib35|841ms|930ms|
+|fib40|9311ms|10254ms|
+|global loop 1e8|1190ms|2044ms|
 
 ---
 
@@ -224,7 +224,9 @@ The `@object` module provides utilities for type checking and object introspecti
   - `isString`: Verifies if a value is a string.
   - `isStringBuilder`: Verifies if a value is a stringBuilder.
   - `isNumber`: Verifies whether a value is a number.
-  - `isBoolean`: Verifies whether a value is true|false.
+  - `isBoolean`: Verifies whether a value is true or false.
+  - `getGlobal`: Get global variable with a string key.
+  - `setGlobal`: Set or define global variable with a string key.
 
 These functions are particularly useful for runtime type validation and debugging, allowing developers to write robust and error-resistant code.
 
