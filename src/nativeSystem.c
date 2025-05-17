@@ -117,7 +117,45 @@ static Value inputNative(int argCount, Value* args) {
 		uint64_t newCapacity = min(ARRAYLIKE_MAX, (stringBuilder->capacity * 3) >> 1);
 		reserveArray(stringBuilder, newCapacity);
 	}
+	//add null
 	ARRAY_ELEMENT(stringBuilder, char, stringBuilder->length) = '\0';
+
+	//deal with escape chars
+	if (stringBuilder->length > 0) {
+		char* input = (char*)stringBuilder->payload;
+		uint32_t readPos = 0;
+		uint32_t writePos = 0;
+
+		while (readPos < stringBuilder->length) {
+			if (input[readPos] == '\\' && (readPos + 1) < stringBuilder->length) {
+				readPos++;
+
+				switch (input[readPos]) {
+				case '\\': 
+					input[writePos++] = '\\';
+					break;
+				case '\"': 
+					input[writePos++] = '\"';
+					break;
+				case 'n':
+					input[writePos++] = '\n';
+					break;
+				default:
+					input[writePos++] = '\\';
+					input[writePos++] = input[readPos];
+					break;
+				}
+				readPos++;
+			}
+			else {
+				input[writePos++] = input[readPos++];
+			}
+		}
+
+		//update length
+		stringBuilder->length = writePos;
+		ARRAY_ELEMENT(stringBuilder, char, stringBuilder->length) = '\0';
+	}
 
 	return OBJ_VAL(stringBuilder);
 }
