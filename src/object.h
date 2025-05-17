@@ -76,8 +76,8 @@ struct Obj {
 		uintptr_t boxedNext;	//ptr: The user-space pointer's high 16 bits can be 0 directly,the high 16 bits of the pointer depends on the 47th bit
 	};
 };
-#define OBJ_PTR_SET_NEXT(obj,nextPtr)	(obj->boxedNext = (obj->boxedNext & UINT16_MAX) | ((uintptr_t)nextPtr << 16))
-#define OBJ_PTR_GET_NEXT(obj)			(Obj*)(obj->boxedNext >> 16)
+#define OBJ_PTR_SET_NEXT(obj,nextPtr)	((obj)->boxedNext = ((obj)->boxedNext & UINT16_MAX) | ((uintptr_t)nextPtr << 16))
+#define OBJ_PTR_GET_NEXT(obj)			(Obj*)((obj)->boxedNext >> 16)
 
 static inline Obj stateLess_obj_header(ObjType objType) {
 	Obj o = { .boxedNext = (uintptr_t)NULL << 16 };

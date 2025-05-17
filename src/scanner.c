@@ -375,6 +375,7 @@ static Token string() {
 				switch (peek()) {
 				case '"':  // '\"'
 				case '\\': // '\\'
+				case 'n':  // '\n'
 					isEscapeString = true;
 				default:
 					break;

@@ -2,5 +2,5 @@ var a = "strA";
 var b = "strB";
 print (a + b) == "strAstrB"; // Concatenation
 
-var c = "\"Hello\"";
+var c = "\"Hello\"\n";
 print c == ("\"He" + "llo\""); // Escaping double quotes
