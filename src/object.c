@@ -122,7 +122,8 @@ ObjClass* newClass(ObjString* name)
 	ObjClass* klass = ALLOCATE_OBJ(ObjClass, OBJ_CLASS);
 	klass->name = name;
 	klass->initializer = NIL_VAL;
-	klass->methods.type = TABLE_NORMAL;
+	klass->methods.isGlobal = false;
+	klass->methods.isFrozen = false;
 	table_init(&klass->methods);
 	return klass;
 }
@@ -131,7 +132,8 @@ HOT_FUNCTION
 ObjInstance* newInstance(ObjClass* klass) {
 	ObjInstance* instance = ALLOCATE_OBJ(ObjInstance, OBJ_INSTANCE);
 	instance->klass = klass;
-	instance->fields.type = TABLE_NORMAL;
+	instance->fields.isGlobal = false;
+	instance->fields.isFrozen = false;
 	table_init(&instance->fields);
 	return instance;
 }

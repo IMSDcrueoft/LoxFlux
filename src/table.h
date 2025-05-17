@@ -24,15 +24,12 @@ typedef struct {
 	uint32_t index;//index of constant array
 } StringEntry;
 
-typedef enum {
-	TABLE_NORMAL,
-	TABLE_GLOBAL,
-	TABLE_FREEZE
-} TableType;
-
 typedef struct {
-	TableType type;
-	uint32_t padding;
+	bool isGlobal;
+	bool isFrozen;
+
+	uint16_t padding;
+	uint32_t recentIndex;
 
 	uint32_t count;
 	uint32_t capacity;

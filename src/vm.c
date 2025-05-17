@@ -229,7 +229,7 @@ static void importBuiltins() {
 		vm.builtins[i] = (ObjInstance){
 		.obj = stateLess_obj_header(OBJ_INSTANCE),
 		.klass = NULL,
-		.fields = {.type = TABLE_NORMAL}//remind this
+		.fields = {.isGlobal = false,.isFrozen = false}//remind this
 		};
 	}
 
@@ -251,7 +251,7 @@ static void importBuiltins() {
 	importNative_system();
 
 	for (uint32_t i = 0; i < BUILTIN_MODULE_COUNT; ++i) {
-		vm.builtins[i].fields.type = TABLE_FREEZE;//remind this,we can't set first
+		vm.builtins[i].fields.isFrozen = true;//remind this,we can't set first
 	}
 }
 
@@ -304,7 +304,7 @@ void vm_init()
 
 	stack_reset();
 
-	vm.globals = (Table){ .type = TABLE_GLOBAL };//remind this
+	vm.globals = (Table){ .isGlobal = true,.isFrozen = false };//remind this
 	table_init(&vm.globals);
 
 	stringTable_init(&vm.strings);
@@ -324,8 +324,8 @@ void vm_init()
 	vm.bytesAllocated_no_gc = 0;
 	vm.nextGC = GC_HEAP_BEGIN;
 	vm.beginGC = GC_HEAP_BEGIN;
-	vm.gcMark = 1; //bool value
-	vm.gcWorking = 0; //bool value
+	vm.gcMark = true; //bool value
+	vm.gcWorking = false; //bool value
 
 	//import the builtins
 	importBuiltins();
