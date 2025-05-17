@@ -266,8 +266,6 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 	case OP_LOOP:
 		return jumpInstruction("OP_LOOP", -1, chunk, offset);
 
-	case OP_MODULE_GLOBAL:
-		return simpleInstruction("OP_MODULE_GLOBAL", offset);
 	case OP_MODULE_BUILTIN:
 		return builtinInStruction("OP_MODULE", chunk, offset);
 	default:

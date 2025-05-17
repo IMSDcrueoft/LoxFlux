@@ -300,7 +300,8 @@ ObjString* copyString(C_STR chars, uint32_t length, bool escapeChars)
 				if (i + 1 < length) {
 					switch (chars[i + 1]) {
 					case '\\':
-					case '"':
+					case '\"':
+					case 'n':
 						++i;
 						break;
 					default:
@@ -336,6 +337,10 @@ ObjString* copyString(C_STR chars, uint32_t length, bool escapeChars)
 					string->chars[writeIndex] = chars[readIndex + 1];
 					++writeIndex;
 					break;
+				case 'n':
+					string->chars[writeIndex] = '\n';
+					++writeIndex;
+					break;
 				default:
 					string->chars[writeIndex] = '\\';
 					++writeIndex;
@@ -364,8 +369,9 @@ ObjString* copyString(C_STR chars, uint32_t length, bool escapeChars)
 			return string;
 		}
 		else {
-			//free memory
-			FREE(ObjString, string);
+			//free memory this should be the first obj of the object list
+			vm.objects_no_gc = OBJ_PTR_GET_NEXT(&string->obj);
+			freeObject((Obj*)string);
 			return interned;
 		}
 	}
@@ -394,7 +400,8 @@ ObjString* connectString(ObjString* strA, ObjString* strB) {
 	}
 	else {
 		//free memory
-		FREE(ObjString, string);
+		vm.objects_no_gc = OBJ_PTR_GET_NEXT(&string->obj);
+		freeObject((Obj*)string);
 		return interned;
 	}
 }
