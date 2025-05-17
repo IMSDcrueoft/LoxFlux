@@ -26,19 +26,9 @@ void table_free(Table* table)
 }
 
 HOT_FUNCTION
-static Entry* findEntry(Entry* entries, uint32_t capacity, ObjString* key, TableType type) {
+static Entry* findEntry(Entry* entries, uint32_t capacity, ObjString* key, bool isGlobal) {
 	//check it
 	Entry* entry = NULL;
-
-	//find by cache symbol
-	if ((type == TABLE_GLOBAL) && (key->symbol != INVALID_OBJ_STRING_SYMBOL)) {
-		entry = &entries[key->symbol];
-
-		if (entry->key == key) {
-			// We found the key.
-			return entry;
-		}
-	}
 
 	uint32_t index = key->hash & (capacity - 1);
 	Entry* tombstone = NULL;
@@ -49,7 +39,7 @@ static Entry* findEntry(Entry* entries, uint32_t capacity, ObjString* key, Table
 		if (entry->key == NULL) {
 			if (IS_NIL(entry->value)) {
 				//only for global
-				if (type == TABLE_GLOBAL) {
+				if (isGlobal) {
 					key->symbol = index;
 				}
 				// if we find hole after tombstone ,it means the tombstone is target else return the hole
@@ -63,7 +53,7 @@ static Entry* findEntry(Entry* entries, uint32_t capacity, ObjString* key, Table
 		}
 		else if (entry->key == key) {
 			//only for global
-			if (type == TABLE_GLOBAL) {
+			if (isGlobal) {
 				key->symbol = index;
 			}
 			// We found the key.
@@ -89,7 +79,7 @@ static void adjustCapacity(Table* table, uint32_t capacity) {
 		Entry* entry = &table->entries[i];
 		if (entry->key == NULL) continue;
 
-		Entry* dest = findEntry(entries, capacity, entry->key, table->type);
+		Entry* dest = findEntry(entries, capacity, entry->key, table->isGlobal);
 		dest->key = entry->key;
 		dest->value = entry->value;
 
@@ -106,7 +96,7 @@ HOT_FUNCTION
 bool tableGet(Table* table, ObjString* key, Value* value_out) {
 	if (table->count == 0) return false;
 
-	Entry* entry = findEntry(table->entries, table->capacity, key, table->type);
+	Entry* entry = findEntry(table->entries, table->capacity, key, table->isGlobal);
 	if (entry->key == NULL) return false;
 
 	*value_out = entry->value;
@@ -116,7 +106,7 @@ bool tableGet(Table* table, ObjString* key, Value* value_out) {
 HOT_FUNCTION
 bool tableSet(Table* table, ObjString* key, Value value)
 {
-	if (table->type == TABLE_FREEZE) return false;// not allowed
+	if (table->isFrozen) return false;// not allowed
 
 	//if (table->count + 1 > table->capacity * TABLE_MAX_LOAD) {
 	if ((table->count + 1) > MUL_3_DIV_4((uint64_t)(table->capacity))) {
@@ -124,7 +114,7 @@ bool tableSet(Table* table, ObjString* key, Value value)
 		adjustCapacity(table, capacity);
 	}
 
-	Entry* entry = findEntry(table->entries, table->capacity, key, table->type);
+	Entry* entry = findEntry(table->entries, table->capacity, key, table->isGlobal);
 	bool isNewKey = entry->key == NULL;
 	if (isNewKey && IS_NIL(entry->value)) table->count++;
 
@@ -135,12 +125,12 @@ bool tableSet(Table* table, ObjString* key, Value value)
 
 HOT_FUNCTION
 bool tableDelete(Table* table, ObjString* key) {
-	if (table->type == TABLE_FREEZE) return false;// not allowed
+	if (table->isFrozen) return false;// not allowed
 
 	if (table->count == 0) return false;
 
 	// Find the entry.
-	Entry* entry = findEntry(table->entries, table->capacity, key, table->type);
+	Entry* entry = findEntry(table->entries, table->capacity, key, table->isGlobal);
 	if (entry->key == NULL) return false;
 
 	// Place a tombstone in the entry.

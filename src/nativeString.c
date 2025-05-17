@@ -159,6 +159,7 @@ static void growStringBuilder(ObjArray* builder, uint32_t appendLen) {
 	}
 }
 
+COLD_FUNCTION
 static Value appendNative(int argCount, Value* args) {
 	if (argCount >= 1 && IS_STRING_BUILDER(args[0])) {
 		ObjArray* stringBuilder = AS_ARRAY(args[0]);
@@ -169,17 +170,20 @@ static Value appendNative(int argCount, Value* args) {
 
 			if (IS_STRING(args[1])) {
 				ObjString* string = AS_STRING(args[1]);
-				stringPtr = &string->chars[0];
+
 				length = string->length;
+				growStringBuilder(stringBuilder, length);
+				stringPtr = &string->chars[0];
 			}
 			else if (IS_STRING_BUILDER(args[1])) {
 				ObjArray* string = AS_ARRAY(args[1]);
-				stringPtr = string->payload;
+				
 				length = string->length;
+				growStringBuilder(stringBuilder, length);
+				stringPtr = string->payload;//can append self ,this will error
 			}
 
 			if (stringPtr != NULL) {
-				growStringBuilder(stringBuilder, length);
 				memcpy((char*)stringBuilder->payload + stringBuilder->length, stringPtr, length);
 				stringBuilder->length += length;
 				ARRAY_ELEMENT(stringBuilder, char, stringBuilder->length) = '\0';

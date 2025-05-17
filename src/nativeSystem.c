@@ -92,6 +92,74 @@ static Value errorNative(int argCount, Value* args) {
 	return NIL_VAL;
 }
 
+static Value inputNative(int argCount, Value* args) {
+	//don't need param
+	ObjArray* stringBuilder = newArray(OBJ_STRING_BUILDER);
+	stack_push(OBJ_VAL(stringBuilder));
+
+	//init size
+	reserveArray(stringBuilder, 16);
+
+	int c;
+	while ((c = getchar()) != '\n' && c != EOF) {
+		//check capcity
+		if (stringBuilder->length + 1 >= stringBuilder->capacity) {
+			uint64_t newCapacity = min(ARRAYLIKE_MAX, (stringBuilder->capacity * 3) >> 1);
+			reserveArray(stringBuilder, newCapacity);
+		}
+
+		// append
+		ARRAY_ELEMENT(stringBuilder, char, stringBuilder->length) = (char)c;
+		stringBuilder->length++;
+	}
+
+	if (stringBuilder->length + 1 >= stringBuilder->capacity) {
+		uint64_t newCapacity = min(ARRAYLIKE_MAX, (stringBuilder->capacity * 3) >> 1);
+		reserveArray(stringBuilder, newCapacity);
+	}
+	//add null
+	ARRAY_ELEMENT(stringBuilder, char, stringBuilder->length) = '\0';
+
+	//deal with escape chars
+	if (stringBuilder->length > 0) {
+		char* input = (char*)stringBuilder->payload;
+		uint32_t readPos = 0;
+		uint32_t writePos = 0;
+
+		while (readPos < stringBuilder->length) {
+			if (input[readPos] == '\\' && (readPos + 1) < stringBuilder->length) {
+				readPos++;
+
+				switch (input[readPos]) {
+				case '\\': 
+					input[writePos++] = '\\';
+					break;
+				case '\"': 
+					input[writePos++] = '\"';
+					break;
+				case 'n':
+					input[writePos++] = '\n';
+					break;
+				default:
+					input[writePos++] = '\\';
+					input[writePos++] = input[readPos];
+					break;
+				}
+				readPos++;
+			}
+			else {
+				input[writePos++] = input[readPos++];
+			}
+		}
+
+		//update length
+		stringBuilder->length = writePos;
+		ARRAY_ELEMENT(stringBuilder, char, stringBuilder->length) = '\0';
+	}
+
+	return OBJ_VAL(stringBuilder);
+}
+
 #undef KiB16
 #undef GiB1
 
@@ -105,4 +173,6 @@ void importNative_system() {
 
 	defineNative_system("log", logNative);
 	defineNative_system("error", errorNative);
+
+	defineNative_system("input", inputNative);
 }
