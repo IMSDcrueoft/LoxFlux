@@ -92,6 +92,36 @@ static Value errorNative(int argCount, Value* args) {
 	return NIL_VAL;
 }
 
+static Value inputNative(int argCount, Value* args) {
+	//don't need param
+	ObjArray* stringBuilder = newArray(OBJ_STRING_BUILDER);
+	stack_push(OBJ_VAL(stringBuilder));
+
+	//init size
+	reserveArray(stringBuilder, 16);
+
+	int c;
+	while ((c = getchar()) != '\n' && c != EOF) {
+		//check capcity
+		if (stringBuilder->length + 1 >= stringBuilder->capacity) {
+			uint64_t newCapacity = min(ARRAYLIKE_MAX, (stringBuilder->capacity * 3) >> 1);
+			reserveArray(stringBuilder, newCapacity);
+		}
+
+		// append
+		ARRAY_ELEMENT(stringBuilder, char, stringBuilder->length) = (char)c;
+		stringBuilder->length++;
+	}
+
+	if (stringBuilder->length + 1 >= stringBuilder->capacity) {
+		uint64_t newCapacity = min(ARRAYLIKE_MAX, (stringBuilder->capacity * 3) >> 1);
+		reserveArray(stringBuilder, newCapacity);
+	}
+	ARRAY_ELEMENT(stringBuilder, char, stringBuilder->length) = '\0';
+
+	return OBJ_VAL(stringBuilder);
+}
+
 #undef KiB16
 #undef GiB1
 
@@ -105,4 +135,6 @@ void importNative_system() {
 
 	defineNative_system("log", logNative);
 	defineNative_system("error", errorNative);
+
+	defineNative_system("input", inputNative);
 }
