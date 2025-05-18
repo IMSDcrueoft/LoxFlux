@@ -184,6 +184,7 @@
     <ClCompile Include="src\numberTable.c" />
     <ClCompile Include="src\object.c" />
     <ClCompile Include="src\nativeObject.c" />
+    <ClCompile Include="src\path.cpp" />
     <ClCompile Include="src\scanner.c" />
     <ClCompile Include="src\nativeString.c" />
     <ClCompile Include="src\stringTable.c" />
@@ -207,6 +208,7 @@
     <ClInclude Include="src\entrance.h" />
     <ClInclude Include="src\optimize.h" />
     <ClInclude Include="src\options.h" />
+    <ClInclude Include="src\path.h" />
     <ClInclude Include="src\scanner.h" />
     <ClInclude Include="src\table.h" />
     <ClInclude Include="src\timer.h" />
