@@ -268,7 +268,7 @@ static Value stringBuilderNative(int argCount, Value* args) {
 
 		if (IS_STRING(args[0])) {
 			ObjString* string = AS_STRING(args[0]);
-			stringPtr = &string->chars[0];
+			stringPtr = string->chars;
 			length = string->length;
 		}
 		else if (IS_STRING_BUILDER(args[0])) {

@@ -30,7 +30,7 @@ static Value UTF8LenNative(int argCount, Value* args) {
 
 		if (IS_STRING(args[0])) {
 			ObjString* utf8_string = AS_STRING(args[0]);
-			stringPtr = &utf8_string->chars[0];
+			stringPtr = utf8_string->chars;
 			length = utf8_string->length;
 		}
 		else if (IS_STRING_BUILDER(args[0])) {
@@ -75,7 +75,7 @@ static Value charAtNative(int argCount, Value* args) {
 
 		if (IS_STRING(args[0])) {
 			ObjString* string = AS_STRING(args[0]);
-			stringPtr = &string->chars[0];
+			stringPtr = string->chars;
 			length = string->length;
 		}
 		else if (IS_STRING_BUILDER(args[0])) {
@@ -103,7 +103,7 @@ static Value utf8AtNative(int argCount, Value* args) {
 
 		if (IS_STRING(args[0])) {
 			ObjString* string = AS_STRING(args[0]);
-			stringPtr = &string->chars[0];
+			stringPtr = string->chars;
 			length = string->length;
 		}
 		else if (IS_STRING_BUILDER(args[0])) {
@@ -173,7 +173,7 @@ static Value appendNative(int argCount, Value* args) {
 
 				length = string->length;
 				growStringBuilder(stringBuilder, length);
-				stringPtr = &string->chars[0];
+				stringPtr = string->chars;
 			}
 			else if (IS_STRING_BUILDER(args[1])) {
 				ObjArray* string = AS_ARRAY(args[1]);
@@ -267,7 +267,7 @@ static Value parseIntNative(int argCount, Value* args) {
 		// Get string pointer and length from either String or StringBuilder
 		if (IS_STRING(args[0])) {
 			ObjString* string = AS_STRING(args[0]);
-			stringPtr = &string->chars[0];
+			stringPtr = string->chars;
 			length = string->length;
 		}
 		else if (IS_STRING_BUILDER(args[0])) {
@@ -328,7 +328,7 @@ static Value parseFloatNative(int argCount, Value* args) {
 
 		if (IS_STRING(args[0])) {
 			ObjString* string = AS_STRING(args[0]);
-			stringPtr = &string->chars[0];
+			stringPtr = string->chars;
 			length = string->length;
 		}
 		else if (IS_STRING_BUILDER(args[0])) {
@@ -351,6 +351,71 @@ static Value parseFloatNative(int argCount, Value* args) {
 	return NAN_VAL;
 }
 
+static Value sliceNative(int argCount, Value* args) {
+	if (argCount < 2 || !IS_NUMBER(args[1])) {
+		fprintf(stderr, "slice expects a string or stringBuilder and at least one number argument.\n");
+		return NIL_VAL;
+	}
+
+	C_STR stringPtr = NULL;
+	int64_t length = 0;
+
+	if (IS_STRING(args[0])) {
+		ObjString* string = AS_STRING(args[0]);
+		stringPtr = string->chars;
+		length = string->length;
+	}
+	else if (IS_STRING_BUILDER(args[0])) {
+		ObjArray* string = AS_ARRAY(args[0]);
+		stringPtr = string->payload;
+		length = string->length;
+	}
+	else {
+		fprintf(stderr, "slice expects a string or stringBuilder as first argument.\n");
+		return NIL_VAL;
+	}
+
+	double beginIndexf = AS_NUMBER(args[1]);
+	double endIndexf = length;
+
+	if (argCount >= 3 && IS_NUMBER(args[2])) {
+		endIndexf = AS_NUMBER(args[2]);
+	}
+
+	// neg index
+	int64_t beginIndex = (int64_t)beginIndexf;
+	if (beginIndex < 0) {
+		beginIndex = length + beginIndex;
+	}
+
+	int64_t endIndex = (int64_t)endIndexf;
+	if (endIndex < 0) {
+		endIndex = length + endIndex;
+	}
+
+	// check range
+	beginIndex = (beginIndex < 0) ? 0 : (beginIndex > length ? length : beginIndex);
+	endIndex = (endIndex < beginIndex) ? beginIndex : (endIndex > length ? length : endIndex);
+
+	// calc slice length
+	uint32_t sliceLength = endIndex - beginIndex;
+
+	ObjArray* stringBuilder = newArray(OBJ_STRING_BUILDER);
+	stack_push(OBJ_VAL(stringBuilder));
+
+	if (sliceLength > 0) {
+		//allocate
+		reserveArray(stringBuilder, sliceLength + 1);
+
+		// copy
+		memcpy(stringBuilder->payload, stringPtr + beginIndex, sliceLength);
+		stringBuilder->length = sliceLength;
+		ARRAY_ELEMENT(stringBuilder, char, stringBuilder->length) = '\0';
+	}
+
+	return OBJ_VAL(stringBuilder);
+}
+
 COLD_FUNCTION
 void importNative_string() {
 	defineNative_string("length", lengthNative);
@@ -360,6 +425,7 @@ void importNative_string() {
 	defineNative_string("append", appendNative);
 	defineNative_string("intern", internNative);
 	defineNative_string("equals", equalsNative);
+	defineNative_string("slice", sliceNative);
 	defineNative_string("parseInt", parseIntNative);
 	defineNative_string("parseFloat", parseFloatNative);
 }

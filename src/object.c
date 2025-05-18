@@ -422,7 +422,12 @@ static void printFunction(ObjFunction* function) {
 
 static void printArrayLike(ObjArray* array, bool isExpand) {
 	if (OBJ_GET_TYPE(array->obj) == OBJ_STRING_BUILDER) {
-		printf("%s", (STR)array->payload);
+		if (array->payload != NULL) {
+			printf("%s", (STR)array->payload);
+		}
+		else {
+			printf("<empty stringBuilder>");
+		}
 		return;
 	}
 

@@ -171,7 +171,7 @@ static Value readFileNative(int argCount, Value* args) {
 
 	if (IS_STRING(args[0])) {
 		ObjString* pathString = AS_STRING(args[0]);
-		path = &pathString->chars[0];
+		path = pathString->chars;
 	}
 	else if (IS_STRING_BUILDER(args[0])) {
 		ObjArray* pathBuilder = AS_ARRAY(args[0]);

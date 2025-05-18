@@ -128,15 +128,15 @@ static void blackenObject(Obj* object) {
 		markObject((Obj*)bound->method);
 		break;
 	}
-						 //won't be here
-					 //case OBJ_FUNCTION: {
-					 //	ObjFunction* function = (ObjFunction*)object;
-					 //	markObject((Obj*)function->name);
+	// //won't be here
+	//case OBJ_FUNCTION: {
+	//	ObjFunction* function = (ObjFunction*)object;
+	//	markObject((Obj*)function->name);
 
-					 //	//I don't have this field in design
-					 //	//markArray(&function->chunk.constants);
-					 //	break;
-					 //}
+	//	//I don't have this field in design
+	//	//markArray(&function->chunk.constants);
+	//	break;
+	//}
 	case OBJ_CLASS: {
 		ObjClass* klass = (ObjClass*)object;
 		//markObject((Obj*)klass->name);
