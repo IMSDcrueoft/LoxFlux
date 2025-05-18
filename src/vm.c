@@ -1335,7 +1335,7 @@ InterpretResult interpret(C_STR source)
 	uint64_t time_compile = get_milliseconds();
 #endif
 
-	ObjFunction* function = compile(source);
+	ObjFunction* function = compile(source, TYPE_SCRIPT);
 	if (function == NULL) return INTERPRET_COMPILE_ERROR;
 
 #if LOG_COMPILE_TIMING

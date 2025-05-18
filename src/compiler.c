@@ -246,7 +246,8 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 		local->name.length = 0;
 	}
 
-	if (compiler->enclosing == NULL) {
+	//the module don't work in global scope
+	if (compiler->enclosing == NULL && (type != TYPE_METHOD)) {
 		compiler->nestingDepth = 0;
 	}
 	else {
@@ -845,6 +846,22 @@ static void returnStatement() {
 	}
 }
 
+//exports in module script
+static void exportsStatement() {
+	if (current->type != TYPE_MODULE) {
+		error("Only module can use 'exports'.");
+	}
+
+	if (match(TOKEN_SEMICOLON)) {
+		emitReturn();
+	}
+	else {
+		expression();
+		consume(TOKEN_SEMICOLON, "Expect ';' after exports value.");
+		emitByte(OP_RETURN);
+	}
+}
+
 static void whileStatement() {
 	int32_t loopStart = currentChunk()->count;
 
@@ -1003,6 +1020,9 @@ static void statement() {
 	}
 	else if (match(TOKEN_THROW)) {
 		throwStatement();
+	}
+	else if (match(TOKEN_EXPORTS)) {
+		exportsStatement();
 	}
 	else {
 		expressionStatement();
@@ -1413,17 +1433,18 @@ ParseRule rules[] = {
 	[TOKEN_EOF] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_BREAK] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_CONTINUE] = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_EXPORTS] = {NULL,     NULL,   PREC_NONE},
 };
 
 static ParseRule* getRule(TokenType type) {
 	return &rules[type];
 }
 
-ObjFunction* compile(C_STR source) {
+ObjFunction* compile(C_STR source, FunctionType compileType) {
 	Compiler compiler;
 
 	scanner_init(source);
-	initCompiler(&compiler, TYPE_SCRIPT);
+	initCompiler(&compiler, compileType);
 
 	//init flags
 	parser.hadError = false;
