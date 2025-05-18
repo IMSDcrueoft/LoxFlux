@@ -222,6 +222,8 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	//it's a function
 	switch (type) {
 	case TYPE_FUNCTION:
+	case TYPE_METHOD: 
+	case TYPE_INITIALIZER:
 		compiler->function->name = copyString(parser.previous.start, parser.previous.length, false);
 		break;
 	case TYPE_LAMBDA:
