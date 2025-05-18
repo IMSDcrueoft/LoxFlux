@@ -160,6 +160,68 @@ static Value inputNative(int argCount, Value* args) {
 	return OBJ_VAL(stringBuilder);
 }
 
+COLD_FUNCTION
+static Value readFileNative(int argCount, Value* args) {
+	if (argCount < 1) {
+		fprintf(stderr, "readFile expects a path argument.\n");
+		return NIL_VAL;
+	}
+
+	C_STR path = NULL;
+
+	if (IS_STRING(args[0])) {
+		ObjString* pathString = AS_STRING(args[0]);
+		path = &pathString->chars[0];
+	}
+	else if (IS_STRING_BUILDER(args[0])) {
+		ObjArray* pathBuilder = AS_ARRAY(args[0]);
+		path = pathBuilder->payload;
+	}
+	else {
+		fprintf(stderr, "readFile expects a string or stringBuilder path argument.\n");
+		return NIL_VAL;
+	}
+
+	FILE* file = fopen(path, "rb");
+
+	if (file == NULL) {
+		fprintf(stderr, "Could not open file \"%s\".\n", path);
+		return NIL_VAL;
+	}
+
+	fseek(file, 0L, SEEK_END);
+	uint64_t fileSize = ftell(file);
+	rewind(file);
+
+	// check file size
+	if (fileSize > ARRAYLIKE_MAX - 1) { // left 1 byte for null terminator
+		fclose(file);
+		fprintf(stderr, "File size exceeds maximum StringBuilder capacity.\n");
+		return NIL_VAL;
+	}
+
+	ObjArray* stringBuilder = newArray(OBJ_STRING_BUILDER);
+	stack_push(OBJ_VAL(stringBuilder));
+
+	// allocate memory
+	reserveArray(stringBuilder, fileSize + 1);
+
+	// read size
+	uint64_t bytesRead = fread(stringBuilder->payload, sizeof(char), fileSize, file);
+	fclose(file);
+
+	if (bytesRead < fileSize) {
+		fprintf(stderr, "Could not read file \"%s\".\n", path);
+		return NIL_VAL;
+	}
+
+	// set length and null terminator
+	stringBuilder->length = (uint32_t)bytesRead;
+	ARRAY_ELEMENT(stringBuilder, char, stringBuilder->length) = '\0';
+
+	return OBJ_VAL(stringBuilder);
+}
+
 #undef KiB16
 #undef GiB1
 
@@ -175,4 +237,5 @@ void importNative_system() {
 	defineNative_system("error", errorNative);
 
 	defineNative_system("input", inputNative);
+	defineNative_system("readFile", readFileNative);
 }

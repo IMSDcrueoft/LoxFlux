@@ -283,8 +283,9 @@ The `@sys` module offers low-level system utilities, primarily focused on memory
 
 - **Io**
   - `log`: Unlike the `print` keyword, it allows for multiple inputs and behaves slightly differently.It automatically expands the contents of the array and prints (but not recursively).
-  - `error`: Output string|stringBuilder information to stderr.
+  - `error`: Output string or stringBuilder information to stderr.
   - `input`: Read a line of input from the console and return a stringBuilder.
+  - `readFile`: Reads the contents of a file and returns them as a StringBuilder object. 
 
 - **Garbage Collection**:
   - `gc`: Triggers a full garbage collection cycle.

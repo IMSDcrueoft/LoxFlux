@@ -50,6 +50,7 @@ static STR readFile(C_STR path) {
 	}
 
 	uint64_t bytesRead = fread(buffer, sizeof(char), fileSize, file);
+	fclose(file);
 
 	if (bytesRead < fileSize) {
 		fprintf(stderr, "Could not read file \"%s\".\n", path);
@@ -58,7 +59,6 @@ static STR readFile(C_STR path) {
 
 	buffer[bytesRead] = '\0';
 
-	fclose(file);
 	return buffer;
 }
 
