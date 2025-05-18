@@ -6,6 +6,7 @@
 #include "entrance.h"
 #include "version.h"
 #include "vm.h"
+#include "file.h"
 
 static void print_help() {
 	printf("Commands:\n");
@@ -28,38 +29,6 @@ static void clear_console() {
 		printf("\n\n\n\n\n\n\n\n\n\n");
 	}
 #endif
-}
-
-static STR readFile(C_STR path) {
-	FILE* file = fopen(path, "rb");
-
-	if (file == NULL) {
-		fprintf(stderr, "Could not open file \"%s\".\n", path);
-		exit(74);
-	}
-
-	fseek(file, 0L, SEEK_END);
-	uint64_t fileSize = ftell(file);
-	rewind(file);
-
-	STR buffer = (STR)malloc(fileSize + 1);
-
-	if (buffer == NULL) {
-		fprintf(stderr, "Not enough memory to read \"%s\".\n", path);
-		exit(74);
-	}
-
-	uint64_t bytesRead = fread(buffer, sizeof(char), fileSize, file);
-	fclose(file);
-
-	if (bytesRead < fileSize) {
-		fprintf(stderr, "Could not read file \"%s\".\n", path);
-		exit(74);
-	}
-
-	buffer[bytesRead] = '\0';
-
-	return buffer;
 }
 
 static STR dealWithFilePath(STR line) {

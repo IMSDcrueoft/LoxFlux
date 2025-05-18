@@ -5,6 +5,8 @@
 */
 #pragma once
 #include "common.h"
-
-void runFile(C_STR path);
-void repl();
+/**
+ * @brief never return null
+ */
+STR readFile(C_STR path);
+STR getAbsolutePath(C_STR path);

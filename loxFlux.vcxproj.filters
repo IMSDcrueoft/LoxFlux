@@ -95,7 +95,7 @@
     <ClCompile Include="src\stringTable.c">
       <Filter>loxFlux\source</Filter>
     </ClCompile>
-    <ClCompile Include="src\path.cpp">
+    <ClCompile Include="src\file.c">
       <Filter>loxFlux\source</Filter>
     </ClCompile>
   </ItemGroup>
@@ -163,7 +163,7 @@
     <ClInclude Include="src\optimize.h">
       <Filter>loxFlux\header</Filter>
     </ClInclude>
-    <ClInclude Include="src\path.h">
+    <ClInclude Include="src\file.h">
       <Filter>loxFlux\header</Filter>
     </ClInclude>
   </ItemGroup>

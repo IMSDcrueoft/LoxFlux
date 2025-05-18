@@ -6,6 +6,7 @@
 #include "vm.h"
 #include "object.h"
 #include "gc.h"
+#include "file.h"
 
 #if DEBUG_TRACE_EXECUTION
 #include "debug.h"
@@ -1307,10 +1308,56 @@ static InterpretResult run()
 			ip = frame->ip;
 			break;
 		}
-
 		case OP_MODULE_BUILTIN: {
 			uint8_t moduleIndex = READ_BYTE();
 			stack_push(OBJ_VAL(&vm.builtins[moduleIndex]));
+			break;
+		}
+		case OP_IMPORTS: {
+			Value target = vm.stackTop[-1];
+			C_STR path = NULL;
+
+			if (IS_STRING(target)) {
+				ObjString* pathStr = AS_STRING(target);
+				path = pathStr->chars;
+			}
+			else if (IS_STRING_BUILDER(target)) {
+				ObjArray* pathStringBuilder = AS_ARRAY(target);
+				path = pathStringBuilder->payload;
+			}
+			else {
+				runtimeError("Path must be string or stringBuilder.");
+				return INTERPRET_RUNTIME_ERROR;
+			}
+
+			STR absolutePath = getAbsolutePath(path);
+			if (absolutePath == NULL) {
+				runtimeError("Failed to get absolute file path.");
+				return INTERPRET_RUNTIME_ERROR;
+			}
+
+			// TODO: do deduplicate in the future
+
+			//this function never return null
+			STR source = readFile(absolutePath);
+			free(absolutePath);// free memory
+
+			ObjFunction* function = compile(source, TYPE_MODULE);
+			free(source);// free memory
+			if (function == NULL) return INTERPRET_COMPILE_ERROR;
+
+			//same as interpret()
+			ObjClosure* closure = newClosure(function);
+			stack_replace(OBJ_VAL(closure));
+
+			//call the module
+			frame->ip = ip;//change before call
+
+			call(closure, 0);
+
+			//we entered the function
+			frame = &vm.frames[vm.frameCount - 1];
+			ip = frame->ip;//restore after call
 			break;
 		}
 		}

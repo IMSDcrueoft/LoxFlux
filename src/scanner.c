@@ -188,6 +188,7 @@ static TokenType identifierType() {
 			switch (scanner.start[1]) {
 			case 'f': return checkKeyword(2, 0, "", TOKEN_IF);
 			case 'n': return checkKeyword(2, 8, "stanceOf", TOKEN_INSTANCE_OF);
+			case 'm': return checkKeyword(2, 5, "ports", TOKEN_IMPORTS);
 			}
 		}
 		break;
