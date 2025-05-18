@@ -70,9 +70,10 @@ typedef struct LoopContext {
 
 typedef enum {
 	TYPE_FUNCTION,
-	TYPE_LAMBDA,
 	TYPE_METHOD, //class method
 	TYPE_INITIALIZER, //class init
+	TYPE_LAMBDA,
+	TYPE_MODULE, // module script
 	TYPE_SCRIPT
 } FunctionType;
 
@@ -105,5 +106,5 @@ typedef struct ClassCompiler {
 	bool hasSuperclass;
 } ClassCompiler;
 
-ObjFunction* compile(C_STR source);
+ObjFunction* compile(C_STR source, FunctionType compileType);
 void markCompilerRoots();

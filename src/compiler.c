@@ -222,6 +222,8 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	//it's a function
 	switch (type) {
 	case TYPE_FUNCTION:
+	case TYPE_METHOD: 
+	case TYPE_INITIALIZER:
 		compiler->function->name = copyString(parser.previous.start, parser.previous.length, false);
 		break;
 	case TYPE_LAMBDA:
@@ -244,6 +246,7 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 		local->name.length = 0;
 	}
 
+	// the module don't work in global scope
 	if (compiler->enclosing == NULL) {
 		compiler->nestingDepth = 0;
 	}
@@ -252,6 +255,11 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 		if (compiler->nestingDepth == FUNCTION_MAX_NESTING) {
 			error("Too many nested functions.");
 		}
+	}
+
+	// run in block
+	if (type == TYPE_MODULE) {
+		compiler->scopeDepth = 1;
 	}
 }
 
@@ -843,6 +851,32 @@ static void returnStatement() {
 	}
 }
 
+//exports in module script
+static void exportsStatement() {
+	if (current->type != TYPE_MODULE) {
+		error("Only module can use 'exports'.");
+	}
+
+	if (match(TOKEN_SEMICOLON)) {
+		emitReturn();
+	}
+	else {
+		expression();
+		consume(TOKEN_SEMICOLON, "Expect ';' after exports value.");
+		emitByte(OP_RETURN);
+	}
+}
+
+static void import_(bool canAssign) {
+	consume(TOKEN_LEFT_PAREN, "Expect '(' after 'import'.");
+	//parse the module name
+	expression();
+	consume(TOKEN_RIGHT_PAREN, "Expect ')' after path.");
+
+	//emit the import command
+	emitByte(OP_IMPORT);
+}
+
 static void whileStatement() {
 	int32_t loopStart = currentChunk()->count;
 
@@ -1001,6 +1035,9 @@ static void statement() {
 	}
 	else if (match(TOKEN_THROW)) {
 		throwStatement();
+	}
+	else if (match(TOKEN_EXPORT)) {
+		exportsStatement();
 	}
 	else {
 		expressionStatement();
@@ -1411,17 +1448,19 @@ ParseRule rules[] = {
 	[TOKEN_EOF] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_BREAK] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_CONTINUE] = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_IMPORT] = {import_,     NULL,   PREC_NONE},
+	[TOKEN_EXPORT] = {NULL,     NULL,   PREC_NONE},
 };
 
 static ParseRule* getRule(TokenType type) {
 	return &rules[type];
 }
 
-ObjFunction* compile(C_STR source) {
+ObjFunction* compile(C_STR source, FunctionType compileType) {
 	Compiler compiler;
 
 	scanner_init(source);
-	initCompiler(&compiler, TYPE_SCRIPT);
+	initCompiler(&compiler, compileType);
 
 	//init flags
 	parser.hadError = false;

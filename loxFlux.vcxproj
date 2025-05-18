@@ -168,6 +168,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.c" />
+    <ClCompile Include="src\file.c" />
     <ClCompile Include="src\nativeArray.c" />
     <ClCompile Include="src\chunk.c" />
     <ClCompile Include="src\compiler.c" />
@@ -194,6 +195,7 @@
     <ClCompile Include="src\well1024a.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\file.h" />
     <ClInclude Include="src\nativeBuiltin.h" />
     <ClInclude Include="src\chunk.h" />
     <ClInclude Include="src\common.h" />

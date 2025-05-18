@@ -6,6 +6,7 @@
 #include "vm.h"
 #include "object.h"
 #include "gc.h"
+#include "file.h"
 
 #if DEBUG_TRACE_EXECUTION
 #include "debug.h"
@@ -35,6 +36,33 @@ static void stack_reset()
 
 	vm.frameCount = 0;
 	vm.openUpvalues = NULL;
+}
+
+COLD_FUNCTION
+static ObjFunction* getCachedScript(STR absolutePath) {
+	// only to seek with absolute path
+	ObjString* path = copyString(absolutePath, (uint32_t)strlen(absolutePath), false);
+
+	// get deduplicate script
+	StringEntry* entry = tableGetScriptEntry(&vm.scripts, path);
+	ObjFunction* function = (entry != NULL) ? AS_FUNCTION(vm.constants.values[entry->index]) : NULL;
+
+	//only add here, so no need check index
+	if (function == NULL) {
+		//this readFile function never return null
+		STR source = readFile(absolutePath);
+		free(absolutePath);// free memory
+
+		function = compile(source, TYPE_MODULE);
+		free(source);// free memory
+
+		if (function != NULL) {
+			// add to pool
+			tableSet_script(&vm.scripts, path, addConstant(OBJ_VAL(function)));
+		}
+	}
+
+	return function;
 }
 
 COLD_FUNCTION
@@ -307,6 +335,7 @@ void vm_init()
 	vm.globals = (Table){ .isGlobal = true,.isFrozen = false };//remind this
 	table_init(&vm.globals);
 
+	stringTable_init(&vm.scripts);
 	stringTable_init(&vm.strings);
 	numberTable_init(&vm.numbers);
 
@@ -355,6 +384,7 @@ void vm_free()
 	valueHoles_free(&vm.constantHoles);
 
 	table_free(&vm.globals);
+	stringTable_free(&vm.scripts);
 	stringTable_free(&vm.strings);
 	numberTable_free(&vm.numbers);
 
@@ -1307,10 +1337,41 @@ static InterpretResult run()
 			ip = frame->ip;
 			break;
 		}
-
 		case OP_MODULE_BUILTIN: {
 			uint8_t moduleIndex = READ_BYTE();
 			stack_push(OBJ_VAL(&vm.builtins[moduleIndex]));
+			break;
+		}
+		case OP_IMPORT: {
+			Value target = vm.stackTop[-1];
+			if (!IS_STRING(target)) {
+				runtimeError("Path to import must be a string.");
+				return INTERPRET_RUNTIME_ERROR;
+			}
+
+			ObjString* path = AS_STRING(target);
+			STR absolutePath = getAbsolutePath(path->chars);
+
+			if (absolutePath == NULL) {
+				runtimeError("Failed to get absolute file path.");
+				return INTERPRET_RUNTIME_ERROR;
+			}
+
+			ObjFunction* function = getCachedScript(absolutePath);
+			if (function == NULL) return INTERPRET_COMPILE_ERROR;
+
+			//same as interpret()
+			ObjClosure* closure = newClosure(function);
+			stack_replace(OBJ_VAL(closure));
+
+			//call the module
+			frame->ip = ip;//change before call
+
+			call(closure, 0);
+
+			//we entered the function
+			frame = &vm.frames[vm.frameCount - 1];
+			ip = frame->ip;//restore after call
 			break;
 		}
 		}
@@ -1335,7 +1396,7 @@ InterpretResult interpret(C_STR source)
 	uint64_t time_compile = get_milliseconds();
 #endif
 
-	ObjFunction* function = compile(source);
+	ObjFunction* function = compile(source, TYPE_SCRIPT);
 	if (function == NULL) return INTERPRET_COMPILE_ERROR;
 
 #if LOG_COMPILE_TIMING

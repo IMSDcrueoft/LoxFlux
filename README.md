@@ -156,6 +156,29 @@ noneState  ::= "none" ":" statement
 
 ---
 
+### Module System
+
+supports loading and compiling modules from files, allowing for code organization and reuse. The module system provides a simple yet powerful way to split your code across multiple files.(Note that cyclic reference handling will not be performed).
+
+- **import**: Loads, compiles, and executes a script from the file system, then returns whatever the module exports. The imported file path can be a string literal or a variable. It will get absolute path with each call and cache the mapping of paths to scripts to avoid unnecessary compilation behavior.
+```
+var thing = import("./module.lox");  
+print thing; // Prints the exported value from math.lox  
+```
+- **export**: Used within a module file to specify what value should be returned to the importing file. It works similarly to `return` but in the module context.
+```
+// Inside module.lox  
+const PI = 3.14159;  // the moudle file work in local scope, so you can use const
+  
+// Export an object with math functions  
+export {  
+  "pi": PI,  
+  "multPI": lambda(a) { return a * PI; }  
+};
+```
+
+---
+
 ### Built-in Modules
 
 There are some namespace objects that start with `'@'` available, and since they are not in the global scope, the initial state of the global scope is a "completely clean" state. 

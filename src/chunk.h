@@ -71,10 +71,11 @@ typedef enum {
 	OP_INHERIT,			// super class
 	OP_METHOD,			// make class func
 
-	OP_MODULE_BUILTIN,	//load builtin module
+	OP_MODULE_BUILTIN,	// load builtin module
 
 	OP_PRINT,			// print string or value
 	OP_THROW,			// throw
+	OP_IMPORT,			// import module
 } OpCode;
 
 typedef enum {

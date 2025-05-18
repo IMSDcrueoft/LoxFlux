@@ -95,6 +95,9 @@
     <ClCompile Include="src\stringTable.c">
       <Filter>loxFlux\source</Filter>
     </ClCompile>
+    <ClCompile Include="src\file.c">
+      <Filter>loxFlux\source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\chunk.h">
@@ -158,6 +161,9 @@
       <Filter>loxFlux\header</Filter>
     </ClInclude>
     <ClInclude Include="src\optimize.h">
+      <Filter>loxFlux\header</Filter>
+    </ClInclude>
+    <ClInclude Include="src\file.h">
       <Filter>loxFlux\header</Filter>
     </ClInclude>
   </ItemGroup>

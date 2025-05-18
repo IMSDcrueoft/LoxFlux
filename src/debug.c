@@ -268,6 +268,8 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 
 	case OP_MODULE_BUILTIN:
 		return builtinInStruction("OP_MODULE", chunk, offset);
+	case OP_IMPORT:
+		return simpleInstruction("OP_IMPORT", offset);
 	default:
 		printf("Unknown opcode %d offset = %d\n", instruction, offset);
 		return offset + 1;
