@@ -862,14 +862,14 @@ static void exportsStatement() {
 	}
 }
 
-static void imports_(bool canAssign) {
-	consume(TOKEN_LEFT_PAREN, "Expect '(' after 'imports'.");
+static void import_(bool canAssign) {
+	consume(TOKEN_LEFT_PAREN, "Expect '(' after 'import'.");
 	//parse the module name
 	expression();
 	consume(TOKEN_RIGHT_PAREN, "Expect ')' after path.");
 
 	//emit the import command
-	emitByte(OP_IMPORTS);
+	emitByte(OP_IMPORT);
 }
 
 static void whileStatement() {
@@ -1031,7 +1031,7 @@ static void statement() {
 	else if (match(TOKEN_THROW)) {
 		throwStatement();
 	}
-	else if (match(TOKEN_EXPORTS)) {
+	else if (match(TOKEN_EXPORT)) {
 		exportsStatement();
 	}
 	else {
@@ -1443,8 +1443,8 @@ ParseRule rules[] = {
 	[TOKEN_EOF] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_BREAK] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_CONTINUE] = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_EXPORTS] = {NULL,     NULL,   PREC_NONE},
-	[TOKEN_IMPORTS] = {imports_,     NULL,   PREC_NONE},
+	[TOKEN_IMPORT] = {import_,     NULL,   PREC_NONE},
+	[TOKEN_EXPORT] = {NULL,     NULL,   PREC_NONE},
 };
 
 static ParseRule* getRule(TokenType type) {

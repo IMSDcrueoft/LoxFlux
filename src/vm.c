@@ -39,6 +39,33 @@ static void stack_reset()
 }
 
 COLD_FUNCTION
+static ObjFunction* getCachedScript(STR absolutePath) {
+	// only to seek with absolute path
+	ObjString* path = copyString(absolutePath, (uint32_t)strlen(absolutePath), false);
+
+	// get deduplicate script
+	StringEntry* entry = tableGetScriptEntry(&vm.scripts, path);
+	ObjFunction* function = (entry != NULL) ? AS_FUNCTION(vm.constants.values[entry->index]) : NULL;
+
+	//only add here, so no need check index
+	if (function == NULL) {
+		//this readFile function never return null
+		STR source = readFile(absolutePath);
+		free(absolutePath);// free memory
+
+		function = compile(source, TYPE_MODULE);
+		free(source);// free memory
+
+		if (function != NULL) {
+			// add to pool
+			tableSet_script(&vm.scripts, path, addConstant(OBJ_VAL(function)));
+		}
+	}
+
+	return function;
+}
+
+COLD_FUNCTION
 static bool throwError(Value error, C_STR format, ...) {
 	fprintf(stderr, "[RuntimeError] ");
 
@@ -401,12 +428,6 @@ uint32_t addConstant(Value value)
 		valueHoles_pop(&vm.constantHoles);
 		return index;
 	}
-}
-
-//return the entry
-static StringEntry* getScriptEntryInPool(ObjString* string)
-{
-	return tableGetScriptEntry(&vm.scripts, string);
 }
 
 static void getTypeof() {
@@ -1321,45 +1342,23 @@ static InterpretResult run()
 			stack_push(OBJ_VAL(&vm.builtins[moduleIndex]));
 			break;
 		}
-		case OP_IMPORTS: {
+		case OP_IMPORT: {
 			Value target = vm.stackTop[-1];
-			ObjString* path = NULL;
-
-			if (IS_STRING(target)) {
-				path = AS_STRING(target);
-			}
-			else {
-				runtimeError("Path to imports must be a string.");
+			if (!IS_STRING(target)) {
+				runtimeError("Path to import must be a string.");
 				return INTERPRET_RUNTIME_ERROR;
 			}
 
+			ObjString* path = AS_STRING(target);
 			STR absolutePath = getAbsolutePath(path->chars);
+
 			if (absolutePath == NULL) {
 				runtimeError("Failed to get absolute file path.");
 				return INTERPRET_RUNTIME_ERROR;
 			}
 
-			// TODO: do deduplicate in the future
-			StringEntry* entry = getScriptEntryInPool(path);
-			ObjFunction* function = NULL;
-
-			//only add here, so no need check index
-			if (entry != NULL) {
-				Value constant = READ_CONSTANT(entry->index);
-				function = AS_FUNCTION(constant);
-			}
-			else {
-				//this readFile function never return null
-				STR source = readFile(absolutePath);
-				free(absolutePath);// free memory
-
-				function = compile(source, TYPE_MODULE);
-				free(source);// free memory
-				if (function == NULL) return INTERPRET_COMPILE_ERROR;
-
-				// add to pool
-				tableSet_script(&vm.scripts, path, addConstant(OBJ_VAL(function)));
-			}
+			ObjFunction* function = getCachedScript(absolutePath);
+			if (function == NULL) return INTERPRET_COMPILE_ERROR;
 
 			//same as interpret()
 			ObjClosure* closure = newClosure(function);

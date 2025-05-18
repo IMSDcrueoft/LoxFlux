@@ -168,7 +168,7 @@ static TokenType identifierType() {
 			switch (scanner.start[1])
 			{
 			case 'l':return checkKeyword(2, 2, "se", TOKEN_ELSE);
-			case 'x':return checkKeyword(2, 5, "ports", TOKEN_EXPORTS);
+			case 'x':return checkKeyword(2, 4, "port", TOKEN_EXPORT);
 			}
 		}
 		break;
@@ -187,8 +187,8 @@ static TokenType identifierType() {
 		if (scanner.current - scanner.start > 1) {
 			switch (scanner.start[1]) {
 			case 'f': return checkKeyword(2, 0, "", TOKEN_IF);
+			case 'm': return checkKeyword(2, 4, "port", TOKEN_IMPORT);
 			case 'n': return checkKeyword(2, 8, "stanceOf", TOKEN_INSTANCE_OF);
-			case 'm': return checkKeyword(2, 5, "ports", TOKEN_IMPORTS);
 			}
 		}
 		break;

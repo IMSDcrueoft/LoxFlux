@@ -75,7 +75,7 @@ typedef enum {
 
 	OP_PRINT,			// print string or value
 	OP_THROW,			// throw
-	OP_IMPORTS,			// import module
+	OP_IMPORT,			// import module
 } OpCode;
 
 typedef enum {
