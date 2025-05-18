@@ -192,6 +192,84 @@ static Value resizeNative(int argCount, Value* args) {
 	return BOOL_VAL(false);
 }
 
+static Value sliceNative(int argCount, Value* args) {
+	if (argCount == 0 || !isArrayLike(args[0])) {
+		fprintf(stderr, "slice expects a array like as first argument.\n");
+		return NIL_VAL;
+	}
+
+	ObjArray* array = AS_ARRAY(args[0]);
+	int64_t length = array->length;
+
+	int64_t start = 0;
+	int64_t end = length;
+
+	if (argCount >= 2 && IS_NUMBER(args[1])) {
+		start = (int64_t)AS_NUMBER(args[1]);
+
+		// neg index
+		if (start < 0) {
+			start = length + start;
+		}
+
+		// range check
+		if (start < 0) start = 0;
+		if (start > length) start = length;
+	}
+
+	if (argCount >= 3 && IS_NUMBER(args[2])) {
+		end = (int64_t)AS_NUMBER(args[2]);
+
+		// neg index 
+		if (end < 0) {
+			end = length + end;
+		}
+
+		// range check
+		if (end < 0) end = 0;
+		if (end > length) end = length;
+	}
+
+	if (start > end) start = end;
+
+	uint32_t newLength = end - start;
+	ObjArray* result = newArray(OBJ_GET_TYPE(array->obj));
+	stack_push(OBJ_VAL(result));
+
+	// allocate
+	if (newLength > 0) {
+		reserveArray(result, newLength);
+
+		switch (OBJ_GET_TYPE(array->obj)) {
+		case OBJ_ARRAY:
+			memcpy(result->payload, (Value*)array->payload + start, newLength * sizeof(Value));
+			break;
+		case OBJ_ARRAY_F64:
+			memcpy(result->payload, (double*)array->payload + start, newLength * sizeof(double));
+			break;
+		case OBJ_ARRAY_F32:
+			memcpy(result->payload, (float*)array->payload + start, newLength * sizeof(float));
+			break;
+		case OBJ_ARRAY_U32:
+		case OBJ_ARRAY_I32:
+			memcpy(result->payload, (uint32_t*)array->payload + start, newLength * sizeof(uint32_t));
+			break;
+		case OBJ_ARRAY_U16:
+		case OBJ_ARRAY_I16:
+			memcpy(result->payload, (uint16_t*)array->payload + start, newLength * sizeof(uint16_t));
+			break;
+		case OBJ_ARRAY_U8:
+		case OBJ_ARRAY_I8:
+			memcpy(result->payload, (uint8_t*)array->payload + start, newLength * sizeof(uint8_t));
+			break;
+		}
+
+		result->length = newLength;
+	}
+
+	return OBJ_VAL(result);
+}
+
 COLD_FUNCTION
 void importNative_array() {
 	//array
@@ -199,4 +277,5 @@ void importNative_array() {
 	defineNative_array("length", lengthNative);
 	defineNative_array("pop", popNative);
 	defineNative_array("push", pushNative);
+	defineNative_array("slice", sliceNative);
 }

@@ -1,0 +1,34 @@
+// Import array module  
+var slice = @array.slice;  
+  
+// Create test array  
+var arr = [1, 2, 3, 4, 5];  
+  
+// Test case 1: Basic slice operation  
+var slice1 = slice(arr, 1, 3);  
+@sys.log("Test 1 - slice(1,3): ",slice1);  // Should output: [2, 3]  
+  
+// Test case 2: Only provide start index  
+var slice2 = slice(arr, 2);  
+@sys.log("Test 2 - slice(2): ",slice2);  // Should output: [3, 4, 5]  
+  
+// Test case 3: Negative indices (count from end)  
+var slice3 = slice(arr, -2);  
+@sys.log("Test 3 - slice(-2): ",slice3);  // Should output: [4, 5]  
+  
+// Test case 4: Negative end index  
+var slice4 = slice(arr, 1, -1);  
+@sys.log("Test 4 - slice(1,-1): ",slice4);  // Should output: [2, 3, 4]  
+  
+// Test case 5: Start index greater than end index  
+var slice5 = slice(arr, 3, 1);  
+@sys.log("Test 5 - slice(3,1): ",slice5);  // Should output: [] (empty array)  
+  
+// Test case 6: Indices out of range  
+var slice6 = slice(arr, -10, 10);  
+@sys.log("Test 6 - slice(-10,10): ",slice6);  // Should output: [1, 2, 3, 4, 5] (full array)  
+  
+// Test case 7: Empty array  
+var emptyArr = [];  
+var slice7 = slice(emptyArr, 0, 5);  
+@sys.log("Test 7 - Empty array slice: ",slice7);  // Should output: [] (empty array)

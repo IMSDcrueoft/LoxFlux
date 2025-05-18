@@ -207,6 +207,7 @@ The `@array` module provides robust support for working with arrays, enabling ef
   - `length`: Returns the current number of elements in the array.
   - `pop`: Removes and returns the last element of the array. If the array is empty, it may return nil or throw an error, depending on configuration.
   - `push`: Appends one or more elements to the end of the array.
+  - `slice`: Extracts a section of a array and returns it as a new array, supporting negative indices.
 
 These utilities are invaluable for working with structured data, especially in performance-critical applications or environments where memory usage must be tightly controlled. They enable developers to manage arrays explicitly and efficiently.
 
