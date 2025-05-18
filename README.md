@@ -242,6 +242,7 @@ The `@string` module provides advanced string manipulation capabilities, support
   - `append`: Efficiently appends strings or other builders to a `StringBuilder`.
   - `intern`: Converts a `StringBuilder` to an immutable string(will occupy the constant scale), or returns existing strings directly.
   - `equals`: Compare whether the content of two strings|stringBuilders is the same.
+  - `slice`: Extracts a section of a string or StringBuilder and returns it as a new StringBuilder, supporting negative indices.
   - `parseInt`: Parses string to integer (supports hex/octal/binary prefixes)	and base(2 to 36).
   - `parseFloat`: Parses string to float (supports scientific notation).
 
