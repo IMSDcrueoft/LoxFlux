@@ -34,6 +34,8 @@ typedef struct {
 	// create a constant void table to record and reuse
 	ValueHoles constantHoles;
 
+	//scripts
+	StringTable scripts;
 	//pool
 	StringTable strings;
 	//pool
@@ -64,6 +66,8 @@ typedef struct {
 	uint8_t gcMark;
 	//mark if the gc is running
 	uint8_t gcWorking;
+	//pad
+	uint8_t padding[6];
 
 	uint64_t beginGC;
 	uint64_t nextGC;

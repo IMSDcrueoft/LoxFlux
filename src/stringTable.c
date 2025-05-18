@@ -112,6 +112,46 @@ StringEntry* tableGetStringEntry(StringTable* table, ObjString* key)
 	}
 }
 
+void tableSet_script(StringTable* table, ObjString* key, uint32_t index)
+{
+	//if (table->count + 1 > table->capacity * TABLE_MAX_LOAD) {
+	if ((table->count + 1) > MUL_3_DIV_4((uint64_t)(table->capacity))) {
+		uint32_t capacity = GROW_CAPACITY(table->capacity);
+		adjustStringCapacity(table, capacity);
+	}
+
+	StringEntry* entry = findStringEntry(table->entries, table->capacity, key);
+	bool isNewKey = (entry->key == NULL);
+
+	if (isNewKey) {
+		table->count++;
+		entry->key = key;
+		entry->index = index;
+	}
+}
+
+StringEntry* tableGetScriptEntry(StringTable* table, ObjString* key)
+{
+	if (table->count == 0) return NULL;
+
+	//check it
+	StringEntry* entry = NULL;
+	uint32_t index = key->hash & (table->capacity - 1);
+
+	while (true) {
+		entry = &table->entries[index];
+
+		if (entry->key == key) {
+			return entry;
+		}
+		else if (entry->key == NULL) {
+			return NULL;
+		}
+
+		index = (index + 1) & (table->capacity - 1);
+	}
+}
+
 ObjString* tableFindString(StringTable* table, C_STR chars, uint32_t length, uint64_t hash)
 {
 	if (table->count == 0) return NULL;
