@@ -38,6 +38,10 @@ static Value UTF8LenNative(int argCount, Value* args) {
 			stringPtr = utf8_string->payload;
 			length = utf8_string->length;
 		}
+		else {
+			fprintf(stderr, "utf8Len() expects a string or stringBuilder as first argument.\n");
+			return NAN_VAL;
+		}
 
 		if (stringPtr != NULL) {
 			uint32_t char_count = 0;
@@ -83,6 +87,10 @@ static Value charAtNative(int argCount, Value* args) {
 			stringPtr = string->payload;
 			length = string->length;
 		}
+		else {
+			fprintf(stderr, "charAt() expects a string or stringBuilder as first argument.\n");
+			return NIL_VAL;
+		}
 
 		if (stringPtr != NULL) {
 			double indexf = AS_NUMBER(args[1]);
@@ -110,6 +118,10 @@ static Value utf8AtNative(int argCount, Value* args) {
 			ObjArray* string = AS_ARRAY(args[0]);
 			stringPtr = string->payload;
 			length = string->length;
+		}
+		else {
+			fprintf(stderr, "utf8At() expects a string or stringBuilder as first argument.\n");
+			return NIL_VAL;
 		}
 
 		if (stringPtr != NULL) {
@@ -161,39 +173,44 @@ static void growStringBuilder(ObjArray* builder, uint32_t appendLen) {
 
 COLD_FUNCTION
 static Value appendNative(int argCount, Value* args) {
-	if (argCount >= 1 && IS_STRING_BUILDER(args[0])) {
-		ObjArray* stringBuilder = AS_ARRAY(args[0]);
-
-		if (argCount >= 2) {
-			C_STR stringPtr = NULL;
-			uint32_t length = 0;
-
-			if (IS_STRING(args[1])) {
-				ObjString* string = AS_STRING(args[1]);
-
-				length = string->length;
-				growStringBuilder(stringBuilder, length);
-				stringPtr = string->chars;
-			}
-			else if (IS_STRING_BUILDER(args[1])) {
-				ObjArray* string = AS_ARRAY(args[1]);
-				
-				length = string->length;
-				growStringBuilder(stringBuilder, length);
-				stringPtr = string->payload;//can append self ,this will error
-			}
-
-			if (stringPtr != NULL) {
-				memcpy((char*)stringBuilder->payload + stringBuilder->length, stringPtr, length);
-				stringBuilder->length += length;
-				ARRAY_ELEMENT(stringBuilder, char, stringBuilder->length) = '\0';
-			}
-		}
-
-		return args[0];
+	if (argCount == 0 || !IS_STRING_BUILDER(args[0])) {
+		fprintf(stderr, "append() expects a stringBuilder as first argument.\n");
+		return NIL_VAL;
 	}
 
-	return NIL_VAL;
+	ObjArray* stringBuilder = AS_ARRAY(args[0]);
+
+	if (argCount >= 2) {
+		C_STR stringPtr = NULL;
+		uint32_t length = 0;
+
+		if (IS_STRING(args[1])) {
+			ObjString* string = AS_STRING(args[1]);
+
+			length = string->length;
+			growStringBuilder(stringBuilder, length);
+			stringPtr = string->chars;
+		}
+		else if (IS_STRING_BUILDER(args[1])) {
+			ObjArray* string = AS_ARRAY(args[1]);
+
+			length = string->length;
+			growStringBuilder(stringBuilder, length);
+			stringPtr = string->payload;//can append self ,this will error
+		}
+		else {
+			fprintf(stderr, "append() expects a string or stringBuilder as second argument.\n");
+			return NIL_VAL;
+		}
+
+		if (stringPtr != NULL) {
+			memcpy((char*)stringBuilder->payload + stringBuilder->length, stringPtr, length);
+			stringBuilder->length += length;
+			ARRAY_ELEMENT(stringBuilder, char, stringBuilder->length) = '\0';
+		}
+	}
+
+	return args[0];
 }
 
 //make and return const string
