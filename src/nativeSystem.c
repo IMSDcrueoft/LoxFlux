@@ -160,7 +160,6 @@ static Value inputNative(int argCount, Value* args) {
 	return OBJ_VAL(stringBuilder);
 }
 
-COLD_FUNCTION
 static Value readFileNative(int argCount, Value* args) {
 	if (argCount < 1) {
 		fprintf(stderr, "readFile expects a path argument.\n");
