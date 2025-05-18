@@ -246,8 +246,8 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 		local->name.length = 0;
 	}
 
-	//the module don't work in global scope
-	if (compiler->enclosing == NULL && (type != TYPE_METHOD)) {
+	// the module don't work in global scope
+	if (compiler->enclosing == NULL) {
 		compiler->nestingDepth = 0;
 	}
 	else {
@@ -255,6 +255,11 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 		if (compiler->nestingDepth == FUNCTION_MAX_NESTING) {
 			error("Too many nested functions.");
 		}
+	}
+
+	// run in block
+	if (type == TYPE_MODULE) {
+		compiler->scopeDepth = 1;
 	}
 }
 

@@ -1,0 +1,3 @@
+const PI = 3.14159;
+const func = lambda(){ return PI;};
+export func;
