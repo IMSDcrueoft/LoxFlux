@@ -228,6 +228,7 @@ The `@object` module provides utilities for type checking and object introspecti
   - `isBoolean`: Verifies whether a value is true or false.
   - `getGlobal`: Get global variable with a string key.
   - `setGlobal`: Set or define global variable with a string key.
+  - `keys`: Returns the own keys array of an instance.
 
 These functions are particularly useful for runtime type validation and debugging, allowing developers to write robust and error-resistant code.
 

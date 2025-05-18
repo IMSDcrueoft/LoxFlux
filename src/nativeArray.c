@@ -194,7 +194,7 @@ static Value resizeNative(int argCount, Value* args) {
 
 static Value sliceNative(int argCount, Value* args) {
 	if (argCount == 0 || !isArrayLike(args[0])) {
-		fprintf(stderr, "slice expects a array like as first argument.\n");
+		fprintf(stderr, "slice() expects a array like as first argument.\n");
 		return NIL_VAL;
 	}
 

@@ -82,6 +82,42 @@ static Value setGlobalNative(int argCount, Value* args) {
 }
 
 COLD_FUNCTION
+static Value keysNative(int argCount, Value* args) {
+	// Create an empty array as result  
+	ObjArray* result = newArray(OBJ_ARRAY);
+	stack_push(OBJ_VAL(result));
+
+	// Check argument count  
+	if (argCount == 0 || !IS_INSTANCE(args[0])) {
+		fprintf(stderr, "keys() expects an instance as first argument.");
+		return OBJ_VAL(result);
+	}
+
+	// Get instance object  
+	ObjInstance* instance = AS_INSTANCE(args[0]);
+
+	// Iterate through the instance's fields table  
+	for (uint32_t i = 0; i < instance->fields.capacity; i++) {
+		Entry* entry = &instance->fields.entries[i];
+		if (entry->key != NULL) {
+			// Check if we need to grow the array  
+			uint64_t newSize = result->length + 1;
+
+			if (newSize > result->capacity) {
+				uint64_t newCapacity = max((result->capacity < 64) ? (result->capacity * 2) : ((result->capacity * 3) >> 1), 8);
+				reserveArray(result, newCapacity);
+			}
+
+			// Add key to result array  
+			ARRAY_ELEMENT(result, Value, result->length) = OBJ_VAL(entry->key);
+			result->length++;
+		}
+	}
+
+	return OBJ_VAL(result);
+}
+
+COLD_FUNCTION
 void importNative_object() {
 	defineNative_object("isNumber", isNumberNative);
 	defineNative_object("isString", isStringNative);
@@ -96,4 +132,6 @@ void importNative_object() {
 
 	defineNative_object("getGlobal", getGlobalNative);
 	defineNative_object("setGlobal", setGlobalNative);
+
+	defineNative_object("keys", keysNative);
 }

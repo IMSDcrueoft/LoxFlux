@@ -1,0 +1,30 @@
+// Test case for @object.keys method  
+// Create a test object with multiple properties  
+var testObj = @ctor.Object();  
+testObj.name = "Test Object";  
+testObj.value = 42;  
+testObj.isActive = true;  
+testObj.description = "This is a test object for @object.keys";  
+  
+// Get all keys from the object  
+var keys = @object.keys(testObj);  
+  
+// Print the number of keys found  
+@sys.log("Number of keys:", @array.length(keys));  
+  
+// Print all keys and their corresponding values  
+@sys.log("Keys and values:");  
+for (var i = 0; i < @array.length(keys); i = i + 1) {  
+    @sys.log("  Key:", keys[i], "Value:", testObj[keys[i]]);  
+}  
+  
+// Test with invalid arguments  
+@sys.log("Testing with invalid arguments:");  
+@sys.log("Empty array test:");  
+var emptyArray = @ctor.Array();  
+var emptyResult = @object.keys(emptyArray);  
+@sys.log("Result length:", @array.length(emptyResult));  
+  
+@sys.log("Wrong argument count test:");  
+var wrongArgResult = @object.keys();  
+@sys.log("Result length:", @array.length(wrongArgResult));  

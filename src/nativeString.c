@@ -202,7 +202,7 @@ static Value internNative(int argCount, Value* args) {
 		if (IS_STRING_BUILDER(args[0])) {
 			ObjArray* stringBuilder = AS_ARRAY(args[0]);
 			if (stringBuilder->length > INTERN_STRING_WARN) {
-				fprintf(stderr, "[Warn] Extra-long intern string of length: %d", stringBuilder->length);
+				fprintf(stderr, "Extra-long intern string of length: %d", stringBuilder->length);
 			}
 			return OBJ_VAL(copyString(stringBuilder->payload, stringBuilder->length, false));
 		}
@@ -353,7 +353,7 @@ static Value parseFloatNative(int argCount, Value* args) {
 
 static Value sliceNative(int argCount, Value* args) {
 	if (argCount < 2 || !IS_NUMBER(args[1])) {
-		fprintf(stderr, "slice expects a string or stringBuilder and at least one number argument.\n");
+		fprintf(stderr, "slice() expects a string or stringBuilder and at least one number argument.\n");
 		return NIL_VAL;
 	}
 
@@ -371,7 +371,7 @@ static Value sliceNative(int argCount, Value* args) {
 		length = string->length;
 	}
 	else {
-		fprintf(stderr, "slice expects a string or stringBuilder as first argument.\n");
+		fprintf(stderr, "slice() expects a string or stringBuilder as first argument.\n");
 		return NIL_VAL;
 	}
 
