@@ -854,7 +854,7 @@ static void returnStatement() {
 //exports in module script
 static void exportsStatement() {
 	if (current->type != TYPE_MODULE) {
-		error("Only module can use 'exports'.");
+		error("Only module can use 'export'.");
 	}
 
 	if (match(TOKEN_SEMICOLON)) {
@@ -862,7 +862,7 @@ static void exportsStatement() {
 	}
 	else {
 		expression();
-		consume(TOKEN_SEMICOLON, "Expect ';' after exports value.");
+		consume(TOKEN_SEMICOLON, "Expect ';' after export value.");
 		emitByte(OP_RETURN);
 	}
 }
