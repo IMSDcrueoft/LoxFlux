@@ -51,7 +51,6 @@ static ObjFunction* getCachedScript(STR absolutePath) {
 	if (function == NULL) {
 		//this readFile function never return null
 		STR source = readFile(absolutePath);
-		free(absolutePath);// free memory
 
 		function = compile(source, TYPE_MODULE);
 		free(source);// free memory
@@ -1344,13 +1343,22 @@ static InterpretResult run()
 		}
 		case OP_IMPORT: {
 			Value target = vm.stackTop[-1];
-			if (!IS_STRING(target)) {
-				runtimeError("Path to import must be a string.");
+			C_STR path = NULL;
+
+			if (IS_STRING(target)) {
+				ObjString* pathString = AS_STRING(target);
+				path = pathString->chars;
+			}
+			else if (IS_STRING_BUILDER(target)) {
+				ObjArray* pathStringBuilder = AS_ARRAY(target);
+				path = pathStringBuilder->payload;
+			}
+			else {
+				runtimeError("Path to import must be a string or stringBuilder.");
 				return INTERPRET_RUNTIME_ERROR;
 			}
 
-			ObjString* path = AS_STRING(target);
-			STR absolutePath = getAbsolutePath(path->chars);
+			STR absolutePath = getAbsolutePath(path);
 
 			if (absolutePath == NULL) {
 				runtimeError("Failed to get absolute file path.");
@@ -1358,6 +1366,7 @@ static InterpretResult run()
 			}
 
 			ObjFunction* function = getCachedScript(absolutePath);
+			free(absolutePath);// free memory
 			if (function == NULL) return INTERPRET_COMPILE_ERROR;
 
 			//same as interpret()
