@@ -4,6 +4,8 @@
  * See LICENSE file in the root directory for full license text.
 */
 #include "file.h"
+#include "allocator.h"
+
 // Platform detection
 #ifdef _WIN32
 #include <windows.h>
@@ -41,7 +43,7 @@ STR getAbsolutePath(C_STR path) {
 
 	// Allocate memory for the result and copy
 	size_t len = strlen(resolvedPath);
-	STR result = (STR)malloc(len + 1);
+	STR result = (STR)mem_alloc(len + 1);
 
 	if (!result) {
 		fprintf(stderr, "Not enough memory to allocate.\n");
@@ -64,8 +66,8 @@ STR readFile(C_STR path) {
 	uint64_t fileSize = ftell(file);
 	rewind(file);
 
-	STR buffer = (STR)malloc(fileSize + 1);
-
+	STR buffer = (STR)mem_alloc(fileSize + 1);
+	
 	if (buffer == NULL) {
 		fprintf(stderr, "Not enough memory to read \"%s\".\n", path);
 		exit(74);

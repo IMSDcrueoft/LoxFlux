@@ -7,6 +7,7 @@
 #include "object.h"
 #include "gc.h"
 #include "file.h"
+#include "allocator.h"
 
 #if DEBUG_TRACE_EXECUTION
 #include "debug.h"
@@ -53,7 +54,7 @@ static ObjFunction* getCachedScript(STR absolutePath) {
 		STR source = readFile(absolutePath);
 
 		function = compile(source, TYPE_MODULE);
-		free(source);// free memory
+		mem_free(source);// free memory
 
 		if (function != NULL) {
 			// add to pool
@@ -1366,7 +1367,7 @@ static InterpretResult run()
 			}
 
 			ObjFunction* function = getCachedScript(absolutePath);
-			free(absolutePath);// free memory
+			mem_free(absolutePath);// free memory
 			if (function == NULL) return INTERPRET_COMPILE_ERROR;
 
 			//same as interpret()

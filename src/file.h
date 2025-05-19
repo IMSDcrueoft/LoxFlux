@@ -7,6 +7,7 @@
 #include "common.h"
 /**
  * @brief never return null
+ * must use mem_free to free
  */
 STR readFile(C_STR path);
 STR getAbsolutePath(C_STR path);

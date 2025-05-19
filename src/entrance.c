@@ -7,6 +7,7 @@
 #include "version.h"
 #include "vm.h"
 #include "file.h"
+#include "allocator.h"
 
 static void print_help() {
 	printf("Commands:\n");
@@ -82,7 +83,7 @@ void repl() {
 	vm_init();
 
 	char line[256];
-	STR fullLine = (STR)malloc(512);
+	STR fullLine = (STR)mem_alloc(512);
 	STR result = NULL;
 
 	uint32_t fullLineLength = 0;
@@ -140,7 +141,7 @@ void repl() {
 					STR path = dealWithFilePath(line + 6);
 					STR source = readFile(path);
 					interpret_repl(source);
-					free(source);
+					mem_free(source);
 					continue;
 				}
 			}
@@ -150,7 +151,7 @@ void repl() {
 		}
 
 		if ((fullLineLength + lineLen + 1) >= fullLineCapacity) {
-			result = (STR)realloc(fullLine, fullLineCapacity += 1024);
+			result = (STR)mem_realloc(fullLine, fullLineCapacity += 1024);
 			if (result == NULL) {
 				fprintf(stderr, "Memory reallocation failed!\n");
 				exit(1);
@@ -179,7 +180,7 @@ void repl() {
 		}
 	}
 
-	free(fullLine);
+	mem_free(fullLine);
 
 	vm_free();
 
@@ -194,7 +195,7 @@ void runFile(C_STR path) {
 
 	STR source = readFile(path);
 	InterpretResult result = interpret(source);
-	free(source);
+	mem_free(source);
 
 	if (result == INTERPRET_COMPILE_ERROR) exit(65);
 	if (result == INTERPRET_RUNTIME_ERROR) exit(70);
