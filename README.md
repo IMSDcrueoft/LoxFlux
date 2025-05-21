@@ -212,7 +212,7 @@ The `@math` module provides a comprehensive set of mathematical functions and ut
   - `atan`: Computes the arctangent (inverse tangent) of a number.
 
 - **Random Number Generation**:
-  - `random`: Generates a pseudo-random number using the WellRng1024a algorithm.
+  - `random`: Generates a pseudo-random number using the `xoshiro256**` algorithm.
   - `seed`: Initializes the random number generator with a specific seed value.
 
 - **Special Value Checks**:
