@@ -192,7 +192,7 @@
     <ClCompile Include="src\timer.cpp" />
     <ClCompile Include="src\value.c" />
     <ClCompile Include="src\vm.c" />
-    <ClCompile Include="src\well1024a.c" />
+    <ClCompile Include="src\xoshiro256.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\file.h" />
@@ -215,8 +215,8 @@
     <ClInclude Include="src\value.h" />
     <ClInclude Include="src\version.h" />
     <ClInclude Include="src\vm.h" />
-    <ClInclude Include="src\well1024a.h" />
     <ClInclude Include="src\allocator.h" />
+    <ClInclude Include="src\xoshiro256.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

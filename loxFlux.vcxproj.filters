@@ -23,9 +23,6 @@
     <ClCompile Include="main.c">
       <Filter>source</Filter>
     </ClCompile>
-    <ClCompile Include="src\well1024a.c">
-      <Filter>loxFlux\source</Filter>
-    </ClCompile>
     <ClCompile Include="src\chunk.c">
       <Filter>loxFlux\source</Filter>
     </ClCompile>
@@ -98,6 +95,9 @@
     <ClCompile Include="src\file.c">
       <Filter>loxFlux\source</Filter>
     </ClCompile>
+    <ClCompile Include="src\xoshiro256.c">
+      <Filter>loxFlux\source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\chunk.h">
@@ -133,9 +133,6 @@
     <ClInclude Include="src\vm.h">
       <Filter>loxFlux\header</Filter>
     </ClInclude>
-    <ClInclude Include="src\well1024a.h">
-      <Filter>loxFlux\header</Filter>
-    </ClInclude>
     <ClInclude Include="src\table.h">
       <Filter>loxFlux\header</Filter>
     </ClInclude>
@@ -164,6 +161,9 @@
       <Filter>loxFlux\header</Filter>
     </ClInclude>
     <ClInclude Include="src\file.h">
+      <Filter>loxFlux\header</Filter>
+    </ClInclude>
+    <ClInclude Include="src\xoshiro256.h">
       <Filter>loxFlux\header</Filter>
     </ClInclude>
   </ItemGroup>

@@ -1,0 +1,35 @@
+var buckets = 100;
+var samples = 1e6;
+var counts = @ctor.Array(buckets);
+for(var i = 0;i<buckets;i=i+1){
+    counts[i] = 0;
+}
+
+//@math.seed(123456789);
+
+var start = @time.milli();
+
+for (var i = 0; i < samples; i = i + 1) {
+    var r = @math.random();
+    var idx = @math.floor(r * buckets);
+    counts[idx] = counts[idx] + 1;
+}
+
+var end = @time.milli();
+
+for (var i = 0; i < buckets; i = i + 1) {
+    print counts[i];
+}
+
+var mean = samples / buckets;
+var variance = 0;
+
+for (var i = 0; i < buckets; i = i + 1) {
+    var diff = counts[i] - mean;
+    variance = variance + diff * diff;
+}
+variance = variance / buckets;
+var normalized_variance = variance / mean;
+
+print "normalized_variance = ";
+print normalized_variance;

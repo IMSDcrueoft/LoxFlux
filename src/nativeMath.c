@@ -4,9 +4,11 @@
 * See LICENSE file in the root directory for full license text.
 */
 #include "nativeBuiltin.h"
-#include "well1024a.h"
+#include "xoshiro256.h"
 #include "timer.h"
 #include "vm.h"
+
+Xoshiro256StarStar rng;
 
 //Math
 //max with multiple input
@@ -43,14 +45,14 @@ static Value minNative(int argCount, Value* args)
 
 //get a random [0,1)
 static Value randomNative(int argCount, Value* args) {
-	return NUMBER_VAL(well1024a_random());
+	return NUMBER_VAL(xoshiro256starstar_random(&rng));
 }
 
 //seed it
 static Value seedNative(int argCount, Value* args) {
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		uint32_t seed = (uint32_t)AS_NUMBER(args[0]);
-		well1024a_init(seed);
+		xoshiro256starstar_init(&rng, seed);
 		return BOOL_VAL(true);
 	}
 	else {
@@ -216,7 +218,7 @@ static Value expNative(int argCount, Value* args) {
 
 COLD_FUNCTION
 void importNative_math() {
-	well1024a_init64(get_utc_milliseconds());
+	xoshiro256starstar_init(&rng, get_utc_milliseconds());
 
 	defineNative_math("max", maxNative);
 	defineNative_math("min", minNative);

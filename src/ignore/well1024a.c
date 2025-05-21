@@ -68,7 +68,7 @@ double well1024a_random53() {
 	uint64_t combined = (a << 26) | b;
 
 	// 53 bit to [0, 1)
-	return (double)combined * (1.0 / 9007199254740992.0); // 1.0 / (2^53)
+	return (double)combined * 0x1.0p-53; // 1.0 / (2^53)
 }
 
 #undef STATE_SIZE
