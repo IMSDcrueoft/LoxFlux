@@ -349,5 +349,7 @@ The project **loxFlux** is based on `MIT` and uses two third-party projects.
    - Copyright (c) 2012-2021 Yann Collet
    - License: `BSD 2-Clause`
 
-## Other
-LLVM/CraneLift may be used as a JIT in the future.
+## Other expectations
+1. try catch syntax.
+2. super instruction generation.
+3. just in time(LLVM or CraneLift).
