@@ -1,0 +1,51 @@
+class Array {
+    init(data){
+        this.data = data;
+    }
+
+    log(){
+        @sys.log(this.data);
+    }
+}
+
+class ArrayWithSort < Array {
+    init(data,sortRule){
+        super.init(data);
+
+        this.sortRule = sortRule;
+    }
+
+    sort(){
+        fun insertionSort(arr,sortRule) {  
+            if(typeof arr != "array") throw "Expect an array as arg0.";
+
+            const len = @array.length(arr);  
+      
+            for (var i = 1; i < len; i = i + 1) {  
+                const key = arr[i];  
+                var j = i - 1;  
+                
+                while (j >= 0 and sortRule(arr[j],key) > 0) {  
+                    arr[j + 1] = arr[j];  
+                    j = j - 1;  
+                }  
+                arr[j + 1] = key;  
+            }
+        }  
+
+        insertionSort(this.data,this.sortRule);
+        return this;
+    }
+}
+
+var numbers = ArrayWithSort([64, 34, 25, 12, 22, 11, 90],lambda (a,b){
+    return a - b;
+});  
+print "testArray:";  
+numbers.log();
+   
+print "afterSort:";  
+numbers.sort().log();
+
+var error2 = ArrayWithSort();
+error2.sort().log();
