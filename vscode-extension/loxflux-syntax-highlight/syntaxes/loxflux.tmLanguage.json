@@ -1,0 +1,132 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "LoxFlux",
+	"patterns": [
+		{
+			"include": "#comments"
+		},
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#strings"
+		},
+		{
+			"include": "#identifiers"
+		},
+		{
+			"include": "#numbers"
+		},
+		{
+			"include": "#operators"
+		},
+		{
+			"include": "#modules"
+		}
+	],
+	"repository": {
+		"comments": {
+			"patterns": [
+				{
+					"name": "comment.line.double-slash.loxflux",
+					"match": "//.*"
+				},
+				{
+					"name": "comment.block.loxflux",
+					"begin": "/\\*",
+					"end": "\\*/",
+					"patterns": [
+						{
+							"match": ".",
+							"name": "comment.block.loxflux"
+						}
+					]
+				}
+			]
+		},
+		"keywords": {
+			"patterns": [
+				{
+					"name": "keyword.control.loxflux",
+					"match": "\\b(if|else|branch|none|while|for|do|return|break|continue)\\b"
+				},
+				{
+					"name": "keyword.declaration.loxflux",
+					"match": "\\b(var|const|fun|lambda|class)\\b"
+				},
+				{
+					"name": "keyword.operators.loxflux",
+					"match": "\\b(and|or|typeof|instanceOf)\\b"
+				},
+				{
+					"name": "keyword.modules.loxflux",
+					"match": "\\b(import|export)\\b"
+				},
+				{
+					"name": "keyword.class.loxflux",
+					"match": "\\b(this|super)\\b"
+				},
+				{
+					"name": "keyword.other.loxflux",
+					"match": "\\b(print|throw)\\b"
+				},
+				{
+					"name": "constant.language.boolean.loxflux",
+					"match": "\\b(true|false)\\b"
+				},
+				{
+					"name": "constant.language.null.loxflux",
+					"match": "\\b(nil)\\b"
+				}
+			]
+		},
+		"strings": {
+			"name": "string.quoted.double.loxflux",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"name": "constant.character.escape.loxflux",
+					"match": "\\\\."
+				}
+			]
+		},
+		"identifiers": {
+			"name": "variable.other.readwrite.loxflux",
+			"match": "\\b[a-zA-Z_][a-zA-Z0-9_]*\\b"
+		},
+		"numbers": {
+			"patterns": [
+				{
+					"name": "constant.numeric.binary.loxflux",
+					"match": "\\b0[bB][01]+\\b"
+				},
+				{
+					"name": "constant.numeric.hexadecimal.loxflux",
+					"match": "\\b0[xX][0-9a-fA-F]+\\b"
+				},
+				{
+					"name": "constant.numeric.scientific.loxflux",
+					"match": "\\b\\d+(\\.\\d+)?[eE][+-]?\\d+\\b"
+				},
+				{
+					"name": "constant.numeric.decimal.loxflux",
+					"match": "\\b\\d+\\.\\d+\\b"
+				},
+				{
+					"name": "constant.numeric.integer.loxflux",
+					"match": "\\b\\d+\\b"
+				}
+			]
+		},
+		"operators": {
+			"name": "keyword.operator.loxflux",
+			"match": "(\\+|\\-|\\*|\\/|%|==|!=|<=|>=|<|>|=|\\||&|\\^|~|<<|>>|>>>)"
+		},
+		"modules": {
+			"name": "support.class.builtin.loxflux",
+			"match": "@(math|array|object|string|time|ctor|sys)\\b"
+		}
+	},
+	"scopeName": "source.lfx"
+}

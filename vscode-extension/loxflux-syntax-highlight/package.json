@@ -1,0 +1,35 @@
+{
+  "name": "loxflux-syntax-highlight",
+  "displayName": "LoxFlux Syntax Highlight",
+  "description": "Syntax highlighting for loxFlux.",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.54.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "loxflux",
+        "aliases": [
+          "LoxFlux",
+          "loxflux"
+        ],
+        "extensions": [
+          ".lfx",
+          ".lox"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "loxflux",
+        "scopeName": "source.lfx",
+        "path": "./syntaxes/loxflux.tmLanguage.json"
+      }
+    ]
+  }
+}
