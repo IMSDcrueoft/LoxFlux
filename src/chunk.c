@@ -75,7 +75,7 @@ void opStack_push(OPStack* stack, uint8_t byte)
 	stack->count++;
 }
 
-uint8_t opStack_peep(OPStack* stack, uint8_t offset)
+uint8_t opStack_peek(OPStack* stack, uint8_t offset)
 {
 	if (stack->count > offset) {
 		return stack->code[stack->count - offset - 1];
