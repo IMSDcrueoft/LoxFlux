@@ -47,28 +47,40 @@
 		"keywords": {
 			"patterns": [
 				{
-					"name": "keyword.control.loxflux",
-					"match": "\\b(if|else|branch|none|while|for|do|return|break|continue)\\b"
+					"name": "keyword.control.conditional.loxflux",
+					"match": "\\b(if|else|branch|none)\\b"
 				},
 				{
-					"name": "keyword.declaration.loxflux",
+					"name": "keyword.control.loop.loxflux",
+					"match": "\\b(while|for|do)\\b"
+				},
+				{
+					"name": "keyword.control.flow.loxflux",
+					"match": "\\b(return|break|continue|throw)\\b"
+				},
+				{
+					"name": "storage.type.loxflux",
 					"match": "\\b(var|const|fun|lambda|class)\\b"
 				},
 				{
-					"name": "keyword.operators.loxflux",
-					"match": "\\b(and|or|typeof|instanceOf)\\b"
+					"name": "keyword.operator.logical.loxflux",
+					"match": "\\b(and|or)\\b"
 				},
 				{
-					"name": "keyword.modules.loxflux",
+					"name": "keyword.operator.loxflux",
+					"match": "\\b(typeof|instanceOf)\\b"
+				},
+				{
+					"name": "keyword.control.import.loxflux",
 					"match": "\\b(import|export)\\b"
 				},
 				{
-					"name": "keyword.class.loxflux",
+					"name": "variable.language.loxflux",
 					"match": "\\b(this|super)\\b"
 				},
 				{
-					"name": "keyword.other.loxflux",
-					"match": "\\b(print|throw)\\b"
+					"name": "support.function.builtin.loxflux",
+					"match": "\\b(print)\\b"
 				},
 				{
 					"name": "constant.language.boolean.loxflux",
@@ -120,8 +132,24 @@
 			]
 		},
 		"operators": {
-			"name": "keyword.operator.loxflux",
-			"match": "(\\+|\\-|\\*|\\/|%|==|!=|<=|>=|<|>|=|\\||&|\\^|~|<<|>>|>>>)"
+			"patterns": [
+				{
+					"name": "keyword.operator.arithmetic.loxflux",
+					"match": "(\\+|\\-|\\*|\\/|%)"
+				},
+				{
+					"name": "keyword.operator.comparison.loxflux",
+					"match": "(==|!=|<=|>=|<|>)"
+				},
+				{
+					"name": "keyword.operator.assignment.loxflux",
+					"match": "(=)"
+				},
+				{
+					"name": "keyword.operator.bitwise.loxflux",
+					"match": "(\\||&|\\^|~|<<|>>|>>>)"
+				}
+			]
 		},
 		"modules": {
 			"name": "support.class.builtin.loxflux",
