@@ -3,6 +3,7 @@
   "displayName": "LoxFlux Syntax Highlight",
   "description": "Syntax highlighting for loxFlux.",
   "version": "0.0.1",
+  "publisher": "IMSDCrueoft",
   "engines": {
     "vscode": "^1.54.0"
   },
