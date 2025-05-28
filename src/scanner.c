@@ -445,9 +445,17 @@ Token scanToken()
 	case '!':
 		return makeToken(
 			match('=') ? TOKEN_BANG_EQUAL : TOKEN_BANG);
-	case '=':
-		return makeToken(
-			match('=') ? TOKEN_EQUAL_EQUAL : TOKEN_EQUAL);
+	case '=': {
+		if (match('=')) {
+			return makeToken(TOKEN_EQUAL_EQUAL);
+		}
+		else if (match('>')) {
+			return makeToken(TOKEN_RIGHT_ARROW);
+		}
+		else {
+			return makeToken(TOKEN_EQUAL);
+		}
+	}
 	case '<': {
 		if (!match('<')) {
 			return makeToken(match('=') ? TOKEN_LESS_EQUAL : TOKEN_LESS);

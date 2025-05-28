@@ -10,9 +10,7 @@ fun createPoint(x,y){
         } else if(funName == "y"){
             return y;
         } else if(funName == "add"){
-            return lambda(p){
-                return createPoint(x + p("x"), y + p("y"));
-            };
+            return lambda(p) => createPoint(x + p("x"), y + p("y"));
         }
     };
 }

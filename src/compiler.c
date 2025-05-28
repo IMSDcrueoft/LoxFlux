@@ -567,8 +567,20 @@ static void function(FunctionType type) {
 	}
 
 	consume(TOKEN_RIGHT_PAREN, "Expect ')' after parameters.");
-	consume(TOKEN_LEFT_BRACE, "Expect '{' before function body.");
-	block();
+
+	if (!match(TOKEN_RIGHT_ARROW)) {
+		consume(TOKEN_LEFT_BRACE, "Expect '{' before function body.");
+		block();
+	}
+	else {
+		if (type != TYPE_LAMBDA) {
+			errorAtCurrent("'=>' can only be used after lambda parameters.");
+			return;
+		}
+
+		expression();
+		emitByte(OP_RETURN);
+	}
 
 	ObjFunction* function = endCompiler();
 
@@ -1429,6 +1441,7 @@ ParseRule rules[] = {
 	[TOKEN_FOR] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_FUN] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_LAMBDA] = {lambda,	NULL,	PREC_NONE},
+	[TOKEN_RIGHT_ARROW] = {NULL,	NULL,	PREC_NONE},
 	[TOKEN_IF] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_BRANCH] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_NONE] = {NULL,     NULL,   PREC_NONE},
