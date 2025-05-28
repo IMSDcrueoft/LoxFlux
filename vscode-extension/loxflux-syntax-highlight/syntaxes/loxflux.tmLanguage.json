@@ -182,7 +182,7 @@
 				},
 				{
 					"name": "keyword.operator.assignment.loxflux",
-					"match": "(=)"
+					"match": "="
 				},
 				{
 					"name": "keyword.operator.bitwise.loxflux",
