@@ -121,7 +121,7 @@ noneState  ::= "none" ":" statement
 
 ### Lambda
 - **Lambda Syntax**: An anonymous function can be declared inline using the `lambda` keyword. This provides a concise way to define functions without explicitly naming them, making it suitable for short, inline operations.
-- **Syntax**: The syntax for a lambda expression is `lambda (parameters) { body }`, where `parameters` are the input arguments and `body` contains the logic to be executed.
+- **Syntax**: The syntax supports both block form `lambda (parameters) { ... }` for multi-statement bodies and arrow form `lambda (parameters) => expr` for single-expression returns, where `parameters` are input arguments and the body contains the logic to be executed.
 - **Use Cases**: Lambda expressions are commonly used in functional programming patterns, such as passing functions as arguments to higher-order functions (e.g., `map`, `filter`, `reduce`).
 
 ---
