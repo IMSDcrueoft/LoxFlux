@@ -38,9 +38,8 @@ class ArrayWithSort < Array {
     }
 }
 
-var numbers = ArrayWithSort([64, 34, 25, 12, 22, 11, 90],lambda (a,b){
-    return a - b;
-});  
+var numbers = ArrayWithSort([64, 34, 25, 12, 22, 11, 90],lambda (a,b) => a - b);
+
 print "testArray:";  
 numbers.log();
    

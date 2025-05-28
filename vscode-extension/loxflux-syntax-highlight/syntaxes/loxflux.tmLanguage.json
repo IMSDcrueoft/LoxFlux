@@ -6,13 +6,13 @@
 			"include": "#comments"
 		},
 		{
+			"include": "#modules"
+		},
+		{
 			"include": "#keywords"
 		},
 		{
 			"include": "#strings"
-		},
-		{
-			"include": "#identifiers"
 		},
 		{
 			"include": "#numbers"
@@ -21,7 +21,10 @@
 			"include": "#operators"
 		},
 		{
-			"include": "#modules"
+			"include": "#property-access"
+		},
+		{
+			"include": "#identifiers"
 		}
 	],
 	"repository": {
@@ -127,11 +130,19 @@
 				}
 			]
 		},
+		"property-access": {
+			"patterns": [
+				{
+					"name": "support.type.property-name.loxflux",
+					"match": "(?<!\\.)(\\.)[a-zA-Z_][a-zA-Z0-9_]*\\b"
+				}
+			]
+		},
 		"identifiers": {
 			"patterns": [
 				{
-					"name": "variable.other.readwrite.loxflux",
-					"match": "\\b[a-zA-Z_][a-zA-Z0-9_]*\\b"
+					"name": "variable.name.loxflux",
+					"match": "(?<!\\.)\\b[a-zA-Z_][a-zA-Z0-9_]*\\b"
 				}
 			]
 		},
