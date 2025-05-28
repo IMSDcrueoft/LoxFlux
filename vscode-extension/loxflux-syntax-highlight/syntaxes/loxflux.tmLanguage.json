@@ -59,15 +59,39 @@
 					"match": "\\b(return|break|continue|throw)\\b"
 				},
 				{
-					"name": "storage.type.loxflux",
-					"match": "\\b(var|const|fun|lambda|class)\\b"
+					"name": "meta.function.definition.loxflux",
+					"match": "\\b(fun)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+					"captures": {
+						"1": {
+							"name": "storage.type.loxflux"
+						},
+						"2": {
+							"name": "entity.name.function.loxflux"
+						}
+					}
 				},
 				{
-					"name": "keyword.operator.logical.loxflux",
+					"name": "meta.class.definition.loxflux",
+					"match": "\\b(class)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+					"captures": {
+						"1": {
+							"name": "storage.type.loxflux"
+						},
+						"2": {
+							"name": "entity.name.class.loxflux"
+						}
+					}
+				},
+				{
+					"name": "storage.type.loxflux",
+					"match": "\\b(const|var|lambda)\\b"
+				},
+				{
+					"name": "keyword.other.logical.loxflux",
 					"match": "\\b(and|or)\\b"
 				},
 				{
-					"name": "keyword.operator.loxflux",
+					"name": "keyword.other.type.loxflux",
 					"match": "\\b(typeof|instanceOf)\\b"
 				},
 				{
@@ -104,8 +128,12 @@
 			]
 		},
 		"identifiers": {
-			"name": "variable.other.readwrite.loxflux",
-			"match": "\\b[a-zA-Z_][a-zA-Z0-9_]*\\b"
+			"patterns": [
+				{
+					"name": "variable.other.readwrite.loxflux",
+					"match": "\\b[a-zA-Z_][a-zA-Z0-9_]*\\b"
+				}
+			]
 		},
 		"numbers": {
 			"patterns": [
@@ -148,6 +176,10 @@
 				{
 					"name": "keyword.operator.bitwise.loxflux",
 					"match": "(\\||&|\\^|~|<<|>>|>>>)"
+				},
+				{
+					"name": "keyword.control.arrow.lambda.loxflux",
+					"match": "=>"
 				}
 			]
 		},
