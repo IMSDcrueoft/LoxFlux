@@ -162,7 +162,7 @@ supports loading and compiling modules from files, allowing for code organizatio
 
 - **import**: Loads, compiles, and executes a script from the file system, then returns whatever the module exports. The imported file path can be a string literal or a variable. It will get absolute path with each call and cache the mapping of paths to scripts to avoid unnecessary compilation behavior.
 ```
-var thing = import("./module.lox");  
+var thing = import "./module.lox";  
 print thing; // Prints the exported value from module.lox  
 ```
 - **export**: Used within a module file to specify what value should be returned to the importing file. It works similarly to `return` but in the module context.
@@ -173,7 +173,7 @@ const PI = 3.14159;  // the moudle file work in local scope, so you can use cons
 // Export an object with math functions  
 export {  
   "pi": PI,  
-  "multPI": lambda(a) { return a * PI; }  
+  "multPI": lambda(a) => a * PI  
 };
 ```
 

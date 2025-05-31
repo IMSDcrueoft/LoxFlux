@@ -880,10 +880,8 @@ static void exportsStatement() {
 }
 
 static void import_(bool canAssign) {
-	consume(TOKEN_LEFT_PAREN, "Expect '(' after 'import'.");
 	//parse the module name
 	expression();
-	consume(TOKEN_RIGHT_PAREN, "Expect ')' after path.");
 
 	//emit the import command
 	emitByte(OP_IMPORT);
