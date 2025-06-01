@@ -32,9 +32,55 @@ static Chunk* currentChunk() {
 	return &current->function->chunk;
 }
 
+//for which complex logical/control flows, merge is not used
+static void clearOpStack() {
+	return;
+	opStack_clear(&current->stack);
+}
+
 //do optimize here
-static void analyzeChunk() {
+static void emitOpStack(uint8_t byte, bool doCheck) {
+	return;
+	opStack_push(&current->stack, byte);
+
 	//check opStack
+	if (doCheck) {
+		//TODO
+		return;
+		printf("[opStack]\n");
+		for (uint32_t i = 0; i < current->stack.count; ++i) {
+			uint8_t code = current->stack.code[i];
+			switch (code) {
+			case OP_CONSTANT:         printf("OP_CONSTANT\n"); break;
+			case OP_GET_LOCAL:        printf("OP_GET_LOCAL\n"); break;
+			case OP_SET_LOCAL:        printf("OP_SET_LOCAL\n"); break;
+			case OP_ADD:              printf("OP_ADD\n"); break;
+			case OP_SUBTRACT:         printf("OP_SUBTRACT\n"); break;
+			case OP_MULTIPLY:         printf("OP_MULTIPLY\n"); break;
+			case OP_DIVIDE:           printf("OP_DIVIDE\n"); break;
+			case OP_MODULUS:          printf("OP_MODULUS\n"); break;
+			case OP_NOT:              printf("OP_NOT\n"); break;
+			case OP_NEGATE:           printf("OP_NEGATE\n"); break;
+			case OP_FALSE:            printf("OP_FALSE\n"); break;
+			case OP_TRUE:             printf("OP_TRUE\n"); break;
+			case OP_NIL:              printf("OP_NIL\n"); break;
+			case OP_EQUAL:            printf("OP_EQUAL\n"); break;
+			case OP_GREATER:          printf("OP_GREATER\n"); break;
+			case OP_LESS:             printf("OP_LESS\n"); break;
+			case OP_NOT_EQUAL:        printf("OP_NOT_EQUAL\n"); break;
+			case OP_LESS_EQUAL:       printf("OP_LESS_EQUAL\n"); break;
+			case OP_GREATER_EQUAL:    printf("OP_GREATER_EQUAL\n"); break;
+			case OP_INSTANCE_OF:      printf("OP_INSTANCE_OF\n"); break;
+			case OP_SET_SUBSCRIPT:    printf("OP_SET_SUBSCRIPT\n"); break;
+			case OP_GET_SUBSCRIPT:    printf("OP_GET_SUBSCRIPT\n"); break;
+			case OP_TYPE_OF:          printf("OP_TYPE_OF\n"); break;
+			default:
+				printf("UNKNOWN(%u)\n", code);
+				break;
+			}
+			printf("[end]\n");
+		}
+	}
 }
 
 static void errorAt(Token* token, C_STR message) {
@@ -130,6 +176,7 @@ static void emitConstantCommond(OpCode target, uint32_t index) {
 
 static int32_t emitJump(uint8_t instruction) {
 	emitBytes(3, instruction, 0xff, 0xff);
+	clearOpStack();
 	return currentChunk()->count - 2;
 }
 
@@ -141,6 +188,7 @@ static void emitLoop(int32_t loopStart) {
 	if (offset > UINT16_MAX) error("Loop body too large.");
 
 	emitBytes(2, offset & 0xff, (offset >> 8) & 0xff);
+	clearOpStack();
 }
 
 static void emitReturn() {
@@ -151,6 +199,7 @@ static void emitReturn() {
 	else {
 		emitBytes(2, OP_NIL, OP_RETURN);
 	}
+	clearOpStack();
 }
 
 static uint32_t makeConstant(Value value) {
@@ -183,6 +232,7 @@ static uint32_t makeConstant(Value value) {
 
 static void emitConstant(Value value) {
 	emitConstantCommond(OP_CONSTANT, makeConstant(value));
+	emitOpStack(OP_CONSTANT, false);
 }
 
 static void patchJump(int32_t offset) {
@@ -222,7 +272,7 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	//it's a function
 	switch (type) {
 	case TYPE_FUNCTION:
-	case TYPE_METHOD: 
+	case TYPE_METHOD:
 	case TYPE_INITIALIZER:
 		compiler->function->name = copyString(parser.previous.start, parser.previous.length, false);
 		break;
@@ -296,6 +346,7 @@ static void emitPopCount(uint16_t popCount) {
 	else {
 		emitByte(OP_POP);
 	}
+	clearOpStack();
 }
 
 static void endScope() {
@@ -311,6 +362,7 @@ static void endScope() {
 			}
 
 			emitByte(OP_CLOSE_UPVALUE);
+			clearOpStack();
 		}
 		else {
 			++popCount;
@@ -491,6 +543,7 @@ static void defineVariable(uint32_t global) {
 	}
 
 	emitConstantCommond(OP_DEFINE_GLOBAL, global);
+	clearOpStack();
 }
 
 static void defineConst(uint32_t global) {
@@ -524,7 +577,7 @@ static uint8_t argumentList() {
 static void and_(bool canAssign) {
 	int32_t endJump = emitJump(OP_JUMP_IF_FALSE);
 
-	emitByte(OP_POP);
+	emitPopCount(1);
 	parsePrecedence(PREC_AND);
 
 	patchJump(endJump);
@@ -547,12 +600,8 @@ static void function(FunctionType type) {
 	initCompiler(&compiler, type);
 	beginScope();
 
-	if (type == TYPE_FUNCTION) {
-		consume(TOKEN_LEFT_PAREN, "Expect '(' after function name.");
-	}
-	else {
-		consume(TOKEN_LEFT_PAREN, "Expect '(' after lambda.");
-	}
+	//check '('
+	consume(TOKEN_LEFT_PAREN, "Expect '(' before function parameters.");
 
 	if (!check(TOKEN_RIGHT_PAREN)) {
 		do {
@@ -566,7 +615,7 @@ static void function(FunctionType type) {
 		} while (match(TOKEN_COMMA));
 	}
 
-	consume(TOKEN_RIGHT_PAREN, "Expect ')' after parameters.");
+	consume(TOKEN_RIGHT_PAREN, "Expect ')' after function parameters.");
 
 	if (!match(TOKEN_RIGHT_ARROW)) {
 		consume(TOKEN_LEFT_BRACE, "Expect '{' before function body.");
@@ -580,6 +629,7 @@ static void function(FunctionType type) {
 
 		expression();
 		emitByte(OP_RETURN);
+		clearOpStack();
 	}
 
 	ObjFunction* function = endCompiler();
@@ -592,6 +642,7 @@ static void function(FunctionType type) {
 		emitByte(compiler.upvalues[i].isLocal ? 1 : 0);
 		emitBytes(2, (uint8_t)(compiler.upvalues[i].index), (uint8_t)(compiler.upvalues[i].index >> 8));
 	}
+	clearOpStack();
 
 	freeLocals(&compiler);
 }
@@ -611,6 +662,7 @@ static void method() {
 	}
 	function(type);
 	emitConstantCommond(OP_METHOD, constant);
+	clearOpStack();
 }
 
 static void classDeclaration() {
@@ -621,6 +673,7 @@ static void classDeclaration() {
 	declareVariable();
 
 	emitConstantCommond(OP_CLASS, nameConstant);
+	clearOpStack();
 	defineVariable(nameConstant);
 
 	//link the chain
@@ -642,6 +695,7 @@ static void classDeclaration() {
 
 		namedVariable(className, false);
 		emitByte(OP_INHERIT);
+		clearOpStack();
 
 		//set flag
 		classCompiler.hasSuperclass = true;
@@ -655,7 +709,7 @@ static void classDeclaration() {
 	}
 	consume(TOKEN_RIGHT_BRACE, "Expect '}' after class body.");
 	//pop out the class
-	emitByte(OP_POP);
+	emitPopCount(1);
 
 	//end the scope of super
 	if (classCompiler.hasSuperclass) {
@@ -682,6 +736,7 @@ static void varDeclaration() {
 		}
 		else {
 			emitByte(OP_NIL);
+			clearOpStack();
 		}
 
 		defineVariable(arg);
@@ -713,7 +768,7 @@ static void constDeclaration() {
 static void expressionStatement() {
 	expression();
 	consume(TOKEN_SEMICOLON, "Expect ';' after expression.");
-	emitByte(OP_POP);
+	emitPopCount(1);
 }
 
 static void forStatement() {
@@ -749,7 +804,7 @@ static void forStatement() {
 		int32_t bodyJump = emitJump(OP_JUMP);
 		int32_t incrementStart = currentChunk()->count;
 		expression();
-		emitByte(OP_POP);
+		emitPopCount(1);
 
 		consume(TOKEN_RIGHT_PAREN, "Expect ')' after for clauses.");
 
@@ -836,12 +891,14 @@ static void printStatement() {
 	expression();
 	consume(TOKEN_SEMICOLON, "Expect ';' after value.");
 	emitByte(OP_PRINT);
+	clearOpStack();
 }
 
 static void throwStatement() {
 	expression();
 	consume(TOKEN_SEMICOLON, "Expect ';' after value.");
 	emitByte(OP_THROW);
+	clearOpStack();
 }
 
 static void returnStatement() {
@@ -860,6 +917,7 @@ static void returnStatement() {
 		expression();
 		consume(TOKEN_SEMICOLON, "Expect ';' after return value.");
 		emitByte(OP_RETURN);
+		clearOpStack();
 	}
 }
 
@@ -876,6 +934,7 @@ static void exportsStatement() {
 		expression();
 		consume(TOKEN_SEMICOLON, "Expect ';' after export value.");
 		emitByte(OP_RETURN);
+		clearOpStack();
 	}
 }
 
@@ -885,6 +944,7 @@ static void import_(bool canAssign) {
 
 	//emit the import command
 	emitByte(OP_IMPORT);
+	clearOpStack();
 }
 
 static void whileStatement() {
@@ -1084,24 +1144,96 @@ static void binary(bool canAssign) {
 	parsePrecedence((Precedence)(rule->precedence + 1));
 
 	switch (operatorType) {
-	case TOKEN_PLUS: emitByte(OP_ADD); break;
-	case TOKEN_MINUS: emitByte(OP_SUBTRACT); break;
-	case TOKEN_STAR: emitByte(OP_MULTIPLY); break;
-	case TOKEN_SLASH: emitByte(OP_DIVIDE); break;
-	case TOKEN_PERCENT: emitByte(OP_MODULUS); break;
-	case TOKEN_BANG_EQUAL: emitByte(OP_NOT_EQUAL); break;
-	case TOKEN_EQUAL_EQUAL: emitByte(OP_EQUAL); break;
-	case TOKEN_GREATER: emitByte(OP_GREATER); break;
-	case TOKEN_GREATER_EQUAL: emitByte(OP_GREATER_EQUAL); break;
-	case TOKEN_LESS: emitByte(OP_LESS); break;
-	case TOKEN_LESS_EQUAL: emitByte(OP_LESS_EQUAL); break;
-	case TOKEN_INSTANCE_OF: emitByte(OP_INSTANCE_OF); break;
-	case TOKEN_BIT_AND: emitBytes(2, OP_BITWISE, BIT_OP_AND); break;
-	case TOKEN_BIT_OR: emitBytes(2, OP_BITWISE, BIT_OP_OR); break;
-	case TOKEN_BIT_XOR: emitBytes(2, OP_BITWISE, BIT_OP_XOR); break;
-	case TOKEN_BIT_SHL: emitBytes(2, OP_BITWISE, BIT_OP_SHL); break;
-	case TOKEN_BIT_SHR: emitBytes(2, OP_BITWISE, BIT_OP_SHR); break;
-	case TOKEN_BIT_SAR: emitBytes(2, OP_BITWISE, BIT_OP_SAR); break;
+	case TOKEN_PLUS: {
+		emitByte(OP_ADD);
+		emitOpStack(OP_ADD, true);
+		break;
+	}
+	case TOKEN_MINUS: {
+		emitByte(OP_SUBTRACT);
+		emitOpStack(OP_SUBTRACT, true);
+		break;
+	}
+	case TOKEN_STAR: {
+		emitByte(OP_MULTIPLY);
+		emitOpStack(OP_MULTIPLY, true);
+		break;
+	}
+	case TOKEN_SLASH: {
+		emitByte(OP_DIVIDE);
+		emitOpStack(OP_DIVIDE, true);
+		break;
+	}
+	case TOKEN_PERCENT: {
+		emitByte(OP_MODULUS);
+		emitOpStack(OP_MODULUS, true);
+		break;
+	}
+	case TOKEN_BANG_EQUAL: {
+		emitByte(OP_NOT_EQUAL);
+		emitOpStack(OP_NOT_EQUAL, true);
+		break;
+	}
+	case TOKEN_EQUAL_EQUAL: {
+		emitByte(OP_EQUAL);
+		emitOpStack(OP_EQUAL, true);
+		break;
+	}
+	case TOKEN_GREATER: {
+		emitByte(OP_GREATER);
+		emitOpStack(OP_GREATER, true);
+		break;
+	}
+	case TOKEN_GREATER_EQUAL: {
+		emitByte(OP_GREATER_EQUAL);
+		emitOpStack(OP_GREATER_EQUAL, true);
+		break;
+	}
+	case TOKEN_LESS: {
+		emitByte(OP_LESS);
+		emitOpStack(OP_LESS, true);
+		break;
+	}
+	case TOKEN_LESS_EQUAL: {
+		emitByte(OP_LESS_EQUAL);
+		emitOpStack(OP_LESS_EQUAL, true);
+		break;
+	}
+	case TOKEN_INSTANCE_OF: {
+		emitByte(OP_INSTANCE_OF);
+		emitOpStack(OP_INSTANCE_OF, true);
+		break;
+	}
+	case TOKEN_BIT_AND: {
+		emitBytes(2, OP_BITWISE, BIT_OP_AND);
+		clearOpStack();
+		break;
+	}
+	case TOKEN_BIT_OR: {
+		emitBytes(2, OP_BITWISE, BIT_OP_OR);
+		clearOpStack();
+		break;
+	}
+	case TOKEN_BIT_XOR: {
+		emitBytes(2, OP_BITWISE, BIT_OP_XOR);
+		clearOpStack();
+		break;
+	}
+	case TOKEN_BIT_SHL: {
+		emitBytes(2, OP_BITWISE, BIT_OP_SHL);
+		clearOpStack();
+		break;
+	}
+	case TOKEN_BIT_SHR: {
+		emitBytes(2, OP_BITWISE, BIT_OP_SHR);
+		clearOpStack();
+		break;
+	}
+	case TOKEN_BIT_SAR: {
+		emitBytes(2, OP_BITWISE, BIT_OP_SAR);
+		clearOpStack();
+		break;
+	}
 	default: return; // Unreachable.
 	}
 }
@@ -1109,6 +1241,7 @@ static void binary(bool canAssign) {
 static void call(bool canAssign) {
 	uint8_t argCount = argumentList();
 	emitBytes(2, OP_CALL, argCount);
+	clearOpStack();
 }
 
 static void dot(bool canAssign) {
@@ -1127,6 +1260,7 @@ static void dot(bool canAssign) {
 	else {
 		emitConstantCommond(OP_GET_PROPERTY, name);
 	}
+	clearOpStack();
 }
 
 static void arrayLiteral(bool canAssign) {
@@ -1147,6 +1281,7 @@ static void arrayLiteral(bool canAssign) {
 	}
 
 	emitBytes(3, OP_NEW_ARRAY, (uint8_t)elementCount, (uint8_t)(elementCount >> 8));  //make array
+	clearOpStack();
 }
 
 static void objectLiteral(bool canAssign) {
@@ -1157,6 +1292,7 @@ static void objectLiteral(bool canAssign) {
 
 	++current->objectNestingDepth;
 	emitByte(OP_NEW_OBJECT);
+	clearOpStack();
 
 	if (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF)) {
 		do {
@@ -1178,6 +1314,7 @@ static void objectLiteral(bool canAssign) {
 			consume(TOKEN_COLON, "Expect ':' after property name.");
 			expression(); //get value
 			emitConstantCommond(OP_NEW_PROPERTY, constant);
+			clearOpStack();
 
 			if (parser.hadError) {
 				--current->objectNestingDepth;
@@ -1196,9 +1333,11 @@ static void subscript(bool canAssign) {
 	if (canAssign && match(TOKEN_EQUAL)) {
 		expression(); // parse assignment
 		emitByte(OP_SET_SUBSCRIPT);
+		emitOpStack(OP_SET_SUBSCRIPT, true);
 	}
 	else {
 		emitByte(OP_GET_SUBSCRIPT);
+		emitOpStack(OP_GET_SUBSCRIPT, true);
 	}
 }
 
@@ -1206,22 +1345,66 @@ static void subscript(bool canAssign) {
 static void builtinLiteral(bool canAssign) {
 	switch (parser.previous.type)
 	{
-	case TOKEN_MODULE_MATH:emitBytes(2, OP_MODULE_BUILTIN, MODULE_MATH); break;
-	case TOKEN_MODULE_ARRAY:emitBytes(2, OP_MODULE_BUILTIN, MODULE_ARRAY); break;
-	case TOKEN_MODULE_OBJECT:emitBytes(2, OP_MODULE_BUILTIN, MODULE_OBJECT); break;
-	case TOKEN_MODULE_STRING:emitBytes(2, OP_MODULE_BUILTIN, MODULE_STRING); break;
-	case TOKEN_MODULE_TIME:emitBytes(2, OP_MODULE_BUILTIN, MODULE_TIME); break;
-	case TOKEN_MODULE_CTOR:emitBytes(2, OP_MODULE_BUILTIN, MODULE_CTOR); break;
-	case TOKEN_MODULE_SYSTEM:emitBytes(2, OP_MODULE_BUILTIN, MODULE_SYSTEM); break;
-	default:emitByte(OP_NIL); break;
+	case TOKEN_MODULE_MATH: {
+		emitBytes(2, OP_MODULE_BUILTIN, MODULE_MATH);
+		clearOpStack();
+		break;
+	}
+	case TOKEN_MODULE_ARRAY: {
+		emitBytes(2, OP_MODULE_BUILTIN, MODULE_ARRAY);
+		clearOpStack();
+		break;
+	}
+	case TOKEN_MODULE_OBJECT: {
+		emitBytes(2, OP_MODULE_BUILTIN, MODULE_OBJECT);
+		clearOpStack();
+		break;
+	}
+	case TOKEN_MODULE_STRING: {
+		emitBytes(2, OP_MODULE_BUILTIN, MODULE_STRING);
+		clearOpStack();
+		break;
+	}
+	case TOKEN_MODULE_TIME: {
+		emitBytes(2, OP_MODULE_BUILTIN, MODULE_TIME);
+		clearOpStack();
+		break;
+	}
+	case TOKEN_MODULE_CTOR: {
+		emitBytes(2, OP_MODULE_BUILTIN, MODULE_CTOR);
+		clearOpStack();
+		break;
+	}
+	case TOKEN_MODULE_SYSTEM: {
+		emitBytes(2, OP_MODULE_BUILTIN, MODULE_SYSTEM);
+		clearOpStack();
+		break;
+	}
+	default: {
+		emitByte(OP_NIL);
+		clearOpStack();
+		break;
+	}
 	}
 }
 
 static void literal(bool canAssign) {
 	switch (parser.previous.type) {
-	case TOKEN_FALSE: emitByte(OP_FALSE); break;
-	case TOKEN_NIL: emitByte(OP_NIL); break;
-	case TOKEN_TRUE: emitByte(OP_TRUE); break;
+	case TOKEN_FALSE: {
+		emitByte(OP_FALSE);
+		emitOpStack(OP_FALSE, false);
+		break;
+	}
+	case TOKEN_NIL: {
+		emitByte(OP_NIL);
+		emitOpStack(OP_FALSE, false);
+		break;
+	}
+	case TOKEN_TRUE: {
+		emitByte(OP_TRUE);
+		emitOpStack(OP_TRUE, false);
+		break;
+	}
 	default: return; // Unreachable.
 	}
 }
@@ -1248,19 +1431,9 @@ static void number_hex(bool canAssign) {
 }
 
 static void or_(bool canAssign) {
-	//if false
-	//int32_t elseJump = emitJump(OP_JUMP_IF_FALSE);
-	//int32_t endJump = emitJump(OP_JUMP);
-
-	//patchJump(elseJump);
-	//emitByte(OP_POP);
-
-	//parsePrecedence(PREC_OR);
-	//patchJump(endJump);
-
 	//if true
 	int32_t ifJump = emitJump(OP_JUMP_IF_TRUE);
-	emitByte(OP_POP);
+	emitPopCount(1);
 	parsePrecedence(PREC_OR);
 	patchJump(ifJump);
 }
@@ -1283,9 +1456,11 @@ static void namedVariable(Token name, bool canAssign) {
 			}
 			// 16-bit index
 			emitBytes(3, OP_SET_LOCAL, (uint8_t)arg, (uint8_t)(arg >> 8));
+			emitOpStack(OP_SET_LOCAL, true);
 		}
 		else { // 16-bit index
 			emitBytes(3, OP_GET_LOCAL, (uint8_t)arg, (uint8_t)(arg >> 8));
+			emitOpStack(OP_GET_LOCAL, false);
 		}
 	}
 	else {
@@ -1306,6 +1481,7 @@ static void namedVariable(Token name, bool canAssign) {
 			else { // 16-bit index
 				emitBytes(2, OP_GET_UPVALUE, (uint8_t)arg);
 			}
+			clearOpStack();
 		}
 		else {//it's a global var
 			arg = identifierConstant(&name);
@@ -1317,6 +1493,7 @@ static void namedVariable(Token name, bool canAssign) {
 			else {
 				emitConstantCommond(OP_GET_GLOBAL, arg);
 			}
+			clearOpStack();
 		}
 	}
 }
@@ -1364,6 +1541,7 @@ static void super_(bool canAssign) {
 		namedVariable(syntheticToken("super"), false);//load class
 		emitConstantCommond(OP_GET_SUPER, name);//get method
 	}
+	clearOpStack();
 }
 
 static void string_escape(bool canAssign) {
@@ -1378,10 +1556,26 @@ static void unary(bool canAssign) {
 
 	// Emit the operator instruction.
 	switch (operatorType) {
-	case TOKEN_BANG: emitByte(OP_NOT); break;
-	case TOKEN_MINUS: emitByte(OP_NEGATE); break;
-	case TOKEN_BIT_NOT: emitBytes(2, OP_BITWISE, BIT_OP_NOT); break;
-	case TOKEN_TYPE_OF: emitByte(OP_TYPE_OF); break;
+	case TOKEN_BANG: {
+		emitByte(OP_NOT);
+		emitOpStack(OP_NOT, true);
+		break;
+	}
+	case TOKEN_MINUS: {
+		emitByte(OP_NEGATE);
+		emitOpStack(OP_NEGATE, true);
+		break;
+	}
+	case TOKEN_BIT_NOT: {
+		emitBytes(2, OP_BITWISE, BIT_OP_NOT);
+		clearOpStack();
+		break;
+	}
+	case TOKEN_TYPE_OF: {
+		emitByte(OP_TYPE_OF);
+		emitOpStack(OP_TYPE_OF, true);
+		break;
+	}
 	default: return; // Unreachable.
 	}
 }
