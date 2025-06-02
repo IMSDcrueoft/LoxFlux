@@ -1737,7 +1737,7 @@ static void instructionOptimize() {
 	bool isBothConstant = (isLeftConstant && isRightConstant);
 	// local
 	bool isLeftLocal = (prevLeft == OP_GET_LOCAL);
-	bool isRightLocal = (prevLeft == OP_GET_LOCAL);
+	bool isRightLocal = (prevRight == OP_GET_LOCAL);
 	bool isBothLocal = (isLeftLocal && isRightLocal);
 
 #define CHUNK_PEEK(offset) chunk->code[chunk->count - (offset) - 1]
