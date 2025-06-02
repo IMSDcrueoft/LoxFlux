@@ -27,8 +27,11 @@ static ParseRule* getRule(TokenType type);
 static void namedVariable(Token name, bool canAssign);
 static void variable(bool canAssign);
 static Token syntheticToken(C_STR text);
+
+#if COMPILATION_TIME_OPTIMIZATION
 //do optimize here
 static void instructionOptimize();
+#endif
 
 static Chunk* currentChunk() {
 	return &current->function->chunk;
@@ -40,15 +43,14 @@ static OPStack* currentOpStack() {
 
 //for which complex logical/control flows, merge is not used
 static void clearOpStack() {
-#if COMPILATION_TIME_OPTIMIZATION
 	opStack_clear(currentOpStack());
-#endif
 }
 
 //emit and check opStack
 static void emitOpStack(uint8_t byte, bool doCheck) {
-#if COMPILATION_TIME_OPTIMIZATION
 	opStack_push(currentOpStack(), byte);
+
+#if COMPILATION_TIME_OPTIMIZATION
 	if (!doCheck) return;
 
 #if DEBUG_PRINT_CODE
@@ -1304,17 +1306,60 @@ static void objectLiteral(bool canAssign) {
 	--current->objectNestingDepth;
 }
 
+//when it is constant index,use this
+static void mergeSubscript(bool isAssignment) {
+	Chunk* chunk = currentChunk();
+#define READ_CONSTANT(index) (vm.constants.values[(index)])
+#define READ_24BITS_INDEX()	\
+	(((uint32_t)chunk->code[chunk->count - 1] << 16) +	\
+	 ((uint32_t)chunk->code[chunk->count - 2] << 8) +	\
+	 (uint32_t)(chunk->code[chunk->count - 3]))
+
+	uint32_t index = READ_24BITS_INDEX();
+	Value val = READ_CONSTANT(index);
+
+	//must fallback
+	chunk_fallback(chunk, 4);
+	clearOpStack();
+
+	if (isAssignment) expression();
+
+	if (IS_NUMBER(val)) {
+		emitConstantCommond(isAssignment ? OP_SET_INDEX : OP_GET_INDEX, index);
+		clearOpStack();
+	}
+	else if (IS_STRING(val)) {
+		emitConstantCommond(isAssignment ? OP_SET_PROPERTY : OP_GET_PROPERTY, index);
+		clearOpStack();
+	}
+	else {
+		error("Can only subscript with string or number.\n");
+	}
+#undef READ_CONSTANT
+#undef READ_24BITS_INDEX
+}
+
 static void subscript(bool canAssign) {
 	expression();
 	consume(TOKEN_RIGHT_SQUARE_BRACKET, "Expect ']' after subscript.");
-	if (canAssign && match(TOKEN_EQUAL)) {
-		expression(); // parse assignment
-		emitByte(OP_SET_SUBSCRIPT);
-		emitOpStack(OP_SET_SUBSCRIPT, true);
+
+	// Because of the order of parsing, the index must be processed here
+	uint8_t code = opStack_peek(currentOpStack(), 0);
+	bool isAssignment = canAssign && match(TOKEN_EQUAL);
+
+	if (code == OP_CONSTANT) {// constant index
+		mergeSubscript(isAssignment);
 	}
 	else {
-		emitByte(OP_GET_SUBSCRIPT);
-		emitOpStack(OP_GET_SUBSCRIPT, true);
+		if (isAssignment) {
+			expression();
+			emitByte(OP_SET_SUBSCRIPT);
+			clearOpStack();
+		}
+		else {
+			emitByte(OP_GET_SUBSCRIPT);
+			clearOpStack();
+		}
 	}
 }
 
@@ -1919,31 +1964,13 @@ static void instructionOptimize() {
 		}
 		break;
 	}
-	case OP_GET_SUBSCRIPT: {
-		if (isRightConstant) {
-			uint32_t idx_right = READ_24BITS_INDEX(1); //op
-			Value right = READ_CONSTANT(idx_right);
-
-			if (IS_STRING(right)) {
-				chunk_fallback(chunk, 1 + 4);//op + const
-				//opStack_fallback(opStack, 2);
-				emitConstantCommond(OP_GET_PROPERTY, idx_right);
-				clearOpStack();
-			}
-			else if (IS_NUMBER(right)) {
-				chunk_fallback(chunk, 1 + 4);//op + const
-				//opStack_fallback(opStack, 2);
-				emitConstantCommond(OP_GET_ARRAY_PROPERTY, idx_right);
-				clearOpStack();
-			}
-		}
+	case OP_SET_LOCAL: {
 		break;
 	}
-	case OP_SET_SUBSCRIPT:break;
-	case OP_SET_LOCAL:break;
-	default:
+	default: {
 		fprintf(stderr, "Unexpected(%u)\n", code);
 		break;
+	}
 	}
 
 #undef READ_CONSTANT

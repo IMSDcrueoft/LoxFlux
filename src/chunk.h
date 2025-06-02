@@ -47,15 +47,16 @@ typedef enum {
 	OP_SUPER_INVOKE,	// call with super.()
 	OP_RETURN,          // ret
 
-	OP_SET_SUBSCRIPT,	// set subscript
-	OP_GET_SUBSCRIPT,	// get subscript
-	OP_GET_ARRAY_PROPERTY,
 	OP_GET_PROPERTY,	// modify property
 	OP_SET_PROPERTY,
+	OP_SET_INDEX,		// for array
+	OP_GET_INDEX,
 	OP_GET_SUPER,		//get super
 	OP_GET_GLOBAL,
 	OP_SET_GLOBAL,
 	OP_DEFINE_GLOBAL,	//define global
+	OP_SET_SUBSCRIPT,	// set subscript
+	OP_GET_SUBSCRIPT,	// get subscript
 
 	OP_CLOSURE,			// getFn
 	OP_GET_UPVALUE,		//up value

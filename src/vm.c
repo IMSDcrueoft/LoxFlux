@@ -909,7 +909,7 @@ static InterpretResult run()
 			stack_replace(value);
 			break;
 		}
-		case OP_GET_ARRAY_PROPERTY: {
+		case OP_GET_INDEX: {
 			Value target = vm.stackTop[-1];
 			Value constant = READ_CONSTANT(READ_24bits());
 			double num_index = AS_NUMBER(constant);
@@ -945,6 +945,38 @@ static InterpretResult run()
 			}
 
 			runtimeError("Only arrayLike,stringBuilder and string can get number subscript.");
+			return INTERPRET_RUNTIME_ERROR;
+		}
+		case OP_SET_INDEX: {
+			Value target = vm.stackTop[-2];
+			Value value = vm.stackTop[-1];
+
+			Value constant = READ_CONSTANT(READ_24bits());
+			double num_index = AS_NUMBER(constant);
+
+			if (isArrayLike(target)) {
+				//get array
+				ObjArray* array = AS_ARRAY(target);
+
+				if (ARRAY_IN_RANGE(array, num_index)) {
+					if (OBJ_IS_TYPE(array, OBJ_ARRAY)) {
+						vm.stackTop[-2] = ARRAY_ELEMENT(array, Value, (uint32_t)num_index) = value;
+					}
+					else {
+						setTypedArrayElement(array, (uint32_t)num_index, value);
+						vm.stackTop[-2] = value;
+					}
+
+					vm.stackTop -= 1;
+					break;
+				}
+				else {
+					runtimeError("Array index out of range.");
+					return INTERPRET_RUNTIME_ERROR;
+				}
+			}
+
+			runtimeError("Only arrayLike can set number subscript.");
 			return INTERPRET_RUNTIME_ERROR;
 		}
 		case OP_GET_SUBSCRIPT: {

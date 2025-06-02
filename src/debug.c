@@ -238,8 +238,10 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 		return constantInstruction("OP_GET_PROPERTY", chunk, offset);
 	case OP_SET_PROPERTY:
 		return constantInstruction("OP_SET_PROPERTY", chunk, offset);
-	case OP_GET_ARRAY_PROPERTY:
-		return constantInstruction("OP_GET_ARRAY_PROPERTY", chunk, offset);
+	case OP_GET_INDEX:
+		return constantInstruction("OP_GET_INDEX", chunk, offset);
+	case OP_SET_INDEX:
+		return constantInstruction("OP_SET_INDEX", chunk, offset);
 
 	case OP_GET_SUBSCRIPT:
 		return simpleInstruction("OP_GET_SUBSCRIPT", offset);
@@ -318,8 +320,6 @@ void disassembleOpStack(OPStack* opStack) {
 		case OP_NOT_EQUAL:        printf("OP_NOT_EQUAL\n"); break;
 		case OP_LESS_EQUAL:       printf("OP_LESS_EQUAL\n"); break;
 		case OP_GREATER_EQUAL:    printf("OP_GREATER_EQUAL\n"); break;
-		case OP_SET_SUBSCRIPT:    printf("OP_SET_SUBSCRIPT\n"); break;
-		case OP_GET_SUBSCRIPT:    printf("OP_GET_SUBSCRIPT\n"); break;
 		default:
 			fprintf(stderr, "Unexpected(%u)\n", code);
 			break;
