@@ -29,18 +29,18 @@ Lox is a programming language designed for learning purposes. It is conceived as
 - **Inline `init()`**: The inline caching class init() method helps reduce the overhead of object creation.
 - **Flip-up GC marking**: Flipping tags can avoid reverting to the write of tags during the recycling process, and favor concurrent tags (if actually implemented).
 - **Detached static and dynamic objects**: Static objects such as strings/functions, they don't usually bloat very much, so I think it's a viable option not to recycle them.
-- **Compilation-time optimizations**: Provides basic constant folding.
+- **Compilation-time optimizations**: Provides basic constant folding and super instruction.
 
 ---
 
-#### Performance test (v0.9.6 dev on AMD R7 5800X)
+#### Performance test (v0.9.9 dev on AMD R7 5800X)
 
 |program|loxFlux|clox|
 |---|---|---|
-|fib30|75ms|84ms|
-|fib35|841ms|930ms|
-|fib40|9311ms|10254ms|
-|global loop 1e8|1190ms|2044ms|
+|fib30|56ms|84ms|
+|fib35|632ms|930ms|
+|fib40|6993ms|10254ms|
+|global loop 1e8|974ms|2044ms|
 
 ---
 
