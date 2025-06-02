@@ -1091,7 +1091,7 @@ static InterpretResult run()
 					ObjInstance* instance = AS_INSTANCE(target);
 					ObjString* name = AS_STRING(index);
 
-					if (NOT_NIL(vm.stackTop[-1])) {
+					if (NOT_NIL(value)) {
 						tableSet(&instance->fields, name, value);
 					}
 					else {
