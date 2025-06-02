@@ -1720,7 +1720,7 @@ void markCompilerRoots()
 * This part uses hard-coded instruction lengths, which needs to be noted
 */
 #if COMPILATION_TIME_OPTIMIZATION
-COLD_FUNCTION
+//COLD_FUNCTION
 static void instructionOptimize() {
 	//do optimize here
 	Chunk* chunk = currentChunk();
@@ -1735,6 +1735,10 @@ static void instructionOptimize() {
 	bool isLeftConstant = (prevLeft == OP_CONSTANT);
 	bool isRightConstant = (prevRight == OP_CONSTANT);
 	bool isBothConstant = (isLeftConstant && isRightConstant);
+	// local
+	bool isLeftLocal = (prevLeft == OP_GET_LOCAL);
+	bool isRightLocal = (prevLeft == OP_GET_LOCAL);
+	bool isBothLocal = (isLeftLocal && isRightLocal);
 
 #define CHUNK_PEEK(offset) chunk->code[chunk->count - (offset) - 1]
 #define READ_CONSTANT(index) (vm.constants.values[(index)])
@@ -1798,6 +1802,11 @@ static void instructionOptimize() {
 			clearOpStack();
 			CHUNK_PEEK(3) = OP_ADD_CONST; //convert command
 		}
+		else if (isRightLocal) {
+			chunk_fallback(chunk, 1);//op
+			clearOpStack();
+			CHUNK_PEEK(2) = OP_ADD_LOCAL; //convert command
+		}
 		break;
 	}
 	case OP_SUBTRACT: {
@@ -1813,6 +1822,11 @@ static void instructionOptimize() {
 			chunk_fallback(chunk, 1);//op
 			clearOpStack();
 			CHUNK_PEEK(3) = OP_SUBTRACT_CONST; //convert command
+		}
+		else if (isRightLocal) {
+			chunk_fallback(chunk, 1);//op
+			clearOpStack();
+			CHUNK_PEEK(2) = OP_SUBTRACT_LOCAL; //convert command
 		}
 		break;
 	}
@@ -1830,6 +1844,11 @@ static void instructionOptimize() {
 			clearOpStack();
 			CHUNK_PEEK(3) = OP_MULTIPLY_CONST; //convert command
 		}
+		else if (isRightLocal) {
+			chunk_fallback(chunk, 1);//op
+			clearOpStack();
+			CHUNK_PEEK(2) = OP_MULTIPLY_LOCAL; //convert command
+		}
 		break;
 	}
 	case OP_DIVIDE: {
@@ -1845,6 +1864,11 @@ static void instructionOptimize() {
 			chunk_fallback(chunk, 1);//op
 			clearOpStack();
 			CHUNK_PEEK(3) = OP_DIVIDE_CONST; //convert command
+		}
+		else if (isRightLocal) {
+			chunk_fallback(chunk, 1);//op
+			clearOpStack();
+			CHUNK_PEEK(2) = OP_DIVIDE_LOCAL; //convert command
 		}
 		break;
 	}
@@ -1871,6 +1895,11 @@ static void instructionOptimize() {
 			clearOpStack();
 			CHUNK_PEEK(3) = OP_MODULUS_CONST; //convert command
 		}
+		else if (isRightLocal) {
+			chunk_fallback(chunk, 1);//op
+			clearOpStack();
+			CHUNK_PEEK(2) = OP_MODULUS_LOCAL; //convert command
+		}
 		break;
 	}
 	case OP_NOT: {
@@ -1893,6 +1922,11 @@ static void instructionOptimize() {
 			emitByte(OP_FALSE);
 			emitOpStack(OP_FALSE, false);
 		}
+		else if (isRightLocal) {
+			chunk_fallback(chunk, 1);//op
+			clearOpStack();
+			CHUNK_PEEK(2) = OP_NOT_LOCAL; //convert command
+		}
 		break;
 	}
 	case OP_NEGATE: {
@@ -1912,6 +1946,11 @@ static void instructionOptimize() {
 		}
 		else if (prevRight == OP_FALSE || prevRight == OP_TRUE || prevRight == OP_NIL) {
 			error("Operand must be a number.");
+		}
+		else if (isRightLocal) {
+			chunk_fallback(chunk, 1);//op
+			clearOpStack();
+			CHUNK_PEEK(2) = OP_NEGATE_LOCAL; //convert command
 		}
 		break;
 	}
@@ -1934,6 +1973,11 @@ static void instructionOptimize() {
 			clearOpStack();
 			CHUNK_PEEK(3) = OP_EQUAL_CONST; //convert command
 		}
+		else if (isRightLocal) {
+			chunk_fallback(chunk, 1);//op
+			clearOpStack();
+			CHUNK_PEEK(2) = OP_EQUAL_LOCAL; //convert command
+		}
 		break;
 	}
 	case OP_NOT_EQUAL: {
@@ -1955,6 +1999,11 @@ static void instructionOptimize() {
 			clearOpStack();
 			CHUNK_PEEK(3) = OP_NOT_EQUAL_CONST; //convert command
 		}
+		else if (isRightLocal) {
+			chunk_fallback(chunk, 1);//op
+			clearOpStack();
+			CHUNK_PEEK(2) = OP_NOT_EQUAL_LOCAL; //convert command
+		}
 		break;
 	}
 	case OP_GREATER: {
@@ -1970,6 +2019,11 @@ static void instructionOptimize() {
 			chunk_fallback(chunk, 1);//op
 			clearOpStack();
 			CHUNK_PEEK(3) = OP_GREATER_CONST; //convert command
+		}
+		else if (isRightLocal) {
+			chunk_fallback(chunk, 1);//op
+			clearOpStack();
+			CHUNK_PEEK(2) = OP_GREATER_LOCAL; //convert command
 		}
 		break;
 	}
@@ -1987,6 +2041,11 @@ static void instructionOptimize() {
 			clearOpStack();
 			CHUNK_PEEK(3) = OP_LESS_CONST; //convert command
 		}
+		else if (isRightLocal) {
+			chunk_fallback(chunk, 1);//op
+			clearOpStack();
+			CHUNK_PEEK(2) = OP_LESS_LOCAL; //convert command
+		}
 		break;
 	}
 	case OP_LESS_EQUAL: {
@@ -2003,6 +2062,11 @@ static void instructionOptimize() {
 			clearOpStack();
 			CHUNK_PEEK(3) = OP_LESS_EQUAL_CONST; //convert command
 		}
+		else if (isRightLocal) {
+			chunk_fallback(chunk, 1);//op
+			clearOpStack();
+			CHUNK_PEEK(2) = OP_LESS_EQUAL_LOCAL; //convert command
+		}
 		break;
 	}
 	case OP_GREATER_EQUAL: {
@@ -2018,6 +2082,11 @@ static void instructionOptimize() {
 			chunk_fallback(chunk, 1);//op
 			clearOpStack();
 			CHUNK_PEEK(3) = OP_GREATER_EQUAL_CONST; //convert command
+		}
+		else if (isRightLocal) {
+			chunk_fallback(chunk, 1);//op
+			clearOpStack();
+			CHUNK_PEEK(2) = OP_GREATER_EQUAL_LOCAL; //convert command
 		}
 		break;
 	}

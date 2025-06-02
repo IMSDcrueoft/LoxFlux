@@ -300,6 +300,34 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 	case OP_LESS_EQUAL_CONST:
 		return constantInstruction("OP_LESS_EQUAL_CONST", chunk, offset);
 
+	case OP_ADD_LOCAL:
+		return shortInstruction("OP_ADD_LOCAL", chunk, offset);
+	case OP_SUBTRACT_LOCAL:
+		return shortInstruction("OP_SUBTRACT_LOCAL", chunk, offset);
+	case OP_MULTIPLY_LOCAL:
+		return shortInstruction("OP_MULTIPLY_LOCAL", chunk, offset);
+	case OP_DIVIDE_LOCAL:
+		return shortInstruction("OP_DIVIDE_LOCAL", chunk, offset);
+	case OP_MODULUS_LOCAL:
+		return shortInstruction("OP_MODULUS_LOCAL", chunk, offset);
+	case OP_NOT_LOCAL:
+		return shortInstruction("OP_NOT_LOCAL", chunk, offset);
+	case OP_NEGATE_LOCAL:
+		return shortInstruction("OP_NEGATE_LOCAL", chunk, offset);
+
+	case OP_EQUAL_LOCAL:
+		return shortInstruction("OP_EQUAL_LOCAL", chunk, offset);
+	case OP_NOT_EQUAL_LOCAL:
+		return shortInstruction("OP_NOT_EQUAL_LOCAL", chunk, offset);
+	case OP_GREATER_LOCAL:
+		return shortInstruction("OP_GREATER_LOCAL", chunk, offset);
+	case OP_GREATER_EQUAL_LOCAL:
+		return shortInstruction("OP_GREATER_EQUAL_LOCAL", chunk, offset);
+	case OP_LESS_LOCAL:
+		return shortInstruction("OP_LESS_LOCAL", chunk, offset);
+	case OP_LESS_EQUAL_LOCAL:
+		return shortInstruction("OP_LESS_EQUAL_LOCAL", chunk, offset);
+
 	default:
 		printf("Unknown opcode %d offset = %d\n", instruction, offset);
 		return offset + 1;
