@@ -3,5 +3,5 @@ const PI = 3.14159;  // the moudle file work in local scope, so you can use cons
 // Export an object with math functions  
 export {  
   "pi": PI,  
-  "multPI": lambda(a) { return a * PI; }  
+  "multPI": lambda(a) => a * PI 
 };

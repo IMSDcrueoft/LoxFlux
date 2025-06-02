@@ -29,9 +29,12 @@ void chunk_write(Chunk* chunk, uint8_t byte, uint32_t line) {
 
 void chunk_fallback(Chunk* chunk, uint32_t byteCount)
 {
-	if (chunk->count > byteCount) {
+	if (chunk->count >= byteCount) {
 		chunk->count -= byteCount;
 		lineArray_fallback(&chunk->lines, chunk->count);
+	}
+	else {
+		fprintf(stderr, "chunk fallback too many!\n");
 	}
 }
 
@@ -75,7 +78,7 @@ void opStack_push(OPStack* stack, uint8_t byte)
 	stack->count++;
 }
 
-uint8_t opStack_peep(OPStack* stack, uint8_t offset)
+uint8_t opStack_peek(OPStack* stack, uint8_t offset)
 {
 	if (stack->count > offset) {
 		return stack->code[stack->count - offset - 1];
@@ -85,17 +88,22 @@ uint8_t opStack_peep(OPStack* stack, uint8_t offset)
 	}
 }
 
-void opStack_pop(OPStack* stack)
+void opStack_fallback(OPStack* stack, uint32_t byteCount)
 {
-	if (stack->count > 0) {
-		--stack->count;
+	if (stack->count >= byteCount) {
+		stack->count -= byteCount;
+	}
+	else {
+		fprintf(stderr, "opStack fallback too many!\n");
 	}
 }
 
 //logic clear
 void opStack_clear(OPStack* stack)
 {
-	stack->count = 0;
+	if (stack->count > 0) {
+		stack->count = 0;
+	}
 }
 
 void opStack_free(OPStack* stack)

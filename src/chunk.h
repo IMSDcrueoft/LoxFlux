@@ -47,14 +47,16 @@ typedef enum {
 	OP_SUPER_INVOKE,	// call with super.()
 	OP_RETURN,          // ret
 
-	OP_SET_SUBSCRIPT,	// set subscript
-	OP_GET_SUBSCRIPT,	// get subscript
 	OP_GET_PROPERTY,	// modify property
 	OP_SET_PROPERTY,
+	OP_SET_INDEX,		// for array
+	OP_GET_INDEX,
 	OP_GET_SUPER,		//get super
 	OP_GET_GLOBAL,
 	OP_SET_GLOBAL,
 	OP_DEFINE_GLOBAL,	//define global
+	OP_SET_SUBSCRIPT,	// set subscript
+	OP_GET_SUBSCRIPT,	// get subscript
 
 	OP_CLOSURE,			// getFn
 	OP_GET_UPVALUE,		//up value
@@ -76,6 +78,34 @@ typedef enum {
 	OP_PRINT,			// print string or value
 	OP_THROW,			// throw
 	OP_IMPORT,			// import module
+
+	//super commond
+	OP_ADD_CONST,
+	OP_SUBTRACT_CONST,
+	OP_MULTIPLY_CONST,
+	OP_DIVIDE_CONST,
+	OP_MODULUS_CONST,
+	OP_EQUAL_CONST,
+	OP_GREATER_CONST,
+	OP_LESS_CONST,
+	OP_NOT_EQUAL_CONST,
+	OP_LESS_EQUAL_CONST,
+	OP_GREATER_EQUAL_CONST,
+
+    OP_ADD_LOCAL,
+    OP_SUBTRACT_LOCAL,
+    OP_MULTIPLY_LOCAL,
+    OP_DIVIDE_LOCAL,
+    OP_MODULUS_LOCAL,
+    OP_EQUAL_LOCAL,
+    OP_GREATER_LOCAL,
+    OP_LESS_LOCAL,
+    OP_NOT_EQUAL_LOCAL,
+    OP_LESS_EQUAL_LOCAL,
+    OP_GREATER_EQUAL_LOCAL,
+
+	OP_NOT_LOCAL,
+	OP_NEGATE_LOCAL,
 } OpCode;
 
 typedef enum {
@@ -118,7 +148,7 @@ void chunk_free_errorCode(Chunk* chunk, uint32_t beginError);
 void opStack_init(OPStack* stack);
 void opStack_push(OPStack* stack, uint8_t byte);
 //we don't know the offset of the code,so we use this to get the opType
-uint8_t opStack_peep(OPStack* stack, uint8_t offset);
-void opStack_pop(OPStack* stack);
+uint8_t opStack_peek(OPStack* stack, uint8_t offset);
+void opStack_fallback(OPStack* stack, uint32_t byteCount);
 void opStack_clear(OPStack* stack);
 void opStack_free(OPStack* stack);

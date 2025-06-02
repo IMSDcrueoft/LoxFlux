@@ -238,6 +238,10 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 		return constantInstruction("OP_GET_PROPERTY", chunk, offset);
 	case OP_SET_PROPERTY:
 		return constantInstruction("OP_SET_PROPERTY", chunk, offset);
+	case OP_GET_INDEX:
+		return constantInstruction("OP_GET_INDEX", chunk, offset);
+	case OP_SET_INDEX:
+		return constantInstruction("OP_SET_INDEX", chunk, offset);
 
 	case OP_GET_SUBSCRIPT:
 		return simpleInstruction("OP_GET_SUBSCRIPT", offset);
@@ -272,6 +276,58 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 		return builtinInStruction("OP_MODULE", chunk, offset);
 	case OP_IMPORT:
 		return simpleInstruction("OP_IMPORT", offset);
+
+	case OP_ADD_CONST:
+		return constantInstruction("OP_ADD_CONST", chunk, offset);
+	case OP_SUBTRACT_CONST:
+		return constantInstruction("OP_SUBTRACT_CONST", chunk, offset);
+	case OP_MULTIPLY_CONST:
+		return constantInstruction("OP_SUBTRACT_CONST", chunk, offset);
+	case OP_DIVIDE_CONST:
+		return constantInstruction("OP_SUBTRACT_CONST", chunk, offset);
+	case OP_MODULUS_CONST:
+		return constantInstruction("OP_MODULUS_CONST", chunk, offset);
+	case OP_EQUAL_CONST:
+		return constantInstruction("OP_EQUAL_CONST", chunk, offset);
+	case OP_NOT_EQUAL_CONST:
+		return constantInstruction("OP_NOT_EQUAL_CONST", chunk, offset);
+	case OP_GREATER_CONST:
+		return constantInstruction("OP_GREATER_CONST", chunk, offset);
+	case OP_GREATER_EQUAL_CONST:
+		return constantInstruction("OP_GREATER_EQUAL_CONST", chunk, offset);
+	case OP_LESS_CONST:
+		return constantInstruction("OP_LESS_CONST", chunk, offset);
+	case OP_LESS_EQUAL_CONST:
+		return constantInstruction("OP_LESS_EQUAL_CONST", chunk, offset);
+
+	case OP_ADD_LOCAL:
+		return shortInstruction("OP_ADD_LOCAL", chunk, offset);
+	case OP_SUBTRACT_LOCAL:
+		return shortInstruction("OP_SUBTRACT_LOCAL", chunk, offset);
+	case OP_MULTIPLY_LOCAL:
+		return shortInstruction("OP_MULTIPLY_LOCAL", chunk, offset);
+	case OP_DIVIDE_LOCAL:
+		return shortInstruction("OP_DIVIDE_LOCAL", chunk, offset);
+	case OP_MODULUS_LOCAL:
+		return shortInstruction("OP_MODULUS_LOCAL", chunk, offset);
+	case OP_NOT_LOCAL:
+		return shortInstruction("OP_NOT_LOCAL", chunk, offset);
+	case OP_NEGATE_LOCAL:
+		return shortInstruction("OP_NEGATE_LOCAL", chunk, offset);
+
+	case OP_EQUAL_LOCAL:
+		return shortInstruction("OP_EQUAL_LOCAL", chunk, offset);
+	case OP_NOT_EQUAL_LOCAL:
+		return shortInstruction("OP_NOT_EQUAL_LOCAL", chunk, offset);
+	case OP_GREATER_LOCAL:
+		return shortInstruction("OP_GREATER_LOCAL", chunk, offset);
+	case OP_GREATER_EQUAL_LOCAL:
+		return shortInstruction("OP_GREATER_EQUAL_LOCAL", chunk, offset);
+	case OP_LESS_LOCAL:
+		return shortInstruction("OP_LESS_LOCAL", chunk, offset);
+	case OP_LESS_EQUAL_LOCAL:
+		return shortInstruction("OP_LESS_EQUAL_LOCAL", chunk, offset);
+
 	default:
 		printf("Unknown opcode %d offset = %d\n", instruction, offset);
 		return offset + 1;
@@ -288,5 +344,39 @@ void disassembleChunk(Chunk* chunk, C_STR name, uint32_t id) {
 	}
 
 	printf("== %s(%d) end==\n", name, id);
+}
+
+COLD_FUNCTION
+void disassembleOpStack(OPStack* opStack) {
+	printf("== opStack begin ==\n");
+	for (uint32_t i = 0; i < opStack->count; ++i) {
+		uint8_t code = opStack->code[i];
+
+		switch (code) {
+		case OP_CONSTANT:         printf("OP_CONSTANT\n"); break;
+		case OP_GET_LOCAL:        printf("OP_GET_LOCAL\n"); break;
+		case OP_SET_LOCAL:        printf("OP_SET_LOCAL\n"); break;
+		case OP_ADD:              printf("OP_ADD\n"); break;
+		case OP_SUBTRACT:         printf("OP_SUBTRACT\n"); break;
+		case OP_MULTIPLY:         printf("OP_MULTIPLY\n"); break;
+		case OP_DIVIDE:           printf("OP_DIVIDE\n"); break;
+		case OP_MODULUS:          printf("OP_MODULUS\n"); break;
+		case OP_NOT:              printf("OP_NOT\n"); break;
+		case OP_NEGATE:           printf("OP_NEGATE\n"); break;
+		case OP_FALSE:            printf("OP_FALSE\n"); break;
+		case OP_TRUE:             printf("OP_TRUE\n"); break;
+		case OP_NIL:              printf("OP_NIL\n"); break;
+		case OP_EQUAL:            printf("OP_EQUAL\n"); break;
+		case OP_GREATER:          printf("OP_GREATER\n"); break;
+		case OP_LESS:             printf("OP_LESS\n"); break;
+		case OP_NOT_EQUAL:        printf("OP_NOT_EQUAL\n"); break;
+		case OP_LESS_EQUAL:       printf("OP_LESS_EQUAL\n"); break;
+		case OP_GREATER_EQUAL:    printf("OP_GREATER_EQUAL\n"); break;
+		default:
+			fprintf(stderr, "Unexpected(%u)\n", code);
+			break;
+		}
+	}
+	printf("== opStack end ==\n");
 }
 #endif

@@ -32,3 +32,5 @@ typedef const char* C_STR;
 #define NAN_BOXING 1
 //compress the ptr to 48bits
 #define COMPRESS_OBJ_HEADER 1
+//do optimize
+#define COMPILATION_TIME_OPTIMIZATION 1

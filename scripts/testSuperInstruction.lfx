@@ -1,0 +1,28 @@
+fun insertionSort(arr,sortRule) {  
+    if(typeof arr != "array") throw "Expect an array as arg0.";
+
+    const len = @array.length(arr);  
+      
+    for (var i = 1; i < len; i = i + 1) {  
+        const key = arr[i];  
+        var j = i - 1;  
+                
+        while (j >= 0 and sortRule(arr[j],key) > 0) {  
+            arr[j + 1] = arr[j];  
+            j = j - 1;  
+        }  
+        arr[j + 1] = key;  
+    }
+}  
+
+var testArray = @ctor.Array(128);
+for(var i = 0,len = @array.length(testArray);i < len;i = i + 1){
+    testArray[i] = @math.random();
+}
+
+var start = @time.milli();
+for(var i = 0;i<5000;i=i+1){
+    const cpyArray = @array.slice(testArray,0);
+    insertionSort(cpyArray,lambda(a,b)=> a-b);
+}
+print @time.milli() - start;

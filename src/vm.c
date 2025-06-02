@@ -782,17 +782,16 @@ static InterpretResult run()
 		}																							\
 	} while (false)
 
-#define BINARY_OP_MODULUS(valueType)																	\
-    do {																								\
-		/* Pop the top two values from the stack */														\
-		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {									\
-			/* Perform the operation and push the result back */										\
-			vm.stackTop[-2] = valueType(fmod(AS_NUMBER(vm.stackTop[-2]),AS_NUMBER(vm.stackTop[-1])));	\
-			vm.stackTop--;																				\
-		} else {																						\
-			runtimeError("Operands must be numbers.");											\
-			return INTERPRET_RUNTIME_ERROR;																\
-		}																								\
+#define BINARY_OP_WITH_RIGHT(valueType,right,op)											\
+    do {																					\
+		/* Pop the top two values from the stack */											\
+		if (IS_NUMBER(vm.stackTop[-1]) && IS_NUMBER(right)) {								\
+			/* Perform the operation and push the result back */							\
+			vm.stackTop[-1] = valueType(AS_NUMBER(vm.stackTop[-1]) op AS_NUMBER(right));	\
+		} else {																			\
+			runtimeError("Operands must be numbers.");								\
+			return INTERPRET_RUNTIME_ERROR;													\
+		}																					\
 	} while (false)
 
 	while (true) //let it loop
@@ -909,6 +908,76 @@ static InterpretResult run()
 			stack_replace(value);
 			break;
 		}
+		case OP_GET_INDEX: {
+			Value target = vm.stackTop[-1];
+			Value constant = READ_CONSTANT(READ_24bits());
+			double num_index = AS_NUMBER(constant);
+
+			if (isIndexableArray(target)) {
+				//get array
+				ObjArray* array = AS_ARRAY(target);
+
+				if (ARRAY_IN_RANGE(array, num_index)) {
+					if (OBJ_IS_TYPE(array, OBJ_ARRAY)) {
+						stack_replace(ARRAY_ELEMENT(array, Value, (uint32_t)num_index));
+					}
+					else {
+						stack_replace(getTypedArrayElement(array, (uint32_t)num_index));
+					}
+				}
+				else {
+					stack_replace(NIL_VAL);
+				}
+				break;
+			}
+			else if (IS_STRING(target)) {
+				//get string
+				ObjString* string = AS_STRING(target);
+
+				if (ARRAY_IN_RANGE(string, num_index)) {//return ascii
+					stack_replace(NUMBER_VAL((uint8_t)(string->chars[(uint32_t)num_index])));
+				}
+				else {
+					stack_replace(NIL_VAL);
+				}
+				break;
+			}
+
+			runtimeError("Only arrayLike,stringBuilder and string can get number subscript.");
+			return INTERPRET_RUNTIME_ERROR;
+		}
+		case OP_SET_INDEX: {
+			Value target = vm.stackTop[-2];
+			Value value = vm.stackTop[-1];
+
+			Value constant = READ_CONSTANT(READ_24bits());
+			double num_index = AS_NUMBER(constant);
+
+			if (isArrayLike(target)) {
+				//get array
+				ObjArray* array = AS_ARRAY(target);
+
+				if (ARRAY_IN_RANGE(array, num_index)) {
+					if (OBJ_IS_TYPE(array, OBJ_ARRAY)) {
+						vm.stackTop[-2] = ARRAY_ELEMENT(array, Value, (uint32_t)num_index) = value;
+					}
+					else {
+						setTypedArrayElement(array, (uint32_t)num_index, value);
+						vm.stackTop[-2] = value;
+					}
+
+					vm.stackTop -= 1;
+					break;
+				}
+				else {
+					runtimeError("Array index out of range.");
+					return INTERPRET_RUNTIME_ERROR;
+				}
+			}
+
+			runtimeError("Only arrayLike can set number subscript.");
+			return INTERPRET_RUNTIME_ERROR;
+		}
 		case OP_GET_SUBSCRIPT: {
 			Value target = vm.stackTop[-2];
 			Value index = vm.stackTop[-1];
@@ -1022,7 +1091,7 @@ static InterpretResult run()
 					ObjInstance* instance = AS_INSTANCE(target);
 					ObjString* name = AS_STRING(index);
 
-					if (NOT_NIL(vm.stackTop[-1])) {
+					if (NOT_NIL(value)) {
 						tableSet(&instance->fields, name, value);
 					}
 					else {
@@ -1181,10 +1250,22 @@ static InterpretResult run()
 			runtimeError("Operands must be two numbers or two strings.");
 			return INTERPRET_RUNTIME_ERROR;
 		}
-		case OP_SUBTRACT: BINARY_OP(NUMBER_VAL, -); break;
+		case OP_SUBTRACT: BINARY_OP(NUMBER_VAL, -); break; 
 		case OP_MULTIPLY: BINARY_OP(NUMBER_VAL, *); break;
 		case OP_DIVIDE:   BINARY_OP(NUMBER_VAL, / ); break;
-		case OP_MODULUS:  BINARY_OP_MODULUS(NUMBER_VAL); break;
+		case OP_MODULUS: {
+			/* Pop the top two values from the stack */
+			if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
+				/* Perform the operation and push the result back */
+				vm.stackTop[-2] = NUMBER_VAL(fmod(AS_NUMBER(vm.stackTop[-2]), AS_NUMBER(vm.stackTop[-1])));
+				vm.stackTop--;
+				break;
+			}
+			else {
+				runtimeError("Operands must be numbers.");
+				return INTERPRET_RUNTIME_ERROR;
+			}
+		}
 
 		case OP_NOT: {
 			vm.stackTop[-1] = BOOL_VAL(isFalsey(vm.stackTop[-1]));
@@ -1384,8 +1465,193 @@ static InterpretResult run()
 			ip = frame->ip;//restore after call
 			break;
 		}
+		case OP_ADD_CONST: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			// might cause gc,so can't decrease first
+			if (IS_NUMBER(vm.stackTop[-1]) && IS_NUMBER(constant)) {
+				vm.stackTop[-1] = NUMBER_VAL(AS_NUMBER(vm.stackTop[-1]) + AS_NUMBER(constant));
+				break;
+			}
+			else if (IS_STRING(vm.stackTop[-1]) && IS_STRING(constant)) {
+				ObjString* result = connectString(AS_STRING(vm.stackTop[-1]), AS_STRING(constant));
+				vm.stackTop[-1] = OBJ_VAL(result);
+				break;
+			}
+
+			runtimeError("Operands must be two numbers or two strings.");
+			return INTERPRET_RUNTIME_ERROR;
+		}
+		case OP_SUBTRACT_CONST: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			BINARY_OP_WITH_RIGHT(NUMBER_VAL, constant, -);
+			break;//never
+		}
+		case OP_MULTIPLY_CONST: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			BINARY_OP_WITH_RIGHT(NUMBER_VAL, constant, *);
+			break;//never
+		}
+		case OP_DIVIDE_CONST: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			BINARY_OP_WITH_RIGHT(NUMBER_VAL, constant, /);
+			break;//never
+		}
+		case OP_MODULUS_CONST: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			/* Pop the top two values from the stack */
+			if (IS_NUMBER(vm.stackTop[-1]) && IS_NUMBER(constant)) {
+				/* Perform the operation and push the result back */
+				vm.stackTop[-1] = NUMBER_VAL(fmod(AS_NUMBER(vm.stackTop[-1]), AS_NUMBER(constant)));
+				break;
+			}
+			else {
+				runtimeError("Operands must be numbers.");
+				return INTERPRET_RUNTIME_ERROR;
+			}
+		}
+		case OP_EQUAL_CONST: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			vm.stackTop[-1] = BOOL_VAL(valuesEqual(vm.stackTop[-1], constant));
+			break;
+		}
+		case OP_NOT_EQUAL_CONST: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			vm.stackTop[-1] = BOOL_VAL(!valuesEqual(vm.stackTop[-1], constant));
+			break;
+		}
+		case OP_GREATER_CONST: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			BINARY_OP_WITH_RIGHT(BOOL_VAL, constant, > );
+			break;
+		}
+		case OP_LESS_CONST: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			BINARY_OP_WITH_RIGHT(BOOL_VAL, constant, < );
+			break;
+		}
+		case OP_GREATER_EQUAL_CONST: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			BINARY_OP_WITH_RIGHT(BOOL_VAL, constant, >= );
+			break;
+		}
+		case OP_LESS_EQUAL_CONST: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			BINARY_OP_WITH_RIGHT(BOOL_VAL, constant, <= );
+			break;
 		}
 
+		case OP_ADD_LOCAL: {
+			uint32_t index = READ_SHORT();
+			Value local = frame->slots[index];
+
+			// might cause gc,so can't decrease first
+			if (IS_NUMBER(vm.stackTop[-1]) && IS_NUMBER(local)) {
+				vm.stackTop[-1] = NUMBER_VAL(AS_NUMBER(vm.stackTop[-1]) + AS_NUMBER(local));
+				break;
+			}
+			else if (IS_STRING(vm.stackTop[-1]) && IS_STRING(local)) {
+				ObjString* result = connectString(AS_STRING(vm.stackTop[-1]), AS_STRING(local));
+				vm.stackTop[-1] = OBJ_VAL(result);
+				break;
+			}
+
+			runtimeError("Operands must be two numbers or two strings.");
+			return INTERPRET_RUNTIME_ERROR;
+		}
+		case OP_SUBTRACT_LOCAL: {
+			uint32_t index = READ_SHORT();
+			Value local = frame->slots[index];
+
+			BINARY_OP_WITH_RIGHT(NUMBER_VAL, local, -);
+			break;//never
+		}
+		case OP_MULTIPLY_LOCAL: {
+			uint32_t index = READ_SHORT();
+			Value local = frame->slots[index];
+
+			BINARY_OP_WITH_RIGHT(NUMBER_VAL, local, *);
+			break;//never
+		}
+		case OP_DIVIDE_LOCAL: {
+			uint32_t index = READ_SHORT();
+			Value local = frame->slots[index];
+
+			BINARY_OP_WITH_RIGHT(NUMBER_VAL, local, / );
+			break;//never
+		}
+		case OP_MODULUS_LOCAL: {
+			uint32_t index = READ_SHORT();
+			Value local = frame->slots[index];
+
+			/* Pop the top two values from the stack */
+			if (IS_NUMBER(vm.stackTop[-1]) && IS_NUMBER(local)) {
+				/* Perform the operation and push the result back */
+				vm.stackTop[-1] = NUMBER_VAL(fmod(AS_NUMBER(vm.stackTop[-1]), AS_NUMBER(local)));
+				break;
+			}
+			else {
+				runtimeError("Operands must be numbers.");
+				return INTERPRET_RUNTIME_ERROR;
+			}
+		}
+		case OP_EQUAL_LOCAL: {
+			uint32_t index = READ_SHORT();
+			Value local = frame->slots[index];
+			vm.stackTop[-1] = BOOL_VAL(valuesEqual(vm.stackTop[-1], local));
+			break;
+		}
+		case OP_NOT_EQUAL_LOCAL: {
+			uint32_t index = READ_SHORT();
+			Value local = frame->slots[index];
+			vm.stackTop[-1] = BOOL_VAL(!valuesEqual(vm.stackTop[-1], local));
+			break;
+		}
+		case OP_GREATER_LOCAL: {
+			uint32_t index = READ_SHORT();
+			Value local = frame->slots[index];
+			BINARY_OP_WITH_RIGHT(BOOL_VAL, local, > );
+			break;
+		}
+		case OP_LESS_LOCAL: {
+			uint32_t index = READ_SHORT();
+			Value local = frame->slots[index];
+			BINARY_OP_WITH_RIGHT(BOOL_VAL, local, < );
+			break;
+		}
+		case OP_GREATER_EQUAL_LOCAL: {
+			uint32_t index = READ_SHORT();
+			Value local = frame->slots[index];
+			BINARY_OP_WITH_RIGHT(BOOL_VAL, local, >= );
+			break;
+		}
+		case OP_LESS_EQUAL_LOCAL: {
+			uint32_t index = READ_SHORT();
+			Value local = frame->slots[index];
+			BINARY_OP_WITH_RIGHT(BOOL_VAL, local, <= );
+			break;
+		}
+
+		case OP_NOT_LOCAL: {
+			uint32_t index = READ_SHORT();
+			Value local = frame->slots[index];
+
+			stack_push(BOOL_VAL(isFalsey(local)));
+			break;
+		}
+		case OP_NEGATE_LOCAL: {
+			uint32_t index = READ_SHORT();
+			Value local = frame->slots[index];
+
+			if (IS_NUMBER(local)) {
+				stack_push(NUMBER_VAL(-AS_NUMBER(local)));
+				break;
+			}
+			else {
+				runtimeError("Operand must be a number.");
+				return INTERPRET_RUNTIME_ERROR;
+			}
+		}
+		}
 #if LOG_MIPS
 		addByteCodeCount();
 #endif
@@ -1397,7 +1663,7 @@ static InterpretResult run()
 #undef READ_24bits
 #undef READ_CONSTANT
 #undef BINARY_OP
-#undef BINARY_OP_MODULUS
+#undef BINARY_OP_WITH_RIGHT
 }
 
 InterpretResult interpret(C_STR source)
