@@ -1,0 +1,28 @@
+print 1 + 2;           // 3
+print 2 * 3 + 4;       // 10
+print 10 / 2 - 3;      // 2
+print 7 % 4;           // 3
+
+print "foo" + "bar";   // foobar
+
+print !true;           // false
+print !false;          // true
+print !!false;         // false
+print !0;              // false
+
+print 1 == 1;          // true
+print 1 != 2;          // true
+print 2 > 1;           // true
+print 2 < 1;           // false
+print 2 >= 2;          // true
+print 2 <= 1;          // false
+
+var sum = 0;
+for (var i = 0; i < 1000000; i = i + 1) {
+    sum = sum + (2 * 3 + 4); // 10
+}
+print sum; // 10000000
+
+print (1 + 2) * (3 + 4); // 21
+
+//print "foo" + 1; // error here

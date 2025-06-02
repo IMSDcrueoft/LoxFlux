@@ -1,5 +1,5 @@
 # LoxFlux
-![Version](https://img.shields.io/badge/version-0.9.8-blue)
+![Version](https://img.shields.io/badge/version-0.9.9-blue)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/IMSDcrueoft/LoxFlux)
 
 LoxFlux is developed based on the cLox version of the Lox language (stack-based bytecode-virtual machine). Please note that the project has only completed most of its basic functions and is still being improved.
@@ -29,6 +29,7 @@ Lox is a programming language designed for learning purposes. It is conceived as
 - **Inline `init()`**: The inline caching class init() method helps reduce the overhead of object creation.
 - **Flip-up GC marking**: Flipping tags can avoid reverting to the write of tags during the recycling process, and favor concurrent tags (if actually implemented).
 - **Detached static and dynamic objects**: Static objects such as strings/functions, they don't usually bloat very much, so I think it's a viable option not to recycle them.
+- **Compilation-time optimizations**: Provides basic constant folding.
 
 ---
 
