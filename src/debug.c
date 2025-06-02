@@ -276,6 +276,30 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 		return builtinInStruction("OP_MODULE", chunk, offset);
 	case OP_IMPORT:
 		return simpleInstruction("OP_IMPORT", offset);
+
+	case OP_ADD_CONST:
+		return constantInstruction("OP_ADD_CONST", chunk, offset);
+	case OP_SUBTRACT_CONST:
+		return constantInstruction("OP_SUBTRACT_CONST", chunk, offset);
+	case OP_MULTIPLY_CONST:
+		return constantInstruction("OP_SUBTRACT_CONST", chunk, offset);
+	case OP_DIVIDE_CONST:
+		return constantInstruction("OP_SUBTRACT_CONST", chunk, offset);
+	case OP_MODULUS_CONST:
+		return constantInstruction("OP_MODULUS_CONST", chunk, offset);
+	case OP_EQUAL_CONST:
+		return constantInstruction("OP_EQUAL_CONST", chunk, offset);
+	case OP_NOT_EQUAL_CONST:
+		return constantInstruction("OP_NOT_EQUAL_CONST", chunk, offset);
+	case OP_GREATER_CONST:
+		return constantInstruction("OP_GREATER_CONST", chunk, offset);
+	case OP_GREATER_EQUAL_CONST:
+		return constantInstruction("OP_GREATER_EQUAL_CONST", chunk, offset);
+	case OP_LESS_CONST:
+		return constantInstruction("OP_LESS_CONST", chunk, offset);
+	case OP_LESS_EQUAL_CONST:
+		return constantInstruction("OP_LESS_EQUAL_CONST", chunk, offset);
+
 	default:
 		printf("Unknown opcode %d offset = %d\n", instruction, offset);
 		return offset + 1;

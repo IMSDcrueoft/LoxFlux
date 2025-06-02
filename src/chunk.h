@@ -78,6 +78,19 @@ typedef enum {
 	OP_PRINT,			// print string or value
 	OP_THROW,			// throw
 	OP_IMPORT,			// import module
+
+	//super commond
+	OP_ADD_CONST,
+	OP_SUBTRACT_CONST,
+	OP_MULTIPLY_CONST,
+	OP_DIVIDE_CONST,
+	OP_MODULUS_CONST,
+	OP_EQUAL_CONST,
+	OP_GREATER_CONST,
+	OP_LESS_CONST,
+	OP_NOT_EQUAL_CONST,
+	OP_LESS_EQUAL_CONST,
+	OP_GREATER_EQUAL_CONST,
 } OpCode;
 
 typedef enum {

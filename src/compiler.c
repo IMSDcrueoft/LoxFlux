@@ -1720,6 +1720,7 @@ void markCompilerRoots()
 * This part uses hard-coded instruction lengths, which needs to be noted
 */
 #if COMPILATION_TIME_OPTIMIZATION
+COLD_FUNCTION
 static void instructionOptimize() {
 	//do optimize here
 	Chunk* chunk = currentChunk();
@@ -1735,6 +1736,7 @@ static void instructionOptimize() {
 	bool isRightConstant = (prevRight == OP_CONSTANT);
 	bool isBothConstant = (isLeftConstant && isRightConstant);
 
+#define CHUNK_PEEK(offset) chunk->code[chunk->count - (offset) - 1]
 #define READ_CONSTANT(index) (vm.constants.values[(index)])
 #define READ_24BITS_INDEX(offset)	\
 	(((uint32_t)chunk->code[chunk->count - (offset) - 1] << 16) +	\
@@ -1791,6 +1793,11 @@ static void instructionOptimize() {
 				error("Operands must be two numbers or two strings.");
 			}
 		}
+		else if (isRightConstant) {
+			chunk_fallback(chunk, 1);//op
+			clearOpStack();
+			CHUNK_PEEK(3) = OP_ADD_CONST; //convert command
+		}
 		break;
 	}
 	case OP_SUBTRACT: {
@@ -1801,6 +1808,11 @@ static void instructionOptimize() {
 			Value left = READ_CONSTANT(idx_left);
 			Value right = READ_CONSTANT(idx_right);
 			BINARY_CALC(left, right, -);
+		}
+		else if (isRightConstant) {
+			chunk_fallback(chunk, 1);//op
+			clearOpStack();
+			CHUNK_PEEK(3) = OP_SUBTRACT_CONST; //convert command
 		}
 		break;
 	}
@@ -1813,6 +1825,11 @@ static void instructionOptimize() {
 			Value right = READ_CONSTANT(idx_right);
 			BINARY_CALC(left, right, *);
 		}
+		else if (isRightConstant) {
+			chunk_fallback(chunk, 1);//op
+			clearOpStack();
+			CHUNK_PEEK(3) = OP_MULTIPLY_CONST; //convert command
+		}
 		break;
 	}
 	case OP_DIVIDE: {
@@ -1823,6 +1840,11 @@ static void instructionOptimize() {
 			Value left = READ_CONSTANT(idx_left);
 			Value right = READ_CONSTANT(idx_right);
 			BINARY_CALC(left, right, / );
+		}
+		else if (isRightConstant) {
+			chunk_fallback(chunk, 1);//op
+			clearOpStack();
+			CHUNK_PEEK(3) = OP_DIVIDE_CONST; //convert command
 		}
 		break;
 	}
@@ -1843,6 +1865,11 @@ static void instructionOptimize() {
 			else {
 				error("Operands must be numbers.");
 			}
+		}
+		else if (isRightConstant) {
+			chunk_fallback(chunk, 1);//op
+			clearOpStack();
+			CHUNK_PEEK(3) = OP_MODULUS_CONST; //convert command
 		}
 		break;
 	}
@@ -1902,6 +1929,11 @@ static void instructionOptimize() {
 			emitByte(val ? OP_TRUE : OP_FALSE);
 			emitOpStack(val ? OP_TRUE : OP_FALSE, false);
 		}
+		else if (isRightConstant) {
+			chunk_fallback(chunk, 1);//op
+			clearOpStack();
+			CHUNK_PEEK(3) = OP_EQUAL_CONST; //convert command
+		}
 		break;
 	}
 	case OP_NOT_EQUAL: {
@@ -1918,6 +1950,11 @@ static void instructionOptimize() {
 			emitByte(val ? OP_TRUE : OP_FALSE);
 			emitOpStack(val ? OP_TRUE : OP_FALSE, false);
 		}
+		else if (isRightConstant) {
+			chunk_fallback(chunk, 1);//op
+			clearOpStack();
+			CHUNK_PEEK(3) = OP_NOT_EQUAL_CONST; //convert command
+		}
 		break;
 	}
 	case OP_GREATER: {
@@ -1928,6 +1965,11 @@ static void instructionOptimize() {
 			Value left = READ_CONSTANT(idx_left);
 			Value right = READ_CONSTANT(idx_right);
 			BINARY_CMP(left, right, > );
+		}
+		else if (isRightConstant) {
+			chunk_fallback(chunk, 1);//op
+			clearOpStack();
+			CHUNK_PEEK(3) = OP_GREATER_CONST; //convert command
 		}
 		break;
 	}
@@ -1940,6 +1982,11 @@ static void instructionOptimize() {
 			Value right = READ_CONSTANT(idx_right);
 			BINARY_CMP(left, right, < );
 		}
+		else if (isRightConstant) {
+			chunk_fallback(chunk, 1);//op
+			clearOpStack();
+			CHUNK_PEEK(3) = OP_LESS_CONST; //convert command
+		}
 		break;
 	}
 	case OP_LESS_EQUAL: {
@@ -1950,6 +1997,11 @@ static void instructionOptimize() {
 			Value left = READ_CONSTANT(idx_left);
 			Value right = READ_CONSTANT(idx_right);
 			BINARY_CMP(left, right, <= );
+		}
+		else if (isRightConstant) {
+			chunk_fallback(chunk, 1);//op
+			clearOpStack();
+			CHUNK_PEEK(3) = OP_LESS_EQUAL_CONST; //convert command
 		}
 		break;
 	}
@@ -1962,6 +2014,11 @@ static void instructionOptimize() {
 			Value right = READ_CONSTANT(idx_right);
 			BINARY_CMP(left, right, >= );
 		}
+		else if (isRightConstant) {
+			chunk_fallback(chunk, 1);//op
+			clearOpStack();
+			CHUNK_PEEK(3) = OP_GREATER_EQUAL_CONST; //convert command
+		}
 		break;
 	}
 	case OP_SET_LOCAL: {
@@ -1973,6 +2030,7 @@ static void instructionOptimize() {
 	}
 	}
 
+#undef CHUNK_PEEK
 #undef READ_CONSTANT
 #undef READ_24BITS_INDEX
 #undef BINARY_CALC

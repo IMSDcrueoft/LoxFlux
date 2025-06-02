@@ -782,17 +782,16 @@ static InterpretResult run()
 		}																							\
 	} while (false)
 
-#define BINARY_OP_MODULUS(valueType)																	\
-    do {																								\
-		/* Pop the top two values from the stack */														\
-		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {									\
-			/* Perform the operation and push the result back */										\
-			vm.stackTop[-2] = valueType(fmod(AS_NUMBER(vm.stackTop[-2]),AS_NUMBER(vm.stackTop[-1])));	\
-			vm.stackTop--;																				\
-		} else {																						\
-			runtimeError("Operands must be numbers.");											\
-			return INTERPRET_RUNTIME_ERROR;																\
-		}																								\
+#define BINARY_OP_CONST(valueType,constant,op)														\
+    do {																							\
+		/* Pop the top two values from the stack */													\
+		if (IS_NUMBER(vm.stackTop[-1]) && IS_NUMBER(constant)) {									\
+			/* Perform the operation and push the result back */									\
+			vm.stackTop[-1] = valueType(AS_NUMBER(vm.stackTop[-1]) op AS_NUMBER(constant));			\
+		} else {														                            \
+			runtimeError("Operands must be numbers.");										\
+			return INTERPRET_RUNTIME_ERROR;															\
+		}																							\
 	} while (false)
 
 	while (true) //let it loop
@@ -1251,10 +1250,22 @@ static InterpretResult run()
 			runtimeError("Operands must be two numbers or two strings.");
 			return INTERPRET_RUNTIME_ERROR;
 		}
-		case OP_SUBTRACT: BINARY_OP(NUMBER_VAL, -); break;
+		case OP_SUBTRACT: BINARY_OP(NUMBER_VAL, -); break; 
 		case OP_MULTIPLY: BINARY_OP(NUMBER_VAL, *); break;
 		case OP_DIVIDE:   BINARY_OP(NUMBER_VAL, / ); break;
-		case OP_MODULUS:  BINARY_OP_MODULUS(NUMBER_VAL); break;
+		case OP_MODULUS: {
+			/* Pop the top two values from the stack */
+			if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
+				/* Perform the operation and push the result back */
+				vm.stackTop[-2] = NUMBER_VAL(fmod(AS_NUMBER(vm.stackTop[-2]), AS_NUMBER(vm.stackTop[-1])));
+				vm.stackTop--;
+				break;
+			}
+			else {
+				runtimeError("Operands must be numbers.");
+				return INTERPRET_RUNTIME_ERROR;
+			}
+		}
 
 		case OP_NOT: {
 			vm.stackTop[-1] = BOOL_VAL(isFalsey(vm.stackTop[-1]));
@@ -1454,8 +1465,81 @@ static InterpretResult run()
 			ip = frame->ip;//restore after call
 			break;
 		}
-		}
+		case OP_ADD_CONST: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			// might cause gc,so can't decrease first
+			if (IS_NUMBER(vm.stackTop[-1]) && IS_NUMBER(constant)) {
+				vm.stackTop[-1] = NUMBER_VAL(AS_NUMBER(vm.stackTop[-1]) + AS_NUMBER(constant));
+				break;
+			}
+			else if (IS_STRING(vm.stackTop[-1]) && IS_STRING(constant)) {
+				ObjString* result = connectString(AS_STRING(vm.stackTop[-1]), AS_STRING(constant));
+				vm.stackTop[-1] = OBJ_VAL(result);
+				break;
+			}
 
+			runtimeError("Operands must be two numbers or two strings.");
+			return INTERPRET_RUNTIME_ERROR;
+		}
+		case OP_SUBTRACT_CONST: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			BINARY_OP_CONST(NUMBER_VAL, constant, -);
+			break;//never
+		}
+		case OP_MULTIPLY_CONST: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			BINARY_OP_CONST(NUMBER_VAL, constant, *);
+			break;//never
+		}
+		case OP_DIVIDE_CONST: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			BINARY_OP_CONST(NUMBER_VAL, constant, /);
+			break;//never
+		}
+		case OP_MODULUS_CONST: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			/* Pop the top two values from the stack */
+			if (IS_NUMBER(vm.stackTop[-1]) && IS_NUMBER(constant)) {
+				/* Perform the operation and push the result back */
+				vm.stackTop[-1] = NUMBER_VAL(fmod(AS_NUMBER(vm.stackTop[-1]), AS_NUMBER(constant)));
+				break;
+			}
+			else {
+				runtimeError("Operands must be numbers.");
+				return INTERPRET_RUNTIME_ERROR;
+			}
+		}
+		case OP_EQUAL_CONST: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			vm.stackTop[-1] = BOOL_VAL(valuesEqual(vm.stackTop[-1], constant));
+			break;
+		}
+		case OP_NOT_EQUAL_CONST: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			vm.stackTop[-1] = BOOL_VAL(!valuesEqual(vm.stackTop[-1], constant));
+			break;
+		}
+		case OP_GREATER_CONST: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			BINARY_OP_CONST(BOOL_VAL, constant, > );
+			break;
+		}
+		case OP_LESS_CONST: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			BINARY_OP_CONST(BOOL_VAL, constant, < );
+			break;
+		}
+		case OP_GREATER_EQUAL_CONST: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			BINARY_OP_CONST(BOOL_VAL, constant, >= );
+			break;
+		}
+		case OP_LESS_EQUAL_CONST: {
+			Value constant = READ_CONSTANT(READ_24bits());
+			BINARY_OP_CONST(BOOL_VAL, constant, <= );
+			break;
+		}
+		}
 #if LOG_MIPS
 		addByteCodeCount();
 #endif
@@ -1467,7 +1551,7 @@ static InterpretResult run()
 #undef READ_24bits
 #undef READ_CONSTANT
 #undef BINARY_OP
-#undef BINARY_OP_MODULUS
+#undef BINARY_OP_CONST
 }
 
 InterpretResult interpret(C_STR source)
