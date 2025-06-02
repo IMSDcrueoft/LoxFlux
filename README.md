@@ -352,5 +352,4 @@ The project **loxFlux** is based on `MIT` and uses two third-party projects.
 
 ## Other expectations
 1. try catch syntax.
-2. super instruction generation.
-3. just in time(LLVM or CraneLift).
+2. just in time(LLVM or CraneLift).
