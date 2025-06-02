@@ -27,60 +27,37 @@ static ParseRule* getRule(TokenType type);
 static void namedVariable(Token name, bool canAssign);
 static void variable(bool canAssign);
 static Token syntheticToken(C_STR text);
+//do optimize here
+static void instructionOptimize();
 
 static Chunk* currentChunk() {
 	return &current->function->chunk;
 }
 
-//for which complex logical/control flows, merge is not used
-static void clearOpStack() {
-	return;
-	opStack_clear(&current->stack);
+static OPStack* currentOpStack() {
+	return &current->stack;
 }
 
-//do optimize here
-static void emitOpStack(uint8_t byte, bool doCheck) {
-	return;
-	opStack_push(&current->stack, byte);
+//for which complex logical/control flows, merge is not used
+static void clearOpStack() {
+#if COMPILATION_TIME_OPTIMIZATION
+	opStack_clear(currentOpStack());
+#endif
+}
 
-	//check opStack
-	if (doCheck) {
-		//TODO
-		return;
-		printf("[opStack]\n");
-		for (uint32_t i = 0; i < current->stack.count; ++i) {
-			uint8_t code = current->stack.code[i];
-			switch (code) {
-			case OP_CONSTANT:         printf("OP_CONSTANT\n"); break;
-			case OP_GET_LOCAL:        printf("OP_GET_LOCAL\n"); break;
-			case OP_SET_LOCAL:        printf("OP_SET_LOCAL\n"); break;
-			case OP_ADD:              printf("OP_ADD\n"); break;
-			case OP_SUBTRACT:         printf("OP_SUBTRACT\n"); break;
-			case OP_MULTIPLY:         printf("OP_MULTIPLY\n"); break;
-			case OP_DIVIDE:           printf("OP_DIVIDE\n"); break;
-			case OP_MODULUS:          printf("OP_MODULUS\n"); break;
-			case OP_NOT:              printf("OP_NOT\n"); break;
-			case OP_NEGATE:           printf("OP_NEGATE\n"); break;
-			case OP_FALSE:            printf("OP_FALSE\n"); break;
-			case OP_TRUE:             printf("OP_TRUE\n"); break;
-			case OP_NIL:              printf("OP_NIL\n"); break;
-			case OP_EQUAL:            printf("OP_EQUAL\n"); break;
-			case OP_GREATER:          printf("OP_GREATER\n"); break;
-			case OP_LESS:             printf("OP_LESS\n"); break;
-			case OP_NOT_EQUAL:        printf("OP_NOT_EQUAL\n"); break;
-			case OP_LESS_EQUAL:       printf("OP_LESS_EQUAL\n"); break;
-			case OP_GREATER_EQUAL:    printf("OP_GREATER_EQUAL\n"); break;
-			case OP_INSTANCE_OF:      printf("OP_INSTANCE_OF\n"); break;
-			case OP_SET_SUBSCRIPT:    printf("OP_SET_SUBSCRIPT\n"); break;
-			case OP_GET_SUBSCRIPT:    printf("OP_GET_SUBSCRIPT\n"); break;
-			case OP_TYPE_OF:          printf("OP_TYPE_OF\n"); break;
-			default:
-				printf("UNKNOWN(%u)\n", code);
-				break;
-			}
-			printf("[end]\n");
-		}
-	}
+//emit and check opStack
+static void emitOpStack(uint8_t byte, bool doCheck) {
+#if COMPILATION_TIME_OPTIMIZATION
+	opStack_push(currentOpStack(), byte);
+	if (!doCheck) return;
+
+#if DEBUG_PRINT_CODE
+	//print before optimize
+	disassembleOpStack(currentOpStack());
+#endif
+
+	instructionOptimize();
+#endif
 }
 
 static void errorAt(Token* token, C_STR message) {
@@ -321,7 +298,7 @@ static void freeLocals(Compiler* compiler) {
 
 static ObjFunction* endCompiler() {
 	emitReturn();
-	opStack_free(&current->stack);
+	opStack_free(currentOpStack());
 
 	ObjFunction* function = current->function;
 #if DEBUG_PRINT_CODE
@@ -1201,7 +1178,7 @@ static void binary(bool canAssign) {
 	}
 	case TOKEN_INSTANCE_OF: {
 		emitByte(OP_INSTANCE_OF);
-		emitOpStack(OP_INSTANCE_OF, true);
+		clearOpStack();
 		break;
 	}
 	case TOKEN_BIT_AND: {
@@ -1573,7 +1550,7 @@ static void unary(bool canAssign) {
 	}
 	case TOKEN_TYPE_OF: {
 		emitByte(OP_TYPE_OF);
-		emitOpStack(OP_TYPE_OF, true);
+		clearOpStack();
 		break;
 	}
 	default: return; // Unreachable.
@@ -1692,3 +1669,286 @@ void markCompilerRoots()
 		compiler = compiler->enclosing;
 	}
 }
+
+/*
+* do optimize here
+* This part uses hard-coded instruction lengths, which needs to be noted
+*/
+#if COMPILATION_TIME_OPTIMIZATION
+static void instructionOptimize() {
+	//do optimize here
+	Chunk* chunk = currentChunk();
+	OPStack* opStack = currentOpStack();
+
+	//opStack_peek will handle overflow
+	uint8_t code = opStack_peek(opStack, 0);
+	uint8_t prevRight = opStack_peek(opStack, 1);
+	uint8_t prevLeft = opStack_peek(opStack, 2);
+
+	//Constant folding
+	bool isLeftConstant = (prevLeft == OP_CONSTANT);
+	bool isRightConstant = (prevRight == OP_CONSTANT);
+	bool isBothConstant = (isLeftConstant && isRightConstant);
+
+#define READ_CONSTANT(index) (vm.constants.values[(index)])
+#define READ_24BITS_INDEX(offset)	\
+	(((uint32_t)chunk->code[chunk->count - (offset) - 1] << 16) +	\
+	 ((uint32_t)chunk->code[chunk->count - (offset) - 2] << 8) +	\
+	 (uint32_t)(chunk->code[chunk->count - (offset) - 3]))
+
+#define BINARY_CALC(left,right,op)								\
+    do {														\
+		if (IS_NUMBER(left) && IS_NUMBER(right)) {				\
+			double val = AS_NUMBER(left) op AS_NUMBER(right);	\
+			chunk_fallback(chunk, 1 + 4 + 4);			\
+			opStack_fallback(opStack,3);				\
+			emitConstant(NUMBER_VAL(val));				\
+		} else {												\
+			error("Operands must be numbers.");			\
+		}														\
+	} while (false)
+
+#define BINARY_CMP(left,right,op)								\
+    do {														\
+		if (IS_NUMBER(left) && IS_NUMBER(right)) {				\
+			bool val = AS_NUMBER(left) op AS_NUMBER(right);		\
+			chunk_fallback(chunk, 1 + 4 + 4);			\
+			opStack_fallback(opStack,3);				\
+			emitByte(val ? OP_TRUE : OP_FALSE);			\
+			emitOpStack(val ? OP_TRUE : OP_FALSE, false);	\
+		} else {												\
+			error("Operands must be numbers.");			\
+		}														\
+	} while (false)
+
+	switch (code) {
+	case OP_ADD: {
+		if (isBothConstant) {
+			uint32_t idx_left = READ_24BITS_INDEX(1 + 4);//add + const
+			uint32_t idx_right = READ_24BITS_INDEX(1); //add
+
+			Value left = READ_CONSTANT(idx_left);
+			Value right = READ_CONSTANT(idx_right);
+
+			if (IS_NUMBER(left) && IS_NUMBER(right)) {
+				double val = AS_NUMBER(left) + AS_NUMBER(right);
+				chunk_fallback(chunk, 1 + 4 + 4);//add + const + const
+				opStack_fallback(opStack, 3);
+				emitConstant(NUMBER_VAL(val));
+			}
+			else if (IS_STRING(left) && IS_STRING(right)) {
+				ObjString* val = connectString(AS_STRING(left), AS_STRING(right));
+				chunk_fallback(chunk, 1 + 4 + 4);//add + const + const
+				opStack_fallback(opStack, 3);
+				emitConstant(OBJ_VAL(val));
+			}
+			else {
+				error("Operands must be two numbers or two strings.");
+			}
+		}
+		break;
+	}
+	case OP_SUBTRACT: {
+		if (isBothConstant) {
+			uint32_t idx_left = READ_24BITS_INDEX(1 + 4);//op + const
+			uint32_t idx_right = READ_24BITS_INDEX(1); //op
+
+			Value left = READ_CONSTANT(idx_left);
+			Value right = READ_CONSTANT(idx_right);
+			BINARY_CALC(left, right, -);
+		}
+		break;
+	}
+	case OP_MULTIPLY: {
+		if (isBothConstant) {
+			uint32_t idx_left = READ_24BITS_INDEX(1 + 4);//op + const
+			uint32_t idx_right = READ_24BITS_INDEX(1); //op
+
+			Value left = READ_CONSTANT(idx_left);
+			Value right = READ_CONSTANT(idx_right);
+			BINARY_CALC(left, right, *);
+		}
+		break;
+	}
+	case OP_DIVIDE: {
+		if (isBothConstant) {
+			uint32_t idx_left = READ_24BITS_INDEX(1 + 4);//op + const
+			uint32_t idx_right = READ_24BITS_INDEX(1); //op
+
+			Value left = READ_CONSTANT(idx_left);
+			Value right = READ_CONSTANT(idx_right);
+			BINARY_CALC(left, right, / );
+		}
+		break;
+	}
+	case OP_MODULUS: {
+		if (isBothConstant) {
+			uint32_t idx_left = READ_24BITS_INDEX(1 + 4);//op + const
+			uint32_t idx_right = READ_24BITS_INDEX(1); //op
+
+			Value left = READ_CONSTANT(idx_left);
+			Value right = READ_CONSTANT(idx_right);
+
+			if (IS_NUMBER(left) && IS_NUMBER(right)) {
+				double val = fmod(AS_NUMBER(left), AS_NUMBER(right));
+				chunk_fallback(chunk, 1 + 4 + 4);//op + const + const
+				opStack_fallback(opStack, 3);
+				emitConstant(NUMBER_VAL(val));
+			}
+			else {
+				error("Operands must be numbers.");
+			}
+		}
+		break;
+	}
+	case OP_NOT: {
+		//all constants are true
+		if (isRightConstant) {
+			chunk_fallback(chunk, 1 + 4);//op + const
+			opStack_fallback(opStack, 2);
+			emitByte(OP_FALSE);
+			emitOpStack(OP_FALSE, false);
+		}
+		else if (prevRight == OP_FALSE || prevRight == OP_NIL) {
+			chunk_fallback(chunk, 1 + 1);//op + op
+			opStack_fallback(opStack, 2);
+			emitByte(OP_TRUE);
+			emitOpStack(OP_TRUE, false);
+		}
+		else if (prevRight == OP_TRUE) {
+			chunk_fallback(chunk, 1 + 1);//op + op
+			opStack_fallback(opStack, 2);
+			emitByte(OP_FALSE);
+			emitOpStack(OP_FALSE, false);
+		}
+		break;
+	}
+	case OP_NEGATE: {
+		if (isRightConstant) {
+			uint32_t idx_right = READ_24BITS_INDEX(1); //op
+			Value right = READ_CONSTANT(idx_right);
+
+			if (IS_NUMBER(right)) {
+				double val = -AS_NUMBER(right);
+				chunk_fallback(chunk, 1 + 4);//op + const
+				opStack_fallback(opStack, 2);
+				emitConstant(NUMBER_VAL(val));
+			}
+			else {
+				error("Operand must be a number.");
+			}
+		}
+		else if (prevRight == OP_FALSE || prevRight == OP_TRUE || prevRight == OP_NIL) {
+			error("Operand must be a number.");
+		}
+		break;
+	}
+	case OP_EQUAL: {
+		if (isBothConstant) {
+			uint32_t idx_left = READ_24BITS_INDEX(1 + 4);//op + const
+			uint32_t idx_right = READ_24BITS_INDEX(1); //op
+
+			Value left = READ_CONSTANT(idx_left);
+			Value right = READ_CONSTANT(idx_right);
+
+			bool val = valuesEqual(left, right);
+			chunk_fallback(chunk, 1 + 4 + 4);//op + const + const
+			opStack_fallback(opStack, 3);
+			emitByte(val ? OP_TRUE : OP_FALSE);
+			emitOpStack(val ? OP_TRUE : OP_FALSE, false);
+		}
+		break;
+	}
+	case OP_NOT_EQUAL: {
+		if (isBothConstant) {
+			uint32_t idx_left = READ_24BITS_INDEX(1 + 4);//op + const
+			uint32_t idx_right = READ_24BITS_INDEX(1); //op
+
+			Value left = READ_CONSTANT(idx_left);
+			Value right = READ_CONSTANT(idx_right);
+
+			bool val = !valuesEqual(left, right);
+			chunk_fallback(chunk, 1 + 4 + 4);//op + const + const
+			opStack_fallback(opStack, 3);
+			emitByte(val ? OP_TRUE : OP_FALSE);
+			emitOpStack(val ? OP_TRUE : OP_FALSE, false);
+		}
+		break;
+	}
+	case OP_GREATER: {
+		if (isBothConstant) {
+			uint32_t idx_left = READ_24BITS_INDEX(1 + 4);//op + const
+			uint32_t idx_right = READ_24BITS_INDEX(1); //op
+
+			Value left = READ_CONSTANT(idx_left);
+			Value right = READ_CONSTANT(idx_right);
+			BINARY_CMP(left, right, > );
+		}
+		break;
+	}
+	case OP_LESS: {
+		if (isBothConstant) {
+			uint32_t idx_left = READ_24BITS_INDEX(1 + 4);//op + const
+			uint32_t idx_right = READ_24BITS_INDEX(1); //op
+
+			Value left = READ_CONSTANT(idx_left);
+			Value right = READ_CONSTANT(idx_right);
+			BINARY_CMP(left, right, < );
+		}
+		break;
+	}
+	case OP_LESS_EQUAL: {
+		if (isBothConstant) {
+			uint32_t idx_left = READ_24BITS_INDEX(1 + 4);//op + const
+			uint32_t idx_right = READ_24BITS_INDEX(1); //op
+
+			Value left = READ_CONSTANT(idx_left);
+			Value right = READ_CONSTANT(idx_right);
+			BINARY_CMP(left, right, <= );
+		}
+		break;
+	}
+	case OP_GREATER_EQUAL: {
+		if (isBothConstant) {
+			uint32_t idx_left = READ_24BITS_INDEX(1 + 4);//op + const
+			uint32_t idx_right = READ_24BITS_INDEX(1); //op
+
+			Value left = READ_CONSTANT(idx_left);
+			Value right = READ_CONSTANT(idx_right);
+			BINARY_CMP(left, right, >= );
+		}
+		break;
+	}
+	case OP_GET_SUBSCRIPT: {
+		if (isRightConstant) {
+			uint32_t idx_right = READ_24BITS_INDEX(1); //op
+			Value right = READ_CONSTANT(idx_right);
+
+			if (IS_STRING(right)) {
+				chunk_fallback(chunk, 1 + 4);//op + const
+				//opStack_fallback(opStack, 2);
+				emitConstantCommond(OP_GET_PROPERTY, idx_right);
+				clearOpStack();
+			}
+			else if (IS_NUMBER(right)) {
+				chunk_fallback(chunk, 1 + 4);//op + const
+				//opStack_fallback(opStack, 2);
+				emitConstantCommond(OP_GET_ARRAY_PROPERTY, idx_right);
+				clearOpStack();
+			}
+		}
+		break;
+	}
+	case OP_SET_SUBSCRIPT:break;
+	case OP_SET_LOCAL:break;
+	default:
+		fprintf(stderr, "Unexpected(%u)\n", code);
+		break;
+	}
+
+#undef READ_CONSTANT
+#undef READ_24BITS_INDEX
+#undef BINARY_CALC
+#undef BINARY_CMP
+}
+#endif

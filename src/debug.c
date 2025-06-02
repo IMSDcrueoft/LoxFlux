@@ -238,6 +238,8 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 		return constantInstruction("OP_GET_PROPERTY", chunk, offset);
 	case OP_SET_PROPERTY:
 		return constantInstruction("OP_SET_PROPERTY", chunk, offset);
+	case OP_GET_ARRAY_PROPERTY:
+		return constantInstruction("OP_GET_ARRAY_PROPERTY", chunk, offset);
 
 	case OP_GET_SUBSCRIPT:
 		return simpleInstruction("OP_GET_SUBSCRIPT", offset);
@@ -288,5 +290,41 @@ void disassembleChunk(Chunk* chunk, C_STR name, uint32_t id) {
 	}
 
 	printf("== %s(%d) end==\n", name, id);
+}
+
+COLD_FUNCTION
+void disassembleOpStack(OPStack* opStack) {
+	printf("== opStack begin ==\n");
+	for (uint32_t i = 0; i < opStack->count; ++i) {
+		uint8_t code = opStack->code[i];
+
+		switch (code) {
+		case OP_CONSTANT:         printf("OP_CONSTANT\n"); break;
+		case OP_GET_LOCAL:        printf("OP_GET_LOCAL\n"); break;
+		case OP_SET_LOCAL:        printf("OP_SET_LOCAL\n"); break;
+		case OP_ADD:              printf("OP_ADD\n"); break;
+		case OP_SUBTRACT:         printf("OP_SUBTRACT\n"); break;
+		case OP_MULTIPLY:         printf("OP_MULTIPLY\n"); break;
+		case OP_DIVIDE:           printf("OP_DIVIDE\n"); break;
+		case OP_MODULUS:          printf("OP_MODULUS\n"); break;
+		case OP_NOT:              printf("OP_NOT\n"); break;
+		case OP_NEGATE:           printf("OP_NEGATE\n"); break;
+		case OP_FALSE:            printf("OP_FALSE\n"); break;
+		case OP_TRUE:             printf("OP_TRUE\n"); break;
+		case OP_NIL:              printf("OP_NIL\n"); break;
+		case OP_EQUAL:            printf("OP_EQUAL\n"); break;
+		case OP_GREATER:          printf("OP_GREATER\n"); break;
+		case OP_LESS:             printf("OP_LESS\n"); break;
+		case OP_NOT_EQUAL:        printf("OP_NOT_EQUAL\n"); break;
+		case OP_LESS_EQUAL:       printf("OP_LESS_EQUAL\n"); break;
+		case OP_GREATER_EQUAL:    printf("OP_GREATER_EQUAL\n"); break;
+		case OP_SET_SUBSCRIPT:    printf("OP_SET_SUBSCRIPT\n"); break;
+		case OP_GET_SUBSCRIPT:    printf("OP_GET_SUBSCRIPT\n"); break;
+		default:
+			fprintf(stderr, "Unexpected(%u)\n", code);
+			break;
+		}
+	}
+	printf("== opStack end ==\n");
 }
 #endif

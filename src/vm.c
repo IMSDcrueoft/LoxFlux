@@ -909,6 +909,44 @@ static InterpretResult run()
 			stack_replace(value);
 			break;
 		}
+		case OP_GET_ARRAY_PROPERTY: {
+			Value target = vm.stackTop[-1];
+			Value constant = READ_CONSTANT(READ_24bits());
+			double num_index = AS_NUMBER(constant);
+
+			if (isIndexableArray(target)) {
+				//get array
+				ObjArray* array = AS_ARRAY(target);
+
+				if (ARRAY_IN_RANGE(array, num_index)) {
+					if (OBJ_IS_TYPE(array, OBJ_ARRAY)) {
+						stack_replace(ARRAY_ELEMENT(array, Value, (uint32_t)num_index));
+					}
+					else {
+						stack_replace(getTypedArrayElement(array, (uint32_t)num_index));
+					}
+				}
+				else {
+					stack_replace(NIL_VAL);
+				}
+				break;
+			}
+			else if (IS_STRING(target)) {
+				//get string
+				ObjString* string = AS_STRING(target);
+
+				if (ARRAY_IN_RANGE(string, num_index)) {//return ascii
+					stack_replace(NUMBER_VAL((uint8_t)(string->chars[(uint32_t)num_index])));
+				}
+				else {
+					stack_replace(NIL_VAL);
+				}
+				break;
+			}
+
+			runtimeError("Only arrayLike,stringBuilder and string can get number subscript.");
+			return INTERPRET_RUNTIME_ERROR;
+		}
 		case OP_GET_SUBSCRIPT: {
 			Value target = vm.stackTop[-2];
 			Value index = vm.stackTop[-1];

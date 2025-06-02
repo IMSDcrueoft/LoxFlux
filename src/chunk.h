@@ -49,6 +49,7 @@ typedef enum {
 
 	OP_SET_SUBSCRIPT,	// set subscript
 	OP_GET_SUBSCRIPT,	// get subscript
+	OP_GET_ARRAY_PROPERTY,
 	OP_GET_PROPERTY,	// modify property
 	OP_SET_PROPERTY,
 	OP_GET_SUPER,		//get super
@@ -119,6 +120,6 @@ void opStack_init(OPStack* stack);
 void opStack_push(OPStack* stack, uint8_t byte);
 //we don't know the offset of the code,so we use this to get the opType
 uint8_t opStack_peek(OPStack* stack, uint8_t offset);
-void opStack_pop(OPStack* stack);
+void opStack_fallback(OPStack* stack, uint32_t byteCount);
 void opStack_clear(OPStack* stack);
 void opStack_free(OPStack* stack);
