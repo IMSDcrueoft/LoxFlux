@@ -28,6 +28,7 @@
 #else
 #define HOT_FUNCTION
 #define COLD_FUNCTION
+#define COMPUTE_GOTO 0
 #endif
 
 #undef IS_CLANGCL
