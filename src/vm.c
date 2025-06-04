@@ -1669,14 +1669,14 @@ static InterpretResult run()
 InterpretResult interpret(C_STR source)
 {
 #if LOG_COMPILE_TIMING
-	uint64_t time_compile = get_utc_milliseconds();
+	uint64_t time_compile = get_milliseconds();
 #endif
 
 	ObjFunction* function = compile(source, TYPE_SCRIPT);
 	if (function == NULL) return INTERPRET_COMPILE_ERROR;
 
 #if LOG_COMPILE_TIMING
-	double time_compile_f = (get_utc_milliseconds() - time_compile);
+	double time_compile_f = (get_milliseconds() - time_compile);
 	printf("[Log] Finished compiling in %g ms.\n", time_compile_f);
 #endif
 
@@ -1687,7 +1687,7 @@ InterpretResult interpret(C_STR source)
 	call(closure, 0);
 
 #if LOG_EXECUTE_TIMING || LOG_MIPS
-	uint64_t time_run = get_utc_milliseconds();
+	uint64_t time_run = get_milliseconds();
 #endif
 
 #if LOG_MIPS
@@ -1697,7 +1697,7 @@ InterpretResult interpret(C_STR source)
 	InterpretResult result = run();
 
 #if LOG_EXECUTE_TIMING || LOG_MIPS
-	double time_run_f = (get_utc_milliseconds() - time_run);
+	double time_run_f = (get_milliseconds() - time_run);
 #if LOG_EXECUTE_TIMING
 	printf("[Log] Finished executing in %g ms.\n", time_run_f);
 #endif

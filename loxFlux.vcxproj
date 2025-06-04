@@ -185,7 +185,7 @@
     <ClCompile Include="src\nativeString.c" />
     <ClCompile Include="src\stringTable.c" />
     <ClCompile Include="src\table.c" />
-    <ClCompile Include="src\timer.c" />
+    <ClCompile Include="src\timer.cpp" />
     <ClCompile Include="src\value.c" />
     <ClCompile Include="src\vm.c" />
     <ClCompile Include="src\xoshiro256.c" />
