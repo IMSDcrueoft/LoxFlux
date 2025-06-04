@@ -121,7 +121,7 @@
       <LanguageStandard_C>stdc17</LanguageStandard_C>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <AdditionalIncludeDirectories>third-party/xxHash;third-party/mimalloc/include</AdditionalIncludeDirectories>
-      <CompileAs>Default</CompileAs>
+      <CompileAs>CompileAsC</CompileAs>
       <ExceptionHandling>false</ExceptionHandling>
       <FloatingPointModel>Strict</FloatingPointModel>
       <EnableEnhancedInstructionSet>NotSet</EnableEnhancedInstructionSet>
@@ -145,7 +145,7 @@
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <AdditionalIncludeDirectories>third-party/xxHash;third-party/mimalloc/include</AdditionalIncludeDirectories>
-      <CompileAs>Default</CompileAs>
+      <CompileAs>CompileAsC</CompileAs>
       <Optimization>MaxSpeed</Optimization>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
       <ExceptionHandling>false</ExceptionHandling>
