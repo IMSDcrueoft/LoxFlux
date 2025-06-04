@@ -4,15 +4,15 @@
     @array.resize(arr,16);
     print @array.length(arr);
 
-    var start = @time.utc_milli();
+    var start = @time.milli();
     for(arr[0] = 1e8;arr[0] > 0;){
         arr[0] = arr[0] - 1;
     }
-    print @time.utc_milli() - start;
+    print @time.milli() - start;
 
-    start = @time.utc_milli();
+    start = @time.milli();
     for(arr[0] = 0;arr[0] < 1e8;){
         arr[0] = arr[0] + 1;
     }
-    print @time.utc_milli() - start;
+    print @time.milli() - start;
 }

@@ -4,17 +4,17 @@
     @array.resize(arr,16);
     print @array.length(arr);
 
-    var start = @time.utc_milli();
+    var start = @time.milli();
     for(var i = 1e8,idx = 0;i > 0;){
         arr[idx] = i;
         i = i - 1;
     }
-    print @time.utc_milli() - start;
+    print @time.milli() - start;
 
-    start = @time.utc_milli();
+    start = @time.milli();
     for(var i = 1e8,j,idx = 0;i > 0;){
         j = arr[idx];
         i = i - 1;
     }
-    print @time.utc_milli() - start;
+    print @time.milli() - start;
 }

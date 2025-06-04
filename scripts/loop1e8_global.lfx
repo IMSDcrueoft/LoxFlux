@@ -1,6 +1,6 @@
-var start = @time.utc_milli();
+var start = @time.milli();
 var a,b,c,d,e,f,g,h,i,j,k,l;//75% of basic table size = 16
 for(i = 0;i<1e8;){
     i = i+1;
 }
-print @time.utc_milli() - start;
+print @time.milli() - start;
