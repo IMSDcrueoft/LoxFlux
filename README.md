@@ -281,9 +281,8 @@ The @time module provides precise timing functions for measuring and working wit
 - **Time Methods**:
   - `nano`: Returns the current time in nanoseconds (1e-9 seconds) since an arbitrary reference point (e.g., system startup).
   - `micro`: Returns the current time in microseconds (1e-6 seconds) since an arbitrary reference point.
-  - `milli`: Returns the current time in milliseconds (1e-3 seconds) since an arbitrary reference point.
-  - `second`: Returns the current time in seconds since an arbitrary reference point.
-  - `utc`: Returns the current UTC time in milliseconds since the Unix epoch (January 1, 1970).
+  - `utc_milli`: Returns the current UTC time in milliseconds since the Unix epoch (January 1, 1970).
+  - `utc_second`: Returns the current UTC time in seconds since the Unix epoch (January 1, 1970).
 
 These utilities enable precise time management in applications requiring performance optimization or temporal coordination.
 
