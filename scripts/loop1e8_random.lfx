@@ -1,6 +1,6 @@
-var start = @time.milli();
+var start = @time.utc_milli();
 for(var i = 0;i<1e8;){
     @math.random();
     i = i+1;
 }
-print @time.milli() - start;
+print @time.utc_milli() - start;

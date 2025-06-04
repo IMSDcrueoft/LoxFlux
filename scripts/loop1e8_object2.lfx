@@ -4,9 +4,9 @@
         g:nil,h:nil,i:nil,j:nil,k:nil,l:nil
     };
 
-    var start = @time.milli();
+    var start = @time.utc_milli();
     for(a["i"] = 0;a["i"] < 1e8;){
         a["i"] = a["i"] + 1;
     }
-    print @time.milli() - start;
+    print @time.utc_milli() - start;
 }

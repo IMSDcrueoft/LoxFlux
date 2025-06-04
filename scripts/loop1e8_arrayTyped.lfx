@@ -4,9 +4,9 @@
     @array.resize(arr,16);
     print @array.length(arr);
 
-    var start = @time.milli();
+    var start = @time.utc_milli();
     for(arr[0] = 0;arr[0] < 1e8;){
         arr[0] = arr[0] + 1;
     }
-    print @time.milli() - start;
+    print @time.utc_milli() - start;
 }

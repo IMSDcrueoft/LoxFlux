@@ -1,7 +1,7 @@
-var start = @time.milli();
+var start = @time.utc_milli();
 var a,b,c,d,e,f,g,h,i = 0,j,k,l;//75% of basic table size = 16
 
 for(var get = @object.getGlobal,set = @object.setGlobal;get("i")<1e8;){
     set("i",get("i")+1);
 }
-print @time.milli() - start;
+print @time.utc_milli() - start;

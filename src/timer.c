@@ -97,7 +97,7 @@ uint64_t get_utc_milliseconds() {
     FILETIME fileTime;
     GetSystemTimeAsFileTime(&fileTime);
     uint64_t utc = ((uint64_t)fileTime.dwHighDateTime << 32) | fileTime.dwLowDateTime;
-    ms = (uint64_t)(utc / 10); // 100 ns to ms
+    ms = (uint64_t)(utc / 10000); // 100 ns to ms
 
 #elif defined(PLATFORM_LINUX) || defined(PLATFORM_ANDROID)
     // Linux/Android:  gettimeofday
@@ -117,7 +117,7 @@ uint64_t get_utc_milliseconds() {
     if (now_ms < 0) {
         return 0;
     }
-    ms = (uint64_t)now_ms; // sec
+    ms = (uint64_t)now_ms;
 
 #endif
 

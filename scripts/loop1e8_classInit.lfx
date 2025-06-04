@@ -3,16 +3,16 @@ class cls2{
     init(){}
 }
 
-var start = @time.milli();
+var start = @time.utc_milli();
 for(var i = 1e8;i>0;){
     var a = cls1();
     i = i-1;
 }
-print @time.milli() - start;
+print @time.utc_milli() - start;
 
-start = @time.milli();
+start = @time.utc_milli();
 for(var i = 1e8;i>0;){
     var a = cls2();
     i = i-1;
 }
-print @time.milli() - start;
+print @time.utc_milli() - start;
