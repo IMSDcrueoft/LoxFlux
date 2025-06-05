@@ -685,9 +685,7 @@ static bool bitInstruction(uint8_t bitOpType) {
 			/* Perform the operation and push the result back */									\
 			vm.stackTop[-2] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-2]) op (int32_t)AS_NUMBER(vm.stackTop[-1]));	\
 			vm.stackTop--;																			\
-		} else {														                            \
-			runtimeError("Operands must be numbers.");										\
-			return INTERPRET_RUNTIME_ERROR;															\
+			return true;																			\
 		}																							\
 	} while (false)
 
@@ -698,10 +696,11 @@ static bool bitInstruction(uint8_t bitOpType) {
 			vm.stackTop[-1] = NUMBER_VAL(~(int32_t)AS_NUMBER(vm.stackTop[-1]));
 			return true;
 		}
+		break;
 	}
-	case BIT_OP_AND: BINARAY_OP_BIT(&); return true;
-	case BIT_OP_OR: BINARAY_OP_BIT(| ); return true;
-	case BIT_OP_XOR: BINARAY_OP_BIT(^); return true;
+	case BIT_OP_AND: BINARAY_OP_BIT(&);break;
+	case BIT_OP_OR: BINARAY_OP_BIT(| );break;
+	case BIT_OP_XOR: BINARAY_OP_BIT(^);break;
 
 	case BIT_OP_SHL: {
 		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
@@ -717,6 +716,7 @@ static bool bitInstruction(uint8_t bitOpType) {
 			}
 			return true;
 		}
+		break;
 	}
 	case BIT_OP_SAR: {
 		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
@@ -732,6 +732,7 @@ static bool bitInstruction(uint8_t bitOpType) {
 			}
 			return true;
 		}
+		break;
 	}
 	case BIT_OP_SHR: {
 		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
@@ -747,9 +748,9 @@ static bool bitInstruction(uint8_t bitOpType) {
 			}
 			return true;
 		}
+		break;
 	}
 	}
-
 	return false;
 #undef BINARAY_OP_BIT
 }
