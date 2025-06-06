@@ -13,16 +13,8 @@
 #include "debug.h"
 #endif
 
-#if LOG_EXECUTE_TIMING || LOG_MIPS
-#include "timer.h"
-#endif
-
 //the global shared vm
 VM vm;
-
-#if LOG_MIPS
-static uint64_t byteCodeCount;
-#endif
 
 COLD_FUNCTION
 static void stack_reset()
@@ -670,12 +662,6 @@ static inline bool isTruthy(Value value) {
 	return !IS_NIL(value) && (!IS_BOOL(value) || AS_BOOL(value));
 }
 
-#if LOG_MIPS
-static inline void addByteCodeCount() {
-	++byteCodeCount;
-}
-#endif
-
 HOT_FUNCTION
 static bool bitInstruction(uint8_t bitOpType) {
 #define BIARAY_OP_BIT(op)																			\
@@ -923,6 +909,13 @@ static InterpretResult run()
 		}																					\
 	} while (false)
 
+//we need continue/break when debug trace
+#if !COMPUTE_GOTO || DEBUG_TRACE_EXECUTION
+#define NEXT_INSTRUCTION continue
+#else //direct threading code
+#define NEXT_INSTRUCTION goto *label_instructions[READ_BYTE()]
+#endif
+
 	while (true) //let it loop
 	{
 #if DEBUG_TRACE_EXECUTION //print in debug mode
@@ -939,7 +932,6 @@ static InterpretResult run()
 #endif // DEBUG_TRACE_EXECUTION
 
 		uint8_t instruction = READ_BYTE();
-
 #if COMPUTE_GOTO
 		goto* label_instructions[instruction];
 		//jmp direct,no switch
@@ -951,7 +943,7 @@ static InterpretResult run()
 		label_op_constant:
 			Value constant = READ_CONSTANT(READ_24bits());
 			stack_push(constant);
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_CLOSURE: {
 		label_op_closure:
@@ -970,21 +962,21 @@ static InterpretResult run()
 					closure->upvalues[i] = frame->closure->upvalues[index];
 				}
 			}
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_CLASS: {
 		label_op_class:
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			stack_push(OBJ_VAL(newClass(name)));
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_METHOD: {
 		label_op_method:
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			defineMethod(name);
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_INHERIT: {
 		label_op_inherit:
@@ -998,7 +990,7 @@ static InterpretResult run()
 				runtimeError("Superclass must be a class.");
 				return INTERPRET_RUNTIME_ERROR;
 			}
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_GET_SUPER: {
 		label_op_get_super:
@@ -1006,7 +998,7 @@ static InterpretResult run()
 			ObjString* name = AS_STRING(constant);
 			ObjClass* superclass = AS_CLASS(stack_pop());
 			bindMethod(superclass, name);
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_GET_PROPERTY: {
 		label_op_get_property:
@@ -1022,13 +1014,13 @@ static InterpretResult run()
 			Value value;
 			if (tableGet(&instance->fields, name, &value)) {
 				stack_replace(value);
-				break;
+				NEXT_INSTRUCTION;
 			}
 			//don't throw error
 			if (instance->klass != NULL) {
 				bindMethod(instance->klass, name);
 			}
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_SET_PROPERTY: {
 		label_op_set_property:
@@ -1048,7 +1040,7 @@ static InterpretResult run()
 			}
 			Value value = stack_pop();
 			stack_replace(value);
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_GET_INDEX: {
 		label_op_get_index:
@@ -1071,7 +1063,7 @@ static InterpretResult run()
 				else {
 					stack_replace(NIL_VAL);
 				}
-				break;
+				NEXT_INSTRUCTION;
 			}
 			else if (IS_STRING(target)) {
 				//get string
@@ -1083,7 +1075,7 @@ static InterpretResult run()
 				else {
 					stack_replace(NIL_VAL);
 				}
-				break;
+				NEXT_INSTRUCTION;
 			}
 
 			runtimeError("Only arrayLike,stringBuilder and string can get number subscript.");
@@ -1111,7 +1103,7 @@ static InterpretResult run()
 					}
 
 					vm.stackTop -= 1;
-					break;
+					NEXT_INSTRUCTION;
 				}
 				else {
 					runtimeError("Array index out of range.");
@@ -1145,7 +1137,7 @@ static InterpretResult run()
 					else {
 						stack_replace(NIL_VAL);
 					}
-					break;
+					NEXT_INSTRUCTION;
 				}
 				else {
 					runtimeError("Array subscript must be number.");
@@ -1161,13 +1153,13 @@ static InterpretResult run()
 					vm.stackTop--;//it is string,we don't gc string so pop is allowed
 					if (tableGet(&instance->fields, name, &value)) {
 						stack_replace(value);
-						break;
+						NEXT_INSTRUCTION;
 					}
 					//don't throw error
 					if (instance->klass != NULL) {
 						bindMethod(instance->klass, name);
 					}
-					break;
+					NEXT_INSTRUCTION;
 				}
 				else {
 					runtimeError("Instance subscript must be string.");
@@ -1187,7 +1179,7 @@ static InterpretResult run()
 					else {
 						stack_replace(NIL_VAL);
 					}
-					break;
+					NEXT_INSTRUCTION;
 				}
 				else {
 					runtimeError("String subscript must be number.");
@@ -1220,7 +1212,7 @@ static InterpretResult run()
 						}
 
 						vm.stackTop -= 2;
-						break;
+						NEXT_INSTRUCTION;
 					}
 					else {
 						runtimeError("Array index out of range.");
@@ -1246,7 +1238,7 @@ static InterpretResult run()
 
 					vm.stackTop[-3] = value;
 					vm.stackTop -= 2;
-					break;
+					NEXT_INSTRUCTION;
 				}
 				else {
 					runtimeError("Instance subscript must be string.");
@@ -1265,7 +1257,7 @@ static InterpretResult run()
 			//it's not a new key,no cache
 			tableSet(&vm.globals, name, vm.stackTop[-1]);
 			vm.stackTop--;//can not dec first,because gc will kill it
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_GET_GLOBAL: {
 		label_op_get_global:
@@ -1279,7 +1271,7 @@ static InterpretResult run()
 				if (entry->key == name) {
 					// We found the key.
 					stack_push(entry->value);
-					break;
+					NEXT_INSTRUCTION;
 				}
 			}
 
@@ -1289,7 +1281,7 @@ static InterpretResult run()
 				return INTERPRET_RUNTIME_ERROR;
 			}
 			stack_push(value);
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_SET_GLOBAL: {
 		label_op_set_global:
@@ -1302,7 +1294,7 @@ static InterpretResult run()
 				if (entry->key == name) {
 					// We found the key.
 					entry->value = vm.stackTop[-1];
-					break;
+					NEXT_INSTRUCTION;
 				}
 			}
 
@@ -1312,7 +1304,7 @@ static InterpretResult run()
 				runtimeError("Undefined variable '%s'.", name->chars);
 				return INTERPRET_RUNTIME_ERROR;
 			}
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_NEW_ARRAY: {
 		label_op_new_array:
@@ -1332,12 +1324,12 @@ static InterpretResult run()
 				STACK_PEEK(size) = OBJ_VAL(array);
 				vm.stackTop -= size;
 			}
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_NEW_OBJECT: {
 		label_op_new_object:
 			stack_push(OBJ_VAL(newInstance(&vm.emptyClass)));
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_NEW_PROPERTY: {
 		label_op_new_property:
@@ -1346,78 +1338,78 @@ static InterpretResult run()
 			ObjString* name = AS_STRING(constant);
 			tableSet(&instance->fields, name, vm.stackTop[-1]);
 			stack_pop();
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_GET_UPVALUE: {
 		label_op_get_upvalue:
 			uint8_t slot = READ_BYTE();
 			stack_push(*frame->closure->upvalues[slot]->location);
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_SET_UPVALUE: {
 		label_op_set_upvalue:
 			uint8_t slot = READ_BYTE();
 			*frame->closure->upvalues[slot]->location = vm.stackTop[-1];
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_NIL: {
 		label_op_nil:
 			stack_push(NIL_VAL);
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_TRUE: {
 		label_op_true:
 			stack_push(BOOL_VAL(true));
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_FALSE: {
 		label_op_false:
 			stack_push(BOOL_VAL(false));
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_EQUAL: {
 		label_op_equal:
 			vm.stackTop[-2] = BOOL_VAL(valuesEqual(vm.stackTop[-2], vm.stackTop[-1]));
 			vm.stackTop--;
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_NOT_EQUAL: {
 		label_op_not_equal:
 			vm.stackTop[-2] = BOOL_VAL(!valuesEqual(vm.stackTop[-2], vm.stackTop[-1]));
 			vm.stackTop--;
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_GREATER: {
 		label_op_greater:
 			BINARY_OP(BOOL_VAL, > );
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_LESS: {
 		label_op_less:
 			BINARY_OP(BOOL_VAL, < );
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_GREATER_EQUAL: {
 		label_op_greater_equal:
 			BINARY_OP(BOOL_VAL, >= );
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_LESS_EQUAL: {
 		label_op_less_equal:
 			BINARY_OP(BOOL_VAL, <= );
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_INSTANCE_OF: {
 		label_op_instance_of:
 			bool isInstanceOf = (IS_INSTANCE(vm.stackTop[-2]) && IS_CLASS(vm.stackTop[-1])) && (AS_INSTANCE(vm.stackTop[-2])->klass == AS_CLASS(vm.stackTop[-1]));
 			vm.stackTop[-2] = BOOL_VAL(isInstanceOf);
 			vm.stackTop--;
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_TYPE_OF: {
 		label_op_type_of:
 			getTypeof();
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_ADD: {
 		label_op_add:
@@ -1425,13 +1417,13 @@ static InterpretResult run()
 			if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
 				vm.stackTop[-2] = NUMBER_VAL(AS_NUMBER(vm.stackTop[-2]) + AS_NUMBER(vm.stackTop[-1]));
 				vm.stackTop--;
-				break;
+				NEXT_INSTRUCTION;
 			}
 			else if (IS_STRING(vm.stackTop[-2]) && IS_STRING(vm.stackTop[-1])) {
 				ObjString* result = connectString(AS_STRING(vm.stackTop[-2]), AS_STRING(vm.stackTop[-1]));
 				vm.stackTop[-2] = OBJ_VAL(result);
 				vm.stackTop--;
-				break;
+				NEXT_INSTRUCTION;
 			}
 
 			runtimeError("Operands must be two numbers or two strings.");
@@ -1440,17 +1432,17 @@ static InterpretResult run()
 		case OP_SUBTRACT: {
 		label_op_subtract:
 			BINARY_OP(NUMBER_VAL, -);
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_MULTIPLY: {
 		label_op_multiply:
 			BINARY_OP(NUMBER_VAL, *);
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_DIVIDE: {
 		label_op_divide:
 			BINARY_OP(NUMBER_VAL, / );
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_MODULUS: {
 		label_op_modulus:
@@ -1459,7 +1451,7 @@ static InterpretResult run()
 				/* Perform the operation and push the result back */
 				vm.stackTop[-2] = NUMBER_VAL(fmod(AS_NUMBER(vm.stackTop[-2]), AS_NUMBER(vm.stackTop[-1])));
 				vm.stackTop--;
-				break;
+				NEXT_INSTRUCTION;
 			}
 			else {
 				runtimeError("Operands must be numbers.");
@@ -1470,14 +1462,14 @@ static InterpretResult run()
 		case OP_NOT: {
 		label_op_not:
 			vm.stackTop[-1] = BOOL_VAL(isFalsey(vm.stackTop[-1]));
-			break;
+			NEXT_INSTRUCTION;
 		}
 
 		case OP_NEGATE: {
 		label_op_negate:
 			if (IS_NUMBER(vm.stackTop[-1])) {
 				vm.stackTop[-1] = NUMBER_VAL(-AS_NUMBER(vm.stackTop[-1]));
-				break;
+				NEXT_INSTRUCTION;
 			}
 			else {
 				runtimeError("Operand must be a number.");
@@ -1489,7 +1481,7 @@ static InterpretResult run()
 		label_op_bitwise:
 			uint8_t bitOpType = READ_BYTE();
 			if (bitInstruction(bitOpType)) {
-				break;
+				NEXT_INSTRUCTION;
 			}
 			else {
 				runtimeError("Operands must be numbers.");
@@ -1504,13 +1496,13 @@ static InterpretResult run()
 #endif
 			printValue(stack_pop());
 			printf("\n");
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_THROW: {
 		label_op_throw:
 			//if solved break else error
 			if (throwError(stack_pop(), "An exception was thrown.")) {
-				break;
+				NEXT_INSTRUCTION;
 			}
 			return INTERPRET_RUNTIME_ERROR;
 		}
@@ -1518,61 +1510,61 @@ static InterpretResult run()
 		label_op_get_local:
 			uint32_t index = READ_SHORT();
 			stack_push(frame->slots[index]);
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_SET_LOCAL: {
 		label_op_set_local:
 			uint32_t index = READ_SHORT();
 			frame->slots[index] = vm.stackTop[-1];
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_CLOSE_UPVALUE: {
 		label_op_close_upvalue:
 			closeUpvalues(vm.stackTop - 1);
 			stack_pop();
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_POP: {
 		label_op_pop:
 			stack_pop();
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_POP_N: {
 		label_op_pop_n:
 			uint32_t index = READ_SHORT();
 			vm.stackTop -= index;
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_JUMP: {
 		label_op_jump:
 			uint16_t offset = READ_SHORT();
 			ip += offset;
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_LOOP: {
 		label_op_loop:
 			uint16_t offset = READ_SHORT();
 			ip -= offset;
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_JUMP_IF_FALSE: {
 		label_op_jump_if_false:
 			uint16_t offset = READ_SHORT();
 			if (isFalsey(vm.stackTop[-1])) ip += offset;
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_JUMP_IF_FALSE_POP: {
 		label_op_jump_if_false_pop:
 			uint16_t offset = READ_SHORT();
 			if (isFalsey(vm.stackTop[-1])) ip += offset;
 			vm.stackTop--;
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_JUMP_IF_TRUE: {
 		label_op_jump_if_true:
 			uint16_t offset = READ_SHORT();
 			if (isTruthy(vm.stackTop[-1])) ip += offset;
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_CALL: {
 		label_op_call:
@@ -1585,7 +1577,7 @@ static InterpretResult run()
 			//we entered the function
 			frame = &vm.frames[vm.frameCount - 1];
 			ip = frame->ip;//restore after call
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_INVOKE: {
 		label_op_invoke:
@@ -1600,7 +1592,7 @@ static InterpretResult run()
 			//we entered the function
 			frame = &vm.frames[vm.frameCount - 1];
 			ip = frame->ip;//restore after call
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_SUPER_INVOKE: {
 		label_op_super_invoke:
@@ -1615,7 +1607,7 @@ static InterpretResult run()
 			}
 			frame = &vm.frames[vm.frameCount - 1];
 			ip = frame->ip;//restore after call
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_RETURN: {
 		label_op_return:
@@ -1635,13 +1627,13 @@ static InterpretResult run()
 
 			frame = &vm.frames[vm.frameCount - 1];
 			ip = frame->ip;
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_MODULE_BUILTIN: {
 		label_op_module_builtin:
 			uint8_t moduleIndex = READ_BYTE();
 			stack_push(OBJ_VAL(&vm.builtins[moduleIndex]));
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_IMPORT: {
 		label_op_import:
@@ -1684,7 +1676,7 @@ static InterpretResult run()
 			//we entered the function
 			frame = &vm.frames[vm.frameCount - 1];
 			ip = frame->ip;//restore after call
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_ADD_CONST: {
 		label_op_add_const:
@@ -1692,12 +1684,12 @@ static InterpretResult run()
 			// might cause gc,so can't decrease first
 			if (IS_NUMBER(vm.stackTop[-1]) && IS_NUMBER(constant)) {
 				vm.stackTop[-1] = NUMBER_VAL(AS_NUMBER(vm.stackTop[-1]) + AS_NUMBER(constant));
-				break;
+				NEXT_INSTRUCTION;
 			}
 			else if (IS_STRING(vm.stackTop[-1]) && IS_STRING(constant)) {
 				ObjString* result = connectString(AS_STRING(vm.stackTop[-1]), AS_STRING(constant));
 				vm.stackTop[-1] = OBJ_VAL(result);
-				break;
+				NEXT_INSTRUCTION;
 			}
 
 			runtimeError("Operands must be two numbers or two strings.");
@@ -1707,19 +1699,19 @@ static InterpretResult run()
 		label_op_subtract_const:
 			Value constant = READ_CONSTANT(READ_24bits());
 			BINARY_OP_WITH_RIGHT(NUMBER_VAL, constant, -);
-			break;//never
+			NEXT_INSTRUCTION;
 		}
 		case OP_MULTIPLY_CONST: {
 		label_op_multiply_const:
 			Value constant = READ_CONSTANT(READ_24bits());
 			BINARY_OP_WITH_RIGHT(NUMBER_VAL, constant, *);
-			break;//never
+			NEXT_INSTRUCTION;
 		}
 		case OP_DIVIDE_CONST: {
 		label_op_divide_const:
 			Value constant = READ_CONSTANT(READ_24bits());
 			BINARY_OP_WITH_RIGHT(NUMBER_VAL, constant, / );
-			break;//never
+			NEXT_INSTRUCTION;
 		}
 		case OP_MODULUS_CONST: {
 		label_op_modulus_const:
@@ -1728,7 +1720,7 @@ static InterpretResult run()
 			if (IS_NUMBER(vm.stackTop[-1]) && IS_NUMBER(constant)) {
 				/* Perform the operation and push the result back */
 				vm.stackTop[-1] = NUMBER_VAL(fmod(AS_NUMBER(vm.stackTop[-1]), AS_NUMBER(constant)));
-				break;
+				NEXT_INSTRUCTION;
 			}
 			else {
 				runtimeError("Operands must be numbers.");
@@ -1739,37 +1731,37 @@ static InterpretResult run()
 		label_op_equal_const:
 			Value constant = READ_CONSTANT(READ_24bits());
 			vm.stackTop[-1] = BOOL_VAL(valuesEqual(vm.stackTop[-1], constant));
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_NOT_EQUAL_CONST: {
 		label_op_not_equal_const:
 			Value constant = READ_CONSTANT(READ_24bits());
 			vm.stackTop[-1] = BOOL_VAL(!valuesEqual(vm.stackTop[-1], constant));
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_GREATER_CONST: {
 		label_op_greater_const:
 			Value constant = READ_CONSTANT(READ_24bits());
 			BINARY_OP_WITH_RIGHT(BOOL_VAL, constant, > );
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_LESS_CONST: {
 		label_op_less_const:
 			Value constant = READ_CONSTANT(READ_24bits());
 			BINARY_OP_WITH_RIGHT(BOOL_VAL, constant, < );
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_GREATER_EQUAL_CONST: {
 		label_op_greater_equal_const:
 			Value constant = READ_CONSTANT(READ_24bits());
 			BINARY_OP_WITH_RIGHT(BOOL_VAL, constant, >= );
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_LESS_EQUAL_CONST: {
 		label_op_less_equal_const:
 			Value constant = READ_CONSTANT(READ_24bits());
 			BINARY_OP_WITH_RIGHT(BOOL_VAL, constant, <= );
-			break;
+			NEXT_INSTRUCTION;
 		}
 
 		case OP_ADD_LOCAL: {
@@ -1780,12 +1772,12 @@ static InterpretResult run()
 			// might cause gc,so can't decrease first
 			if (IS_NUMBER(vm.stackTop[-1]) && IS_NUMBER(local)) {
 				vm.stackTop[-1] = NUMBER_VAL(AS_NUMBER(vm.stackTop[-1]) + AS_NUMBER(local));
-				break;
+				NEXT_INSTRUCTION;
 			}
 			else if (IS_STRING(vm.stackTop[-1]) && IS_STRING(local)) {
 				ObjString* result = connectString(AS_STRING(vm.stackTop[-1]), AS_STRING(local));
 				vm.stackTop[-1] = OBJ_VAL(result);
-				break;
+				NEXT_INSTRUCTION;
 			}
 
 			runtimeError("Operands must be two numbers or two strings.");
@@ -1797,7 +1789,7 @@ static InterpretResult run()
 			Value local = frame->slots[index];
 
 			BINARY_OP_WITH_RIGHT(NUMBER_VAL, local, -);
-			break;//never
+			NEXT_INSTRUCTION;
 		}
 		case OP_MULTIPLY_LOCAL: {
 		label_op_multiply_local:
@@ -1805,7 +1797,7 @@ static InterpretResult run()
 			Value local = frame->slots[index];
 
 			BINARY_OP_WITH_RIGHT(NUMBER_VAL, local, *);
-			break;//never
+			NEXT_INSTRUCTION;
 		}
 		case OP_DIVIDE_LOCAL: {
 		label_op_divide_local:
@@ -1813,7 +1805,7 @@ static InterpretResult run()
 			Value local = frame->slots[index];
 
 			BINARY_OP_WITH_RIGHT(NUMBER_VAL, local, / );
-			break;//never
+			NEXT_INSTRUCTION;
 		}
 		case OP_MODULUS_LOCAL: {
 		label_op_modulus_local:
@@ -1824,7 +1816,7 @@ static InterpretResult run()
 			if (IS_NUMBER(vm.stackTop[-1]) && IS_NUMBER(local)) {
 				/* Perform the operation and push the result back */
 				vm.stackTop[-1] = NUMBER_VAL(fmod(AS_NUMBER(vm.stackTop[-1]), AS_NUMBER(local)));
-				break;
+				NEXT_INSTRUCTION;
 			}
 			else {
 				runtimeError("Operands must be numbers.");
@@ -1836,42 +1828,42 @@ static InterpretResult run()
 			uint32_t index = READ_SHORT();
 			Value local = frame->slots[index];
 			vm.stackTop[-1] = BOOL_VAL(valuesEqual(vm.stackTop[-1], local));
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_NOT_EQUAL_LOCAL: {
 		label_op_not_equal_local:
 			uint32_t index = READ_SHORT();
 			Value local = frame->slots[index];
 			vm.stackTop[-1] = BOOL_VAL(!valuesEqual(vm.stackTop[-1], local));
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_GREATER_LOCAL: {
 		label_op_greater_local:
 			uint32_t index = READ_SHORT();
 			Value local = frame->slots[index];
 			BINARY_OP_WITH_RIGHT(BOOL_VAL, local, > );
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_LESS_LOCAL: {
 		label_op_less_local:
 			uint32_t index = READ_SHORT();
 			Value local = frame->slots[index];
 			BINARY_OP_WITH_RIGHT(BOOL_VAL, local, < );
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_GREATER_EQUAL_LOCAL: {
 		label_op_greater_equal_local:
 			uint32_t index = READ_SHORT();
 			Value local = frame->slots[index];
 			BINARY_OP_WITH_RIGHT(BOOL_VAL, local, >= );
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_LESS_EQUAL_LOCAL: {
 		label_op_less_equal_local:
 			uint32_t index = READ_SHORT();
 			Value local = frame->slots[index];
 			BINARY_OP_WITH_RIGHT(BOOL_VAL, local, <= );
-			break;
+			NEXT_INSTRUCTION;
 		}
 
 		case OP_NOT_LOCAL: {
@@ -1880,7 +1872,7 @@ static InterpretResult run()
 			Value local = frame->slots[index];
 
 			stack_push(BOOL_VAL(isFalsey(local)));
-			break;
+			NEXT_INSTRUCTION;
 		}
 		case OP_NEGATE_LOCAL: {
 		label_op_negate_local:
@@ -1897,9 +1889,6 @@ static InterpretResult run()
 			}
 		}
 		}
-#if LOG_MIPS
-		addByteCodeCount();
-#endif
 	}
 
 	//the place the error happens
@@ -1931,25 +1920,15 @@ InterpretResult interpret(C_STR source)
 	stack_push(OBJ_VAL(closure));
 	call(closure, 0);
 
-#if LOG_EXECUTE_TIMING || LOG_MIPS
+#if LOG_EXECUTE_TIMING
 	uint64_t time_run = get_milliseconds();
-#endif
-
-#if LOG_MIPS
-	byteCodeCount = 0;
 #endif
 
 	InterpretResult result = run();
 
-#if LOG_EXECUTE_TIMING || LOG_MIPS
-	double time_run_f = (get_milliseconds() - time_run);
 #if LOG_EXECUTE_TIMING
+	double time_run_f = (get_milliseconds() - time_run);
 	printf("[Log] Finished executing in %g ms.\n", time_run_f);
-#endif
-#if LOG_MIPS
-	printf("[Log] Finished executing at %g mips.\n", byteCodeCount / time_run_f * 1e-3);
-	byteCodeCount = 0;
-#endif
 #endif
 
 	return result;
