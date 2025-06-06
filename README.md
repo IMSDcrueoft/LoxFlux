@@ -30,18 +30,19 @@ Lox is a programming language designed for learning purposes. It is conceived as
 - **Flip-up GC marking**: Flipping tags can avoid reverting to the write of tags during the recycling process, and favor concurrent tags (if actually implemented).
 - **Detached static and dynamic objects**: Static objects such as strings/functions, they don't usually bloat very much, so I think it's a viable option not to recycle them.
 - **Compilation-time optimizations**: Provides basic constant folding and super instruction.
-- **Instruction Dispatching**: Use Direct Threading instead of switch case in compilers that support compiling goto(clangCl clang gcc).
+- **Instruction Dispatching**: Use `direct threading code` instead of `switch case` in compilers that support compute goto(clang & gcc).
 
 ---
 
-#### Performance test (v0.9.9 dev on AMD R7 5800X)
+#### Performance test — v0.9.9-dev 
 
+_(AMD Ryzen7-5800X, Windows 11, ClangCL/LLVM 19)_
 |program|loxFlux|clox|
 |---|---|---|
-|fib30|56ms|84ms|
-|fib35|632ms|930ms|
-|fib40|6993ms|10254ms|
-|global loop 1e8|974ms|2044ms|
+|fib30|52ms|84ms|
+|fib35|575ms|930ms|
+|fib40|6420ms|10254ms|
+|global loop 1e8|860ms|2044ms|
 
 ---
 
