@@ -42,8 +42,18 @@ _(AMD Ryzen7-5800X, Windows 11, ClangCL/LLVM 19)_
 |fib30|52ms|84ms|
 |fib35|575ms|930ms|
 |fib40|6420ms|10254ms|
+|loop 1e8|728ms|2109ms|
 |global loop 1e8|860ms|2044ms|
-
+|binary_trees|1548ms|2650ms|
+|equality|1290ms|2107ms|
+|instantiation|391ms|1067ms|
+|invocation|212ms|249ms|
+|method_call|140ms|179ms|
+|properties|307ms|400ms|
+|string_equality|471ms|NaN: Too many constants in one chunk|
+|trees|1719ms|1402ms|
+|zoo|246ms|298ms|
+|zoo_batch|6630batch|5152batch|
 ---
 
 ### Comment
