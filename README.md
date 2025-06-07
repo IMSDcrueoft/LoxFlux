@@ -51,7 +51,7 @@ _(AMD Ryzen7-5800X, Windows 11, ClangCL/LLVM 19)_
 |method_call|140ms|179ms|
 |properties|307ms|400ms|
 |string_equality|471ms|NaN: Too many constants in one chunk|
-|trees|1719ms|1402ms|
+|trees|1677ms|3560ms|
 |zoo|246ms|298ms|
 |zoo_batch|6630batch|5152batch|
 ---
