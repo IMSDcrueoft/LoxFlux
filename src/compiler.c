@@ -1419,7 +1419,7 @@ static void literal(bool canAssign) {
 	}
 	case TOKEN_NIL: {
 		emitByte(OP_NIL);
-		emitOpStack(OP_FALSE, false);
+		emitOpStack(OP_NIL, false);
 		break;
 	}
 	case TOKEN_TRUE: {
