@@ -42,7 +42,7 @@ _(AMD Ryzen7-5800X, Windows 11, ClangCL/LLVM 19)_
 |fib30|52ms|84ms|
 |fib35|575ms|930ms|
 |fib40|6420ms|10254ms|
-|loop 1e8|728ms|2109ms|
+|loop 1e8|728ms|1109ms|
 |global loop 1e8|860ms|2044ms|
 |binary_trees|1548ms|2650ms|
 |equality|1290ms|2107ms|
