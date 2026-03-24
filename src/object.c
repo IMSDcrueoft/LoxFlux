@@ -83,7 +83,7 @@ ObjFunction* newFunction() {
 	function->upvalueCount = 0;
 	function->id = vm.functionID++;//unique id
 	function->name = NULL;
-	chuck_init(&function->chunk);
+	chunk_init(&function->chunk);
 	return function;
 }
 

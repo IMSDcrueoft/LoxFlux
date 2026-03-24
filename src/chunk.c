@@ -5,7 +5,7 @@
 */
 #include "chunk.h"
 
-void chuck_init(Chunk* chunk) {
+void chunk_init(Chunk* chunk) {
 	chunk->count = 0u;
 	chunk->capacity = 0u;
 	chunk->code = NULL;
@@ -42,7 +42,7 @@ COLD_FUNCTION
 void chunk_free(Chunk* chunk) {
 	FREE_ARRAY_NO_GC(uint8_t, chunk->code, chunk->capacity);
 	lineArray_free(&chunk->lines);
-	chuck_init(chunk);
+	chunk_init(chunk);
 }
 
 //beginError:where error begins
