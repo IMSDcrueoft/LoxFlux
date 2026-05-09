@@ -17,10 +17,10 @@ typedef enum {
 	MODULE_CTOR,
 	MODULE_SYSTEM,
 
-	MODULE_GLOBAL,//as the size too
+	MODULE_COUNT,//as the size
 } BuiltinMouduleType;
 
-#define BUILTIN_MODULE_COUNT MODULE_GLOBAL
+#define BUILTIN_MODULE_COUNT MODULE_COUNT
 
 void importNative_math();
 void importNative_array();

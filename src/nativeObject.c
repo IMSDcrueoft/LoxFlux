@@ -53,32 +53,7 @@ static Value isBooleanNative(int argCount, Value* args) {
 }
 
 static Value getGlobalNative(int argCount, Value* args) {
-	if (argCount >= 1) {
-		if (IS_STRING(args[0])) {
-			ObjString* name = AS_STRING(args[0]);
-			//inline cache make no sense here
-			Value value;
-			if (tableGet(&vm.globals, name, &value)) {
-				return value;
-			}
-		}
-	}
-
-	return NIL_VAL;
-}
-
-static Value setGlobalNative(int argCount, Value* args) {
-	if (argCount >= 1) {
-		if (IS_STRING(args[0])) {
-			ObjString* name = AS_STRING(args[0]);
-			Value value = (argCount >= 2) ? args[1] : NIL_VAL;
-			//inline cache make no sense here
-			tableSet(&vm.globals, name, value);
-			return BOOL_VAL(true);
-		}
-	}
-
-	return BOOL_VAL(false);
+	return OBJ_VAL(&vm.globals);
 }
 
 COLD_FUNCTION
@@ -131,7 +106,6 @@ void importNative_object() {
 	defineNative_object("isBoolean", isBooleanNative);
 
 	defineNative_object("getGlobal", getGlobalNative);
-	defineNative_object("setGlobal", setGlobalNative);
 
 	defineNative_object("keys", keysNative);
 }
