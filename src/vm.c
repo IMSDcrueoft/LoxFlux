@@ -237,7 +237,7 @@ void defineNative_global(C_STR name, NativeFn function) {
 	//stack_pop();
 	//stack_pop();
 
-	tableSet(&vm.globals,
+	tableSet(&vm.globals.fields,
 		copyString(name, (uint32_t)strlen(name), false),
 		OBJ_VAL(newNative(function))
 	);
@@ -324,8 +324,14 @@ void vm_init()
 
 	stack_reset();
 
-	vm.globals = (Table){ .isGlobal = true,.isFrozen = false };//remind this
-	table_init(&vm.globals);
+	// init global 
+	vm.globals = (ObjInstance){
+		.obj = stateLess_obj_header(OBJ_INSTANCE),
+		.klass = NULL,
+		.fields = {.isGlobal = true,.isFrozen = false}//remind this
+	};
+
+	table_init(&vm.globals.fields);
 
 	stringTable_init(&vm.scripts);
 	stringTable_init(&vm.strings);
@@ -375,7 +381,7 @@ void vm_free()
 	valueArray_free(&vm.constants);
 	valueHoles_free(&vm.constantHoles);
 
-	table_free(&vm.globals);
+	table_free(&vm.globals.fields);
 	stringTable_free(&vm.scripts);
 	stringTable_free(&vm.strings);
 	numberTable_free(&vm.numbers);
@@ -1255,7 +1261,7 @@ static InterpretResult run()
 			ObjString* name = AS_STRING(constant);
 
 			//it's not a new key,no cache
-			tableSet(&vm.globals, name, vm.stackTop[-1]);
+			tableSet(&vm.globals.fields, name, vm.stackTop[-1]);
 			vm.stackTop--;//can not dec first,because gc will kill it
 			NEXT_INSTRUCTION;
 		}
@@ -1266,7 +1272,7 @@ static InterpretResult run()
 
 			//inline find by cache symbol
 			if ((name->symbol != INVALID_OBJ_STRING_SYMBOL)) {
-				Entry* entry = &vm.globals.entries[name->symbol];
+				Entry* entry = &vm.globals.fields.entries[name->symbol];
 
 				if (entry->key == name) {
 					// We found the key.
@@ -1276,7 +1282,7 @@ static InterpretResult run()
 			}
 
 			Value value;
-			if (!tableGet(&vm.globals, name, &value)) {
+			if (!tableGet(&vm.globals.fields, name, &value)) {
 				runtimeError("Undefined variable '%s'.", name->chars);
 				return INTERPRET_RUNTIME_ERROR;
 			}
@@ -1290,7 +1296,7 @@ static InterpretResult run()
 
 			//inline find by cache symbol(if we found it,it's not new key)
 			if ((name->symbol != INVALID_OBJ_STRING_SYMBOL)) {
-				Entry* entry = &vm.globals.entries[name->symbol];
+				Entry* entry = &vm.globals.fields.entries[name->symbol];
 				if (entry->key == name) {
 					// We found the key.
 					entry->value = vm.stackTop[-1];
@@ -1298,9 +1304,9 @@ static InterpretResult run()
 				}
 			}
 
-			if (tableSet(&vm.globals, name, vm.stackTop[-1])) {
+			if (tableSet(&vm.globals.fields, name, vm.stackTop[-1])) {
 				//lox dont allow setting undefined one
-				tableDelete(&vm.globals, name);
+				tableDelete(&vm.globals.fields, name);
 				runtimeError("Undefined variable '%s'.", name->chars);
 				return INTERPRET_RUNTIME_ERROR;
 			}

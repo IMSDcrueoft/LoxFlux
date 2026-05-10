@@ -45,7 +45,7 @@ typedef struct {
 	ObjUpvalue* openUpvalues;
 
 	//global hash table
-	Table globals;
+	ObjInstance globals;
 	ObjInstance builtins[BUILTIN_MODULE_COUNT];
 
 	//the root for dynamic objects

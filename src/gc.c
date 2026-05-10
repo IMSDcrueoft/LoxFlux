@@ -57,7 +57,7 @@ static void markRoots() {
 		markObject((Obj*)upvalue);
 	}
 
-	markTable(&vm.globals);
+	markTable(&vm.globals.fields);
 	//the shared constants don't gc
 	//markConstants(&vm.constants);
 
