@@ -36,24 +36,22 @@ Lox is a programming language designed for learning purposes. It is conceived as
 
 #### Performance test — v0.9.9-dev 
 
-_(AMD Ryzen7-5800X, Windows 11, Use ClangCL/LLVM 19 for loxflux & clox)_
+_(AMD Ryzen7-5800X, Windows 11, Use ClangCL/LLVM 20 for loxflux & clox)_
 |program|LoxFlux - [0.9.9]|clox|NodeJS - [20.2.0] - jitless|Cpython3 - [3.9.7]|Lua - [5.4.4]|
 |---|---|---|---|---|---|
-|fib30|52ms|84ms|58ms|130ms|49ms|
-|fib35|575ms|930ms|576ms|1430ms|574ms|
-|fib40|6420ms|10254ms|6308ms|15681ms|6334ms|
+|fib30|51ms|76ms|58ms|130ms|49ms|
+|fib35|558ms|874ms|576ms|1430ms|574ms|
+|fib40|6168ms|9677ms|6308ms|15681ms|6334ms|
 |loop 1e8|692ms|1109ms|682ms|2115ms|361ms|
 |global loop 1e8|830ms|2044ms|1308ms|3537ms|1109ms|
-|binary_trees|1548ms|2650ms|630ms|2395ms|2132ms|
-|equality|1290ms|2107ms|1236ms|2052ms|625ms|
-|instantiation|391ms|1067ms|241ms|886ms|1465ms|
-|invocation|212ms|249ms|207ms|627ms|293ms|
-|method_call|140ms|179ms|117ms|345ms|132ms|
-|properties|307ms|400ms|244ms|860ms|334ms|
-|string_equality|471ms|NaN: Too many constants in one chunk|394ms|533ms|252ms|
-|trees|1677ms|3560ms|1620ms|4607ms|2905ms|
-|zoo|246ms|298ms|219ms|648ms|247ms|
-|zoo_batch(10sec)|6630batch|5152batch|7698batch|2555batch|6560batch|
+|binary_trees|1137ms|1996ms|630ms|2395ms|2132ms|
+|instantiation|358ms|945ms|241ms|886ms|1465ms|
+|invocation|194ms|235ms|207ms|627ms|293ms|
+|method_call|132ms|167ms|117ms|345ms|132ms|
+|properties|281ms|377ms|244ms|860ms|334ms|
+|trees|1657ms|3553ms|1620ms|4607ms|2905ms|
+|zoo|227ms|282ms|219ms|648ms|247ms|
+|zoo_batch(10sec)|7332batch|5398batch|7698batch|2555batch|6560batch|
 ---
 
 ### Comment
