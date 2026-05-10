@@ -52,6 +52,7 @@ _(AMD Ryzen7-5800X, Windows 11, Use ClangCL/LLVM 20 for loxflux & clox)_
 |trees|1657ms|3553ms|1620ms|4607ms|2905ms|
 |zoo|227ms|282ms|219ms|648ms|247ms|
 |zoo_batch(10sec)|7332batch|5398batch|7698batch|2555batch|6560batch|
+
 ---
 
 ### Comment
