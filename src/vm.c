@@ -13,6 +13,10 @@
 #include "debug.h"
 #endif
 
+#if LOG_MODE
+#include "timer.h"
+#endif
+
 //the global shared vm
 VM vm;
 
