@@ -66,12 +66,12 @@ Token scanToken();
 * OP_NIL
 * OP_NIL
 * EXTRESSION...
-* OP_MAKE_ITER
-* OP_CHECK_ITER
+* OP_MAKE_ITER (check type, push iter or throw error)
+* OP_CHECK_ITER (check range, if false pop and jump to break)
 * ...
-* OP_POPN
+* OP_POPN (pop local vars)
 * OP_LOOP
 * 
-* break: OP_POPN OP_JUMP(to end)
-* continue: OP_POPN OP_LOOP(to check iter)
+* break: OP_POPN (pop local vars and 4slot) OP_JUMP(to end)
+* continue: OP_POPN (pop local vars) OP_LOOP(to check iter)
 */
