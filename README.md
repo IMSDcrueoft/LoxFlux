@@ -59,10 +59,6 @@ _(AMD Ryzen7-5800X, Windows 11, Use ClangCL/LLVM 20 for loxflux & clox)_
 
 ---
 
-**Note:** The `clox` benchmark results for `loop 1e8` and `global loop 1e8` are from **LLVM 19**. LLVM 20 introduces a misoptimization that causes severe performance regression (~80% slowdown) on these specific loops.
-
----
-
 ### Comment
 
 - **Line & Block comment support**: Using `//` `/* */`.
