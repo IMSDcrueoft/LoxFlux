@@ -1445,11 +1445,11 @@ static void number(bool canAssign) {
 }
 
 static void number_bin(bool canAssign) {
-	emitNumber(strtol(parser.previous.start + 2, NULL, 2));
+	emitNumber(strtoll(parser.previous.start + 2, NULL, 2));
 }
 
 static void number_hex(bool canAssign) {
-	emitNumber(strtol(parser.previous.start + 2, NULL, 16));
+	emitNumber(strtoll(parser.previous.start + 2, NULL, 16));
 }
 
 static void or_(bool canAssign) {
