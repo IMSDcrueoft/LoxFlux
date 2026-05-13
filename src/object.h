@@ -96,8 +96,8 @@ struct Obj {
 	};
 	struct Obj* next;	//ptr: The user-space pointer's high 16 bits can be 0 directly,the high 16 bits of the pointer depends on the 47th bit
 };
-#define OBJ_PTR_SET_NEXT(obj,nextPtr)	(obj->next = nextPtr)
-#define OBJ_PTR_GET_NEXT(obj)			(obj->next)
+#define OBJ_PTR_SET_NEXT(obj,nextPtr)	((obj)->next = nextPtr)
+#define OBJ_PTR_GET_NEXT(obj)			((obj)->next)
 
 static inline Obj stateLess_obj_header(ObjType objType) {
 	return (Obj) { .next = NULL, .isMarked = 1, .type = objType };
