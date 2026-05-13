@@ -10,6 +10,19 @@
 
 /*
 * TODO:
+* 
+* IMM version
+* 
+* BIT_OP_ANDI
+* BIT_OP_ORI
+* BIT_OP_XORI
+* BIT_OP_SHLI
+* BIT_OP_SHRI
+* BIT_OP_SARI
+*/
+
+/*
+* TODO:
 *
 * TOKEN_FOREACH、TOKEN_IN
 *
@@ -29,18 +42,4 @@
 *
 * break: OP_POPN (pop local vars and 4slot) OP_JUMP(to end)
 * continue: OP_POPN (pop local vars) OP_LOOP(to check iter)
-*/
-
-/*
-* TOOD:
-* 
-* NEW NaNBox stucture:
-* 
-* 16bits QNAN
-* 8bits type tag
-* 8bits tableTag
-* 32bits ptrIndex
-* 
-* ptr = ptrTables[tableTag][ptrIndex]  => No need to worry about the level 5 page table problem
-* 
 */
