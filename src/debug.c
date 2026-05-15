@@ -48,6 +48,11 @@ static uint32_t builtinInStruction(C_STR name, Chunk* chunk, uint32_t offset) {
 COLD_FUNCTION
 static uint32_t bitwiseInStruction(C_STR name, Chunk* chunk, uint32_t offset) {
 	uint32_t slot = chunk->code[offset + 1];
+	//24bit index
+	uint32_t constant1B = (uint32_t)chunk->code[offset + 2];
+	//24bit index
+	uint32_t constant4B = ((uint32_t)chunk->code[offset + 2]) | ((uint32_t)chunk->code[offset + 3] << 8) | ((uint32_t)chunk->code[offset + 4] << 16) | ((uint32_t)chunk->code[offset + 5] << 24);
+
 	switch (slot)
 	{
 	case BIT_OP_NOT:
@@ -70,6 +75,30 @@ static uint32_t bitwiseInStruction(C_STR name, Chunk* chunk, uint32_t offset) {
 		break;
 	case BIT_OP_SAR:
 		printf("%-10s : %-4s\n", name, "SAR");
+		break;
+	case BIT_OP_ANDI:
+		printf("%-10s : %-4s  0x%08X\n", name, "ANDI", constant4B);
+		offset += 4;
+		break;
+	case BIT_OP_ORI:
+		printf("%-10s : %-4s  0x%08X\n", name, "ORI", constant4B);
+		offset += 4;
+		break;
+	case BIT_OP_XORI:
+		printf("%-10s : %-4s  0x%08X\n", name, "XORI", constant4B);
+		offset += 4;
+		break;
+	case BIT_OP_SHLI:
+		printf("%-10s : %-4s  %u\n", name, "SHLI", constant1B);
+		offset += 1;
+		break;
+	case BIT_OP_SHRI:
+		printf("%-10s : %-4s  %u\n", name, "SHRI", constant1B);
+		offset += 1;
+		break;
+	case BIT_OP_SARI:
+		printf("%-10s : %-4s  %u\n", name, "SARI", constant1B);
+		offset += 1;
 		break;
 	}
 	return offset + 2;
@@ -259,6 +288,8 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 		return shortInstruction("OP_GET_LOCAL", chunk, offset);
 	case OP_SET_LOCAL:
 		return shortInstruction("OP_SET_LOCAL", chunk, offset);
+	case OP_SET_LOCAL_POP:
+		return shortInstruction("OP_SET_LOCAL_POP", chunk, offset);
 	case OP_POP_N:
 		return shortInstruction("OP_POP_N", chunk, offset);
 
@@ -372,6 +403,8 @@ void disassembleOpStack(OPStack* opStack) {
 		case OP_NOT_EQUAL:        printf("OP_NOT_EQUAL\n"); break;
 		case OP_LESS_EQUAL:       printf("OP_LESS_EQUAL\n"); break;
 		case OP_GREATER_EQUAL:    printf("OP_GREATER_EQUAL\n"); break;
+		case OP_BITWISE:		  printf("OP_BITWISE\n"); break;
+		case OP_POP:			  printf("OP_POP\n"); break;
 		default:
 			fprintf(stderr, "Unexpected(%u)\n", code);
 			break;

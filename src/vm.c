@@ -673,8 +673,13 @@ static inline bool isTruthy(Value value) {
 }
 
 HOT_FUNCTION
-static bool bitInstruction(uint8_t bitOpType) {
-#define BIARAY_OP_BIT(op)																			\
+static bool bitInstruction(uint8_t bitOpType, uint8_t** ip_ptr) {
+	uint8_t* ip = *ip_ptr;
+
+#define READ_BYTE() (*ip_ptr = (ip + 1), *ip)
+#define READ_WORD() (*ip_ptr = (ip + 4), (uint32_t)(ip[0] | (ip[1] << 8) | (ip[2] << 16) | (ip[3] << 24)))
+
+#define BINARAY_OP_BIT(op)																			\
     do {																							\
 		/* Pop the top two values from the stack */													\
 		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {								\
@@ -683,6 +688,17 @@ static bool bitInstruction(uint8_t bitOpType) {
 			vm.stackTop--;																			\
 			return true;																			\
 		}																							\
+	} while (false)
+
+#define BINARAY_OP_BIT_IMM(op)																\
+    do {																					\
+		/* Pop the top two values from the stack */											\
+		if (IS_NUMBER(vm.stackTop[-1])) {													\
+			int32_t constant = READ_WORD();													\
+			/* Perform the operation and push the result back */							\
+			vm.stackTop[-1] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-1]) op constant);	\
+			return true;																	\
+		}																					\
 	} while (false)
 
 #if COMPUTE_GOTO
@@ -694,6 +710,13 @@ static bool bitInstruction(uint8_t bitOpType) {
 	 [BIT_OP_SHL] = && label_bit_shl,
 	 [BIT_OP_SAR] = && label_bit_sar,
 	 [BIT_OP_SHR] = && label_bit_shr,
+
+	 [BIT_OP_ANDI] = && label_bit_andi,
+	 [BIT_OP_ORI] = && label_bit_ori,
+	 [BIT_OP_XORI] = && label_bit_xori,
+	 [BIT_OP_SHLI] = && label_bit_shli,
+	 [BIT_OP_SARI] = && label_bit_sari,
+	 [BIT_OP_SHRI] = && label_bit_shri,
 	};
 
 	goto* bit_op_labels[bitOpType];
@@ -711,17 +734,17 @@ static bool bitInstruction(uint8_t bitOpType) {
 	}
 	case BIT_OP_AND: {
 	label_bit_and:
-		BIARAY_OP_BIT(&);
+		BINARAY_OP_BIT(&);
 		break;
 	}
 	case BIT_OP_OR: {
 	label_bit_or:
-		BIARAY_OP_BIT(| );
+		BINARAY_OP_BIT(| );
 		break;
 	}
 	case BIT_OP_XOR: {
 	label_bit_xor:
-		BIARAY_OP_BIT(^);
+		BINARAY_OP_BIT(^);
 		break;
 	}
 
@@ -776,9 +799,72 @@ static bool bitInstruction(uint8_t bitOpType) {
 		}
 		break;
 	}
+	case BIT_OP_ANDI: {
+	label_bit_andi:
+		BINARAY_OP_BIT_IMM(&);
+		break;
+	}
+	case BIT_OP_ORI: {
+	label_bit_ori:
+		BINARAY_OP_BIT_IMM(| );
+		break;
+	}
+	case BIT_OP_XORI: {
+	label_bit_xori:
+		BINARAY_OP_BIT_IMM(^);
+		break;
+	}
+	case BIT_OP_SHLI: {
+	label_bit_shli:
+		if (IS_NUMBER(vm.stackTop[-1])) {
+			int32_t shiftBits = READ_BYTE();
+
+			if (shiftBits >= 0) {
+				vm.stackTop[-1] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-1]) << shiftBits);
+			}
+			else {
+				vm.stackTop[-1] = NUMBER_VAL(0);
+			}
+			return true;
+		}
+		break;
+	}
+	case BIT_OP_SARI: {
+	label_bit_sari:
+		if (IS_NUMBER(vm.stackTop[-1])) {
+			int32_t shiftBits = READ_BYTE();
+
+			if (shiftBits >= 0) {
+				vm.stackTop[-1] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-1]) >> shiftBits);
+			}
+			else {
+				vm.stackTop[-1] = NUMBER_VAL(0);
+			}
+			return true;
+		}
+		break;
+	}
+	case BIT_OP_SHRI: {
+	label_bit_shri:
+		if (IS_NUMBER(vm.stackTop[-1])) {
+			int32_t shiftBits = READ_BYTE();
+
+			if (shiftBits >= 0) {
+				vm.stackTop[-1] = NUMBER_VAL((uint32_t)AS_NUMBER(vm.stackTop[-1]) >> shiftBits);
+			}
+			else {
+				vm.stackTop[-1] = NUMBER_VAL(0);
+			}
+			return true;
+		}
+		break;
+	}
 	}
 	return false;
-#undef BIARAY_OP_BIT
+#undef BINARAY_OP_BIT
+#undef BINARAY_OP_BIT_IMM
+#undef READ_BYTE
+#undef READ_WORD
 }
 
 //to run code in vm
@@ -796,6 +882,7 @@ static InterpretResult run()
 
 		[OP_GET_LOCAL] = && label_op_get_local,
 		[OP_SET_LOCAL] = && label_op_set_local,
+		[OP_SET_LOCAL_POP] = && label_op_set_local_pop,
 
 		[OP_ADD] = && label_op_add,
 		[OP_SUBTRACT] = && label_op_subtract,
@@ -1490,7 +1577,7 @@ static InterpretResult run()
 		case OP_BITWISE: {
 		label_op_bitwise:
 			uint8_t bitOpType = READ_BYTE();
-			if (bitInstruction(bitOpType)) {
+			if (bitInstruction(bitOpType, &ip)) {
 				NEXT_INSTRUCTION;
 			}
 			else {
@@ -1526,6 +1613,13 @@ static InterpretResult run()
 		label_op_set_local:
 			uint32_t index = READ_SHORT();
 			frame->slots[index] = vm.stackTop[-1];
+			NEXT_INSTRUCTION;
+		}
+		case OP_SET_LOCAL_POP: {
+		label_op_set_local_pop:
+			uint32_t index = READ_SHORT();
+			frame->slots[index] = vm.stackTop[-1];
+			vm.stackTop--;
 			NEXT_INSTRUCTION;
 		}
 		case OP_CLOSE_UPVALUE: {

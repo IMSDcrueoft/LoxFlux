@@ -15,6 +15,7 @@ typedef enum {
 	//load local
 	OP_GET_LOCAL,
 	OP_SET_LOCAL,
+	OP_SET_LOCAL_POP,
 
 	OP_ADD,				// +
 	OP_SUBTRACT,		// -
@@ -116,6 +117,14 @@ typedef enum {
 	BIT_OP_SHL,			//<<
 	BIT_OP_SHR,			//>>>
 	BIT_OP_SAR,			//>>
+
+	BIT_OP_ANDI,		//&
+	BIT_OP_ORI,			//|
+
+	BIT_OP_XORI,		//^
+	BIT_OP_SHLI,		//<<
+	BIT_OP_SHRI,		//>>>
+	BIT_OP_SARI,		//>>
 } BitOpCode;
 
 typedef struct {

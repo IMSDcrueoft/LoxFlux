@@ -324,6 +324,7 @@ static void emitPopCount(uint16_t popCount) {
 	}
 	else {
 		emitByte(OP_POP);
+		emitOpStack(OP_POP, true);
 	}
 	clearOpStack();
 }
@@ -1195,22 +1196,22 @@ static void binary(bool canAssign) {
 	}
 	case TOKEN_BIT_XOR: {
 		emitBytes(2, OP_BITWISE, BIT_OP_XOR);
-		clearOpStack();
+		emitOpStack(OP_BITWISE, true);
 		break;
 	}
 	case TOKEN_BIT_SHL: {
 		emitBytes(2, OP_BITWISE, BIT_OP_SHL);
-		clearOpStack();
+		emitOpStack(OP_BITWISE, true);
 		break;
 	}
 	case TOKEN_BIT_SHR: {
 		emitBytes(2, OP_BITWISE, BIT_OP_SHR);
-		clearOpStack();
+		emitOpStack(OP_BITWISE, true);
 		break;
 	}
 	case TOKEN_BIT_SAR: {
 		emitBytes(2, OP_BITWISE, BIT_OP_SAR);
-		clearOpStack();
+		emitOpStack(OP_BITWISE, true);
 		break;
 	}
 	default: return; // Unreachable.
@@ -1478,7 +1479,7 @@ static void namedVariable(Token name, bool canAssign) {
 			}
 			// 16-bit index
 			emitBytes(3, OP_SET_LOCAL, (uint8_t)arg, (uint8_t)(arg >> 8));
-			emitOpStack(OP_SET_LOCAL, true);
+			emitOpStack(OP_SET_LOCAL, false);
 		}
 		else { // 16-bit index
 			emitBytes(3, OP_GET_LOCAL, (uint8_t)arg, (uint8_t)(arg >> 8));
@@ -2087,6 +2088,94 @@ static void instructionOptimize() {
 			chunk_fallback(chunk, 1);//op
 			clearOpStack();
 			CHUNK_PEEK(2) = OP_GREATER_EQUAL_LOCAL; //convert command
+		}
+		break;
+	}
+	case OP_BITWISE: {
+		if (isRightConstant) {
+			uint8_t bitOp = CHUNK_PEEK(0);
+			// no optimization for NOT, because it has only one operand
+			if (bitOp == BIT_OP_NOT) {
+				break;
+			}
+
+			uint32_t idx_right = READ_24BITS_INDEX(2); //op
+			Value right = READ_CONSTANT(idx_right);
+
+			if (!IS_NUMBER(right)) {
+				error("Operand of bitwise must be a number.");
+				break;
+			}
+
+			double rightNum = AS_NUMBER(right);
+
+			if (isnan(rightNum) || isinf(rightNum)) {
+				error("Operand of bitwise must be a finite number.");
+				break;
+			}
+
+			// convert to int
+			uint32_t rightIMM = AS_NUMBER(right);
+
+			switch (bitOp)
+			{
+			case BIT_OP_AND:
+				chunk_fallback(chunk, 2 + 4);//op + const
+				emitBytes(6, OP_BITWISE, BIT_OP_ANDI, (uint8_t)rightIMM, (uint8_t)(rightIMM >> 8), (uint8_t)(rightIMM >> 16), (uint8_t)(rightIMM >> 24));
+				clearOpStack();
+				break;
+			case BIT_OP_OR:
+				chunk_fallback(chunk, 2 + 4);//op + const
+				emitBytes(6, OP_BITWISE, BIT_OP_ORI, (uint8_t)rightIMM, (uint8_t)(rightIMM >> 8), (uint8_t)(rightIMM >> 16), (uint8_t)(rightIMM >> 24));
+				clearOpStack();
+				break;
+			case BIT_OP_XOR:
+				chunk_fallback(chunk, 2 + 4);//op + const
+				emitBytes(6, OP_BITWISE, BIT_OP_XORI, (uint8_t)rightIMM, (uint8_t)(rightIMM >> 8), (uint8_t)(rightIMM >> 16), (uint8_t)(rightIMM >> 24));
+				clearOpStack();
+				break;
+			case BIT_OP_SHL:
+				if (rightNum < 0) {
+					error("Operand of bitwise must be a positive.");
+					break;
+				}
+				rightIMM &= 31;
+				chunk_fallback(chunk, 2 + 4);//op + const
+				emitBytes(3, OP_BITWISE, BIT_OP_SHLI, (uint8_t)rightIMM);
+				clearOpStack();
+				break;
+			case BIT_OP_SHR:
+				if (rightNum < 0) {
+					error("Operand of bitwise must be a positive.");
+					break;
+				}
+				rightIMM &= 31;
+				chunk_fallback(chunk, 2 + 4);//op + const
+				emitBytes(3, OP_BITWISE, BIT_OP_SHRI, (uint8_t)rightIMM);
+				clearOpStack();
+				break;
+			case BIT_OP_SAR:
+				if (rightNum < 0) {
+					error("Operand of bitwise must be a positive.");
+					break;
+				}
+				rightIMM &= 31;
+				chunk_fallback(chunk, 2 + 4);//op + const
+				emitBytes(3, OP_BITWISE, BIT_OP_SARI, (uint8_t)rightIMM);
+				clearOpStack();
+				break;
+			default:
+				fprintf(stderr, "Unexpected Bitwise(%u)\n", bitOp);
+				break;
+			}
+		}
+		break;
+	}
+	case OP_POP: {
+		if (prevRight == OP_SET_LOCAL) {
+			chunk_fallback(chunk, 1);//pop
+			CHUNK_PEEK(2) = OP_SET_LOCAL_POP; //convert command
+			clearOpStack();
 		}
 		break;
 	}
