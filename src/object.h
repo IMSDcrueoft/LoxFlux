@@ -92,9 +92,8 @@ struct Obj {
 	{
 		uint8_t type;
 		uint8_t isMarked;
-		uint8_t padding[6];//high 48bits
 	};
-	struct Obj* next;	//ptr: The user-space pointer's high 16 bits can be 0 directly,the high 16 bits of the pointer depends on the 47th bit
+	struct Obj* next;
 };
 #define OBJ_PTR_SET_NEXT(obj,nextPtr)	((obj)->next = nextPtr)
 #define OBJ_PTR_GET_NEXT(obj)			((obj)->next)

@@ -1186,12 +1186,12 @@ static void binary(bool canAssign) {
 	}
 	case TOKEN_BIT_AND: {
 		emitBytes(2, OP_BITWISE, BIT_OP_AND);
-		clearOpStack();
+		emitOpStack(OP_BITWISE, true);
 		break;
 	}
 	case TOKEN_BIT_OR: {
 		emitBytes(2, OP_BITWISE, BIT_OP_OR);
-		clearOpStack();
+		emitOpStack(OP_BITWISE, true);
 		break;
 	}
 	case TOKEN_BIT_XOR: {
