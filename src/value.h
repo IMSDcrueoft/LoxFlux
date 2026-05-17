@@ -6,13 +6,6 @@
 #pragma once
 #include "common.h"
 
-typedef enum {
-	VAL_BOOL,
-	VAL_NIL, //nil should not be zero
-	VAL_NUMBER,
-	VAL_OBJ,
-} ValueType;
-
 typedef struct Obj Obj;
 typedef struct ObjString ObjString;
 
@@ -61,6 +54,13 @@ static inline double valueToNum(Value value) {
 #define IS_OBJ(value)	(((value) & (QNAN | SIGN_BIT)) == (QNAN | SIGN_BIT))
 
 #else
+
+typedef enum {
+	VAL_BOOL,
+	VAL_NIL, //nil should not be zero
+	VAL_NUMBER,
+	VAL_OBJ,
+} ValueType;
 
 //the dynamic value
 typedef struct {
