@@ -308,7 +308,7 @@ static Value parseIntNative(int argCount, Value* args) {
 			if (length >= 2 && startPtr[0] == '0') {
 				if (startPtr[1] == 'b' || startPtr[1] == 'B') {
 					// Found binary prefix - override user's radix and force base 2
-					int64_t value = strtol(startPtr + 2, &endPtr, 2);
+					int64_t value = strtoll(startPtr + 2, &endPtr, 2);
 					if (endPtr != startPtr + 2) {
 						if (isNegative) value = -value;
 						return NUMBER_VAL((double)value);
@@ -316,8 +316,8 @@ static Value parseIntNative(int argCount, Value* args) {
 				}
 				else if (startPtr[1] == 'x' || startPtr[1] == 'X') {
 					// Found hex prefix - override user's radix and force base 16
-					// strtol automatically handles 0x prefix when base is 16
-					int64_t value = strtol(startPtr, &endPtr, 16);
+					// strtoll automatically handles 0x prefix when base is 16
+					int64_t value = strtoll(startPtr, &endPtr, 16);
 					if (endPtr != startPtr) {
 						if (isNegative) value = -value;
 						return NUMBER_VAL((double)value);
@@ -326,7 +326,7 @@ static Value parseIntNative(int argCount, Value* args) {
 			}
 			else {
 				// No special prefix - use user-specified radix or auto-detect
-				int64_t value = strtol(startPtr, &endPtr, base);
+				int64_t value = strtoll(startPtr, &endPtr, base);
 				if (endPtr != startPtr) {
 					if (isNegative) value = -value;
 					return NUMBER_VAL((double)value);
