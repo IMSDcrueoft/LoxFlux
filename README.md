@@ -1,6 +1,5 @@
 # LoxFlux
-![Version](https://img.shields.io/badge/version-0.9.9-blue)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/IMSDcrueoft/LoxFlux)
+![Version](https://img.shields.io/badge/version-0.10.0-blue)
 
 LoxFlux is an independent reimplementation of the cLox interpreter described in "Crafting Interpreters"—a stack-based bytecode virtual machine. All code is written from scratch, following the book’s design principles. This project is still actively being developed and improved.
 
