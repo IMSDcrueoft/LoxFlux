@@ -23,8 +23,6 @@ typedef char* STR;
 typedef const char* C_STR;
 
 #define UINT8_COUNT 0x100
-#define UINT10_MAX 0x3ff
-#define UINT10_COUNT 0x400
 #define UINT24_MAX 0xffffff
 #define UINT24_COUNT 0x1000000
 
