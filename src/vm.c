@@ -152,14 +152,21 @@ void stack_push(Value value)
 		ptrdiff_t oldCapacity = vm.stackBoundary - vm.stack;
 		uint32_t capacity = GROW_CAPACITY(oldCapacity);
 
-		if (capacity > UINT24_COUNT) {
+		if (capacity > STACK_MAX_SIZE) {
 			runtimeError("Stack overflow.");
 			return;
 		}
 
+		// remind that we realloc the ptr, so we need to update all ptrRef unless we use index to record
 		vm.stack = GROW_ARRAY_NO_GC(Value, vm.stack, oldCapacity, capacity);
 		vm.stackBoundary = vm.stack + capacity;		//need fresh
 		vm.stackTop = vm.stack + oldCapacity;		//need fresh
+
+		// update all stack frames so it is safe now
+		for (int32_t i = vm.frameCount - 1; i >= 0; i--) {
+			CallFrame* frame = &vm.frames[i];
+			frame->slots = vm.stack + frame->slotsOffset;
+		}
 	}
 }
 

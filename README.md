@@ -352,7 +352,7 @@ These utilities are invaluable for monitoring and optimizing memory usage, espec
 
 ## Licenses
 The project **loxFlux** is based on `MIT` and uses two third-party projects.
-  - Copyright (c) 2025 IMSDCrueoft
+  - Copyright (c) 2025-2026 IMSDCrueoft
   - License: `MIT`
 
 1. **mimalloc**
