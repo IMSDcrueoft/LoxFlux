@@ -517,17 +517,18 @@ static void getTypeof() {
 
 HOT_FUNCTION
 static bool call(ObjClosure* closure, int argCount) {
-	if (argCount > closure->function->arity) {
-		runtimeError("Expected %d arguments but got %d.",
-			closure->function->arity, argCount);
-		return false;
-	}
+	//if (argCount > closure->function->arity) {
+	//	runtimeError("Expected %d arguments but got %d.",
+	//		closure->function->arity, argCount);
+	//	return false;
+	//}
 
 	if (vm.frameCount == FRAMES_MAX) {
 		runtimeError("Stack overflow.");
 		return false;
 	}
 
+	// append missing args
 	while (argCount < closure->function->arity) {
 		stack_push(NIL_VAL);
 		++argCount;
@@ -538,6 +539,14 @@ static bool call(ObjClosure* closure, int argCount) {
 	frame->ip = closure->function->chunk.code;
 	//-1 is for function itself
 	frame->slots = vm.stackTop - argCount - 1;
+
+	// clear extra args
+	if (argCount > closure->function->arity) {
+		for (int32_t i = 0, len = argCount - closure->function->arity; i < len; ++i) {
+			STACK_PEEK(i) = NIL_VAL;
+		}
+	}
+
 	return true;
 }
 
