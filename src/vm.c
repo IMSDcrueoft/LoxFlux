@@ -167,6 +167,13 @@ void stack_push(Value value)
 			CallFrame* frame = &vm.frames[i];
 			frame->slots = vm.stack + frame->slotsOffset;
 		}
+
+		// update all upvalues if needed
+		for (ObjUpvalue* upvalue = vm.openUpvalues;upvalue != NULL;upvalue = upvalue->next) {
+			if (upvalue->location_offset != CLOSED_OBJ_UPVALUE_LOCATION) {
+				upvalue->location = vm.stack + upvalue->location_offset;
+			}
+		}
 	}
 }
 
@@ -643,7 +650,7 @@ static ObjUpvalue* captureUpvalue(Value* local) {
 		return upvalue;
 	}
 
-	ObjUpvalue* createdUpvalue = newUpvalue(local);
+	ObjUpvalue* createdUpvalue = newUpvalue(local, (ptrdiff_t)(local - vm.stack));
 
 	//insert it
 	createdUpvalue->next = upvalue;
@@ -665,6 +672,7 @@ static void closeUpvalues(Value* last) {
 		//if one upValue closed,it's location is it's closed's pointer
 		upvalue->closed = *upvalue->location;
 		upvalue->location = &upvalue->closed;
+		upvalue->location_offset = CLOSED_OBJ_UPVALUE_LOCATION;
 		vm.openUpvalues = upvalue->next;
 	}
 }

@@ -113,9 +113,11 @@ typedef struct {
 	ObjString* name;
 } ObjFunction;
 
+#define CLOSED_OBJ_UPVALUE_LOCATION UINT32_MAX
 typedef struct ObjUpvalue {
 	Obj obj;
 	Value closed; //closed value
+	uint32_t location_offset; // store the offset, so we can update location when stack grow
 	Value* location;
 	struct ObjUpvalue* next;
 } ObjUpvalue;
@@ -226,7 +228,7 @@ void printObject(Value value, bool isExpand);
 StringEntry* getStringEntryInPool(ObjString* string);
 NumberEntry* getNumberEntryInPool(Value* value);
 
-ObjUpvalue* newUpvalue(Value* slot);
+ObjUpvalue* newUpvalue(Value* slot, uint32_t offset);
 ObjFunction* newFunction();
 ObjClosure* newClosure(ObjFunction* function);
 ObjBoundMethod* newBoundMethod(Value receiver, ObjClosure* method);
