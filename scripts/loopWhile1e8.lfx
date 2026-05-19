@@ -1,0 +1,24 @@
+var start = @time.milli();
+{
+    var i = 0;
+    while(i < 5e8){
+        i = i + 1;
+    }
+}
+print "while 1e8";
+print @math.floor((@time.milli() - start) / 5);
+
+start = @time.milli();
+{
+    var i = 0;
+    var a,b,c;
+    while(i < 5e8){
+        i = i + 1;
+        // swap a and b
+        c = a;
+        a = b;
+        b = c;
+    }
+}
+print "Swap 1e8";
+print @math.floor((@time.milli() - start) / 5);

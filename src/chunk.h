@@ -16,6 +16,7 @@ typedef enum {
 	OP_GET_LOCAL,
 	OP_SET_LOCAL,
 	OP_SET_LOCAL_POP,
+	OP_MOVE_LOCAL,
 
 	OP_ADD,				// +
 	OP_SUBTRACT,		// -

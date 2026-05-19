@@ -898,6 +898,7 @@ static InterpretResult run()
 		[OP_GET_LOCAL] = && label_op_get_local,
 		[OP_SET_LOCAL] = && label_op_set_local,
 		[OP_SET_LOCAL_POP] = && label_op_set_local_pop,
+		[OP_MOVE_LOCAL] = && label_op_move_local,
 
 		[OP_ADD] = && label_op_add,
 		[OP_SUBTRACT] = && label_op_subtract,
@@ -1635,6 +1636,13 @@ static InterpretResult run()
 			uint32_t index = READ_SHORT();
 			frame->slots[index] = vm.stackTop[-1];
 			vm.stackTop--;
+			NEXT_INSTRUCTION;
+		}
+		case OP_MOVE_LOCAL: {
+		label_op_move_local:
+			uint32_t indexSrc = READ_SHORT();
+			uint32_t indexDes = READ_SHORT();
+			frame->slots[indexDes] = frame->slots[indexSrc];
 			NEXT_INSTRUCTION;
 		}
 		case OP_CLOSE_UPVALUE: {

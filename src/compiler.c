@@ -1743,6 +1743,11 @@ static void instructionOptimize() {
 
 #define CHUNK_PEEK(offset) chunk->code[chunk->count - (offset) - 1]
 #define READ_CONSTANT(index) (vm.constants.values[(index)])
+
+#define READ_SHORT_INDEX(offset)	\
+	(((uint32_t)chunk->code[chunk->count - (offset) - 1] << 8) +	\
+	 ((uint32_t)chunk->code[chunk->count - (offset) - 2]))
+
 #define READ_24BITS_INDEX(offset)	\
 	(((uint32_t)chunk->code[chunk->count - (offset) - 1] << 16) +	\
 	 ((uint32_t)chunk->code[chunk->count - (offset) - 2] << 8) +	\
@@ -2173,9 +2178,18 @@ static void instructionOptimize() {
 	}
 	case OP_POP: {
 		if (prevRight == OP_SET_LOCAL) {
-			chunk_fallback(chunk, 1);//pop
-			CHUNK_PEEK(2) = OP_SET_LOCAL_POP; //convert command
-			clearOpStack();
+			if (prevLeft == OP_GET_LOCAL) {
+				uint32_t rightIndex = READ_SHORT_INDEX(1); // op pop
+				chunk_fallback(chunk, 3 + 1); // set + pop
+				CHUNK_PEEK(2) = OP_MOVE_LOCAL; // get
+				emitBytes(2, (uint8_t)rightIndex, (uint8_t)(rightIndex >> 8));
+				clearOpStack();
+			}
+			else {
+				chunk_fallback(chunk, 1);//pop
+				CHUNK_PEEK(2) = OP_SET_LOCAL_POP; //convert command
+				clearOpStack();
+			}
 		}
 		break;
 	}
@@ -2190,6 +2204,7 @@ static void instructionOptimize() {
 
 #undef CHUNK_PEEK
 #undef READ_CONSTANT
+#undef READ_SHORT_INDEX
 #undef READ_24BITS_INDEX
 #undef BINARY_CALC
 #undef BINARY_CMP

@@ -128,6 +128,14 @@ static uint32_t shortInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
 }
 
 COLD_FUNCTION
+static uint32_t localToLocalInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
+	uint32_t srcIndex = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8);
+	uint32_t desIndex = ((uint32_t)chunk->code[offset + 3]) | ((uint32_t)chunk->code[offset + 4] << 8);
+	printf("%-16s Rs:%4d  Rd:%4d\n", name, srcIndex, desIndex);
+	return offset + 5;
+}
+
+COLD_FUNCTION
 static uint32_t constantInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
 	//24bit index
 	uint32_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8) | ((uint32_t)chunk->code[offset + 3] << 16);
@@ -290,6 +298,8 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 		return shortInstruction("OP_SET_LOCAL", chunk, offset);
 	case OP_SET_LOCAL_POP:
 		return shortInstruction("OP_SET_LOCAL_POP", chunk, offset);
+	case OP_MOVE_LOCAL:
+		return localToLocalInstruction("OP_MOVE_LOCAL", chunk, offset);
 	case OP_POP_N:
 		return shortInstruction("OP_POP_N", chunk, offset);
 
