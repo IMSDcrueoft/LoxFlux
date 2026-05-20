@@ -20,7 +20,7 @@ typedef struct {
 	ObjClosure* closure;
 	uint8_t* ip;
 	Value* slots; //first avilable slot
-	uint32_t slotsOffset;// offset of the first slot in the vm stack, not a ptr, so that we can realloc the stack when needed
+	ptrdiff_t slotsOffset;// offset of the first slot in the vm stack, not a ptr, so that we can realloc the stack when needed
 } CallFrame;
 
 typedef struct {

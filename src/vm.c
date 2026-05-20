@@ -158,20 +158,24 @@ void stack_push(Value value)
 		}
 
 		// remind that we realloc the ptr, so we need to update all ptrRef unless we use index to record
+		Value* oldStack = vm.stack;
 		vm.stack = GROW_ARRAY_NO_GC(Value, vm.stack, oldCapacity, capacity);
 		vm.stackBoundary = vm.stack + capacity;		//need fresh
 		vm.stackTop = vm.stack + oldCapacity;		//need fresh
 
-		// update all stack frames so it is safe now
-		for (int32_t i = vm.frameCount - 1; i >= 0; i--) {
-			CallFrame* frame = &vm.frames[i];
-			frame->slots = vm.stack + frame->slotsOffset;
-		}
+		// since stack grow, we need to update all ptrRef to the stack, otherwise they will point to the old stack and cause errors
+		if (oldStack != vm.stack) {
+			// update all stack frames so it is safe now
+			for (int32_t i = vm.frameCount - 1; i >= 0; i--) {
+				CallFrame* frame = &vm.frames[i];
+				frame->slots = vm.stack + frame->slotsOffset;
+			}
 
-		// update all upvalues if needed
-		for (ObjUpvalue* upvalue = vm.openUpvalues;upvalue != NULL;upvalue = upvalue->next) {
-			if (upvalue->location_offset != CLOSED_OBJ_UPVALUE_LOCATION) {
-				upvalue->location = vm.stack + upvalue->location_offset;
+			// update all upvalues if needed
+			for (ObjUpvalue* upvalue = vm.openUpvalues;upvalue != NULL;upvalue = upvalue->next) {
+				if (upvalue->location_offset != CLOSED_OBJ_UPVALUE_LOCATION) {
+					upvalue->location = vm.stack + upvalue->location_offset;
+				}
 			}
 		}
 	}
@@ -534,11 +538,12 @@ static bool call(ObjClosure* closure, int argCount) {
 		++argCount;
 	}
 
-	CallFrame* frame = &vm.frames[vm.frameCount++];
+	CallFrame* frame = &vm.frames[vm.frameCount++];// add after call
 	frame->closure = closure;
 	frame->ip = closure->function->chunk.code;
 	//-1 is for function itself
 	frame->slots = vm.stackTop - argCount - 1;
+	frame->slotsOffset = (ptrdiff_t)(frame->slots - vm.stack);
 
 	// clear extra args
 	if (argCount > closure->function->arity) {
