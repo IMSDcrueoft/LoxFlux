@@ -42,3 +42,12 @@
 #undef LOG_GC_RESULT
 #undef LOG_MALLOC_INFO
 #endif
+
+/*
+* other options
+* 
+* NAN_BOXING, value.h
+* COMPILATION_TIME_OPTIMIZATION, compiler.h
+* USE_XXHASH, hash.h
+* USE_MIMALLOC, allocator.h
+*/

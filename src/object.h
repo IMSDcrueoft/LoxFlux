@@ -9,6 +9,9 @@
 #include "table.h"
 #include "chunk.h"
 
+//compress the ptr to 48bits
+#define COMPRESS_OBJ_HEADER 1
+
 typedef enum {
 	//objects that don't gc
 	OBJ_STRING,
@@ -241,3 +244,5 @@ void reserveArray(ObjArray* array, uint64_t size);
 
 Value getTypedArrayElement(ObjArray* array, uint32_t index);
 void setTypedArrayElement(ObjArray* array, uint32_t index, Value val);
+
+#undef COMPRESS_OBJ_HEADER

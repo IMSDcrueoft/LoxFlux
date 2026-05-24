@@ -6,11 +6,13 @@
 #pragma once
 #include "common.h"
 
+//use nan boxing
+#define NAN_BOXING 1
+
 typedef struct Obj Obj;
 typedef struct ObjString ObjString;
 
 #if NAN_BOXING
-
 typedef uint64_t Value;
 
 HOT_FUNCTION

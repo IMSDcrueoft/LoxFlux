@@ -171,6 +171,7 @@
   <ItemGroup>
     <ClCompile Include="main.c" />
     <ClCompile Include="src\file.c" />
+    <ClCompile Include="src\hash.c" />
     <ClCompile Include="src\nativeArray.c" />
     <ClCompile Include="src\chunk.c" />
     <ClCompile Include="src\compiler.c" />
