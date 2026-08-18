@@ -152,14 +152,32 @@ void stack_push(Value value)
 		ptrdiff_t oldCapacity = vm.stackBoundary - vm.stack;
 		uint32_t capacity = GROW_CAPACITY(oldCapacity);
 
-		if (capacity > UINT24_COUNT) {
+		if (capacity > STACK_MAX_SIZE) {
 			runtimeError("Stack overflow.");
 			return;
 		}
 
+		// remind that we realloc the ptr, so we need to update all ptrRef unless we use index to record
+		Value* oldStack = vm.stack;
 		vm.stack = GROW_ARRAY_NO_GC(Value, vm.stack, oldCapacity, capacity);
 		vm.stackBoundary = vm.stack + capacity;		//need fresh
 		vm.stackTop = vm.stack + oldCapacity;		//need fresh
+
+		// since stack grow, we need to update all ptrRef to the stack, otherwise they will point to the old stack and cause errors
+		if (oldStack != vm.stack) {
+			// update all stack frames so it is safe now
+			for (int32_t i = vm.frameCount - 1; i >= 0; i--) {
+				CallFrame* frame = &vm.frames[i];
+				frame->slots = vm.stack + frame->slotsOffset;
+			}
+
+			// update all upvalues if needed
+			for (ObjUpvalue* upvalue = vm.openUpvalues;upvalue != NULL;upvalue = upvalue->next) {
+				if (upvalue->location_offset != CLOSED_OBJ_UPVALUE_LOCATION) {
+					upvalue->location = vm.stack + upvalue->location_offset;
+				}
+			}
+		}
 	}
 }
 
@@ -503,27 +521,37 @@ static void getTypeof() {
 
 HOT_FUNCTION
 static bool call(ObjClosure* closure, int argCount) {
-	if (argCount > closure->function->arity) {
-		runtimeError("Expected %d arguments but got %d.",
-			closure->function->arity, argCount);
-		return false;
-	}
+	//if (argCount > closure->function->arity) {
+	//	runtimeError("Expected %d arguments but got %d.",
+	//		closure->function->arity, argCount);
+	//	return false;
+	//}
 
 	if (vm.frameCount == FRAMES_MAX) {
 		runtimeError("Stack overflow.");
 		return false;
 	}
 
+	// append missing args
 	while (argCount < closure->function->arity) {
 		stack_push(NIL_VAL);
 		++argCount;
 	}
 
-	CallFrame* frame = &vm.frames[vm.frameCount++];
+	CallFrame* frame = &vm.frames[vm.frameCount++];// add after call
 	frame->closure = closure;
 	frame->ip = closure->function->chunk.code;
 	//-1 is for function itself
 	frame->slots = vm.stackTop - argCount - 1;
+	frame->slotsOffset = (ptrdiff_t)(frame->slots - vm.stack);
+
+	// clear extra args
+	if (argCount > closure->function->arity) {
+		for (int32_t i = 0, len = argCount - closure->function->arity; i < len; ++i) {
+			STACK_PEEK(i) = NIL_VAL;
+		}
+	}
+
 	return true;
 }
 
@@ -636,7 +664,7 @@ static ObjUpvalue* captureUpvalue(Value* local) {
 		return upvalue;
 	}
 
-	ObjUpvalue* createdUpvalue = newUpvalue(local);
+	ObjUpvalue* createdUpvalue = newUpvalue(local, (ptrdiff_t)(local - vm.stack));
 
 	//insert it
 	createdUpvalue->next = upvalue;
@@ -658,6 +686,7 @@ static void closeUpvalues(Value* last) {
 		//if one upValue closed,it's location is it's closed's pointer
 		upvalue->closed = *upvalue->location;
 		upvalue->location = &upvalue->closed;
+		upvalue->location_offset = CLOSED_OBJ_UPVALUE_LOCATION;
 		vm.openUpvalues = upvalue->next;
 	}
 }
@@ -673,8 +702,13 @@ static inline bool isTruthy(Value value) {
 }
 
 HOT_FUNCTION
-static bool bitInstruction(uint8_t bitOpType) {
-#define BIARAY_OP_BIT(op)																			\
+static bool bitInstruction(uint8_t bitOpType, uint8_t** ip_ptr) {
+	uint8_t* ip = *ip_ptr;
+
+#define READ_BYTE() (*ip_ptr = (ip + 1), *ip)
+#define READ_WORD() (*ip_ptr = (ip + 4), (uint32_t)(ip[0] | (ip[1] << 8) | (ip[2] << 16) | (ip[3] << 24)))
+
+#define BINARAY_OP_BIT(op)																			\
     do {																							\
 		/* Pop the top two values from the stack */													\
 		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {								\
@@ -683,6 +717,17 @@ static bool bitInstruction(uint8_t bitOpType) {
 			vm.stackTop--;																			\
 			return true;																			\
 		}																							\
+	} while (false)
+
+#define BINARAY_OP_BIT_IMM(op)																\
+    do {																					\
+		/* Pop the top two values from the stack */											\
+		if (IS_NUMBER(vm.stackTop[-1])) {													\
+			int32_t constant = READ_WORD();													\
+			/* Perform the operation and push the result back */							\
+			vm.stackTop[-1] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-1]) op constant);	\
+			return true;																	\
+		}																					\
 	} while (false)
 
 #if COMPUTE_GOTO
@@ -694,6 +739,13 @@ static bool bitInstruction(uint8_t bitOpType) {
 	 [BIT_OP_SHL] = && label_bit_shl,
 	 [BIT_OP_SAR] = && label_bit_sar,
 	 [BIT_OP_SHR] = && label_bit_shr,
+
+	 [BIT_OP_ANDI] = && label_bit_andi,
+	 [BIT_OP_ORI] = && label_bit_ori,
+	 [BIT_OP_XORI] = && label_bit_xori,
+	 [BIT_OP_SHLI] = && label_bit_shli,
+	 [BIT_OP_SARI] = && label_bit_sari,
+	 [BIT_OP_SHRI] = && label_bit_shri,
 	};
 
 	goto* bit_op_labels[bitOpType];
@@ -711,17 +763,17 @@ static bool bitInstruction(uint8_t bitOpType) {
 	}
 	case BIT_OP_AND: {
 	label_bit_and:
-		BIARAY_OP_BIT(&);
+		BINARAY_OP_BIT(&);
 		break;
 	}
 	case BIT_OP_OR: {
 	label_bit_or:
-		BIARAY_OP_BIT(| );
+		BINARAY_OP_BIT(| );
 		break;
 	}
 	case BIT_OP_XOR: {
 	label_bit_xor:
-		BIARAY_OP_BIT(^);
+		BINARAY_OP_BIT(^);
 		break;
 	}
 
@@ -776,9 +828,72 @@ static bool bitInstruction(uint8_t bitOpType) {
 		}
 		break;
 	}
+	case BIT_OP_ANDI: {
+	label_bit_andi:
+		BINARAY_OP_BIT_IMM(&);
+		break;
+	}
+	case BIT_OP_ORI: {
+	label_bit_ori:
+		BINARAY_OP_BIT_IMM(| );
+		break;
+	}
+	case BIT_OP_XORI: {
+	label_bit_xori:
+		BINARAY_OP_BIT_IMM(^);
+		break;
+	}
+	case BIT_OP_SHLI: {
+	label_bit_shli:
+		if (IS_NUMBER(vm.stackTop[-1])) {
+			int32_t shiftBits = READ_BYTE();
+
+			if (shiftBits >= 0) {
+				vm.stackTop[-1] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-1]) << shiftBits);
+			}
+			else {
+				vm.stackTop[-1] = NUMBER_VAL(0);
+			}
+			return true;
+		}
+		break;
+	}
+	case BIT_OP_SARI: {
+	label_bit_sari:
+		if (IS_NUMBER(vm.stackTop[-1])) {
+			int32_t shiftBits = READ_BYTE();
+
+			if (shiftBits >= 0) {
+				vm.stackTop[-1] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-1]) >> shiftBits);
+			}
+			else {
+				vm.stackTop[-1] = NUMBER_VAL(0);
+			}
+			return true;
+		}
+		break;
+	}
+	case BIT_OP_SHRI: {
+	label_bit_shri:
+		if (IS_NUMBER(vm.stackTop[-1])) {
+			int32_t shiftBits = READ_BYTE();
+
+			if (shiftBits >= 0) {
+				vm.stackTop[-1] = NUMBER_VAL((uint32_t)AS_NUMBER(vm.stackTop[-1]) >> shiftBits);
+			}
+			else {
+				vm.stackTop[-1] = NUMBER_VAL(0);
+			}
+			return true;
+		}
+		break;
+	}
 	}
 	return false;
-#undef BIARAY_OP_BIT
+#undef BINARAY_OP_BIT
+#undef BINARAY_OP_BIT_IMM
+#undef READ_BYTE
+#undef READ_WORD
 }
 
 //to run code in vm
@@ -796,6 +911,8 @@ static InterpretResult run()
 
 		[OP_GET_LOCAL] = && label_op_get_local,
 		[OP_SET_LOCAL] = && label_op_set_local,
+		[OP_SET_LOCAL_POP] = && label_op_set_local_pop,
+		[OP_MOVE_LOCAL] = && label_op_move_local,
 
 		[OP_ADD] = && label_op_add,
 		[OP_SUBTRACT] = && label_op_subtract,
@@ -1490,7 +1607,7 @@ static InterpretResult run()
 		case OP_BITWISE: {
 		label_op_bitwise:
 			uint8_t bitOpType = READ_BYTE();
-			if (bitInstruction(bitOpType)) {
+			if (bitInstruction(bitOpType, &ip)) {
 				NEXT_INSTRUCTION;
 			}
 			else {
@@ -1526,6 +1643,20 @@ static InterpretResult run()
 		label_op_set_local:
 			uint32_t index = READ_SHORT();
 			frame->slots[index] = vm.stackTop[-1];
+			NEXT_INSTRUCTION;
+		}
+		case OP_SET_LOCAL_POP: {
+		label_op_set_local_pop:
+			uint32_t index = READ_SHORT();
+			frame->slots[index] = vm.stackTop[-1];
+			vm.stackTop--;
+			NEXT_INSTRUCTION;
+		}
+		case OP_MOVE_LOCAL: {
+		label_op_move_local:
+			uint32_t indexSrc = READ_SHORT();
+			uint32_t indexDes = READ_SHORT();
+			frame->slots[indexDes] = frame->slots[indexSrc];
 			NEXT_INSTRUCTION;
 		}
 		case OP_CLOSE_UPVALUE: {

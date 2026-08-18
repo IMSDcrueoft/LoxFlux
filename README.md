@@ -1,6 +1,5 @@
 # LoxFlux
-![Version](https://img.shields.io/badge/version-0.9.9-blue)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/IMSDcrueoft/LoxFlux)
+![Version](https://img.shields.io/badge/version-0.10.0-blue)
 
 LoxFlux is an independent reimplementation of the cLox interpreter described in "Crafting Interpreters"—a stack-based bytecode virtual machine. All code is written from scratch, following the book’s design principles. This project is still actively being developed and improved.
 
@@ -34,24 +33,28 @@ Lox is a programming language designed for learning purposes. It is conceived as
 
 ---
 
-#### Performance test — v0.9.9-dev 
+#### Performance test — v0.10.0-dev 
 
 _(AMD Ryzen7-5800X, Windows 11, Use ClangCL/LLVM 20 for loxflux & clox)_
-|program|LoxFlux - [0.9.9]|clox|NodeJS - [20.2.0] - jitless|Cpython3 - [3.9.7]|Lua - [5.4.4]|
+|program|LoxFlux - [0.10.0]|clox|NodeJS - [20.2.0] - jitless|Cpython3 - [3.9.7]|Lua - [5.4.4]|
 |---|---|---|---|---|---|
-|fib30|51ms|76ms|58ms|130ms|49ms|
+|fib30|50ms|76ms|58ms|130ms|49ms|
 |fib35|558ms|874ms|576ms|1430ms|574ms|
-|fib40|6168ms|9677ms|6308ms|15681ms|6334ms|
-|loop 1e8|692ms|1109ms|682ms|2115ms|361ms|
-|global loop 1e8|830ms|2044ms|1308ms|3537ms|1109ms|
+|fib40|6256ms|9677ms|6308ms|15681ms|6334ms|
+|loop 1e8|665ms|1109ms|682ms|2115ms|361ms|
+|global loop 1e8|849ms|2044ms|1308ms|3537ms|1109ms|
 |binary_trees|1137ms|1996ms|630ms|2395ms|2132ms|
 |instantiation|358ms|945ms|241ms|886ms|1465ms|
-|invocation|194ms|235ms|207ms|627ms|293ms|
-|method_call|132ms|167ms|117ms|345ms|132ms|
-|properties|281ms|377ms|244ms|860ms|334ms|
-|trees|1657ms|3553ms|1620ms|4607ms|2905ms|
-|zoo|227ms|282ms|219ms|648ms|247ms|
-|zoo_batch(10sec)|7332batch|5398batch|7698batch|2555batch|6560batch|
+|invocation|198ms|235ms|207ms|627ms|293ms|
+|method_call|128ms|167ms|117ms|345ms|132ms|
+|properties|287ms|377ms|244ms|860ms|334ms|
+|trees|1688ms|3553ms|1620ms|4607ms|2905ms|
+|zoo|233ms|282ms|219ms|648ms|247ms|
+|zoo_batch(10sec)|7162batch|5398batch|7698batch|2555batch|6560batch|
+
+---
+
+**Note:** The `clox` benchmark results for `loop 1e8` and `global loop 1e8` are from **LLVM 19**. LLVM 20 introduces a misoptimization that causes severe performance regression (~80% slowdown) on these specific loops.
 
 ---
 
@@ -353,7 +356,7 @@ These utilities are invaluable for monitoring and optimizing memory usage, espec
 
 ## Licenses
 The project **loxFlux** is based on `MIT` and uses two third-party projects.
-  - Copyright (c) 2025 IMSDCrueoft
+  - Copyright (c) 2025-2026 IMSDCrueoft
   - License: `MIT`
 
 1. **mimalloc**

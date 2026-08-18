@@ -8,6 +8,9 @@
 #include "scanner.h"
 #include "object.h"
 
+//do optimize
+#define COMPILATION_TIME_OPTIMIZATION 1
+
 #define LOCAL_INIT 64
 //local var
 #define LOCAL_MAX 1024

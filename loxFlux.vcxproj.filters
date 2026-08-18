@@ -98,6 +98,9 @@
     <ClCompile Include="src\xoshiro256.c">
       <Filter>loxFlux\source</Filter>
     </ClCompile>
+    <ClCompile Include="src\hash.c">
+      <Filter>loxFlux\source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\chunk.h">

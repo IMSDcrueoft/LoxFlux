@@ -1,0 +1,13 @@
+var start = @time.milli();
+{
+    var seed = 0x0f0f;
+    for(var i = 0;i<1e7;i = i + 1){
+        seed = seed ^ (seed << 13);
+        seed = seed ^ (seed >> 17);
+        seed = seed ^ (seed << 5);
+
+        var rand = ((seed >>> 0) - 1) * (1 / 0xfffffffe);
+    }
+    print ((seed >>> 0) - 1) * (1 / 0xfffffffe);
+}
+print @time.milli() - start;

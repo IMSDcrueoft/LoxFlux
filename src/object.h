@@ -9,6 +9,9 @@
 #include "table.h"
 #include "chunk.h"
 
+//compress the ptr to 48bits
+#define COMPRESS_OBJ_HEADER 1
+
 typedef enum {
 	//objects that don't gc
 	OBJ_STRING,
@@ -92,12 +95,11 @@ struct Obj {
 	{
 		uint8_t type;
 		uint8_t isMarked;
-		uint8_t padding[6];//high 48bits
 	};
-	struct Obj* next;	//ptr: The user-space pointer's high 16 bits can be 0 directly,the high 16 bits of the pointer depends on the 47th bit
+	struct Obj* next;
 };
-#define OBJ_PTR_SET_NEXT(obj,nextPtr)	(obj->next = nextPtr)
-#define OBJ_PTR_GET_NEXT(obj)			(obj->next)
+#define OBJ_PTR_SET_NEXT(obj,nextPtr)	((obj)->next = nextPtr)
+#define OBJ_PTR_GET_NEXT(obj)			((obj)->next)
 
 static inline Obj stateLess_obj_header(ObjType objType) {
 	return (Obj) { .next = NULL, .isMarked = 1, .type = objType };
@@ -114,9 +116,11 @@ typedef struct {
 	ObjString* name;
 } ObjFunction;
 
+#define CLOSED_OBJ_UPVALUE_LOCATION UINT32_MAX
 typedef struct ObjUpvalue {
 	Obj obj;
 	Value closed; //closed value
+	ptrdiff_t location_offset; // store the offset, so we can update location when stack grow
 	Value* location;
 	struct ObjUpvalue* next;
 } ObjUpvalue;
@@ -227,7 +231,7 @@ void printObject(Value value, bool isExpand);
 StringEntry* getStringEntryInPool(ObjString* string);
 NumberEntry* getNumberEntryInPool(Value* value);
 
-ObjUpvalue* newUpvalue(Value* slot);
+ObjUpvalue* newUpvalue(Value* slot, ptrdiff_t offset);
 ObjFunction* newFunction();
 ObjClosure* newClosure(ObjFunction* function);
 ObjBoundMethod* newBoundMethod(Value receiver, ObjClosure* method);
@@ -240,3 +244,5 @@ void reserveArray(ObjArray* array, uint64_t size);
 
 Value getTypedArrayElement(ObjArray* array, uint32_t index);
 void setTypedArrayElement(ObjArray* array, uint32_t index, Value val);
+
+#undef COMPRESS_OBJ_HEADER

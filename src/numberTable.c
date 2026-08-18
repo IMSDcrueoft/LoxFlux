@@ -84,13 +84,15 @@ NumberEntry* tableGetNumberEntry(NumberTable* table, Value* value)
 		adjustNumberCapacity(table, capacity);
 	}
 
-	uint64_t hash = HASH_64bits(&AS_BINARY(*value), sizeof(uint64_t));
-	NumberEntry* entry = findNumberEntry(table->entries, table->capacity, AS_BINARY(*value), hash);
+	uint64_t binary = AS_BINARY(*value);
+	uint64_t hash = HASH_64bits(&binary, sizeof(uint64_t));
+	NumberEntry* entry = findNumberEntry(table->entries, table->capacity, binary, hash);
+
 	bool isNewKey = !entry->isValid;
 	if (isNewKey) {
 		table->count++;
 
-		entry->binary = AS_BINARY(*value);
+		entry->binary = binary;
 		entry->hash = hash;
 		entry->isValid = true;
 	}

@@ -14,11 +14,13 @@
 #define FRAMES_MAX 1024
 //customed vm stack begin size
 #define STACK_INITIAL_SIZE 4096
+#define STACK_MAX_SIZE (FRAMES_MAX * UINT8_COUNT) //the max stack size, if exceed this, we can be sure it's a stack overflow
 
 typedef struct {
 	ObjClosure* closure;
 	uint8_t* ip;
 	Value* slots; //first avilable slot
+	ptrdiff_t slotsOffset;// offset of the first slot in the vm stack, not a ptr, so that we can realloc the stack when needed
 } CallFrame;
 
 typedef struct {
