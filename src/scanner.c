@@ -273,7 +273,7 @@ static Token mention() {
 	TokenType type = builtinType();
 
 	if (type == TOKEN_NIL) {
-		return errorToken("Unexpected module (Available modules : @math, @array, @object, @string, @time, @ctor, @system).");
+		return errorToken("Unexpected module (Available modules : @math, @array, @object, @string, @time, @ctor, @sys).");
 	}
 
 	return makeToken(type);
