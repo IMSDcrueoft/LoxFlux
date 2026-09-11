@@ -721,7 +721,7 @@ static void varDeclaration() {
 
 		defineVariable(arg);
 
-		if (parser.hadError) return;
+		if (parser.panicMode) return;
 	} while (match(TOKEN_COMMA));
 
 	consume(TOKEN_SEMICOLON, "Expect ';' after variable declaration.");
@@ -739,7 +739,7 @@ static void constDeclaration() {
 
 		defineConst(arg);
 
-		if (parser.hadError) return;
+		if (parser.panicMode) return;
 	} while (match(TOKEN_COMMA));
 
 	consume(TOKEN_SEMICOLON, "Expect ';' after constant declaration.");
@@ -1250,7 +1250,7 @@ static void arrayLiteral(bool canAssign) {
 			expression(); //parse values
 			elementCount++;
 
-			if (parser.hadError) return;
+			if (parser.panicMode) return;
 		} while (match(TOKEN_COMMA));
 	}
 	consume(TOKEN_RIGHT_SQUARE_BRACKET, "Expect ']' to close the array.");
@@ -1296,7 +1296,7 @@ static void objectLiteral(bool canAssign) {
 			emitConstantCommond(OP_NEW_PROPERTY, constant);
 			clearOpStack();
 
-			if (parser.hadError) {
+			if (parser.panicMode) {
 				--current->objectNestingDepth;
 				return;
 			}
