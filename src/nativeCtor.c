@@ -17,14 +17,20 @@ static Value ArrayNative(int argCount, Value* args) {
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		double size = AS_NUMBER(args[0]);
 
-		//no error
-		if (size > 0 && size <= ARRAYLIKE_MAX) {
-			length = (uint32_t)size;
-		}
-		else {
+		if (size > ARRAYLIKE_MAX) {
 			fprintf(stderr, "Array size overflow\n");
 			exit(1);
 		}
+		else if (size > 0) {
+			length = (uint32_t)size;
+		}
+		else if (size < 0) {
+			return NIL_VAL;
+		}
+		//size == 0 -> empty array
+	}
+	else if (argCount >= 1) {
+		return NIL_VAL;//not a number
 	}
 
 	ObjArray* array = newArray(OBJ_ARRAY);
@@ -46,14 +52,20 @@ static Value F64ArrayNative(int argCount, Value* args) {
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		double size = AS_NUMBER(args[0]);
 
-		//no error
-		if (size > 0 && size <= ARRAYLIKE_MAX) {
-			length = (uint32_t)size;
-		}
-		else {
+		if (size > ARRAYLIKE_MAX) {
 			fprintf(stderr, "Array size overflow\n");
 			exit(1);
 		}
+		else if (size > 0) {
+			length = (uint32_t)size;
+		}
+		else if (size < 0) {
+			return NIL_VAL;
+		}
+		//size == 0 -> empty array
+	}
+	else if (argCount >= 1) {
+		return NIL_VAL;//not a number
 	}
 
 	ObjArray* array = newArray(OBJ_ARRAY_F64);
@@ -72,13 +84,20 @@ static Value F32ArrayNative(int argCount, Value* args) {
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		double size = AS_NUMBER(args[0]);
 
-		if (size > 0 && size <= ARRAYLIKE_MAX) {
-			length = (uint32_t)size;
-		}
-		else {
+		if (size > ARRAYLIKE_MAX) {
 			fprintf(stderr, "Array size overflow\n");
 			exit(1);
 		}
+		else if (size > 0) {
+			length = (uint32_t)size;
+		}
+		else if (size < 0) {
+			return NIL_VAL;
+		}
+		//size == 0 -> empty array
+	}
+	else if (argCount >= 1) {
+		return NIL_VAL;//not a number
 	}
 
 	ObjArray* array = newArray(OBJ_ARRAY_F32);
@@ -97,13 +116,20 @@ static Value U32ArrayNative(int argCount, Value* args) {
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		double size = AS_NUMBER(args[0]);
 
-		if (size > 0 && size <= ARRAYLIKE_MAX) {
-			length = (uint32_t)size;
-		}
-		else {
+		if (size > ARRAYLIKE_MAX) {
 			fprintf(stderr, "Array size overflow\n");
 			exit(1);
 		}
+		else if (size > 0) {
+			length = (uint32_t)size;
+		}
+		else if (size < 0) {
+			return NIL_VAL;
+		}
+		//size == 0 -> empty array
+	}
+	else if (argCount >= 1) {
+		return NIL_VAL;//not a number
 	}
 
 	ObjArray* array = newArray(OBJ_ARRAY_U32);
@@ -122,13 +148,20 @@ static Value I32ArrayNative(int argCount, Value* args) {
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		double size = AS_NUMBER(args[0]);
 
-		if (size > 0 && size <= ARRAYLIKE_MAX) {
-			length = (uint32_t)size;
-		}
-		else {
+		if (size > ARRAYLIKE_MAX) {
 			fprintf(stderr, "Array size overflow\n");
 			exit(1);
 		}
+		else if (size > 0) {
+			length = (uint32_t)size;
+		}
+		else if (size < 0) {
+			return NIL_VAL;
+		}
+		//size == 0 -> empty array
+	}
+	else if (argCount >= 1) {
+		return NIL_VAL;//not a number
 	}
 
 	ObjArray* array = newArray(OBJ_ARRAY_I32);
@@ -147,13 +180,20 @@ static Value U16ArrayNative(int argCount, Value* args) {
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		double size = AS_NUMBER(args[0]);
 
-		if (size > 0 && size <= ARRAYLIKE_MAX) {
-			length = (uint32_t)size;
-		}
-		else {
+		if (size > ARRAYLIKE_MAX) {
 			fprintf(stderr, "Array size overflow\n");
 			exit(1);
 		}
+		else if (size > 0) {
+			length = (uint32_t)size;
+		}
+		else if (size < 0) {
+			return NIL_VAL;
+		}
+		//size == 0 -> empty array
+	}
+	else if (argCount >= 1) {
+		return NIL_VAL;//not a number
 	}
 
 	ObjArray* array = newArray(OBJ_ARRAY_U16);
@@ -172,13 +212,20 @@ static Value I16ArrayNative(int argCount, Value* args) {
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		double size = AS_NUMBER(args[0]);
 
-		if (size > 0 && size <= ARRAYLIKE_MAX) {
-			length = (uint32_t)size;
-		}
-		else {
+		if (size > ARRAYLIKE_MAX) {
 			fprintf(stderr, "Array size overflow\n");
 			exit(1);
 		}
+		else if (size > 0) {
+			length = (uint32_t)size;
+		}
+		else if (size < 0) {
+			return NIL_VAL;
+		}
+		//size == 0 -> empty array
+	}
+	else if (argCount >= 1) {
+		return NIL_VAL;//not a number
 	}
 
 	ObjArray* array = newArray(OBJ_ARRAY_I16);
@@ -197,13 +244,20 @@ static Value U8ArrayNative(int argCount, Value* args) {
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		double size = AS_NUMBER(args[0]);
 
-		if (size > 0 && size <= ARRAYLIKE_MAX) {
-			length = (uint32_t)size;
-		}
-		else {
+		if (size > ARRAYLIKE_MAX) {
 			fprintf(stderr, "Array size overflow\n");
 			exit(1);
 		}
+		else if (size > 0) {
+			length = (uint32_t)size;
+		}
+		else if (size < 0) {
+			return NIL_VAL;
+		}
+		//size == 0 -> empty array
+	}
+	else if (argCount >= 1) {
+		return NIL_VAL;//not a number
 	}
 
 	ObjArray* array = newArray(OBJ_ARRAY_U8);
@@ -222,13 +276,20 @@ static Value I8ArrayNative(int argCount, Value* args) {
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		double size = AS_NUMBER(args[0]);
 
-		if (size > 0 && size <= ARRAYLIKE_MAX) {
-			length = (uint32_t)size;
-		}
-		else {
+		if (size > ARRAYLIKE_MAX) {
 			fprintf(stderr, "Array size overflow\n");
 			exit(1);
 		}
+		else if (size > 0) {
+			length = (uint32_t)size;
+		}
+		else if (size < 0) {
+			return NIL_VAL;
+		}
+		//size == 0 -> empty array
+	}
+	else if (argCount >= 1) {
+		return NIL_VAL;//not a number
 	}
 
 	ObjArray* array = newArray(OBJ_ARRAY_I8);

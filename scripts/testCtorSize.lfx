@@ -1,0 +1,25 @@
+// test: @ctor array size validation
+// = 0 -> empty array; < 0 or non-number -> nil; normal -> array
+var a = @ctor.Array(0);
+print typeof a;
+print @array.length(a);
+
+var b = @ctor.Array(-5);
+print (b == nil);
+
+var c = @ctor.Array("bad");
+print (c == nil);
+
+var d = @ctor.F64Array(0);
+print typeof d;
+
+var e = @ctor.F64Array(-1);
+print (e == nil);
+
+var f = @ctor.Array(3);
+print @array.length(f);
+
+// no arg -> empty
+var g = @ctor.Array();
+print @array.length(g);
+print "ctor-test-done";
