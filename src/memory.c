@@ -121,8 +121,8 @@ void freeObject(Obj* object) {
 		ObjString* string = (ObjString*)object;
 		FREE_FLEX_NO_GC(ObjString, string, char, string->length + 1);//FAM object include'\0
 		break;
-	case OBJ_ARRAY:
-	{
+	}
+	case OBJ_ARRAY: {
 		//they share the same struct
 		ObjArray* array = (ObjArray*)object;
 		FREE_ARRAY(Value, array->payload, array->capacity);
@@ -176,7 +176,6 @@ void freeObject(Obj* object) {
 #endif
 		FREE(ObjArray, object);
 		break;
-	}
 	}
 	}
 }
