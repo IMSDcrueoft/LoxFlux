@@ -1,0 +1,54 @@
+// LoxFlux demo — hover, completion, go-to-definition all work here.
+
+// Represents an animal. (this doc comment shows on hover)
+class Animal {
+	// construct with a name
+	init(name) {
+		this.name = name;
+	}
+
+	speak() {
+		print this.name;
+	}
+}
+
+var dog = Animal("Rex");
+dog.speak();
+
+// cross-file: F12 on `double` jumps into lib.lfx
+var lib = import "./lib.lfx";
+print lib.double(21);
+print lib.pi;
+
+// branch: like switch-case, `none` must be last
+branch {
+	dog instanceOf Animal: print "dog is an Animal";
+	none: print "unknown";
+}
+
+// builtin modules — try completion after `@math.`
+var nums = [5, 3, 8, 1];
+print @array.slice(nums, 0, 2);
+print @math.max(3, 7);
+print @string.utf8Len("αβγ");
+
+// lambda: block form and arrow form
+var add = lambda (a, b) => a + b;
+print add(40, 2);
+
+{
+	// const works inside blocks only (not at top level)
+	const MAX = 100;
+	print MAX;
+}
+
+// bit operations
+print 0b1010 & 0b1100;
+print 1 << 8;
+
+// do-while loop
+var i = 0;
+do {
+	i = i + 1;
+} while (i < 3);
+print i;

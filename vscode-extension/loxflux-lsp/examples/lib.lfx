@@ -1,0 +1,9 @@
+// A useful module. Try go-to-definition (F12) on lib.double below!
+const PI = 3.14;
+
+// Doubles a number.
+fun double(a) {
+	return a * 2;
+}
+
+export { "pi": PI, "double": double };

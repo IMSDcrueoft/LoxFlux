@@ -1,0 +1,112 @@
+{
+  "name": "loxflux-lsp",
+  "displayName": "LoxFlux Language Server",
+  "description": "Full language support for LoxFlux (.lfx/.lox): diagnostics, hover, completion, go-to-definition, references, rename, symbols and semantic highlighting.",
+  "version": "0.1.0",
+  "publisher": "IMSDCrueoft",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/IMSDcrueoft/LoxFlux.git"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "icon": "icon.png",
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "lox",
+    "loxflux",
+    "lsp",
+    "crafting interpreters"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "loxflux",
+        "aliases": [
+          "LoxFlux",
+          "loxflux"
+        ],
+        "extensions": [
+          ".lfx",
+          ".lox"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "configuration": {
+      "title": "LoxFlux",
+      "properties": {
+        "loxflux.trace.server": {
+          "scope": "window",
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Traces the communication between VS Code and the LoxFlux language server."
+        },
+        "loxflux.lint.undeclaredVariable": {
+          "scope": "resource",
+          "type": "string",
+          "enum": [
+            "error",
+            "warning",
+            "off"
+          ],
+          "default": "warning",
+          "description": "Severity of reading a variable that was never declared (locals/globals/builtins)."
+        },
+        "loxflux.lint.unusedVariable": {
+          "scope": "resource",
+          "type": "boolean",
+          "default": false,
+          "description": "Warn about declared-but-never-read local variables."
+        },
+        "loxflux.lint.assignToConst": {
+          "scope": "resource",
+          "type": "boolean",
+          "default": true,
+          "description": "Report assignments to 'const' variables."
+        },
+        "loxflux.lint.unreachableCode": {
+          "scope": "resource",
+          "type": "boolean",
+          "default": true,
+          "description": "Report statements after 'return'/'throw'/'break'/'continue' within the same block."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "node out/test/run.js",
+    "smoke": "node src/test/smoke.mjs",
+    "icon": "node scripts/make-icon.mjs",
+    "package": "vsce package --no-dependencies",
+    "clean": "rm -rf out"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.75.0",
+    "@vscode/vsce": "^3.0.0",
+    "esbuild": "^0.21.5",
+    "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "vscode-jsonrpc": "^8.2.1",
+    "vscode-languageclient": "^9.0.1",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.12",
+    "vscode-uri": "^3.0.8"
+  }
+}
