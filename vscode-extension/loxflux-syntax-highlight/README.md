@@ -7,6 +7,7 @@ Adds syntax highlighting for `.lfx` files in Visual Studio Code.
 - Syntax highlighting for keywords, strings, numbers, and comments
 - Supports `.lfx` & `.lox` file extension
 - Basic language configuration included
+- File icon for `.lfx` / `.lox` files, works with any file icon theme
 
 ## Contributing
 

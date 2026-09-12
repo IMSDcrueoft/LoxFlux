@@ -1,0 +1,6 @@
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <!-- Rounded square background -->
+  <rect x="1" y="1" width="30" height="30" rx="6" fill="#0891B2"/>
+  <!-- LFX letters, full-bleed -->
+  <text x="16" y="23.5" font-family="Consolas, 'Courier New', monospace" font-size="15" font-weight="700" fill="#FFFFFF" text-anchor="middle" letter-spacing="0.5">LFX</text>
+</svg>

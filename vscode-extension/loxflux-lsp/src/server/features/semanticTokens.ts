@@ -122,14 +122,8 @@ export function computeSemanticTokens(analysis: Analysis, positions: Positions):
 
 	raw.sort((a, b) => (a.line - b.line) || (a.character - b.character));
 
-	let prevLine = 0;
-	let prevChar = 0;
 	for (const t of raw) {
-		const deltaLine = t.line - prevLine;
-		const deltaChar = deltaLine === 0 ? t.character - prevChar : t.character;
-		builder.push(deltaLine, deltaChar, t.length, t.type, t.modifiers);
-		prevLine = t.line;
-		prevChar = t.character;
+		builder.push(t.line, t.character, t.length, t.type, t.modifiers);
 	}
 
 	return builder.build();

@@ -410,13 +410,15 @@ export class Analyzer {
 	private walkStmt(stmt: Stmt): void {
 		switch (stmt.kind) {
 			case 'VarDecl': {
-				// mirror the real compiler: const is only allowed in local scope
+				// Top-level const: illegal in a main script (global scope) but legal in a
+				// module file (runs in local scope). Since the two cannot be distinguished
+				// syntactically, report a warning instead of an error.
 				if (stmt.isConst && this.scopes[this.scopes.length - 1].isScript) {
 					this.diagnostics.push({
-						message: 'Constant can only be defined in the local scope.',
+						message: 'Constant can only be defined in the local scope (allowed in module files, illegal in a main script).',
 						start: stmt.declToken.start,
 						end: stmt.declToken.end,
-						severity: 'error',
+						severity: 'warning',
 						code: 'const-scope',
 					});
 				}

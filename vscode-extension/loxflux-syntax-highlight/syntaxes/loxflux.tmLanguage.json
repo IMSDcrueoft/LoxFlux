@@ -196,7 +196,7 @@
 		},
 		"modules": {
 			"name": "support.class.builtin.loxflux",
-			"match": "@(math|array|object|string|time|ctor|sys)\\b"
+			"match": "(?<![a-zA-Z0-9_.])@(math|array|object|string|time|ctor|sys)(?![a-zA-Z0-9_])"
 		}
 	},
 	"scopeName": "source.lfx"

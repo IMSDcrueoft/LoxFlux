@@ -2,7 +2,7 @@
   "name": "loxflux-lsp",
   "displayName": "LoxFlux Language Server",
   "description": "Full language support for LoxFlux (.lfx/.lox): diagnostics, hover, completion, go-to-definition, references, rename, symbols and semantic highlighting.",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "publisher": "IMSDCrueoft",
   "license": "MIT",
   "repository": {

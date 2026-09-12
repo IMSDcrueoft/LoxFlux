@@ -2,14 +2,15 @@
   "name": "loxflux-syntax-highlight",
   "displayName": "LoxFlux Syntax Highlight",
   "description": "Syntax highlighting for loxFlux.",
-  "version": "0.0.2",
+  "version": "0.0.5",
   "publisher": "IMSDCrueoft",
+  "icon": "icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/IMSDcrueoft/LoxFlux.git"
   },
   "engines": {
-    "vscode": "^1.54.0"
+    "vscode": "^1.64.0"
   },
   "categories": [
     "Programming Languages"
@@ -26,6 +27,10 @@
           ".lfx",
           ".lox"
         ],
+        "icon": {
+          "light": "./icons/lfx-file.svg",
+          "dark": "./icons/lfx-file.svg"
+        },
         "configuration": "./language-configuration.json"
       }
     ],
