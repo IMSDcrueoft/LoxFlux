@@ -33,17 +33,17 @@ Lox is a programming language designed for learning purposes. It is conceived as
 
 ---
 
-#### Performance test — v0.10.0-dev 
+#### Performance test — v0.10.1-dev 
 
 _(AMD Ryzen7-5800X, Windows 11, Use ClangCL/LLVM 20 for loxflux & clox)_
-|program|LoxFlux - [0.10.0]|clox|NodeJS - [20.2.0] - jitless|Cpython3 - [3.9.7]|Lua - [5.4.4]|
+|program|LoxFlux - [0.10.1]|clox|NodeJS - [20.2.0] - jitless|Cpython3 - [3.9.7]|Lua - [5.4.4]|
 |---|---|---|---|---|---|
 |fib30|50ms|76ms|58ms|130ms|49ms|
 |fib35|558ms|874ms|576ms|1430ms|574ms|
 |fib40|6256ms|9677ms|6308ms|15681ms|6334ms|
 |loop 1e8|665ms|1109ms|682ms|2115ms|361ms|
 |global loop 1e8|849ms|2044ms|1308ms|3537ms|1109ms|
-|binary_trees|1137ms|1996ms|630ms|2395ms|2132ms|
+|binary_trees|974ms|1996ms|630ms|2395ms|2132ms|
 |instantiation|358ms|945ms|241ms|886ms|1465ms|
 |invocation|198ms|235ms|207ms|627ms|293ms|
 |method_call|128ms|167ms|117ms|345ms|132ms|

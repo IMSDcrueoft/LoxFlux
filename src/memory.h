@@ -8,7 +8,7 @@
 #include "value.h"
 
 #define GROW_CAPACITY(capacity) \
-	((capacity) < 16 ? 16 : (capacity << 1))
+	((capacity) < 8 ? 8 : (capacity << 1))
 
 void* reallocate(void* pointer, uint64_t oldSize, uint64_t newSize);
 
