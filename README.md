@@ -33,24 +33,24 @@ Lox is a programming language designed for learning purposes. It is conceived as
 
 ---
 
-#### Performance test — v0.10.1-dev 
+#### Performance test — v0.10.1-dev
 
-_(AMD Ryzen7-5800X, Windows 11, Use ClangCL/LLVM 20 for loxflux & clox)_
-|program|LoxFlux - [0.10.1]|clox|NodeJS - [20.2.0] - jitless|Cpython3 - [3.14.7]|Lua - [5.4.4]|
+_(AMD Ryzen7-5800X, Windows 11, Use ClangCL/LLVM 20 for loxflux & clox; LoxFlux benchmarks in `scripts/benchmark/lfx`, CPython in `scripts/benchmark/py`)_
+|program|LoxFlux - [0.10.1]|clox|NodeJS - [24.19.0] - jitless|Cpython3 - [3.14.7]|Lua - [5.4.4]|
 |---|---|---|---|---|---|
-|fib30|50ms|76ms|58ms|121ms|49ms|
-|fib35|558ms|874ms|576ms|1319ms|574ms|
-|fib40|6256ms|9677ms|6308ms|14593ms|6334ms|
-|loop 1e8|665ms|1109ms|682ms|2671ms|361ms|
-|global loop 1e8|849ms|2044ms|1308ms|3729ms|1109ms|
-|binary_trees|974ms|1996ms|630ms|1247ms|2132ms|
-|instantiation|358ms|945ms|241ms|1020ms|1465ms|
-|invocation|198ms|235ms|207ms|312ms|293ms|
-|method_call|128ms|167ms|117ms|160ms|132ms|
-|properties|287ms|377ms|244ms|339ms|334ms|
-|trees|1688ms|3553ms|1620ms|2002ms|2905ms|
-|zoo|233ms|282ms|219ms|292ms|247ms|
-|zoo_batch(10sec)|7162batch|5398batch|7698batch|5665batch|6560batch|
+|fib30|54ms|76ms|50ms|121ms|49ms|
+|fib35|591ms|874ms|570ms|1319ms|574ms|
+|fib40|6568ms|9677ms|6131ms|14593ms|6334ms|
+|loop 1e8|701ms|1109ms|583ms|2671ms|361ms|
+|global loop 1e8|904ms|2044ms|988ms|4462ms|1109ms|
+|binary_trees|706ms|1996ms|517ms|1247ms|2132ms|
+|instantiation|369ms|945ms|226ms|1020ms|1465ms|
+|invocation|215ms|235ms|203ms|312ms|293ms|
+|method_call|135ms|167ms|93ms|160ms|132ms|
+|properties|297ms|377ms|229ms|339ms|334ms|
+|trees|1673ms|3553ms|1307ms|2002ms|2905ms|
+|zoo|266ms|282ms|169ms|292ms|247ms|
+|zoo_batch(10sec)|6427batch|5398batch|9049batch|5665batch|6560batch|
 
 ---
 
