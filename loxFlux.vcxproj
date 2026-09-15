@@ -76,7 +76,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <LanguageStandard_C>stdc17</LanguageStandard_C>
+      <LanguageStandard_C>stdclatest</LanguageStandard_C>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <AdditionalIncludeDirectories>third-party/xxHash;third-party/mimalloc/include</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -104,7 +104,7 @@
       <AdditionalIncludeDirectories>third-party/xxHash;third-party/mimalloc/include</AdditionalIncludeDirectories>
       <CompileAs>Default</CompileAs>
       <Optimization>MaxSpeed</Optimization>
-      <LanguageStandard_C>stdc17</LanguageStandard_C>
+      <LanguageStandard_C>stdclatest</LanguageStandard_C>
       <ExceptionHandling>false</ExceptionHandling>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
@@ -124,7 +124,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <LanguageStandard_C>stdc17</LanguageStandard_C>
+      <LanguageStandard_C>stdclatest</LanguageStandard_C>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <AdditionalIncludeDirectories>third-party/xxHash;third-party/mimalloc/include</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -154,7 +154,7 @@
       <AdditionalIncludeDirectories>third-party/xxHash;third-party/mimalloc/include</AdditionalIncludeDirectories>
       <CompileAs>Default</CompileAs>
       <Optimization>MaxSpeed</Optimization>
-      <LanguageStandard_C>stdc17</LanguageStandard_C>
+      <LanguageStandard_C>stdclatest</LanguageStandard_C>
       <ExceptionHandling>false</ExceptionHandling>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
@@ -192,7 +192,7 @@
     <ClCompile Include="src\nativeString.c" />
     <ClCompile Include="src\stringTable.c" />
     <ClCompile Include="src\table.c" />
-    <ClCompile Include="src\timer.cpp" />
+    <ClCompile Include="src\timer.c" />
     <ClCompile Include="src\value.c" />
     <ClCompile Include="src\vm.c" />
     <ClCompile Include="src\xoshiro256.c" />

@@ -99,7 +99,7 @@ set(LOXFLUX_CORE_SOURCES
   src/scanner.c
   src/stringTable.c
   src/table.c
-  src/timer.cpp
+  src/timer.c
   src/value.c
   src/vm.c
   src/xoshiro256.c
@@ -118,6 +118,21 @@ target_compile_definitions(loxFluxCore PUBLIC
   LOXFLUX_USE_MIMALLOC=$<IF:$<BOOL:${LOXFLUX_USE_MIMALLOC}>,1,0>)
 if(LOXFLUX_USE_MIMALLOC)
   target_link_libraries(loxFluxCore PUBLIC mimalloc::mimalloc)
+endif()
+
+# Link-Time Optimization -----------------------------------------------------
+# Enabled for Release/RelWithDebInfo only; MSVC uses /LTCG, Clang/GCC use -flto.
+option(LOXFLUX_ENABLE_LTO "Enable link-time optimization in release builds" ON)
+if(LOXFLUX_ENABLE_LTO)
+  include(CheckIPOSupported)
+  check_ipo_supported(RESULT loxflux_ipo_supported OUTPUT loxflux_ipo_output)
+  if(loxflux_ipo_supported)
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO ON)
+    message(STATUS "LTO: enabled for Release/RelWithDebInfo")
+  else()
+    message(STATUS "LTO: not supported by this toolchain -> disabled (${loxflux_ipo_output})")
+  endif()
 endif()
 
 # Executable ----------------------------------------------------------------
