@@ -321,6 +321,7 @@ static void freeLocals(Compiler* compiler) {
 static ObjFunction* endCompiler() {
 	emitReturn();
 	opStack_free(currentOpStack());
+	numberTable_free(&current->numbers);//free every compiler's number pool (nested compilers were leaking)
 
 	ObjFunction* function = current->function;
 #if DEBUG_PRINT_CODE
@@ -1779,6 +1780,9 @@ static void instructionOptimize() {
 	bool isLeftConstant = (prevLeft == OP_CONSTANT) || isLeftConstNumber;
 	bool isRightConstant = (prevRight == OP_CONSTANT) || isRightConstNumber;
 	bool isBothConstant = (isLeftConstant && isRightConstant);
+	//literal opcodes (true/false/nil) are compile-time constants too
+	bool isLeftLiteral = (prevLeft == OP_TRUE) || (prevLeft == OP_FALSE) || (prevLeft == OP_NIL);
+	bool isRightLiteral = (prevRight == OP_TRUE) || (prevRight == OP_FALSE) || (prevRight == OP_NIL);
 	// local
 	bool isLeftLocal = (prevLeft == OP_GET_LOCAL);
 	bool isRightLocal = (prevRight == OP_GET_LOCAL);
@@ -1814,6 +1818,17 @@ static void instructionOptimize() {
 #define READ_CONST_VALUE(isConstNumber, offset)	\
 	((isConstNumber) ? READ_LOCAL_CONSTANT(READ_INDEX(isConstNumber, offset))	\
 					 : READ_GLOBAL_CONSTANT(READ_INDEX(isConstNumber, offset)))
+
+//total byte size of an operand instruction (OP_CONST_NUMBER 3, OP_CONSTANT 4, literal ops 1)
+#define OPERAND_SIZE(op)	\
+	(((op) == OP_CONST_NUMBER) ? 3 : (((op) == OP_CONSTANT) ? 4 : 1))
+
+//resolve a compile-time constant operand (OP_CONSTANT/OP_CONST_NUMBER/OP_TRUE/OP_FALSE/OP_NIL) to its Value
+#define READ_OPERAND(op, offset)	\
+	(((op) == OP_CONST_NUMBER)	? READ_LOCAL_CONSTANT(READ_16BITS_INDEX(offset)) :	\
+	 ((op) == OP_CONSTANT)		? READ_GLOBAL_CONSTANT(READ_24BITS_INDEX(offset)) :	\
+	 ((op) == OP_TRUE)			? TRUE_VAL :	\
+	 ((op) == OP_FALSE)			? FALSE_VAL : NIL_VAL)
 
 #define BINARY_CALC(left,right,op,sizeLeft,sizeRight)			\
 	do {														\
@@ -2023,12 +2038,12 @@ static void instructionOptimize() {
 		break;
 	}
 	case OP_EQUAL: {
-		if (isBothConstant) {
-			Value left = READ_CONST_VALUE(isLeftConstNumber, 1 + CONST_SIZE(isRightConstNumber));
-			Value right = READ_CONST_VALUE(isRightConstNumber, 1);
+		if ((isLeftConstant || isLeftLiteral) && (isRightConstant || isRightLiteral)) {
+			Value left = READ_OPERAND(prevLeft, 1 + OPERAND_SIZE(prevRight));
+			Value right = READ_OPERAND(prevRight, 1);
 
 			bool val = valuesEqual(left, right);
-			chunk_fallback(chunk, 1 + CONST_SIZE(isLeftConstNumber) + CONST_SIZE(isRightConstNumber));//op + const + const
+			chunk_fallback(chunk, 1 + OPERAND_SIZE(prevLeft) + OPERAND_SIZE(prevRight));//op + const + const
 			opStack_fallback(opStack, 3);
 			emitByte(val ? OP_TRUE : OP_FALSE);
 			emitOpStack(val ? OP_TRUE : OP_FALSE, false);
@@ -2053,12 +2068,12 @@ static void instructionOptimize() {
 		break;
 	}
 	case OP_NOT_EQUAL: {
-		if (isBothConstant) {
-			Value left = READ_CONST_VALUE(isLeftConstNumber, 1 + CONST_SIZE(isRightConstNumber));
-			Value right = READ_CONST_VALUE(isRightConstNumber, 1);
+		if ((isLeftConstant || isLeftLiteral) && (isRightConstant || isRightLiteral)) {
+			Value left = READ_OPERAND(prevLeft, 1 + OPERAND_SIZE(prevRight));
+			Value right = READ_OPERAND(prevRight, 1);
 
 			bool val = !valuesEqual(left, right);
-			chunk_fallback(chunk, 1 + CONST_SIZE(isLeftConstNumber) + CONST_SIZE(isRightConstNumber));//op + const + const
+			chunk_fallback(chunk, 1 + OPERAND_SIZE(prevLeft) + OPERAND_SIZE(prevRight));//op + const + const
 			opStack_fallback(opStack, 3);
 			emitByte(val ? OP_TRUE : OP_FALSE);
 			emitOpStack(val ? OP_TRUE : OP_FALSE, false);
@@ -2267,6 +2282,26 @@ static void instructionOptimize() {
 			CHUNK_PEEK(3) = OP_SET_PROPERTY_POP; //convert command
 			clearOpStack();
 		}
+		else if (prevRight == OP_GET_LOCAL) {
+			//get local + pop -> dead code
+			chunk_fallback(chunk, 3 + 1); //get_local(3) + pop
+			opStack_fallback(opStack, 2);
+		}
+		else if (prevRight == OP_CONST_NUMBER) {
+			//constant(number) + pop -> dead code
+			chunk_fallback(chunk, 3 + 1); //const_number(3) + pop
+			opStack_fallback(opStack, 2);
+		}
+		else if (prevRight == OP_CONSTANT) {
+			//constant(non-number) + pop -> dead code
+			chunk_fallback(chunk, 4 + 1); //constant(4) + pop
+			opStack_fallback(opStack, 2);
+		}
+		else if (prevRight == OP_TRUE || prevRight == OP_FALSE || prevRight == OP_NIL) {
+			//literal + pop -> dead code
+			chunk_fallback(chunk, 1 + 1); //literal(1) + pop
+			opStack_fallback(opStack, 2);
+		}
 		break;
 	}
 	case OP_SET_LOCAL: {
@@ -2287,6 +2322,8 @@ static void instructionOptimize() {
 #undef CONST_SIZE
 #undef READ_INDEX
 #undef READ_CONST_VALUE
+#undef OPERAND_SIZE
+#undef READ_OPERAND
 #undef BINARY_CALC
 #undef BINARY_CMP
 }
