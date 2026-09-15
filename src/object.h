@@ -112,7 +112,8 @@ typedef struct {
 	uint16_t arity;
 	uint16_t upvalueCount;
 	uint32_t id;
-	Chunk chunk;
+	Chunk chunk;			// function bytecodes
+	ValueArray constants;	// function field constants
 	ObjString* name;
 } ObjFunction;
 
@@ -229,7 +230,6 @@ ObjString* connectString(ObjString* strA, ObjString* strB);
 void printObject(Value value, bool isExpand);
 
 StringEntry* getStringEntryInPool(ObjString* string);
-NumberEntry* getNumberEntryInPool(Value* value);
 
 ObjUpvalue* newUpvalue(Value* slot, ptrdiff_t offset);
 ObjFunction* newFunction();

@@ -1,5 +1,5 @@
 # LoxFlux
-![Version](https://img.shields.io/badge/version-0.10.3-blue)
+![Version](https://img.shields.io/badge/version-0.10.4-blue)
 
 LoxFlux is an independent reimplementation of the cLox interpreter described in "Crafting Interpreters"—a stack-based bytecode virtual machine. All code is written from scratch, following the book’s design principles. This project is still actively being developed and improved.
 
@@ -18,10 +18,10 @@ Lox is a programming language designed for learning purposes. It is conceived as
 
 #### Performance
 
-- **Shared constants**: Use a shared constant table instead of a function holding its own constant table individually.
-- **Constant range**: Expands from `0xff` to `0x00ffffff` (16,777,215)(will reduce perf).
+- **Hybrid constant tables**: Number constants live in each function's own constant table(16bits index, shorter encoding & faster fetch); non-number constants (strings, functions...) stay in a shared table(24bits index).
+- **Constant range**: Non-number constants expand from `0xff` to `0x00ffffff` (16,777,215) in the shared table; number constants support up to 65,535 per function.
 - **Local variable range**: Expands to support up to 1023 nested variables(Configurable up to 65534).
-- **Constant deduplication**: For both numbers and strings.
+- **Constant deduplication**: Strings are deduplicated in the shared pool, numbers are deduplicated per function.
 - **Optimized global variable access**: Achieves `O(1)` time complexity, the access overhead is close to that of local variables. With dynamic update key indexes, direct index fetching can be achieved in almost all cases. Indexes are rarely invalidated, unless you frequently declare new global variables.
 - **Optional object header compression**: Object headers are compressed from 16 bytes to 8 bytes by compressing the 64-bit pointer to 48 bits.
 - **Optional NaN Boxing**: Compress the generic type value from 16 bytes to 8 bytes(from clox).
@@ -36,21 +36,21 @@ Lox is a programming language designed for learning purposes. It is conceived as
 #### Performance test
 
 _(AMD Ryzen7-5800X, Windows 11, Use ClangCL/LLVM 20 for loxflux & clox; LoxFlux benchmarks in `scripts/benchmark/lfx`, CPython in `scripts/benchmark/py`)_
-|program|LoxFlux - [0.10.2]|clox|NodeJS - [24.19.0] - jitless|Cpython3 - [3.14.7]|Lua - [5.4.4]|
+|program|LoxFlux - [0.10.4]|clox|NodeJS - [24.19.0] - jitless|Cpython3 - [3.14.7]|Lua - [5.4.4]|
 |---|---|---|---|---|---|
-|fib30|54ms|76ms|50ms|121ms|49ms|
-|fib35|591ms|874ms|570ms|1319ms|574ms|
-|fib40|6568ms|9677ms|6131ms|14593ms|6334ms|
-|loop 1e8|701ms|1109ms|583ms|2671ms|361ms|
-|global loop 1e8|904ms|2044ms|988ms|4462ms|1109ms|
-|binary_trees|966ms|1996ms|517ms|1247ms|2132ms|
-|instantiation|369ms|945ms|226ms|1020ms|1465ms|
-|invocation|215ms|235ms|203ms|312ms|293ms|
-|method_call|135ms|167ms|93ms|160ms|132ms|
-|properties|297ms|377ms|229ms|339ms|334ms|
-|trees|1673ms|3553ms|1307ms|2002ms|2905ms|
-|zoo|266ms|282ms|169ms|292ms|247ms|
-|zoo_batch(10sec)|6427batch|5398batch|9049batch|5665batch|6560batch|
+|fib30|53ms|76ms|50ms|121ms|49ms|
+|fib35|592ms|874ms|570ms|1319ms|574ms|
+|fib40|6632ms|9677ms|6131ms|14593ms|6334ms|
+|loop 1e8|671ms|1109ms|583ms|2671ms|361ms|
+|global loop 1e8|874ms|2044ms|988ms|4462ms|1109ms|
+|binary_trees|978ms|1996ms|517ms|1247ms|2132ms|
+|instantiation|381ms|945ms|226ms|1020ms|1465ms|
+|invocation|218ms|235ms|203ms|312ms|293ms|
+|method_call|136ms|167ms|93ms|160ms|132ms|
+|properties|306ms|377ms|229ms|339ms|334ms|
+|trees|1677ms|3553ms|1307ms|2002ms|2905ms|
+|zoo|263ms|282ms|169ms|292ms|247ms|
+|zoo_batch(10sec)|6271batch|5398batch|9049batch|5665batch|6560batch|
 
 ---
 

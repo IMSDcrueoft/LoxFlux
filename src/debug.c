@@ -149,6 +149,19 @@ static uint32_t constantInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
 }
 
 COLD_FUNCTION
+static uint32_t numberConstantInstruction(C_STR name, ObjFunction* function, uint32_t offset) {
+	//16bit index into function's own constants
+	uint32_t constant = ((uint32_t)function->chunk.code[offset + 1]) | ((uint32_t)function->chunk.code[offset + 2] << 8);
+
+	printf("%-16s %4d '", name, constant);
+	printValue(function->constants.values[constant]);
+	printf("'\n");
+
+	//OP_CONST_NUMBER 3
+	return offset + 3;
+}
+
+COLD_FUNCTION
 static uint32_t invokeInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
 	//24bit index
 	uint32_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8) | ((uint32_t)chunk->code[offset + 3] << 16);
@@ -160,7 +173,9 @@ static uint32_t invokeInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
 }
 
 COLD_FUNCTION
-uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
+uint32_t disassembleInstruction(ObjFunction* function, uint32_t offset) {
+	Chunk* chunk = &function->chunk;
+
 	printf("%04d ", offset);
 
 	if (offset > 0 && getLine(&chunk->lines, offset) == getLine(&chunk->lines, offset - 1)) {
@@ -202,6 +217,9 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 
 	case OP_CONSTANT:
 		return constantInstruction("OP_CONSTANT", chunk, offset);
+
+	case OP_CONST_NUMBER:
+		return numberConstantInstruction("OP_CONST_NUMBER", function, offset);
 
 	case OP_CLOSURE: {
 		//24bit index
@@ -278,9 +296,9 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 	case OP_SET_PROPERTY_POP:
 		return constantInstruction("OP_SET_PROPERTY_POP", chunk, offset);
 	case OP_GET_INDEX:
-		return constantInstruction("OP_GET_INDEX", chunk, offset);
+		return numberConstantInstruction("OP_GET_INDEX", function, offset);
 	case OP_SET_INDEX:
-		return constantInstruction("OP_SET_INDEX", chunk, offset);
+		return numberConstantInstruction("OP_SET_INDEX", function, offset);
 
 	case OP_GET_SUBSCRIPT:
 		return simpleInstruction("OP_GET_SUBSCRIPT", offset);
@@ -321,27 +339,31 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 		return simpleInstruction("OP_IMPORT", offset);
 
 	case OP_ADD_CONST:
-		return constantInstruction("OP_ADD_CONST", chunk, offset);
+		return numberConstantInstruction("OP_ADD_CONST", function, offset);
 	case OP_SUBTRACT_CONST:
-		return constantInstruction("OP_SUBTRACT_CONST", chunk, offset);
+		return numberConstantInstruction("OP_SUBTRACT_CONST", function, offset);
 	case OP_MULTIPLY_CONST:
-		return constantInstruction("OP_SUBTRACT_CONST", chunk, offset);
+		return numberConstantInstruction("OP_MULTIPLY_CONST", function, offset);
 	case OP_DIVIDE_CONST:
-		return constantInstruction("OP_SUBTRACT_CONST", chunk, offset);
+		return numberConstantInstruction("OP_DIVIDE_CONST", function, offset);
 	case OP_MODULUS_CONST:
-		return constantInstruction("OP_MODULUS_CONST", chunk, offset);
+		return numberConstantInstruction("OP_MODULUS_CONST", function, offset);
 	case OP_EQUAL_CONST:
 		return constantInstruction("OP_EQUAL_CONST", chunk, offset);
 	case OP_NOT_EQUAL_CONST:
 		return constantInstruction("OP_NOT_EQUAL_CONST", chunk, offset);
 	case OP_GREATER_CONST:
-		return constantInstruction("OP_GREATER_CONST", chunk, offset);
+		return numberConstantInstruction("OP_GREATER_CONST", function, offset);
 	case OP_GREATER_EQUAL_CONST:
-		return constantInstruction("OP_GREATER_EQUAL_CONST", chunk, offset);
+		return numberConstantInstruction("OP_GREATER_EQUAL_CONST", function, offset);
 	case OP_LESS_CONST:
-		return constantInstruction("OP_LESS_CONST", chunk, offset);
+		return numberConstantInstruction("OP_LESS_CONST", function, offset);
 	case OP_LESS_EQUAL_CONST:
-		return constantInstruction("OP_LESS_EQUAL_CONST", chunk, offset);
+		return numberConstantInstruction("OP_LESS_EQUAL_CONST", function, offset);
+	case OP_EQUAL_CONST_NUMBER:
+		return numberConstantInstruction("OP_EQUAL_CONST_NUMBER", function, offset);
+	case OP_NOT_EQUAL_CONST_NUMBER:
+		return numberConstantInstruction("OP_NOT_EQUAL_CONST_NUMBER", function, offset);
 
 	case OP_ADD_LOCAL:
 		return shortInstruction("OP_ADD_LOCAL", chunk, offset);
@@ -378,12 +400,14 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 }
 
 COLD_FUNCTION
-void disassembleChunk(Chunk* chunk, C_STR name, uint32_t id) {
+void disassembleChunk(ObjFunction* function, C_STR name, uint32_t id) {
+	Chunk* chunk = &function->chunk;
+
 	printf("== %s(%d) ==\n", name, id);
 
 	uint32_t offset = 0;
 	while (offset < chunk->count) {
-		offset = disassembleInstruction(chunk, offset);
+		offset = disassembleInstruction(function, offset);
 	}
 
 	printf("== %s(%d) end==\n", name, id);
@@ -397,6 +421,7 @@ void disassembleOpStack(OPStack* opStack) {
 
 		switch (code) {
 		case OP_CONSTANT:         printf("OP_CONSTANT\n"); break;
+		case OP_CONST_NUMBER:     printf("OP_CONST_NUMBER\n"); break;
 		case OP_GET_LOCAL:        printf("OP_GET_LOCAL\n"); break;
 		case OP_SET_LOCAL:        printf("OP_SET_LOCAL\n"); break;
 		case OP_ADD:              printf("OP_ADD\n"); break;

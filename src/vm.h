@@ -40,8 +40,6 @@ typedef struct {
 	StringTable scripts;
 	//pool
 	StringTable strings;
-	//pool
-	NumberTable numbers;
 
 	//upvalues
 	ObjUpvalue* openUpvalues;

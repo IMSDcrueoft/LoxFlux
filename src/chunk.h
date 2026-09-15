@@ -10,7 +10,8 @@
 #include "lineArray.h"
 
 typedef enum {
-	OP_CONSTANT,   // 1 + 3 byte
+	OP_CONSTANT,   // 1 + 3 byte, 24bits index into vm.constants (non-number only)
+	OP_CONST_NUMBER, // 1 + 2 byte, 16bits index into function's own constants (number only)
 
 	//load local
 	OP_GET_LOCAL,
@@ -52,8 +53,8 @@ typedef enum {
 	OP_GET_PROPERTY,	// modify property
 	OP_SET_PROPERTY,
 	OP_SET_PROPERTY_POP,// set property and pop value
-	OP_SET_INDEX,		// for array
-	OP_GET_INDEX,
+	OP_SET_INDEX,		// for array, 1 + 2 byte, 16bits index into function's own constants (number only)
+	OP_GET_INDEX,		// 1 + 2 byte, 16bits index into function's own constants (number only)
 	OP_GET_SUPER,		//get super
 	OP_GET_GLOBAL,
 	OP_SET_GLOBAL,
@@ -83,17 +84,21 @@ typedef enum {
 	OP_IMPORT,			// import module
 
 	//super commond
+	//OP_*_CONST : 1 + 2 byte, 16bits index into function's own constants (number only)
 	OP_ADD_CONST,
 	OP_SUBTRACT_CONST,
 	OP_MULTIPLY_CONST,
 	OP_DIVIDE_CONST,
 	OP_MODULUS_CONST,
-	OP_EQUAL_CONST,
-	OP_GREATER_CONST,
-	OP_LESS_CONST,
-	OP_NOT_EQUAL_CONST,
-	OP_LESS_EQUAL_CONST,
-	OP_GREATER_EQUAL_CONST,
+
+	OP_GREATER_CONST,		// number only
+	OP_LESS_CONST,			// number only
+	OP_LESS_EQUAL_CONST,	// number only
+	OP_GREATER_EQUAL_CONST,	// number only
+	OP_EQUAL_CONST_NUMBER,		// 1 + 2 byte, 16bits index into function's own constants (number only)
+	OP_NOT_EQUAL_CONST_NUMBER,	// 1 + 2 byte, 16bits index into function's own constants (number only)
+	OP_EQUAL_CONST,			// 1 + 3 byte, 24bits index into vm.constants (non-number only)
+	OP_NOT_EQUAL_CONST,		// 1 + 3 byte, 24bits index into vm.constants (non-number only)
 
     OP_ADD_LOCAL,
     OP_SUBTRACT_LOCAL,
