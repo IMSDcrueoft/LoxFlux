@@ -1,5 +1,5 @@
 # LoxFlux
-![Version](https://img.shields.io/badge/version-0.10.1-blue)
+![Version](https://img.shields.io/badge/version-0.10.2-blue)
 
 LoxFlux is an independent reimplementation of the cLox interpreter described in "Crafting Interpreters"—a stack-based bytecode virtual machine. All code is written from scratch, following the book’s design principles. This project is still actively being developed and improved.
 
@@ -33,17 +33,17 @@ Lox is a programming language designed for learning purposes. It is conceived as
 
 ---
 
-#### Performance test — v0.10.1-dev
+#### Performance test
 
 _(AMD Ryzen7-5800X, Windows 11, Use ClangCL/LLVM 20 for loxflux & clox; LoxFlux benchmarks in `scripts/benchmark/lfx`, CPython in `scripts/benchmark/py`)_
-|program|LoxFlux - [0.10.1]|clox|NodeJS - [24.19.0] - jitless|Cpython3 - [3.14.7]|Lua - [5.4.4]|
+|program|LoxFlux - [0.10.2]|clox|NodeJS - [24.19.0] - jitless|Cpython3 - [3.14.7]|Lua - [5.4.4]|
 |---|---|---|---|---|---|
 |fib30|54ms|76ms|50ms|121ms|49ms|
 |fib35|591ms|874ms|570ms|1319ms|574ms|
 |fib40|6568ms|9677ms|6131ms|14593ms|6334ms|
 |loop 1e8|701ms|1109ms|583ms|2671ms|361ms|
 |global loop 1e8|904ms|2044ms|988ms|4462ms|1109ms|
-|binary_trees|706ms|1996ms|517ms|1247ms|2132ms|
+|binary_trees|966ms|1996ms|517ms|1247ms|2132ms|
 |instantiation|369ms|945ms|226ms|1020ms|1465ms|
 |invocation|215ms|235ms|203ms|312ms|293ms|
 |method_call|135ms|167ms|93ms|160ms|132ms|

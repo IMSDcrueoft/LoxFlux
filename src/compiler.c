@@ -1231,16 +1231,20 @@ static void dot(bool canAssign) {
 	if (canAssign && match(TOKEN_EQUAL)) {
 		expression();
 		emitConstantCommond(OP_SET_PROPERTY, name);
+		//clear expression ops,keep SET_PROPERTY for POP merge
+		clearOpStack();
+		emitOpStack(OP_SET_PROPERTY, false);
 	}
 	else if (match(TOKEN_LEFT_PAREN)) {
 		uint8_t argCount = argumentList();
 		emitConstantCommond(OP_INVOKE, name);
 		emitByte(argCount);
+		clearOpStack();
 	}
 	else {
 		emitConstantCommond(OP_GET_PROPERTY, name);
+		clearOpStack();
 	}
-	clearOpStack();
 }
 
 static void arrayLiteral(bool canAssign) {
@@ -2190,6 +2194,12 @@ static void instructionOptimize() {
 				CHUNK_PEEK(2) = OP_SET_LOCAL_POP; //convert command
 				clearOpStack();
 			}
+		}
+		else if (prevRight == OP_SET_PROPERTY) {
+			//set property + pop -> set property and pop
+			chunk_fallback(chunk, 1);//pop
+			CHUNK_PEEK(3) = OP_SET_PROPERTY_POP; //convert command
+			clearOpStack();
 		}
 		break;
 	}

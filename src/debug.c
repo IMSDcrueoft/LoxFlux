@@ -275,6 +275,8 @@ uint32_t disassembleInstruction(Chunk* chunk, uint32_t offset) {
 		return constantInstruction("OP_GET_PROPERTY", chunk, offset);
 	case OP_SET_PROPERTY:
 		return constantInstruction("OP_SET_PROPERTY", chunk, offset);
+	case OP_SET_PROPERTY_POP:
+		return constantInstruction("OP_SET_PROPERTY_POP", chunk, offset);
 	case OP_GET_INDEX:
 		return constantInstruction("OP_GET_INDEX", chunk, offset);
 	case OP_SET_INDEX:
