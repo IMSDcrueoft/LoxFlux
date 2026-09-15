@@ -80,7 +80,7 @@ const KEYWORDS: Record<string, TokenType> = {
 	'fun': TokenType.Fun,
 	'if': TokenType.If,
 	'import': TokenType.Import,
-	'instanceOf': TokenType.InstanceOf,
+	'instanceof': TokenType.InstanceOf,
 	'lambda': TokenType.Lambda,
 	'nil': TokenType.Nil,
 	'none': TokenType.None,

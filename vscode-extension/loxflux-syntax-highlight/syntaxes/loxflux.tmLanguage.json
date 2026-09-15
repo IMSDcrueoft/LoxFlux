@@ -95,7 +95,7 @@
 				},
 				{
 					"name": "keyword.other.type.loxflux",
-					"match": "\\b(typeof|instanceOf)\\b"
+					"match": "\\b(typeof|instanceof)\\b"
 				},
 				{
 					"name": "keyword.control.import.loxflux",

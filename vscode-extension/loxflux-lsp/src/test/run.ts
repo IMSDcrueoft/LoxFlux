@@ -37,7 +37,7 @@ function analyzeOf(source: string) {
 console.log('lexer:');
 
 test('tokenizes identifiers and keywords', () => {
-	const { tokens } = lex('var fun class branch instanceOf typeof');
+	const { tokens } = lex('var fun class branch instanceof typeof');
 	assert.deepStrictEqual(tokens.slice(0, 6).map((t) => t.type), [
 		TokenType.Var, TokenType.Fun, TokenType.Class, TokenType.Branch,
 		TokenType.InstanceOf, TokenType.TypeOf,

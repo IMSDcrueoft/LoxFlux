@@ -22,7 +22,7 @@ print lib.pi;
 
 // branch: like switch-case, `none` must be last
 branch {
-	dog instanceOf Animal: print "dog is an Animal";
+	dog instanceof Animal: print "dog is an Animal";
 	none: print "unknown";
 }
 

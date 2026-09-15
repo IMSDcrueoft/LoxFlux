@@ -17,7 +17,7 @@ enum Precedence {
 	PrecAnd, // and
 	PrecBitwise, // | ^ & << >> >>> (shared level, like the compiler)
 	PrecEquality, // == !=
-	PrecInstanceof, // instanceOf
+	PrecInstanceof, // instanceof
 	PrecComparison, // < > <= >=
 	PrecTerm, // + -
 	PrecFactor, // * / %
