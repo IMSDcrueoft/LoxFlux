@@ -1,21 +1,21 @@
 {
-    print @sys.allocated();
+    print @sys.allocatedBytes();
     print @ctor.Array(16);
-    print @sys.allocated();
+    print @sys.allocatedBytes();
     print @ctor.F64Array(16);
-    print @sys.allocated();
+    print @sys.allocatedBytes();
     print @ctor.F32Array(16);
-    print @sys.allocated();
+    print @sys.allocatedBytes();
     print @ctor.U32Array(16);
-    print @sys.allocated();
+    print @sys.allocatedBytes();
     print @ctor.I32Array(16);
-    print @sys.allocated();
+    print @sys.allocatedBytes();
     print @ctor.U16Array(16);
-    print @sys.allocated();
+    print @sys.allocatedBytes();
     print @ctor.I16Array(16);
-    print @sys.allocated();
+    print @sys.allocatedBytes();
     print @ctor.U8Array(16);
-    print @sys.allocated();
+    print @sys.allocatedBytes();
     print @ctor.I8Array(16);
-    print @sys.allocated();
+    print @sys.allocatedBytes();
     }

@@ -47,4 +47,4 @@ for(var i = g_i;i>=0;i=i-1){
 }
 
 print "done";
-print @sys.static();
+print @sys.pinnedBytes();

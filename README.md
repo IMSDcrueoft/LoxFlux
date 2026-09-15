@@ -328,13 +328,13 @@ The `@sys` module offers low-level system utilities, primarily focused on memory
   - `readFile`: Reads the contents of a file and returns them as a StringBuilder object. 
 
 - **Garbage Collection**:
-  - `gc`: Triggers a full garbage collection cycle.
+  - `gcRun`: Triggers a full garbage collection cycle.
   - `gcNext`: Configure the heap memory usage to be used for the next GC trigger.
   - `gcBegin`: Configure the limits of the initial GC.
 
 - **Memory Statistics**:
-  - `allocated`: Returns the total number of bytes currently allocated in the dynamic memory pool(includes built-in objects and deduplication pools).
-  - `static`: Returns the total number of bytes allocated for static objects(e.g., strings, functions).
+  - `allocatedBytes`: Returns the total number of bytes currently allocated in the dynamic memory pool(includes built-in objects and deduplication pools).
+  - `pinnedBytes`: Returns the total number of bytes allocated for static objects(e.g., strings, functions).
 
 These utilities are invaluable for monitoring and optimizing memory usage, especially in long-running applications or environments with limited resources. They enable developers to manage memory explicitly and diagnose potential memory leaks or inefficiencies.
 

@@ -227,11 +227,11 @@ static Value readFileNative(int argCount, Value* args) {
 
 COLD_FUNCTION
 void importNative_system() {
-	defineNative_system("gc", gcNative);
+	defineNative_system("gcRun", gcNative);
 	defineNative_system("gcNext", gcNextNative);
 	defineNative_system("gcBegin", gcBeginNative);
-	defineNative_system("allocated", allocatedBytesNative);
-	defineNative_system("static", staticBytesNative);
+	defineNative_system("allocatedBytes", allocatedBytesNative);
+	defineNative_system("pinnedBytes", staticBytesNative);
 
 	defineNative_system("log", logNative);
 	defineNative_system("error", errorNative);

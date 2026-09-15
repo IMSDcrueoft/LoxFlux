@@ -19,7 +19,7 @@ fun stress() {
         createPoint(count, count)("x");
         count = count - 1;
     }
-    @sys.gc(); // do full gc
+    @sys.gcRun(); // do full gc
 }
 
 var start = @time.milli();
