@@ -1,0 +1,23 @@
+// Retention probe: a cold invoke site caches a one-shot local class whose
+// method closure captures a fat upvalue. After oneShot() returns nothing is
+// reachable except through the IC slot itself.
+// strong-pin build: the 1M-element array stays alive forever (retained).
+// weak build: the array/class/closure are freed by the forced GC below.
+
+@sys.gcRun();
+print @sys.allocatedBytes();
+
+fun oneShot() {
+	var big = @ctor.Array(1048576);
+	class Local {
+		m() { return big; }
+	}
+	var inst = Local();
+	inst.m();
+	return 0;
+}
+
+oneShot();
+@sys.gcRun();
+print @sys.allocatedBytes();
+print "probe-done";

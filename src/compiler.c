@@ -1408,13 +1408,13 @@ static void mergeSubscript(uint8_t code, bool isAssignment) {
 	(((uint32_t)chunk->code[chunk->count - 1] << 16) +	\
 	 ((uint32_t)chunk->code[chunk->count - 2] << 8) +	\
 	 (uint32_t)(chunk->code[chunk->count - 3]))
-#define READ_16BITS_INDEX()	\
+#define READ_SHORT_INDEX()	\
 	(((uint32_t)chunk->code[chunk->count - 2]) +	\
 	 ((uint32_t)chunk->code[chunk->count - 1] << 8))
 
 	//number constant index : OP_CONST_NUMBER 1 + 2 byte
 	if (code == OP_CONST_NUMBER) {
-		uint32_t index = READ_16BITS_INDEX();
+		uint32_t index = READ_SHORT_INDEX();
 
 		//must fallback
 		chunk_fallback(chunk, 3);
@@ -1447,7 +1447,7 @@ static void mergeSubscript(uint8_t code, bool isAssignment) {
 	}
 #undef READ_CONSTANT
 #undef READ_24BITS_INDEX
-#undef READ_16BITS_INDEX
+#undef READ_SHORT_INDEX
 }
 
 static void subscript(bool canAssign) {
@@ -1872,16 +1872,11 @@ static void instructionOptimize() {
 	 ((uint32_t)chunk->code[chunk->count - (offset) - 2] << 8) +	\
 	 (uint32_t)(chunk->code[chunk->count - (offset) - 3]))
 
-//16bits index : OP_CONST_NUMBER 1 + 2 byte
-#define READ_16BITS_INDEX(offset)	\
-	(((uint32_t)chunk->code[chunk->count - (offset) - 1] << 8) +	\
-	 ((uint32_t)chunk->code[chunk->count - (offset) - 2]))
-
 //instruction size of a constant load
 #define CONST_SIZE(isConstNumber) ((isConstNumber) ? 3 : 4)
 
 //read the index by the constant kind,offset counts from the last emitted byte
-#define READ_INDEX(isConstNumber, offset)	((isConstNumber) ? READ_16BITS_INDEX(offset) : READ_24BITS_INDEX(offset))
+#define READ_INDEX(isConstNumber, offset)	((isConstNumber) ? READ_SHORT_INDEX(offset) : READ_24BITS_INDEX(offset))
 
 //read the constant Value by the constant kind
 #define READ_CONST_VALUE(isConstNumber, offset)	\
@@ -1894,7 +1889,7 @@ static void instructionOptimize() {
 
 //resolve a compile-time constant operand (OP_CONSTANT/OP_CONST_NUMBER/OP_TRUE/OP_FALSE/OP_NIL) to its Value
 #define READ_OPERAND(op, offset)	\
-	(((op) == OP_CONST_NUMBER)	? READ_LOCAL_CONSTANT(READ_16BITS_INDEX(offset)) :	\
+	(((op) == OP_CONST_NUMBER)	? READ_LOCAL_CONSTANT(READ_SHORT_INDEX(offset)) :	\
 	 ((op) == OP_CONSTANT)		? READ_GLOBAL_CONSTANT(READ_24BITS_INDEX(offset)) :	\
 	 ((op) == OP_TRUE)			? TRUE_VAL :	\
 	 ((op) == OP_FALSE)			? FALSE_VAL : NIL_VAL)
@@ -2085,7 +2080,7 @@ static void instructionOptimize() {
 	case OP_NEGATE: {
 		if (isRightConstNumber) {
 			//number constants only,always foldable
-			Value right = READ_LOCAL_CONSTANT(READ_16BITS_INDEX(1));
+			Value right = READ_LOCAL_CONSTANT(READ_SHORT_INDEX(1));
 
 			double val = -AS_NUMBER(right);
 			chunk_fallback(chunk, 1 + 3);//op + const
@@ -2254,7 +2249,7 @@ static void instructionOptimize() {
 				break;
 			}
 
-			uint32_t idx_right = READ_16BITS_INDEX(2); //op
+			uint32_t idx_right = READ_SHORT_INDEX(2); //op
 			Value right = READ_LOCAL_CONSTANT(idx_right);
 
 			if (!IS_NUMBER(right)) {
@@ -2388,7 +2383,6 @@ static void instructionOptimize() {
 #undef READ_LOCAL_CONSTANT
 #undef READ_SHORT_INDEX
 #undef READ_24BITS_INDEX
-#undef READ_16BITS_INDEX
 #undef CONST_SIZE
 #undef READ_INDEX
 #undef READ_CONST_VALUE
