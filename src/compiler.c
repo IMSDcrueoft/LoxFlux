@@ -127,7 +127,7 @@ static void emitByte(uint8_t byte) {
 }
 
 //dynamic args
-static void emitBytes(uint32_t count, uint8_t byte, ...) {
+static void emitBytes(uint32_t count, int byte, ...) {
 	//write the first
 	emitByte(byte);
 
@@ -136,7 +136,7 @@ static void emitBytes(uint32_t count, uint8_t byte, ...) {
 	va_start(arguments, byte);
 
 	for (uint32_t i = 1; i < count; ++i) {
-		byte = va_arg(arguments, int); // int is uint8_t's upper format
+		byte = va_arg(arguments, int);
 		emitByte(byte);
 	}
 
@@ -243,16 +243,14 @@ static uint32_t makeConstant(Value value) {
 		//find if string is in constant,because it is in pool
 		StringEntry* entry = getStringEntryInPool(AS_STRING(value));
 
-		if (entry->index == UINT32_MAX) {
-			return (entry->index = addConstant(value) & UINT24_MAX);//set value and return
-		}
-		else {
+		if (entry != NULL) {
+			if (entry->index == UINT32_MAX) {
+				return (entry->index = addConstant(value) & UINT24_MAX);//set value and return
+			}
 			return entry->index;
 		}
 	}
-	else {
-		return addConstant(value);
-	}
+	return addConstant(value);
 }
 
 //number constants only,16bits index into function's own constants
@@ -277,6 +275,49 @@ static void emitConstant(Value value) {
 static void emitNumberConstant(Value value) {
 	emitShortCommand(OP_CONST_NUMBER, makeNumberConstant(value));
 	emitOpStack(OP_CONST_NUMBER, false);
+}
+
+//fold `OP_MODULE_BUILTIN m` + `OP_GET_PROPERTY name slot` into an immediate number constant
+//valid because builtin module fields are frozen once vm_init populates them (they never change at runtime)
+//the pre-allocated IC slot is rolled back:the folded site no longer owns one
+static bool foldBuiltinNumber(void) {
+#if COMPILATION_TIME_OPTIMIZATION
+	Chunk* chunk = currentChunk();
+
+	//chech opStack first,than use this to override old codes
+#define CHUNK_PEEK(offset) chunk->code[chunk->count - offset - 1]
+#define READ_24BITS_INDEX(offset)	\
+	(((uint32_t)chunk->code[chunk->count - (offset) - 1] << 16) +	\
+	 ((uint32_t)chunk->code[chunk->count - (offset) - 2] << 8) +	\
+	 (uint32_t)(chunk->code[chunk->count - (offset) - 3]))
+
+	if (chunk->count < 7) return false;
+	//tail layout: [BUILTIN u8][module u8][GET_PROPERTY][name u24][slot u8]
+	if (CHUNK_PEEK(6) != OP_MODULE_BUILTIN) return false;
+	if (CHUNK_PEEK(4) != OP_GET_PROPERTY) return false;
+
+	uint8_t module = CHUNK_PEEK(5);
+	uint32_t nameIdx = READ_24BITS_INDEX(1);
+	uint8_t slot = CHUNK_PEEK(0);
+
+	Value member;
+	if (!tableGet(&vm.builtins[module].fields, AS_STRING(vm.constants.values[nameIdx]), &member)) return false;
+	if (!IS_NUMBER(member)) return false;
+
+	chunk_fallback(chunk, 7);
+	// revert the allocated IC slot: the folded site no longer owns one
+	if (slot != 0) {
+		current->cacheCount--;
+		current->function->cacheCount = current->cacheCount;
+	}
+	emitNumberConstant(NUMBER_VAL(AS_NUMBER(member)));
+	return true;
+
+#undef CHUNK_PEEK
+#undef READ_24BITS_INDEX
+#else
+	return false;
+#endif
 }
 
 static void patchJump(int32_t offset) {
@@ -1332,7 +1373,9 @@ static void dot(bool canAssign) {
 	else {
 		emitConstantCommond(OP_GET_PROPERTY, name);
 		emitByte(emitCacheSlot());
-		clearOpStack();
+		if (!foldBuiltinNumber()) {
+			clearOpStack();
+		}
 	}
 }
 
@@ -1439,7 +1482,9 @@ static void mergeSubscript(uint8_t code, bool isAssignment) {
 		if (IS_STRING(val)) {
 			emitConstantCommond(isAssignment ? OP_SET_PROPERTY : OP_GET_PROPERTY, index);
 			emitByte(emitCacheSlot());
-			clearOpStack();
+			if (isAssignment || !foldBuiltinNumber()) {
+				clearOpStack();
+			}
 		}
 		else {
 			error("Can only subscript with string or number.\n");
@@ -1858,7 +1903,7 @@ static void instructionOptimize() {
 	bool isBothLocal = (isLeftLocal && isRightLocal);
 
 #define CHUNK_PEEK(offset) chunk->code[chunk->count - (offset) - 1]
-//constants in vm.constants (non-number),24bits index
+	//constants in vm.constants (non-number),24bits index
 #define READ_GLOBAL_CONSTANT(index) (vm.constants.values[(index)])
 //constants in function's own table (number),16bits index
 #define READ_LOCAL_CONSTANT(index) (current->function->constants.values[(index)])

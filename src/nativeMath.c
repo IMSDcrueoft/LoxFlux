@@ -58,8 +58,6 @@ static Value seedNative(int argCount, Value* args) {
 	else {
 		return BOOL_VAL(false);
 	}
-
-	return NAN_VAL;
 }
 
 COLD_FUNCTION

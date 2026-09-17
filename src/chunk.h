@@ -155,9 +155,6 @@ void chunk_write(Chunk* chunk, uint8_t byte, uint32_t line);
 void chunk_fallback(Chunk* chunk, uint32_t byteCount);
 void chunk_free(Chunk* chunk);
 
-//chech opStack first,than use this to override old codes
-#define CHUNK_PEEK(chunk, offset) chunk->code[chunk->count - offset - 1]
-
 //free the error complied code (not used)
 void chunk_free_errorCode(Chunk* chunk, uint32_t beginError);
 
