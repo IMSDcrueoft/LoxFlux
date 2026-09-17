@@ -163,6 +163,45 @@ static void emitShortCommand(OpCode target, uint32_t index) {
 	}
 }
 
+//allocate one inline cache slot (raw InlineCacheSlot, zero-filled = guaranteed miss before first backfill)
+//operand encoding: 0 = sentinel (uncached site, array[0] is the shared sentinel slot), real slot k emitted as k+1
+//returns the operand to embed in the instruction
+static uint8_t emitCacheSlot(void) {
+	if (current->cacheCount + 1 > UINT8_MAX) {//operand values 1..255 are real slots
+#if DEBUG_PRINT_CODE
+		if (!current->icWarned) {
+			current->icWarned = true;
+			fprintf(stderr, "[ic] function '%s' exhausted inline-cache slots, remaining sites will not be cached\n",
+				current->function->name != NULL ? current->function->name->chars : "<script>");
+		}
+#endif
+		if (current->cacheCapacity == 0) {//sentinel sites still need array[0] to exist
+			current->function->caches = ALLOCATE_NO_GC(InlineCacheSlot, 1);
+			current->cacheCapacity = 1;
+			current->function->caches[0].capacity = 0;
+			current->function->caches[0].index = 0;
+			current->function->caches[0].extraA = NULL;
+			current->function->caches[0].extraB = NULL;
+		}
+		return 0;//sentinel
+	}
+
+	if (current->cacheCapacity < (uint32_t)current->cacheCount + 2) {//real slot k lives at array index k+1
+		uint32_t capacity = GROW_CAPACITY(current->cacheCapacity);
+		current->function->caches = GROW_ARRAY_NO_GC(InlineCacheSlot, current->function->caches, current->cacheCapacity, capacity);
+		current->cacheCapacity = capacity;
+	}
+
+	uint8_t slot = (uint8_t)(current->cacheCount + 1);//operand = real index + 1
+	current->cacheCount++;
+	current->function->caches[slot].capacity = 0;
+	current->function->caches[slot].index = 0;
+	current->function->caches[slot].extraA = NULL;
+	current->function->caches[slot].extraB = NULL;
+	current->function->cacheCount = current->cacheCount;//sync real slot count for the VM
+	return slot;
+}
+
 static int32_t emitJump(uint8_t instruction) {
 	emitBytes(3, instruction, 0xff, 0xff);
 	clearOpStack();
@@ -265,6 +304,11 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	compiler->function = newFunction();
 	compiler->objectNestingDepth = 0;
 
+	//inline cache slots
+	compiler->cacheCount = 0;
+	compiler->icWarned = false;
+	compiler->cacheCapacity = 0;
+
 	opStack_init(&compiler->stack);
 	numberTable_init(&compiler->numbers);
 
@@ -324,6 +368,20 @@ static ObjFunction* endCompiler() {
 	numberTable_free(&current->numbers);//free every compiler's number pool (nested compilers were leaking)
 
 	ObjFunction* function = current->function;
+
+	//shrink inline caches to exactly cacheCount+1 entries (index 0 = shared sentinel slot)
+	//small functions/lambdas keep no doubling slack; functions without ic sites keep NULL
+	if (current->cacheCapacity > (uint32_t)current->cacheCount + 1) {
+		function->caches = GROW_ARRAY_NO_GC(InlineCacheSlot, function->caches, current->cacheCapacity, (uint32_t)current->cacheCount + 1);
+		current->cacheCapacity = (uint32_t)current->cacheCount + 1;
+	}
+
+	//register for gc: invoke cache slots hold ObjClass*/ObjClosure* that must stay marked
+	//also lets vm_free release the cache arrays (functions are immortal)
+	if (current->cacheCapacity > 0) {
+		vm_register_ic_function(function);
+	}
+
 #if DEBUG_PRINT_CODE
 	if (!parser.hadError) {
 		disassembleChunk(function, (function->name != NULL)
@@ -1252,6 +1310,7 @@ static void dot(bool canAssign) {
 	if (canAssign && match(TOKEN_EQUAL)) {
 		expression();
 		emitConstantCommond(OP_SET_PROPERTY, name);
+		emitByte(emitCacheSlot());
 		//clear expression ops,keep SET_PROPERTY for POP merge
 		clearOpStack();
 		emitOpStack(OP_SET_PROPERTY, false);
@@ -1260,10 +1319,12 @@ static void dot(bool canAssign) {
 		uint8_t argCount = argumentList();
 		emitConstantCommond(OP_INVOKE, name);
 		emitByte(argCount);
+		emitByte(emitCacheSlot());
 		clearOpStack();
 	}
 	else {
 		emitConstantCommond(OP_GET_PROPERTY, name);
+		emitByte(emitCacheSlot());
 		clearOpStack();
 	}
 }
@@ -1370,6 +1431,7 @@ static void mergeSubscript(uint8_t code, bool isAssignment) {
 
 		if (IS_STRING(val)) {
 			emitConstantCommond(isAssignment ? OP_SET_PROPERTY : OP_GET_PROPERTY, index);
+			emitByte(emitCacheSlot());
 			clearOpStack();
 		}
 		else {
@@ -2278,8 +2340,9 @@ static void instructionOptimize() {
 		}
 		else if (prevRight == OP_SET_PROPERTY) {
 			//set property + pop -> set property and pop
+			//set property is now [op][name u24][slot u8] = 5 bytes, op sits at count-5
 			chunk_fallback(chunk, 1);//pop
-			CHUNK_PEEK(3) = OP_SET_PROPERTY_POP; //convert command
+			CHUNK_PEEK(4) = OP_SET_PROPERTY_POP; //convert command
 			clearOpStack();
 		}
 		else if (prevRight == OP_GET_LOCAL) {

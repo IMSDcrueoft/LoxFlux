@@ -99,6 +99,11 @@ typedef struct Compiler {
 	uint16_t localCount;
 	uint16_t scopeDepth;
 	uint32_t localCapacity;
+
+	//inline cache slots (capped at UINT8_MAX sites, slot operand is u8)
+	uint16_t cacheCount;
+	bool icWarned; //one-shot exhaustion warning flag (debug builds only)
+	uint32_t cacheCapacity; //allocated InlineCacheSlot capacity of function->caches
 	Local* locals;
 
 	LoopContext* currentLoop;

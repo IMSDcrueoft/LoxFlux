@@ -104,6 +104,18 @@ bool tableGet(Table* table, ObjString* key, Value* value_out) {
 }
 
 HOT_FUNCTION
+bool tableGetEntry(Table* table, ObjString* key, Value* value_out, Entry** entry_out) {
+	if (table->count == 0) return false;
+
+	Entry* entry = findEntry(table->entries, table->capacity, key, table->isGlobal);
+	if (entry->key == NULL) return false;
+
+	*value_out = entry->value;
+	*entry_out = entry;
+	return true;
+}
+
+HOT_FUNCTION
 bool tableSet(Table* table, ObjString* key, Value value)
 {
 	if (table->isFrozen) return false;// not allowed

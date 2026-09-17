@@ -81,9 +81,13 @@ typedef struct {
 	ObjString* initString;
 	ObjString* typeStrings[TYPE_STRING_COUNT];
 
+	//inline cache gc registry: functions whose invoke cache slots hold ObjClass*/ObjClosure*
+	ObjFunction** icFuncs;
+	uint32_t icFuncCount;
+	uint32_t icFuncCapacity;
+
 	//id for compiled functions
 	uint32_t functionID;
-
 	//frames
 	uint32_t frameCount;
 	CallFrame frames[FRAMES_MAX];
@@ -100,6 +104,7 @@ extern VM vm;
 
 void vm_init();
 void vm_free();
+void vm_register_ic_function(ObjFunction* function);
 
 void stack_push(Value value);
 Value stack_pop();

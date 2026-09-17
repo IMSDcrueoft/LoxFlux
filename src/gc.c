@@ -61,6 +61,17 @@ static void markRoots() {
 	//the shared constants don't gc
 	//markConstants(&vm.constants);
 
+	//inline caches: invoke slots hold ObjClass*/ObjClosure* that must survive
+	//(field slots have NULL pointers, marking them is a no-op)
+	for (uint32_t i = 0; i < vm.icFuncCount; i++) {
+		ObjFunction* fn = vm.icFuncs[i];
+		for (uint16_t j = 0; j < fn->cacheCount; j++) {
+			InlineCacheSlot* c = &fn->caches[j];
+			if (c->extraA != NULL) markObject((Obj*)c->extraA);
+			if (c->extraB != NULL) markObject((Obj*)c->extraB);
+		}
+	}
+
 	markCompilerRoots();
 
 	//markObject((Obj*)vm.initString);

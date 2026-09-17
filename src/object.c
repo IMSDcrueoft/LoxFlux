@@ -86,6 +86,8 @@ ObjFunction* newFunction() {
 	function->name = NULL;
 	chunk_init(&function->chunk);
 	valueArray_init(&function->constants);
+	function->caches = NULL;
+	function->cacheCount = 0;
 	return function;
 }
 
@@ -136,6 +138,7 @@ ObjInstance* newInstance(ObjClass* klass) {
 	instance->klass = klass;
 	instance->fields.isGlobal = false;
 	instance->fields.isFrozen = false;
+	instance->fieldsPoison = false;
 	table_init(&instance->fields);
 	return instance;
 }
