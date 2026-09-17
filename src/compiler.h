@@ -90,6 +90,7 @@ typedef struct Compiler {
 
 	ObjFunction* function;
 	OPStack stack; //the command stack for optimizer
+	NumberTable numbers; //per-function number dedup pool, indexes into function's own constants
 
 	FunctionType type;
 	uint16_t nestingDepth;

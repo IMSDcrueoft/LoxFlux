@@ -85,6 +85,7 @@ ObjFunction* newFunction() {
 	function->id = vm.functionID++;//unique id
 	function->name = NULL;
 	chunk_init(&function->chunk);
+	valueArray_init(&function->constants);
 	return function;
 }
 
@@ -568,9 +569,4 @@ void printObject(Value value, bool isExpand) {
 StringEntry* getStringEntryInPool(ObjString* string)
 {
 	return tableGetStringEntry(&vm.strings, string);
-}
-
-NumberEntry* getNumberEntryInPool(Value* value)
-{
-	return tableGetNumberEntry(&vm.numbers, value);
 }

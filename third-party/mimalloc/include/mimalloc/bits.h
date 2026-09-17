@@ -13,6 +13,18 @@ terms of the MIT license. A copy of the license can be found in the file
 #ifndef MI_BITS_H
 #define MI_BITS_H
 
+#include <stddef.h>   // size_t
+#include <stdint.h>   // int64_t etc
+#include <stdbool.h>  // bool
+#include <limits.h>   // LONG_MAX
+
+#if defined(__cplusplus)
+#define mi_decl_externc         extern "C"
+#define mi_init_struct_zero     { }
+#else
+#define mi_decl_externc
+#define mi_init_struct_zero     { 0 }
+#endif
 
 // ------------------------------------------------------
 // Size of a pointer.
@@ -99,11 +111,14 @@ typedef int32_t  mi_ssize_t;
 #include <intrin.h>
 #endif
 
-#if MI_ARCH_X64 && defined(__AVX2__) && !defined(__BMI2__) // msvc
+#if MI_ARCH_X64 && defined(__AVX2__) && !defined(__BMI2__) // avx2 implies bmi2
 #define __BMI2__  1
 #endif
-#if MI_ARCH_X64 && (defined(__AVX2__) || defined(__BMI2__)) && !defined(__BMI1__) // msvc
+#if MI_ARCH_X64 && (defined(__AVX2__) || defined(__BMI2__) || defined(__BMI__)) && !defined(__BMI1__) // bmi2 implies bmi1
 #define __BMI1__  1
+#endif
+#if MI_ARCH_X64 && defined(__AVX2__) && !defined(__LZCNT__) // avx2 implies lzcnt
+#define __LZCNT__  1
 #endif
 
 // Define big endian if needed
@@ -120,9 +135,18 @@ typedef int32_t  mi_ssize_t;
 #define MI_MAX_VABITS     (32)
 #endif
 
-// use a flat page-map (or a 2-level one)
+// the MI_MIN_VABITS determine how many bits of the address space are always committed in the page_map
+#if MI_MAX_VABITS <= 32
+#define MI_MIN_VABITS     (32)
+#elif MI_MAX_VABITS <= 42
+#define MI_MIN_VABITS     MI_MAX_VABITS
+#else
+#define MI_MIN_VABITS     (43)    /* 8 TiB */
+#endif
+
+// use a flat page-map or a 2-level one
 #ifndef MI_PAGE_MAP_FLAT
-#if MI_MAX_VABITS <= 40 && !defined(__APPLE__) 
+#if MI_MAX_VABITS <= 40 && !defined(__APPLE__) && !MI_SECURE && !MI_FREE_IS_CHECKED && MI_FREE_USE_PAGEMAP 
 #define MI_PAGE_MAP_FLAT  1
 #else
 #define MI_PAGE_MAP_FLAT  0
@@ -171,12 +195,16 @@ typedef int32_t  mi_ssize_t;
 -------------------------------------------------------------------------------- */
 
 size_t _mi_popcount_generic(size_t x);
+extern bool _mi_cpu_has_popcnt;
 
 static inline size_t mi_popcount(size_t x) {
   #if mi_has_builtinz(popcount)
     return mi_builtinz(popcount)(x);
-  #elif defined(_MSC_VER) && (MI_ARCH_X64 || MI_ARCH_X86 || MI_ARCH_ARM64 || MI_ARCH_ARM32)
-    return mi_msc_builtinz(__popcnt)(x);
+  #elif defined(_MSC_VER) && (MI_ARCH_ARM64 || MI_ARCH_ARM32)
+    return mi_msc_builtinz(_CountOneBits)(x);
+  #elif defined(_MSC_VER) && (MI_ARCH_X64 || MI_ARCH_X86)
+    if (_mi_cpu_has_popcnt) { return mi_msc_builtinz(__popcnt)(x); }
+                       else { return _mi_popcount_generic(x); }      // see issue #1291
   #elif MI_ARCH_X64 && defined(__BMI1__)
     return (size_t)_mm_popcnt_u64(x);
   #else
@@ -199,15 +227,16 @@ static inline size_t mi_ctz(size_t x) {
     size_t r;
     __asm ("tzcnt\t%1, %0" : "=r"(r) : "r"(x) : "cc");
     return r;
+  #elif defined(_MSC_VER) && MI_ARCH_X64 && defined(__BMI1__) 
+    return _tzcnt_u64(x);
   #elif defined(_MSC_VER) && (MI_ARCH_X64 || MI_ARCH_X86 || MI_ARCH_ARM64 || MI_ARCH_ARM32)
     unsigned long idx;
     return (mi_msc_builtinz(_BitScanForward)(&idx, x) ? (size_t)idx : MI_SIZE_BITS);
   #elif mi_has_builtinz(ctz)
     return (x!=0 ? (size_t)mi_builtinz(ctz)(x) : MI_SIZE_BITS);
   #elif defined(__GNUC__) && (MI_ARCH_X64 || MI_ARCH_X86)
-    if (x==0) return MI_SIZE_BITS;
-    size_t r;
-    __asm ("bsf\t%1, %0" : "=r"(r) : "r"(x) : "cc");
+    size_t r = MI_SIZE_BITS;  // bsf leaves destination unmodified if the argument is 0 (see <https://github.com/llvm/llvm-project/pull/102885>)
+    __asm ("bsf\t%1, %0" : "+r"(r) : "r"(x) : "cc");
     return r;
   #elif MI_HAS_FAST_POPCOUNT
     return (x!=0 ? (mi_popcount(x^(x-1))-1) : MI_SIZE_BITS);
@@ -218,10 +247,12 @@ static inline size_t mi_ctz(size_t x) {
 }
 
 static inline size_t mi_clz(size_t x) {
-  #if defined(__GNUC__) && MI_ARCH_X64 && defined(__BMI1__) // on x64 lzcnt is defined for 0
+  #if defined(__GNUC__) && MI_ARCH_X64 && defined(__LZCNT__) // on x64 lzcnt is defined for 0
     size_t r;
     __asm ("lzcnt\t%1, %0" : "=r"(r) : "r"(x) : "cc");
     return r;
+  #elif defined(_MSC_VER) && MI_ARCH_X64 && defined(__LZCNT__) 
+    return _lzcnt_u64(x);
   #elif defined(_MSC_VER) && (MI_ARCH_X64 || MI_ARCH_X86 || MI_ARCH_ARM64 || MI_ARCH_ARM32)
     unsigned long idx;
     return (mi_msc_builtinz(_BitScanReverse)(&idx, x) ? MI_SIZE_BITS - 1 - (size_t)idx : MI_SIZE_BITS);
@@ -255,7 +286,7 @@ static inline bool mi_bsf(size_t x, size_t* idx) {
     bool is_zero;
     __asm ( "tzcnt\t%2, %1" : "=@ccc"(is_zero), "=r"(*idx) : "r"(x) : "cc" );
     return !is_zero;
-  #elif defined(_MSC_VER) && (MI_ARCH_X64 || MI_ARCH_X86 || MI_ARCH_ARM64 || MI_ARCH_ARM32)
+  #elif 0 && defined(_MSC_VER) && (MI_ARCH_X64 || MI_ARCH_X86 || MI_ARCH_ARM64 || MI_ARCH_ARM32)
     unsigned long i;
     return (mi_msc_builtinz(_BitScanForward)(&i, x) ? (*idx = (size_t)i, true) : false);
   #else
@@ -267,12 +298,7 @@ static inline bool mi_bsf(size_t x, size_t* idx) {
 // return false if `x==0` (with `*idx` undefined) and true otherwise,
 // with the `idx` is set to the bit index (`0 <= *idx < MI_BFIELD_BITS`).
 static inline bool mi_bsr(size_t x, size_t* idx) {
-  #if defined(__GNUC__) && MI_ARCH_X64 && defined(__BMI1__)  && (!defined(__clang_major__) || __clang_major__ >= 9)
-    // on x64 the carry flag is set on zero which gives better codegen
-    bool is_zero;
-    __asm ("lzcnt\t%2, %1" : "=@ccc"(is_zero), "=r"(*idx) : "r"(x) : "cc");
-    return !is_zero;
-  #elif defined(_MSC_VER) && (MI_ARCH_X64 || MI_ARCH_X86 || MI_ARCH_ARM64 || MI_ARCH_ARM32)
+  #if 0 && defined(_MSC_VER) && (MI_ARCH_X64 || MI_ARCH_X86 || MI_ARCH_ARM64 || MI_ARCH_ARM32)
     unsigned long i;
     return (mi_msc_builtinz(_BitScanReverse)(&i, x) ? (*idx = (size_t)i, true) : false);
   #else

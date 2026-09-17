@@ -1,0 +1,19 @@
+//test OP_SET_PROPERTY_POP
+class Point {}
+
+var p = Point();
+
+//expression statement -> should compile to OP_SET_PROPERTY_POP
+p.x = 10;
+p.y = 20;
+
+print p.x + p.y; // 30
+
+//as sub-expression, still keep OP_SET_PROPERTY (result stays on stack)
+var z = (p.x = 5);
+print z;        // 5
+print p.x;      // 5
+
+//nil value deletes the field
+p.x = nil;
+print p.x;      // nil

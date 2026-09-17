@@ -1,0 +1,26 @@
+//test @time module (now backed by pure C timer.c)
+print @time.nano();
+print @time.micro();
+print @time.milli();
+print @time.second();
+print @time.utc();
+
+//monotonic check: nano should strictly increase
+var a = @time.nano();
+var b = @time.nano();
+var c = @time.nano();
+print b > a;
+print c > b;
+
+//duration check: sleep-free busy loop of ~200ms
+var start = @time.milli();
+var x = 0;
+while (@time.milli() - start < 200) {
+	x = x + 1;
+}
+var elapsed = @time.milli() - start;
+print elapsed >= 200; //true
+
+//utc should be around the Unix epoch (year 2025~2026 -> ~1.75e12 ms)
+print @time.utc() > 1700000000000;
+print @time.utc() < 1900000000000;

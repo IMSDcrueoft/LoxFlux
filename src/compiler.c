@@ -153,6 +153,16 @@ static void emitConstantCommond(OpCode target, uint32_t index) {
 	}
 }
 
+//16bits index into function's own constants
+static void emitShortCommand(OpCode target, uint32_t index) {
+	if (index <= UINT16_MAX) {
+		emitBytes(3, target, (uint8_t)index, (uint8_t)(index >> 8));
+	}
+	else {
+		error("Too many constants in function.");
+	}
+}
+
 static int32_t emitJump(uint8_t instruction) {
 	emitBytes(3, instruction, 0xff, 0xff);
 	clearOpStack();
@@ -181,19 +191,9 @@ static void emitReturn() {
 	clearOpStack();
 }
 
+//non-number constants only,24bits index into vm.constants
 static uint32_t makeConstant(Value value) {
-	if (IS_NUMBER(value)) {
-		//deduplicate in pool
-		NumberEntry* entry = getNumberEntryInPool(&value);
-
-		if (entry->index == UINT32_MAX) {
-			return (entry->index = addConstant(value) & UINT24_MAX);//set value and return
-		}
-		else {
-			return entry->index;
-		}
-	}
-	else if (IS_STRING(value)) {
+	if (IS_STRING(value)) {
 		//find if string is in constant,because it is in pool
 		StringEntry* entry = getStringEntryInPool(AS_STRING(value));
 
@@ -209,9 +209,28 @@ static uint32_t makeConstant(Value value) {
 	}
 }
 
+//number constants only,16bits index into function's own constants
+static uint32_t makeNumberConstant(Value value) {
+	//deduplicate in per-function pool
+	NumberEntry* entry = tableGetNumberEntry(&current->numbers, &value);
+
+	if (entry->index == UINT32_MAX) {
+		ValueArray* constants = &current->function->constants;
+		valueArray_write(constants, value);
+		entry->index = constants->count - 1;//set value and return
+	}
+
+	return entry->index;
+}
+
 static void emitConstant(Value value) {
 	emitConstantCommond(OP_CONSTANT, makeConstant(value));
 	emitOpStack(OP_CONSTANT, false);
+}
+
+static void emitNumberConstant(Value value) {
+	emitShortCommand(OP_CONST_NUMBER, makeNumberConstant(value));
+	emitOpStack(OP_CONST_NUMBER, false);
 }
 
 static void patchJump(int32_t offset) {
@@ -247,6 +266,7 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	compiler->objectNestingDepth = 0;
 
 	opStack_init(&compiler->stack);
+	numberTable_init(&compiler->numbers);
 
 	//it's a function
 	switch (type) {
@@ -301,11 +321,12 @@ static void freeLocals(Compiler* compiler) {
 static ObjFunction* endCompiler() {
 	emitReturn();
 	opStack_free(currentOpStack());
+	numberTable_free(&current->numbers);//free every compiler's number pool (nested compilers were leaking)
 
 	ObjFunction* function = current->function;
 #if DEBUG_PRINT_CODE
 	if (!parser.hadError) {
-		disassembleChunk(currentChunk(), (function->name != NULL)
+		disassembleChunk(function, (function->name != NULL)
 			? ((function->name->length != 0) ? function->name->chars : "<lambda>") : "<script>", function->id);
 	}
 #endif
@@ -1231,16 +1252,20 @@ static void dot(bool canAssign) {
 	if (canAssign && match(TOKEN_EQUAL)) {
 		expression();
 		emitConstantCommond(OP_SET_PROPERTY, name);
+		//clear expression ops,keep SET_PROPERTY for POP merge
+		clearOpStack();
+		emitOpStack(OP_SET_PROPERTY, false);
 	}
 	else if (match(TOKEN_LEFT_PAREN)) {
 		uint8_t argCount = argumentList();
 		emitConstantCommond(OP_INVOKE, name);
 		emitByte(argCount);
+		clearOpStack();
 	}
 	else {
 		emitConstantCommond(OP_GET_PROPERTY, name);
+		clearOpStack();
 	}
-	clearOpStack();
 }
 
 static void arrayLiteral(bool canAssign) {
@@ -1308,36 +1333,52 @@ static void objectLiteral(bool canAssign) {
 }
 
 //when it is constant index,use this
-static void mergeSubscript(bool isAssignment) {
+static void mergeSubscript(uint8_t code, bool isAssignment) {
 	Chunk* chunk = currentChunk();
 #define READ_CONSTANT(index) (vm.constants.values[(index)])
 #define READ_24BITS_INDEX()	\
 	(((uint32_t)chunk->code[chunk->count - 1] << 16) +	\
 	 ((uint32_t)chunk->code[chunk->count - 2] << 8) +	\
 	 (uint32_t)(chunk->code[chunk->count - 3]))
+#define READ_16BITS_INDEX()	\
+	(((uint32_t)chunk->code[chunk->count - 2]) +	\
+	 ((uint32_t)chunk->code[chunk->count - 1] << 8))
 
-	uint32_t index = READ_24BITS_INDEX();
-	Value val = READ_CONSTANT(index);
+	//number constant index : OP_CONST_NUMBER 1 + 2 byte
+	if (code == OP_CONST_NUMBER) {
+		uint32_t index = READ_16BITS_INDEX();
 
-	//must fallback
-	chunk_fallback(chunk, 4);
-	clearOpStack();
-
-	if (isAssignment) expression();
-
-	if (IS_NUMBER(val)) {
-		emitConstantCommond(isAssignment ? OP_SET_INDEX : OP_GET_INDEX, index);
+		//must fallback
+		chunk_fallback(chunk, 3);
 		clearOpStack();
-	}
-	else if (IS_STRING(val)) {
-		emitConstantCommond(isAssignment ? OP_SET_PROPERTY : OP_GET_PROPERTY, index);
+
+		if (isAssignment) expression();
+
+		emitShortCommand(isAssignment ? OP_SET_INDEX : OP_GET_INDEX, index);
 		clearOpStack();
 	}
 	else {
-		error("Can only subscript with string or number.\n");
+		//non-number constant index : OP_CONSTANT 1 + 3 byte
+		uint32_t index = READ_24BITS_INDEX();
+		Value val = READ_CONSTANT(index);
+
+		//must fallback
+		chunk_fallback(chunk, 4);
+		clearOpStack();
+
+		if (isAssignment) expression();
+
+		if (IS_STRING(val)) {
+			emitConstantCommond(isAssignment ? OP_SET_PROPERTY : OP_GET_PROPERTY, index);
+			clearOpStack();
+		}
+		else {
+			error("Can only subscript with string or number.\n");
+		}
 	}
 #undef READ_CONSTANT
 #undef READ_24BITS_INDEX
+#undef READ_16BITS_INDEX
 }
 
 static void subscript(bool canAssign) {
@@ -1348,8 +1389,8 @@ static void subscript(bool canAssign) {
 	uint8_t code = opStack_peek(currentOpStack(), 0);
 	bool isAssignment = canAssign && match(TOKEN_EQUAL);
 
-	if (code == OP_CONSTANT) {// constant index
-		mergeSubscript(isAssignment);
+	if (code == OP_CONSTANT || code == OP_CONST_NUMBER) {// constant index
+		mergeSubscript(code, isAssignment);
 	}
 	else {
 		if (isAssignment) {
@@ -1438,7 +1479,7 @@ static void grouping(bool canAssign) {
 }
 
 static void emitNumber(double value) {
-	emitConstant(NUMBER_VAL(value));
+	emitNumberConstant(NUMBER_VAL(value));
 }
 
 static void number(bool canAssign) {
@@ -1703,6 +1744,7 @@ ObjFunction* compile(C_STR source, FunctionType compileType) {
 
 	ObjFunction* function = endCompiler();
 	freeLocals(&compiler);
+	numberTable_free(&compiler.numbers);
 
 	return parser.hadError ? NULL : function;
 }
@@ -1733,16 +1775,24 @@ static void instructionOptimize() {
 	uint8_t prevLeft = opStack_peek(opStack, 2);
 
 	//Constant folding
-	bool isLeftConstant = (prevLeft == OP_CONSTANT);
-	bool isRightConstant = (prevRight == OP_CONSTANT);
+	bool isLeftConstNumber = (prevLeft == OP_CONST_NUMBER);
+	bool isRightConstNumber = (prevRight == OP_CONST_NUMBER);
+	bool isLeftConstant = (prevLeft == OP_CONSTANT) || isLeftConstNumber;
+	bool isRightConstant = (prevRight == OP_CONSTANT) || isRightConstNumber;
 	bool isBothConstant = (isLeftConstant && isRightConstant);
+	//literal opcodes (true/false/nil) are compile-time constants too
+	bool isLeftLiteral = (prevLeft == OP_TRUE) || (prevLeft == OP_FALSE) || (prevLeft == OP_NIL);
+	bool isRightLiteral = (prevRight == OP_TRUE) || (prevRight == OP_FALSE) || (prevRight == OP_NIL);
 	// local
 	bool isLeftLocal = (prevLeft == OP_GET_LOCAL);
 	bool isRightLocal = (prevRight == OP_GET_LOCAL);
 	bool isBothLocal = (isLeftLocal && isRightLocal);
 
 #define CHUNK_PEEK(offset) chunk->code[chunk->count - (offset) - 1]
-#define READ_CONSTANT(index) (vm.constants.values[(index)])
+//constants in vm.constants (non-number),24bits index
+#define READ_GLOBAL_CONSTANT(index) (vm.constants.values[(index)])
+//constants in function's own table (number),16bits index
+#define READ_LOCAL_CONSTANT(index) (current->function->constants.values[(index)])
 
 #define READ_SHORT_INDEX(offset)	\
 	(((uint32_t)chunk->code[chunk->count - (offset) - 1] << 8) +	\
@@ -1753,49 +1803,73 @@ static void instructionOptimize() {
 	 ((uint32_t)chunk->code[chunk->count - (offset) - 2] << 8) +	\
 	 (uint32_t)(chunk->code[chunk->count - (offset) - 3]))
 
-#define BINARY_CALC(left,right,op)								\
-    do {														\
+//16bits index : OP_CONST_NUMBER 1 + 2 byte
+#define READ_16BITS_INDEX(offset)	\
+	(((uint32_t)chunk->code[chunk->count - (offset) - 1] << 8) +	\
+	 ((uint32_t)chunk->code[chunk->count - (offset) - 2]))
+
+//instruction size of a constant load
+#define CONST_SIZE(isConstNumber) ((isConstNumber) ? 3 : 4)
+
+//read the index by the constant kind,offset counts from the last emitted byte
+#define READ_INDEX(isConstNumber, offset)	((isConstNumber) ? READ_16BITS_INDEX(offset) : READ_24BITS_INDEX(offset))
+
+//read the constant Value by the constant kind
+#define READ_CONST_VALUE(isConstNumber, offset)	\
+	((isConstNumber) ? READ_LOCAL_CONSTANT(READ_INDEX(isConstNumber, offset))	\
+					 : READ_GLOBAL_CONSTANT(READ_INDEX(isConstNumber, offset)))
+
+//total byte size of an operand instruction (OP_CONST_NUMBER 3, OP_CONSTANT 4, literal ops 1)
+#define OPERAND_SIZE(op)	\
+	(((op) == OP_CONST_NUMBER) ? 3 : (((op) == OP_CONSTANT) ? 4 : 1))
+
+//resolve a compile-time constant operand (OP_CONSTANT/OP_CONST_NUMBER/OP_TRUE/OP_FALSE/OP_NIL) to its Value
+#define READ_OPERAND(op, offset)	\
+	(((op) == OP_CONST_NUMBER)	? READ_LOCAL_CONSTANT(READ_16BITS_INDEX(offset)) :	\
+	 ((op) == OP_CONSTANT)		? READ_GLOBAL_CONSTANT(READ_24BITS_INDEX(offset)) :	\
+	 ((op) == OP_TRUE)			? TRUE_VAL :	\
+	 ((op) == OP_FALSE)			? FALSE_VAL : NIL_VAL)
+
+#define BINARY_CALC(left,right,op,sizeLeft,sizeRight)			\
+	do {														\
 		if (IS_NUMBER(left) && IS_NUMBER(right)) {				\
 			double val = AS_NUMBER(left) op AS_NUMBER(right);	\
-			chunk_fallback(chunk, 1 + 4 + 4);			\
-			opStack_fallback(opStack,3);				\
-			emitConstant(NUMBER_VAL(val));				\
+			chunk_fallback(chunk, 1 + sizeLeft + sizeRight);	\
+			opStack_fallback(opStack,3);						\
+			emitNumberConstant(NUMBER_VAL(val));				\
 		} else {												\
-			error("Operands must be numbers.");			\
+			error("Operands must be numbers.");					\
 		}														\
 	} while (false)
 
-#define BINARY_CMP(left,right,op)								\
-    do {														\
+#define BINARY_CMP(left,right,op,sizeLeft,sizeRight)			\
+	do {														\
 		if (IS_NUMBER(left) && IS_NUMBER(right)) {				\
 			bool val = AS_NUMBER(left) op AS_NUMBER(right);		\
-			chunk_fallback(chunk, 1 + 4 + 4);			\
-			opStack_fallback(opStack,3);				\
-			emitByte(val ? OP_TRUE : OP_FALSE);			\
-			emitOpStack(val ? OP_TRUE : OP_FALSE, false);	\
+			chunk_fallback(chunk, 1 + sizeLeft + sizeRight);	\
+			opStack_fallback(opStack,3);						\
+			emitByte(val ? OP_TRUE : OP_FALSE);					\
+			emitOpStack(val ? OP_TRUE : OP_FALSE, false);		\
 		} else {												\
-			error("Operands must be numbers.");			\
+			error("Operands must be numbers.");					\
 		}														\
 	} while (false)
 
 	switch (code) {
 	case OP_ADD: {
 		if (isBothConstant) {
-			uint32_t idx_left = READ_24BITS_INDEX(1 + 4);//add + const
-			uint32_t idx_right = READ_24BITS_INDEX(1); //add
-
-			Value left = READ_CONSTANT(idx_left);
-			Value right = READ_CONSTANT(idx_right);
+			Value left = READ_CONST_VALUE(isLeftConstNumber, 1 + CONST_SIZE(isRightConstNumber));
+			Value right = READ_CONST_VALUE(isRightConstNumber, 1);
 
 			if (IS_NUMBER(left) && IS_NUMBER(right)) {
 				double val = AS_NUMBER(left) + AS_NUMBER(right);
-				chunk_fallback(chunk, 1 + 4 + 4);//add + const + const
+				chunk_fallback(chunk, 1 + CONST_SIZE(isLeftConstNumber) + CONST_SIZE(isRightConstNumber));//add + const + const
 				opStack_fallback(opStack, 3);
-				emitConstant(NUMBER_VAL(val));
+				emitNumberConstant(NUMBER_VAL(val));
 			}
 			else if (IS_STRING(left) && IS_STRING(right)) {
 				ObjString* val = connectString(AS_STRING(left), AS_STRING(right));
-				chunk_fallback(chunk, 1 + 4 + 4);//add + const + const
+				chunk_fallback(chunk, 1 + CONST_SIZE(isLeftConstNumber) + CONST_SIZE(isRightConstNumber));//add + const + const
 				opStack_fallback(opStack, 3);
 				emitConstant(OBJ_VAL(val));
 			}
@@ -1803,11 +1877,13 @@ static void instructionOptimize() {
 				error("Operands must be two numbers or two strings.");
 			}
 		}
-		else if (isRightConstant) {
+		else if (isRightConstNumber) {
+			//number constant -> super instruction,16bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack();
-			CHUNK_PEEK(3) = OP_ADD_CONST; //convert command
+			CHUNK_PEEK(2) = OP_ADD_CONST; //convert command
 		}
+		//non-number constant : no super instruction for arithmetic
 		else if (isRightLocal) {
 			chunk_fallback(chunk, 1);//op
 			clearOpStack();
@@ -1817,18 +1893,17 @@ static void instructionOptimize() {
 	}
 	case OP_SUBTRACT: {
 		if (isBothConstant) {
-			uint32_t idx_left = READ_24BITS_INDEX(1 + 4);//op + const
-			uint32_t idx_right = READ_24BITS_INDEX(1); //op
-
-			Value left = READ_CONSTANT(idx_left);
-			Value right = READ_CONSTANT(idx_right);
-			BINARY_CALC(left, right, -);
+			Value left = READ_CONST_VALUE(isLeftConstNumber, 1 + CONST_SIZE(isRightConstNumber));
+			Value right = READ_CONST_VALUE(isRightConstNumber, 1);
+			BINARY_CALC(left, right, -, CONST_SIZE(isLeftConstNumber), CONST_SIZE(isRightConstNumber));
 		}
-		else if (isRightConstant) {
+		else if (isRightConstNumber) {
+			//number constant -> super instruction,16bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack();
-			CHUNK_PEEK(3) = OP_SUBTRACT_CONST; //convert command
+			CHUNK_PEEK(2) = OP_SUBTRACT_CONST; //convert command
 		}
+		//non-number constant : no super instruction for arithmetic
 		else if (isRightLocal) {
 			chunk_fallback(chunk, 1);//op
 			clearOpStack();
@@ -1838,18 +1913,17 @@ static void instructionOptimize() {
 	}
 	case OP_MULTIPLY: {
 		if (isBothConstant) {
-			uint32_t idx_left = READ_24BITS_INDEX(1 + 4);//op + const
-			uint32_t idx_right = READ_24BITS_INDEX(1); //op
-
-			Value left = READ_CONSTANT(idx_left);
-			Value right = READ_CONSTANT(idx_right);
-			BINARY_CALC(left, right, *);
+			Value left = READ_CONST_VALUE(isLeftConstNumber, 1 + CONST_SIZE(isRightConstNumber));
+			Value right = READ_CONST_VALUE(isRightConstNumber, 1);
+			BINARY_CALC(left, right, *, CONST_SIZE(isLeftConstNumber), CONST_SIZE(isRightConstNumber));
 		}
-		else if (isRightConstant) {
+		else if (isRightConstNumber) {
+			//number constant -> super instruction,16bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack();
-			CHUNK_PEEK(3) = OP_MULTIPLY_CONST; //convert command
+			CHUNK_PEEK(2) = OP_MULTIPLY_CONST; //convert command
 		}
+		//non-number constant : no super instruction for arithmetic
 		else if (isRightLocal) {
 			chunk_fallback(chunk, 1);//op
 			clearOpStack();
@@ -1859,18 +1933,17 @@ static void instructionOptimize() {
 	}
 	case OP_DIVIDE: {
 		if (isBothConstant) {
-			uint32_t idx_left = READ_24BITS_INDEX(1 + 4);//op + const
-			uint32_t idx_right = READ_24BITS_INDEX(1); //op
-
-			Value left = READ_CONSTANT(idx_left);
-			Value right = READ_CONSTANT(idx_right);
-			BINARY_CALC(left, right, / );
+			Value left = READ_CONST_VALUE(isLeftConstNumber, 1 + CONST_SIZE(isRightConstNumber));
+			Value right = READ_CONST_VALUE(isRightConstNumber, 1);
+			BINARY_CALC(left, right, / , CONST_SIZE(isLeftConstNumber), CONST_SIZE(isRightConstNumber));
 		}
-		else if (isRightConstant) {
+		else if (isRightConstNumber) {
+			//number constant -> super instruction,16bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack();
-			CHUNK_PEEK(3) = OP_DIVIDE_CONST; //convert command
+			CHUNK_PEEK(2) = OP_DIVIDE_CONST; //convert command
 		}
+		//non-number constant : no super instruction for arithmetic
 		else if (isRightLocal) {
 			chunk_fallback(chunk, 1);//op
 			clearOpStack();
@@ -1880,27 +1953,26 @@ static void instructionOptimize() {
 	}
 	case OP_MODULUS: {
 		if (isBothConstant) {
-			uint32_t idx_left = READ_24BITS_INDEX(1 + 4);//op + const
-			uint32_t idx_right = READ_24BITS_INDEX(1); //op
-
-			Value left = READ_CONSTANT(idx_left);
-			Value right = READ_CONSTANT(idx_right);
+			Value left = READ_CONST_VALUE(isLeftConstNumber, 1 + CONST_SIZE(isRightConstNumber));
+			Value right = READ_CONST_VALUE(isRightConstNumber, 1);
 
 			if (IS_NUMBER(left) && IS_NUMBER(right)) {
 				double val = fmod(AS_NUMBER(left), AS_NUMBER(right));
-				chunk_fallback(chunk, 1 + 4 + 4);//op + const + const
+				chunk_fallback(chunk, 1 + CONST_SIZE(isLeftConstNumber) + CONST_SIZE(isRightConstNumber));//op + const + const
 				opStack_fallback(opStack, 3);
-				emitConstant(NUMBER_VAL(val));
+				emitNumberConstant(NUMBER_VAL(val));
 			}
 			else {
 				error("Operands must be numbers.");
 			}
 		}
-		else if (isRightConstant) {
+		else if (isRightConstNumber) {
+			//number constant -> super instruction,16bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack();
-			CHUNK_PEEK(3) = OP_MODULUS_CONST; //convert command
+			CHUNK_PEEK(2) = OP_MODULUS_CONST; //convert command
 		}
+		//non-number constant : no super instruction for arithmetic
 		else if (isRightLocal) {
 			chunk_fallback(chunk, 1);//op
 			clearOpStack();
@@ -1910,7 +1982,13 @@ static void instructionOptimize() {
 	}
 	case OP_NOT: {
 		//all constants are true
-		if (isRightConstant) {
+		if (isRightConstNumber) {
+			chunk_fallback(chunk, 1 + 3);//op + const
+			opStack_fallback(opStack, 2);
+			emitByte(OP_FALSE);
+			emitOpStack(OP_FALSE, false);
+		}
+		else if (prevRight == OP_CONSTANT) {
 			chunk_fallback(chunk, 1 + 4);//op + const
 			opStack_fallback(opStack, 2);
 			emitByte(OP_FALSE);
@@ -1936,19 +2014,18 @@ static void instructionOptimize() {
 		break;
 	}
 	case OP_NEGATE: {
-		if (isRightConstant) {
-			uint32_t idx_right = READ_24BITS_INDEX(1); //op
-			Value right = READ_CONSTANT(idx_right);
+		if (isRightConstNumber) {
+			//number constants only,always foldable
+			Value right = READ_LOCAL_CONSTANT(READ_16BITS_INDEX(1));
 
-			if (IS_NUMBER(right)) {
-				double val = -AS_NUMBER(right);
-				chunk_fallback(chunk, 1 + 4);//op + const
-				opStack_fallback(opStack, 2);
-				emitConstant(NUMBER_VAL(val));
-			}
-			else {
-				error("Operand must be a number.");
-			}
+			double val = -AS_NUMBER(right);
+			chunk_fallback(chunk, 1 + 3);//op + const
+			opStack_fallback(opStack, 2);
+			emitNumberConstant(NUMBER_VAL(val));
+		}
+		else if (prevRight == OP_CONSTANT) {
+			//non-number constant
+			error("Operand must be a number.");
 		}
 		else if (prevRight == OP_FALSE || prevRight == OP_TRUE || prevRight == OP_NIL) {
 			error("Operand must be a number.");
@@ -1961,20 +2038,24 @@ static void instructionOptimize() {
 		break;
 	}
 	case OP_EQUAL: {
-		if (isBothConstant) {
-			uint32_t idx_left = READ_24BITS_INDEX(1 + 4);//op + const
-			uint32_t idx_right = READ_24BITS_INDEX(1); //op
-
-			Value left = READ_CONSTANT(idx_left);
-			Value right = READ_CONSTANT(idx_right);
+		if ((isLeftConstant || isLeftLiteral) && (isRightConstant || isRightLiteral)) {
+			Value left = READ_OPERAND(prevLeft, 1 + OPERAND_SIZE(prevRight));
+			Value right = READ_OPERAND(prevRight, 1);
 
 			bool val = valuesEqual(left, right);
-			chunk_fallback(chunk, 1 + 4 + 4);//op + const + const
+			chunk_fallback(chunk, 1 + OPERAND_SIZE(prevLeft) + OPERAND_SIZE(prevRight));//op + const + const
 			opStack_fallback(opStack, 3);
 			emitByte(val ? OP_TRUE : OP_FALSE);
 			emitOpStack(val ? OP_TRUE : OP_FALSE, false);
 		}
-		else if (isRightConstant) {
+		else if (isRightConstNumber) {
+			//number constant -> super instruction,16bits index
+			chunk_fallback(chunk, 1);//op
+			clearOpStack();
+			CHUNK_PEEK(2) = OP_EQUAL_CONST_NUMBER; //convert command
+		}
+		else if (prevRight == OP_CONSTANT) {
+			//non-number constant -> super instruction,24bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack();
 			CHUNK_PEEK(3) = OP_EQUAL_CONST; //convert command
@@ -1987,20 +2068,24 @@ static void instructionOptimize() {
 		break;
 	}
 	case OP_NOT_EQUAL: {
-		if (isBothConstant) {
-			uint32_t idx_left = READ_24BITS_INDEX(1 + 4);//op + const
-			uint32_t idx_right = READ_24BITS_INDEX(1); //op
-
-			Value left = READ_CONSTANT(idx_left);
-			Value right = READ_CONSTANT(idx_right);
+		if ((isLeftConstant || isLeftLiteral) && (isRightConstant || isRightLiteral)) {
+			Value left = READ_OPERAND(prevLeft, 1 + OPERAND_SIZE(prevRight));
+			Value right = READ_OPERAND(prevRight, 1);
 
 			bool val = !valuesEqual(left, right);
-			chunk_fallback(chunk, 1 + 4 + 4);//op + const + const
+			chunk_fallback(chunk, 1 + OPERAND_SIZE(prevLeft) + OPERAND_SIZE(prevRight));//op + const + const
 			opStack_fallback(opStack, 3);
 			emitByte(val ? OP_TRUE : OP_FALSE);
 			emitOpStack(val ? OP_TRUE : OP_FALSE, false);
 		}
-		else if (isRightConstant) {
+		else if (isRightConstNumber) {
+			//number constant -> super instruction,16bits index
+			chunk_fallback(chunk, 1);//op
+			clearOpStack();
+			CHUNK_PEEK(2) = OP_NOT_EQUAL_CONST_NUMBER; //convert command
+		}
+		else if (prevRight == OP_CONSTANT) {
+			//non-number constant -> super instruction,24bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack();
 			CHUNK_PEEK(3) = OP_NOT_EQUAL_CONST; //convert command
@@ -2014,18 +2099,17 @@ static void instructionOptimize() {
 	}
 	case OP_GREATER: {
 		if (isBothConstant) {
-			uint32_t idx_left = READ_24BITS_INDEX(1 + 4);//op + const
-			uint32_t idx_right = READ_24BITS_INDEX(1); //op
-
-			Value left = READ_CONSTANT(idx_left);
-			Value right = READ_CONSTANT(idx_right);
-			BINARY_CMP(left, right, > );
+			Value left = READ_CONST_VALUE(isLeftConstNumber, 1 + CONST_SIZE(isRightConstNumber));
+			Value right = READ_CONST_VALUE(isRightConstNumber, 1);
+			BINARY_CMP(left, right, > , CONST_SIZE(isLeftConstNumber), CONST_SIZE(isRightConstNumber));
 		}
-		else if (isRightConstant) {
+		else if (isRightConstNumber) {
+			//number constant -> super instruction,16bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack();
-			CHUNK_PEEK(3) = OP_GREATER_CONST; //convert command
+			CHUNK_PEEK(2) = OP_GREATER_CONST; //convert command
 		}
+		//non-number constant : no super instruction for ordering comparisons
 		else if (isRightLocal) {
 			chunk_fallback(chunk, 1);//op
 			clearOpStack();
@@ -2035,18 +2119,17 @@ static void instructionOptimize() {
 	}
 	case OP_LESS: {
 		if (isBothConstant) {
-			uint32_t idx_left = READ_24BITS_INDEX(1 + 4);//op + const
-			uint32_t idx_right = READ_24BITS_INDEX(1); //op
-
-			Value left = READ_CONSTANT(idx_left);
-			Value right = READ_CONSTANT(idx_right);
-			BINARY_CMP(left, right, < );
+			Value left = READ_CONST_VALUE(isLeftConstNumber, 1 + CONST_SIZE(isRightConstNumber));
+			Value right = READ_CONST_VALUE(isRightConstNumber, 1);
+			BINARY_CMP(left, right, < , CONST_SIZE(isLeftConstNumber), CONST_SIZE(isRightConstNumber));
 		}
-		else if (isRightConstant) {
+		else if (isRightConstNumber) {
+			//number constant -> super instruction,16bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack();
-			CHUNK_PEEK(3) = OP_LESS_CONST; //convert command
+			CHUNK_PEEK(2) = OP_LESS_CONST; //convert command
 		}
+		//non-number constant : no super instruction for ordering comparisons
 		else if (isRightLocal) {
 			chunk_fallback(chunk, 1);//op
 			clearOpStack();
@@ -2056,18 +2139,17 @@ static void instructionOptimize() {
 	}
 	case OP_LESS_EQUAL: {
 		if (isBothConstant) {
-			uint32_t idx_left = READ_24BITS_INDEX(1 + 4);//op + const
-			uint32_t idx_right = READ_24BITS_INDEX(1); //op
-
-			Value left = READ_CONSTANT(idx_left);
-			Value right = READ_CONSTANT(idx_right);
-			BINARY_CMP(left, right, <= );
+			Value left = READ_CONST_VALUE(isLeftConstNumber, 1 + CONST_SIZE(isRightConstNumber));
+			Value right = READ_CONST_VALUE(isRightConstNumber, 1);
+			BINARY_CMP(left, right, <= , CONST_SIZE(isLeftConstNumber), CONST_SIZE(isRightConstNumber));
 		}
-		else if (isRightConstant) {
+		else if (isRightConstNumber) {
+			//number constant -> super instruction,16bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack();
-			CHUNK_PEEK(3) = OP_LESS_EQUAL_CONST; //convert command
+			CHUNK_PEEK(2) = OP_LESS_EQUAL_CONST; //convert command
 		}
+		//non-number constant : no super instruction for ordering comparisons
 		else if (isRightLocal) {
 			chunk_fallback(chunk, 1);//op
 			clearOpStack();
@@ -2077,18 +2159,17 @@ static void instructionOptimize() {
 	}
 	case OP_GREATER_EQUAL: {
 		if (isBothConstant) {
-			uint32_t idx_left = READ_24BITS_INDEX(1 + 4);//op + const
-			uint32_t idx_right = READ_24BITS_INDEX(1); //op
-
-			Value left = READ_CONSTANT(idx_left);
-			Value right = READ_CONSTANT(idx_right);
-			BINARY_CMP(left, right, >= );
+			Value left = READ_CONST_VALUE(isLeftConstNumber, 1 + CONST_SIZE(isRightConstNumber));
+			Value right = READ_CONST_VALUE(isRightConstNumber, 1);
+			BINARY_CMP(left, right, >= , CONST_SIZE(isLeftConstNumber), CONST_SIZE(isRightConstNumber));
 		}
-		else if (isRightConstant) {
+		else if (isRightConstNumber) {
+			//number constant -> super instruction,16bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack();
-			CHUNK_PEEK(3) = OP_GREATER_EQUAL_CONST; //convert command
+			CHUNK_PEEK(2) = OP_GREATER_EQUAL_CONST; //convert command
 		}
+		//non-number constant : no super instruction for ordering comparisons
 		else if (isRightLocal) {
 			chunk_fallback(chunk, 1);//op
 			clearOpStack();
@@ -2097,15 +2178,15 @@ static void instructionOptimize() {
 		break;
 	}
 	case OP_BITWISE: {
-		if (isRightConstant) {
+		if (isRightConstNumber) {
 			uint8_t bitOp = CHUNK_PEEK(0);
 			// no optimization for NOT, because it has only one operand
 			if (bitOp == BIT_OP_NOT) {
 				break;
 			}
 
-			uint32_t idx_right = READ_24BITS_INDEX(2); //op
-			Value right = READ_CONSTANT(idx_right);
+			uint32_t idx_right = READ_16BITS_INDEX(2); //op
+			Value right = READ_LOCAL_CONSTANT(idx_right);
 
 			if (!IS_NUMBER(right)) {
 				error("Operand of bitwise must be a number.");
@@ -2125,17 +2206,17 @@ static void instructionOptimize() {
 			switch (bitOp)
 			{
 			case BIT_OP_AND:
-				chunk_fallback(chunk, 2 + 4);//op + const
+				chunk_fallback(chunk, 2 + 3);//op + const
 				emitBytes(6, OP_BITWISE, BIT_OP_ANDI, (uint8_t)rightIMM, (uint8_t)(rightIMM >> 8), (uint8_t)(rightIMM >> 16), (uint8_t)(rightIMM >> 24));
 				clearOpStack();
 				break;
 			case BIT_OP_OR:
-				chunk_fallback(chunk, 2 + 4);//op + const
+				chunk_fallback(chunk, 2 + 3);//op + const
 				emitBytes(6, OP_BITWISE, BIT_OP_ORI, (uint8_t)rightIMM, (uint8_t)(rightIMM >> 8), (uint8_t)(rightIMM >> 16), (uint8_t)(rightIMM >> 24));
 				clearOpStack();
 				break;
 			case BIT_OP_XOR:
-				chunk_fallback(chunk, 2 + 4);//op + const
+				chunk_fallback(chunk, 2 + 3);//op + const
 				emitBytes(6, OP_BITWISE, BIT_OP_XORI, (uint8_t)rightIMM, (uint8_t)(rightIMM >> 8), (uint8_t)(rightIMM >> 16), (uint8_t)(rightIMM >> 24));
 				clearOpStack();
 				break;
@@ -2145,7 +2226,7 @@ static void instructionOptimize() {
 					break;
 				}
 				rightIMM &= 31;
-				chunk_fallback(chunk, 2 + 4);//op + const
+				chunk_fallback(chunk, 2 + 3);//op + const
 				emitBytes(3, OP_BITWISE, BIT_OP_SHLI, (uint8_t)rightIMM);
 				clearOpStack();
 				break;
@@ -2155,7 +2236,7 @@ static void instructionOptimize() {
 					break;
 				}
 				rightIMM &= 31;
-				chunk_fallback(chunk, 2 + 4);//op + const
+				chunk_fallback(chunk, 2 + 3);//op + const
 				emitBytes(3, OP_BITWISE, BIT_OP_SHRI, (uint8_t)rightIMM);
 				clearOpStack();
 				break;
@@ -2165,7 +2246,7 @@ static void instructionOptimize() {
 					break;
 				}
 				rightIMM &= 31;
-				chunk_fallback(chunk, 2 + 4);//op + const
+				chunk_fallback(chunk, 2 + 3);//op + const
 				emitBytes(3, OP_BITWISE, BIT_OP_SARI, (uint8_t)rightIMM);
 				clearOpStack();
 				break;
@@ -2173,6 +2254,10 @@ static void instructionOptimize() {
 				fprintf(stderr, "Unexpected Bitwise(%u)\n", bitOp);
 				break;
 			}
+		}
+		else if (prevRight == OP_CONSTANT) {
+			//non-number constant
+			error("Operand of bitwise must be a number.");
 		}
 		break;
 	}
@@ -2191,6 +2276,32 @@ static void instructionOptimize() {
 				clearOpStack();
 			}
 		}
+		else if (prevRight == OP_SET_PROPERTY) {
+			//set property + pop -> set property and pop
+			chunk_fallback(chunk, 1);//pop
+			CHUNK_PEEK(3) = OP_SET_PROPERTY_POP; //convert command
+			clearOpStack();
+		}
+		else if (prevRight == OP_GET_LOCAL) {
+			//get local + pop -> dead code
+			chunk_fallback(chunk, 3 + 1); //get_local(3) + pop
+			opStack_fallback(opStack, 2);
+		}
+		else if (prevRight == OP_CONST_NUMBER) {
+			//constant(number) + pop -> dead code
+			chunk_fallback(chunk, 3 + 1); //const_number(3) + pop
+			opStack_fallback(opStack, 2);
+		}
+		else if (prevRight == OP_CONSTANT) {
+			//constant(non-number) + pop -> dead code
+			chunk_fallback(chunk, 4 + 1); //constant(4) + pop
+			opStack_fallback(opStack, 2);
+		}
+		else if (prevRight == OP_TRUE || prevRight == OP_FALSE || prevRight == OP_NIL) {
+			//literal + pop -> dead code
+			chunk_fallback(chunk, 1 + 1); //literal(1) + pop
+			opStack_fallback(opStack, 2);
+		}
 		break;
 	}
 	case OP_SET_LOCAL: {
@@ -2203,9 +2314,16 @@ static void instructionOptimize() {
 	}
 
 #undef CHUNK_PEEK
-#undef READ_CONSTANT
+#undef READ_GLOBAL_CONSTANT
+#undef READ_LOCAL_CONSTANT
 #undef READ_SHORT_INDEX
 #undef READ_24BITS_INDEX
+#undef READ_16BITS_INDEX
+#undef CONST_SIZE
+#undef READ_INDEX
+#undef READ_CONST_VALUE
+#undef OPERAND_SIZE
+#undef READ_OPERAND
 #undef BINARY_CALC
 #undef BINARY_CMP
 }
