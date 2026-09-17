@@ -21,15 +21,18 @@
 //(a cold function with a single call site would still be inlined without it)
 #if IS_CLANGCL || IS_CLANG || IS_GCC
 #define HOT_FUNCTION    __attribute__((hot))
-#define COLD_FUNCTION   __attribute__((cold, noinline))
+#define COLD_FUNCTION   __attribute__((cold))
+#define NOINLINE_FUNCTION __attribute__((noinline))
 #define COMPUTE_GOTO 1
 #elif IS_MSVC
 #define HOT_FUNCTION    __pragma(optimize("t", on))
-#define COLD_FUNCTION   __pragma(optimize("t", off)) __declspec(noinline)
+#define COLD_FUNCTION   __pragma(optimize("t", off))
+#define NOINLINE_FUNCTION __declspec(noinline)
 #define COMPUTE_GOTO 0
 #else
 #define HOT_FUNCTION
 #define COLD_FUNCTION
+#define NOINLINE_FUNCTION
 #define COMPUTE_GOTO 0
 #endif
 

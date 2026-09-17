@@ -1,0 +1,165 @@
+//IC poison semantics: a field whose name shadows a method must divert invoke to the field,
+//and un-shadowing must restore the method,with the invoke cache never serving stale targets
+var passCount = 0;
+
+fun checkEq(name, actual, expected) {
+	if (actual != expected) {
+		print "FAIL: " + name;
+		print "  expected:";
+		print expected;
+		print "  actual:";
+		print actual;
+		throw "assertion failed";
+	}
+	passCount = passCount + 1;
+}
+
+//S1: field shadows own-class method; un-shadow restores the method
+class S1 {
+	init() {
+		this.v = 1;
+	}
+	act() {
+		return 100;
+	}
+}
+var s1 = S1();
+checkEq("S1 method before shadow", s1.act(), 100);
+s1.act = lambda () => 999;
+checkEq("S1 shadowed invoke", s1.act(), 999);
+s1.act = nil;
+checkEq("S1 method after unshadow", s1.act(), 100);
+s1.act = lambda () => 888;
+checkEq("S1 re-shadow", s1.act(), 888);
+s1.act = nil;
+checkEq("S1 un-shadow again", s1.act(), 100);
+
+//S2: field shadows an INHERITED method (copied into the subclass methods table)
+class S2Base {
+	init() {}
+	m() {
+		return 1;
+	}
+}
+class S2 < S2Base {
+	init() {
+		super.init();
+		this.w = 2;
+	}
+}
+var s2 = S2();
+checkEq("S2 inherited method", s2.m(), 1);
+s2.m = lambda () => 2;
+checkEq("S2 shadowed inherited", s2.m(), 2);
+s2.m = nil;
+checkEq("S2 restored inherited", s2.m(), 1);
+
+//S3: same class,one poisoned instance and one clean,invoked through one shared call site
+class S3 {
+	init() {
+		this.v = 0;
+	}
+	act() {
+		return 10;
+	}
+}
+fun invokeAct(o) {
+	return o.act();
+}
+var clean = S3();
+var dirty = S3();
+dirty.act = lambda () => 20;
+var sum = 0;
+var ti = 0;
+for (var i = 0; i < 400; i = i + 1) {
+	if (ti == 0) {
+		sum = sum + invokeAct(clean);
+		ti = 1;
+	}
+	else {
+		sum = sum + invokeAct(dirty);
+		ti = 0;
+	}
+}
+checkEq("S3 clean/dirty alternation", sum, 6000);
+
+//S4: callable field on a method-less class (poisoned on first invoke via field hit)
+class S4 {}
+var s4 = S4();
+s4.fn = lambda () => 7;
+checkEq("S4 field invoke 1", s4.fn(), 7);
+checkEq("S4 field invoke 2", s4.fn(), 7);
+
+//S5: alternating poisoned/clean instances in a loop with GC churn
+class S5 {
+	init() {
+		this.v = 1;
+	}
+	m() {
+		return 5;
+	}
+}
+var acc = 0;
+var flag = 0;
+for (var i = 0; i < 1000; i = i + 1) {
+	var inst = S5();
+	if (flag == 0) {
+		flag = 1;
+	}
+	else {
+		inst.m = lambda () => 6;
+		flag = 0;
+	}
+	acc = acc + inst.m();
+}
+checkEq("S5 mixed poisoned/clean", acc, 5500);
+
+//S6: field named init shadowing the constructor name
+class S6 {
+	init() {
+		this.v = 0;
+	}
+}
+var s6 = S6();
+checkEq("S6 constructed", s6.v, 0);
+s6.init = lambda () => 1;
+checkEq("S6 init shadowed", s6.init(), 1);
+s6.init = nil;
+
+//S7: one SET site, two classes with different method sets -> memo thrash must stay correct
+//S7A has method m (insert shadows -> poison),S7B has no method m (insert must NOT poison)
+class S7A {
+	init() {}
+	m() {
+		return 1;
+	}
+}
+class S7B {
+	init() {}
+	n() {
+		return 2;
+	}
+}
+fun shadowSet(o) {
+	o.m = lambda () => 3;
+}
+var s7a = S7A();
+var s7b = S7B();
+var ti7 = 0;
+for (var i = 0; i < 200; i = i + 1) {
+	if (ti7 == 0) {
+		shadowSet(s7a);
+		ti7 = 1;
+	}
+	else {
+		shadowSet(s7b);
+		ti7 = 0;
+	}
+}
+checkEq("S7A shadowed field invoke", s7a.m(), 3);
+checkEq("S7B non-shadow field invoke", s7b.m(), 3);
+checkEq("S7B own method intact", s7b.n(), 2);
+checkEq("S7A method was shadowed not erased", s7a.m(), 3);
+
+print "PASS shadow";
+print passCount;

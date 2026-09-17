@@ -919,6 +919,7 @@ static bool bitInstruction(uint8_t bitOpType, uint8_t** ip_ptr) {
 //(cold + noinline so a single call site cannot be inlined back into the hot dispatch loop)
 
 COLD_FUNCTION
+NOINLINE_FUNCTION
 static void icGetPropertySlow(ObjInstance* instance, ObjString* name, uint8_t slot, InlineCacheSlot* icCache) {
 	Value value;
 	Entry* entry;
@@ -938,6 +939,7 @@ static void icGetPropertySlow(ObjInstance* instance, ObjString* name, uint8_t sl
 }
 
 COLD_FUNCTION
+NOINLINE_FUNCTION
 static void icSetPropertySlow(ObjInstance* instance, ObjString* name, Value newValue, uint8_t slot, InlineCacheSlot* icCache) {
 	if (NOT_NIL(newValue)) {
 		Value oldValue;
@@ -953,11 +955,32 @@ static void icSetPropertySlow(ObjInstance* instance, ObjString* name, Value newV
 		else {
 			//new field: insert (cold path, may rehash)
 			tableSet(&instance->fields, name, newValue);
-			//shadow check: field name collides with a method name → poison this instance
-			if (instance->klass != NULL) {
+			//shadow check: a NEW field name colliding with a method name poisons this instance
+			//memoized per call site in the slot's spare pointers:the property name is a compile-time
+			//constant,so for one klass the answer never changes (methods are immutable once instances
+			//exist,same assumption as the invoke cache)
+			//extraA = klass guard,extraB = NULL (no shadow) or the shadowing method closure
+			if (instance->klass == NULL) {
+				//nothing to shadow
+			}
+			else if (slot != 0 && (ObjClass*)icCache[slot].extraA == instance->klass) {
+				//memo hit:skip the methods table probe
+				if (icCache[slot].extraB != NULL) {
+					INSTANCE_POISON(instance) = 1;
+				}
+			}
+			else {
 				Value methodValue;
 				if (tableGet(&instance->klass->methods, name, &methodValue)) {
-					instance->fields.extendPayload[INSTANCE_POISON_INDEX_IN_TABLE] = 1;
+					INSTANCE_POISON(instance) = 1;
+					if (slot != 0) {
+						icCache[slot].extraA = instance->klass;
+						icCache[slot].extraB = AS_CLOSURE(methodValue);
+					}
+				}
+				else if (slot != 0) {
+					icCache[slot].extraA = instance->klass;
+					icCache[slot].extraB = NULL;
 				}
 			}
 		}
@@ -969,12 +992,13 @@ static void icSetPropertySlow(ObjInstance* instance, ObjString* name, Value newV
 
 //returns true if a callee was entered,false if a runtime error was reported
 COLD_FUNCTION
+NOINLINE_FUNCTION
 static bool icInvokeSlow(ObjInstance* instance, ObjString* method, uint8_t argCount, uint8_t slot, InlineCacheSlot* icCache) {
 	//slow path: field hit shadows method → poison + callValue
 	Value value;
 	Entry* entry;
 	if (tableGetEntry(&instance->fields, method, &value, &entry)) {
-		instance->fields.extendPayload[INSTANCE_POISON_INDEX_IN_TABLE] = 1;
+		INSTANCE_POISON(instance) = 1;
 		STACK_PEEK(argCount) = value;
 		return callValue(value, argCount);
 	}
@@ -1237,6 +1261,11 @@ static InterpretResult run()
 			if (IS_CLASS(superclass)) {
 				ObjClass* subclass = AS_CLASS(vm.stackTop[-1]);
 				tableAddAll(&AS_CLASS(superclass)->methods, &subclass->methods);
+				//inherited constructor:keep the initializer fast path in sync with the copied methods table
+				//(a subclass init declared after this would overwrite it via defineMethod)
+				if (IS_NIL(subclass->initializer)) {
+					subclass->initializer = AS_CLASS(superclass)->initializer;
+				}
 				stack_pop(); // Subclass.
 			}
 			else {
