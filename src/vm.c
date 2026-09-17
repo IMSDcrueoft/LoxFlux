@@ -196,6 +196,14 @@ Value stack_pop()
 #define STACK_PEEK(distance) (vm.stackTop[-1 - distance])
 
 COLD_FUNCTION
+void defineNative_math_number(C_STR name, double value) {
+	tableSet(&vm.builtins[MODULE_MATH].fields,
+		copyString(name, (uint32_t)strlen(name), false),
+		NUMBER_VAL(value)
+	);
+}
+
+COLD_FUNCTION
 void defineNative_math(C_STR name, NativeFn function) {
 	tableSet(&vm.builtins[MODULE_MATH].fields,
 		copyString(name, (uint32_t)strlen(name), false),
@@ -936,6 +944,11 @@ static void icGetPropertySlow(ObjInstance* instance, ObjString* name, uint8_t sl
 	if (instance->klass != NULL) {
 		bindMethod(instance->klass, name);
 	}
+	else {
+		//klass-less instances (builtin modules) have no method fallback:undefined property reads nil
+		//(without this the instance itself would leak out as the read result)
+		stack_replace(NIL_VAL);
+	}
 }
 
 COLD_FUNCTION
@@ -1492,6 +1505,10 @@ static InterpretResult run()
 					//don't throw error
 					if (instance->klass != NULL) {
 						bindMethod(instance->klass, name);
+					}
+					else {
+						//klass-less instances (builtin modules):undefined property reads nil
+						stack_replace(NIL_VAL);
 					}
 					NEXT_INSTRUCTION;
 				}

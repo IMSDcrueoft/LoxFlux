@@ -1,5 +1,5 @@
 # LoxFlux
-![Version](https://img.shields.io/badge/version-0.10.5-blue)
+![Version](https://img.shields.io/badge/version-0.10.7-blue)
 
 LoxFlux is an independent reimplementation of the cLox interpreter described in "Crafting Interpreters"—a stack-based bytecode virtual machine. All code is written from scratch, following the book’s design principles. This project is still actively being developed and improved.
 
@@ -233,6 +233,23 @@ The `@math` module provides a comprehensive set of mathematical functions and ut
 - **Special Value Checks**:
   - `isNaN`: Checks if a value is NaN (Not a Number).
   - `isFinite`: Checks if a value is finite (not infinite or NaN).
+
+- **Constants**:
+  - `NaN`: Quiet NaN (Not a Number), the result of undefined numeric operations such as `0/0`.
+  - `Infinity`: Positive infinity.
+  - `EPSILON`: The machine epsilon (`2.220446049250313e-16`), the smallest number satisfying `1 + EPSILON > 1`.
+  - `MAX_VALUE`: The largest finite double value (`1.7976931348623157e+308`).
+  - `MIN_VALUE`: The smallest positive subnormal double value (`5e-324`).
+  - `MAX_SAFE_INTEGER`: The largest integer that can be represented exactly in a double (`2^53 - 1 = 9007199254740991`).
+  - `MIN_SAFE_INTEGER`: The negative counterpart (`-9007199254740991`).
+  - `E`: Euler's number.
+  - `LN2`: Natural logarithm of 2.
+  - `LN10`: Natural logarithm of 10.
+  - `LOG2E`: Base-2 logarithm of e.
+  - `LOG10E`: Base-10 logarithm of e.
+  - `PI`: The circle constant π.
+  - `SQRT1_2`: Square root of 1/2.
+  - `SQRT2`: Square root of 2.
 
 These functions are designed to provide robust mathematical capabilities while maintaining high performance through native implementation. They are ideal for scientific computations, game development, simulations, and other domains requiring precise numerical operations.
 

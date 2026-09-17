@@ -220,6 +220,24 @@ COLD_FUNCTION
 void importNative_math() {
 	xoshiro256starstar_init(&rng, get_utc_milliseconds());
 
+	defineNative_math_number("NaN", NAN);
+	defineNative_math_number("Infinity", INFINITY);
+	defineNative_math_number("EPSILON", DBL_EPSILON);
+
+	defineNative_math_number("MAX_VALUE", DBL_MAX);
+	defineNative_math_number("MIN_VALUE", DBL_TRUE_MIN);   // C11；5e-324
+	defineNative_math_number("MAX_SAFE_INTEGER", 9007199254740991.0);   // 2^53 - 1
+	defineNative_math_number("MIN_SAFE_INTEGER", -9007199254740991.0);  // -(2^53 - 1)
+
+	defineNative_math_number("E", 2.7182818284590452354);
+	defineNative_math_number("LN2", 0.69314718055994530942);
+	defineNative_math_number("LN10", 2.30258509299404568402);
+	defineNative_math_number("LOG2E", 1.4426950408889634074);
+	defineNative_math_number("LOG10E", 0.43429448190325182765);
+	defineNative_math_number("PI", 3.14159265358979323846);
+	defineNative_math_number("SQRT1_2", 0.70710678118654752440);
+	defineNative_math_number("SQRT2", 1.41421356237309504880);
+
 	defineNative_math("max", maxNative);
 	defineNative_math("min", minNative);
 	defineNative_math("abs", absNative);
