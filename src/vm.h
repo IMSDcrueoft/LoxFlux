@@ -21,7 +21,12 @@ typedef struct {
 	uint8_t* ip;
 	Value* slots; //first avilable slot
 	ptrdiff_t slotsOffset;// offset of the first slot in the vm stack, not a ptr, so that we can realloc the stack when needed
+	InlineCacheSlot* caches;// IC slots of frame->closure->function, resolved once per call to avoid per-op deref chains
 } CallFrame;
+
+//frames live in a static array indexed by the dispatch loop; a silent size/layout
+//shift here changes cache-line packing of hot frames and can move dispatch performance
+_Static_assert(sizeof(CallFrame) == 40, "CallFrame layout changed; re-verify dispatch benchmarks");
 
 typedef struct {
 	//a cache

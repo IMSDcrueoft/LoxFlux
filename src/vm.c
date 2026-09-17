@@ -571,6 +571,7 @@ static bool call(ObjClosure* closure, int argCount) {
 	//-1 is for function itself
 	frame->slots = vm.stackTop - argCount - 1;
 	frame->slotsOffset = (ptrdiff_t)(frame->slots - vm.stack);
+	frame->caches = closure->function->caches;
 
 	// clear extra args
 	if (argCount > closure->function->arity) {
@@ -1307,7 +1308,7 @@ static InterpretResult run()
 			ObjString* name = AS_STRING(constant);
 			uint8_t slot = READ_BYTE();
 			//icCache derived per handler,not a run()-wide local,to keep the dispatch loop's live ranges small
-			InlineCacheSlot* icCache = frame->closure->function->caches;
+			InlineCacheSlot* icCache = frame->caches;
 
 			//inline cache: validate [capacity, entry index] against the live table
 			//slot 0 = sentinel slot {0,0}: real table capacity is never 0 → miss; idx bound check guards capacity==0 tables
@@ -1336,7 +1337,7 @@ static InterpretResult run()
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			uint8_t slot = READ_BYTE();
-			InlineCacheSlot* icCache = frame->closure->function->caches;
+			InlineCacheSlot* icCache = frame->caches;
 
 			//inline cache: direct write only for existing entries with non-nil value (nil means delete)
 			if (NOT_NIL(vm.stackTop[-1])) {
@@ -1368,7 +1369,7 @@ static InterpretResult run()
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			uint8_t slot = READ_BYTE();
-			InlineCacheSlot* icCache = frame->closure->function->caches;
+			InlineCacheSlot* icCache = frame->caches;
 
 			//inline cache: direct write only for existing entries with non-nil value (nil means delete)
 			if (NOT_NIL(vm.stackTop[-1])) {
@@ -1949,7 +1950,7 @@ static InterpretResult run()
 			ObjString* method = AS_STRING(constant);
 			uint8_t argCount = READ_BYTE();
 			uint8_t slot = READ_BYTE();
-			InlineCacheSlot* icCache = frame->closure->function->caches;
+			InlineCacheSlot* icCache = frame->caches;
 
 			Value receiver = STACK_PEEK(argCount);
 			if (!IS_INSTANCE(receiver)) {
