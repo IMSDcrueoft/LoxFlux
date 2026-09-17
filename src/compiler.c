@@ -188,7 +188,14 @@ static uint8_t emitCacheSlot(void) {
 
 	if (current->cacheCapacity < (uint32_t)current->cacheCount + 2) {//real slot k lives at array index k+1
 		uint32_t capacity = GROW_CAPACITY(current->cacheCapacity);
+		bool firstAlloc = (current->function->caches == NULL);
 		current->function->caches = GROW_ARRAY_NO_GC(InlineCacheSlot, current->function->caches, current->cacheCapacity, capacity);
+		if (firstAlloc) {//malloc memory is not zeroed: init the shared sentinel slot at index 0
+			current->function->caches[0].capacity = 0;
+			current->function->caches[0].index = 0;
+			current->function->caches[0].extraA = NULL;
+			current->function->caches[0].extraB = NULL;
+		}
 		current->cacheCapacity = capacity;
 	}
 
