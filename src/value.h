@@ -116,7 +116,7 @@ typedef struct {
 } ValueHoles;
 
 bool valuesEqual(Value a, Value b);
-void convert_adaptive_double(double value, char* buffer, uint32_t bufferSize);//buffer size should > 32
+void convert_adaptive_double(double value, char* buffer, uint32_t bufferSize);//ECMAScript type Number; buffer size 40 is enough
 void printValue(Value value);
 void printValue_sys(Value value);
 

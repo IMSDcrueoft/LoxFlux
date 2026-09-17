@@ -488,7 +488,7 @@ static void printArrayLike(ObjArray* array, bool isExpand) {
 					break;
 				}
 				case OBJ_ARRAY_U32:
-					printf("%d", ARRAY_ELEMENT(array, uint32_t, i));
+					printf("%u", ARRAY_ELEMENT(array, uint32_t, i));
 					break;
 				case OBJ_ARRAY_I32:
 					printf("%d", ARRAY_ELEMENT(array, int32_t, i));
