@@ -138,7 +138,7 @@ ObjInstance* newInstance(ObjClass* klass) {
 	instance->klass = klass;
 	instance->fields.isGlobal = false;
 	instance->fields.isFrozen = false;
-	instance->fieldsPoison = false;
+	INSTANCE_POISON(instance) = 0;
 	table_init(&instance->fields);
 	return instance;
 }

@@ -28,7 +28,7 @@ typedef struct {
 	bool isGlobal;
 	bool isFrozen;
 
-	uint8_t padding[6];
+	uint8_t extendPayload[6];
 
 	uint32_t count;
 	uint32_t capacity;
