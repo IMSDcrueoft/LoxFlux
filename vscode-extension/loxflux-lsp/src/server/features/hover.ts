@@ -135,6 +135,17 @@ export function hoverAt(doc: ParsedDocument, offset: number, store: DocumentStor
 						}
 						return { contents: markdown(parts.join('\n\n')) };
 					}
+				} else if (receiver.kind === 'module') {
+					const mod = BUILTIN_MODULES[receiver.moduleKey];
+					const member = mod?.members.find((m) => m.name === prop.name.text);
+					if (member) {
+						const label = member.kind === 'constant' ? 'Constant' : member.kind === 'class' ? 'Class' : 'Function';
+						const parts = [`\`\`\`lox\n${member.signature}\n\`\`\``, `*${label}* (builtin)`];
+						if (member.doc) {
+							parts.push(member.doc);
+						}
+						return { contents: markdown(parts.join('\n\n')) };
+					}
 				}
 				return undefined;
 			}

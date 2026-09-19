@@ -7,7 +7,7 @@
 
 export interface BuiltinMember {
 	name: string;
-	kind: 'function' | 'class';
+	kind: 'function' | 'class' | 'constant';
 	signature: string;
 	doc: string;
 }
@@ -26,11 +26,30 @@ function cls(name: string, params: string, doc: string): BuiltinMember {
 	return { name, kind: 'class', signature: `${name}(${params})`, doc };
 }
 
+function constant(name: string, value: string, doc: string): BuiltinMember {
+	return { name, kind: 'constant', signature: `${name} = ${value}`, doc };
+}
+
 export const BUILTIN_MODULES: Record<string, BuiltinModule> = {
 	'@math': {
 		name: '@math',
 		doc: 'Mathematical functions and utilities implemented as native bindings.',
 		members: [
+			constant('NaN', 'NaN', 'Quiet NaN (Not a Number), the result of undefined numeric operations such as `0/0`.'),
+			constant('Infinity', 'Infinity', 'Positive infinity.'),
+			constant('EPSILON', '2.220446049250313e-16', 'The machine epsilon, the smallest number satisfying `1 + EPSILON > 1`.'),
+			constant('MAX_VALUE', '1.7976931348623157e+308', 'The largest finite double value.'),
+			constant('MIN_VALUE', '5e-324', 'The smallest positive subnormal double value.'),
+			constant('MAX_SAFE_INTEGER', '9007199254740991', 'The largest integer that can be represented exactly in a double (`2^53 - 1`).'),
+			constant('MIN_SAFE_INTEGER', '-9007199254740991', 'The negative counterpart of `MAX_SAFE_INTEGER`.'),
+			constant('E', '2.718281828459045', "Euler's number."),
+			constant('LN2', '0.6931471805599453', 'Natural logarithm of 2.'),
+			constant('LN10', '2.302585092994046', 'Natural logarithm of 10.'),
+			constant('LOG2E', '1.4426950408889634', 'Base-2 logarithm of e.'),
+			constant('LOG10E', '0.4342944819032518', 'Base-10 logarithm of e.'),
+			constant('PI', '3.141592653589793', 'The circle constant π.'),
+			constant('SQRT1_2', '0.7071067811865476', 'Square root of 1/2.'),
+			constant('SQRT2', '1.4142135623730951', 'Square root of 2.'),
 			fn('max', 'a, b, ...', 'Returns the maximum value among the provided arguments.'),
 			fn('min', 'a, b, ...', 'Returns the minimum value among the provided arguments.'),
 			fn('abs', 'x', 'Computes the absolute value of a number.'),

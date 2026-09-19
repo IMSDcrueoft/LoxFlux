@@ -40,6 +40,16 @@ function functionItem(name: string, signature: string, doc: string): CompletionI
 	};
 }
 
+function constantItem(name: string, signature: string, doc: string): CompletionItem {
+	return {
+		label: name,
+		kind: CompletionItemKind.Constant,
+		detail: signature,
+		documentation: { kind: MarkupKind.Markdown, value: doc } as MarkupContent,
+		insertText: name,
+	};
+}
+
 /** Item text should replace the partial word being typed. */
 function wordRangeAt(doc: ParsedDocument, offset: number): { start: number; end: number } | undefined {
 	const text = doc.text;
@@ -224,7 +234,11 @@ function memberCompletions(
 		const mod = BUILTIN_MODULES[info.moduleKey];
 		if (mod) {
 			for (const m of mod.members) {
-				items.push(functionItem(m.name, m.signature, m.doc));
+				if (m.kind === 'constant') {
+					items.push(constantItem(m.name, m.signature, m.doc));
+				} else {
+					items.push(functionItem(m.name, m.signature, m.doc));
+				}
 			}
 		}
 		return items;
