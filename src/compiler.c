@@ -946,11 +946,12 @@ static void forStatement() {
 
 	int32_t exitJump = -1;
 	if (!match(TOKEN_SEMICOLON)) {//for(; here ;)
+		int32_t condStart = currentChunk()->count;
 		expression();
 		consume(TOKEN_SEMICOLON, "Expect ';' after loop condition.");
 
 		// Jump out of the loop if the condition is false.
-		exitJump = emitJump(OP_JUMP_IF_FALSE_POP);
+		exitJump = emitBranchJump(OP_JUMP_IF_FALSE_POP, condStart);
 	}
 
 	//the code is: init,condition,increase,body,loop_to_increase
