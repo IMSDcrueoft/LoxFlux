@@ -17,3 +17,17 @@ print p.x;      // 5
 //nil value deletes the field
 p.x = nil;
 print p.x;      // nil
+
+//subscript assignment -> should also compile to OP_SET_PROPERTY_POP
+p["x"] = 10;
+p["y"] = 20;
+print p.x + p.y; // 30
+
+//as sub-expression, still keep OP_SET_PROPERTY (result stays on stack)
+var w = (p["x"] = 5);
+print w;        // 5
+print p.x;      // 5
+
+//nil value deletes the field via subscript
+p["x"] = nil;
+print p.x;      // nil

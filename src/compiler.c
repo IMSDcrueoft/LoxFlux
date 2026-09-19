@@ -1538,7 +1538,12 @@ static void mergeSubscript(uint8_t code, bool isAssignment) {
 		if (IS_STRING(val)) {
 			emitConstantCommond(isAssignment ? OP_SET_PROPERTY : OP_GET_PROPERTY, index);
 			emitByte(emitCacheSlot());
-			if (isAssignment || !foldBuiltinNumber()) {
+			if (isAssignment) {
+				//clear expression ops,keep SET_PROPERTY for POP merge
+				clearOpStack();
+				emitOpStack(OP_SET_PROPERTY, false);
+			}
+			else if (!foldBuiltinNumber()) {
 				clearOpStack();
 			}
 		}
