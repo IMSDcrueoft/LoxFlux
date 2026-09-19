@@ -1,0 +1,19 @@
+class FA { init() { this.x = 1; } }
+class FC { init() { this.p = 9; this.q = 9; this.r = 9; this.x = 3; } }
+var fa = FA();
+var fc = FC();
+var obj = fa;
+var i = 0;
+var s = 0;
+var start = clock();
+while (i < 3000000) {
+  s = s + obj.x;
+  if (obj == fa) {
+    obj = fc;
+  } else {
+    obj = fa;
+  }
+  i = i + 1;
+}
+print "field_diff_layout";
+print clock() - start;

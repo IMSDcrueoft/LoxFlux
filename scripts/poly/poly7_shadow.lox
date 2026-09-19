@@ -1,0 +1,26 @@
+class S { m() { return "method"; } }
+fun fieldM() { return "field"; }
+var s1 = S();
+var s2 = S();
+s2.m = fieldM;
+var so = s1;
+var i = 0;
+var hits = 0;
+var start = clock();
+while (i < 1000000) {
+  if (so.m() == "field") {
+    hits = hits + 1;
+  } else {
+    hits = hits + 2;
+  }
+  if (so == s1) {
+    so = s2;
+  } else {
+    so = s1;
+  }
+  i = i + 1;
+}
+print "shadow_hits";
+print hits;
+print "shadow_time";
+print clock() - start;

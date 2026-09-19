@@ -1,0 +1,35 @@
+class A { m() { return 1; } }
+class B { m() { return 2; } }
+class C { m() { return 3; } }
+class D { m() { return 4; } }
+class E { m() { return 5; } }
+class F { m() { return 6; } }
+var a = A();
+var b = B();
+var c = C();
+var d = D();
+var e = E();
+var f = F();
+var obj = a;
+var i = 0;
+var s = 0;
+var start = clock();
+while (i < 3000000) {
+  s = s + obj.m();
+  if (obj == a) {
+    obj = b;
+  } else if (obj == b) {
+    obj = c;
+  } else if (obj == c) {
+    obj = d;
+  } else if (obj == d) {
+    obj = e;
+  } else if (obj == e) {
+    obj = f;
+  } else {
+    obj = a;
+  }
+  i = i + 1;
+}
+print "megamorphic";
+print clock() - start;
