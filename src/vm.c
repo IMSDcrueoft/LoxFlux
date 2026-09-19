@@ -2412,7 +2412,7 @@ static InterpretResult run()
 
 			if (IS_NUMBER(local)) {
 				stack_push(NUMBER_VAL(-AS_NUMBER(local)));
-				break;
+				NEXT_INSTRUCTION;
 			}
 			else {
 				RUNTIME_ERROR("Operand must be a number.");
