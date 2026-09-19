@@ -61,6 +61,9 @@ static void markRoots() {
 	//the shared constants don't gc
 	//markConstants(&vm.constants);
 
+	//inline caches are WEAK references: invoke slots holding dead ObjClass*/ObjClosure*
+	//are cleared in gc_clear_dead_ic_slots() after tracing, before sweep frees them
+
 	markCompilerRoots();
 
 	//markObject((Obj*)vm.initString);
@@ -128,15 +131,15 @@ static void blackenObject(Obj* object) {
 		markObject((Obj*)bound->method);
 		break;
 	}
-	// //won't be here
-	//case OBJ_FUNCTION: {
-	//	ObjFunction* function = (ObjFunction*)object;
-	//	markObject((Obj*)function->name);
+						 // //won't be here
+						 //case OBJ_FUNCTION: {
+						 //	ObjFunction* function = (ObjFunction*)object;
+						 //	markObject((Obj*)function->name);
 
-	//	//I don't have this field in design
-	//	//markArray(&function->chunk.constants);
-	//	break;
-	//}
+						 //	//I don't have this field in design
+						 //	//markArray(&function->chunk.constants);
+						 //	break;
+						 //}
 	case OBJ_CLASS: {
 		ObjClass* klass = (ObjClass*)object;
 		//markObject((Obj*)klass->name);
@@ -192,6 +195,29 @@ static void sweep() {
 	}
 }
 
+//inline caches are weak references: clear any invoke slot whose cached ObjClass*/ObjClosure*
+//did not survive this GC cycle. Runs after tracing (final mark state) and before sweep
+//(so the fast path never compares against freed or reused memory; NULL extraA always misses)
+static void gc_clear_dead_ic_slots() {
+	for (uint32_t i = 0; i < vm.icFuncCount; i++) {
+		ObjFunction* fn = vm.icFuncs[i];
+		if (fn == NULL || fn->caches == NULL) continue;
+
+		for (uint16_t j = 0; j <= fn->cacheCount; j++) {
+			InlineCacheSlot* c = &fn->caches[j];
+			Obj* a = (Obj*)c->extraA;
+			Obj* b = (Obj*)c->extraB;
+			if (a == NULL && b == NULL) continue;
+
+			if ((a != NULL && a->isMarked != vm.gcMark) ||
+				(b != NULL && b->isMarked != vm.gcMark)) {
+				c->extraA = NULL;
+				c->extraB = NULL;
+			}
+		}
+	}
+}
+
 void garbageCollect()
 {
 #if DEBUG_LOG_GC
@@ -207,6 +233,9 @@ void garbageCollect()
 
 	markRoots();
 	traceReferences();
+	//inline caches are weak: drop slots that reference objects which are about to die
+	//(must run before sweep so the fast path never compares against freed memory)
+	gc_clear_dead_ic_slots();
 	//tableRemoveWhite(&vm.strings);
 	sweep();
 

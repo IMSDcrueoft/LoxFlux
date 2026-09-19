@@ -1,0 +1,225 @@
+//IC field cache (GET/SET_PROPERTY) correctness tests
+//covers: hit path, rehash invalidation, polymorphic sites, delete/re-add, type roundtrip
+var passCount = 0;
+
+fun checkEq(name, actual, expected) {
+	if (actual != expected) {
+		print "FAIL: " + name;
+		print "  expected:";
+		print expected;
+		print "  actual:";
+		print actual;
+		throw "assertion failed";
+	}
+	passCount = passCount + 1;
+}
+
+fun checkNil(name, actual) {
+	if (actual != nil) {
+		print "FAIL: " + name;
+		print "  expected nil, actual:";
+		print actual;
+		throw "assertion failed";
+	}
+	passCount = passCount + 1;
+}
+
+//A1: repeated read on one instance (cache hit path)
+class A1 {
+	init(v) {
+		this.v = v;
+	}
+}
+var a1 = A1(42);
+var sum = 0;
+for (var i = 0; i < 100; i = i + 1) {
+	sum = sum + a1.v;
+}
+checkEq("A1 repeated read", sum, 4200);
+
+//A2: rehash invalidation - grow fields table through two rehashes (8 -> 16 -> 32)
+//each read happens while later inserts may have rehashed the table
+class A2 {}
+var a2 = A2();
+a2.f0 = 0;
+checkEq("A2 f0 pass1", a2.f0, 0);
+a2.f1 = 1;
+checkEq("A2 f1 pass1", a2.f1, 1);
+a2.f2 = 2;
+a2.f3 = 3;
+checkEq("A2 f2 pass1", a2.f2, 2);
+checkEq("A2 f3 pass1", a2.f3, 3);
+a2.f4 = 4;
+a2.f5 = 5;
+a2.f6 = 6;
+a2.f7 = 7;
+checkEq("A2 f0 after grow1", a2.f0, 0);
+checkEq("A2 f4 pass1", a2.f4, 4);
+checkEq("A2 f5 pass1", a2.f5, 5);
+checkEq("A2 f6 pass1", a2.f6, 6);
+checkEq("A2 f7 pass1", a2.f7, 7);
+a2.f8 = 8;
+a2.f9 = 9;
+a2.f10 = 10;
+a2.f11 = 11;
+a2.f12 = 12;
+checkEq("A2 f1 after grow2", a2.f1, 1);
+checkEq("A2 f8 pass1", a2.f8, 8);
+checkEq("A2 f9 pass1", a2.f9, 9);
+checkEq("A2 f10 pass1", a2.f10, 10);
+checkEq("A2 f11 pass1", a2.f11, 11);
+checkEq("A2 f12 pass1", a2.f12, 12);
+a2.f13 = 13;
+a2.f14 = 14;
+a2.f15 = 15;
+a2.f16 = 16;
+a2.f17 = 17;
+a2.f18 = 18;
+a2.f19 = 19;
+a2.f20 = 20;
+a2.f21 = 21;
+a2.f22 = 22;
+a2.f23 = 23;
+checkEq("A2 f3 after grow3", a2.f3, 3);
+checkEq("A2 f13 pass1", a2.f13, 13);
+checkEq("A2 f14 pass1", a2.f14, 14);
+checkEq("A2 f15 pass1", a2.f15, 15);
+checkEq("A2 f16 pass1", a2.f16, 16);
+checkEq("A2 f17 pass1", a2.f17, 17);
+checkEq("A2 f18 pass1", a2.f18, 18);
+checkEq("A2 f19 pass1", a2.f19, 19);
+checkEq("A2 f20 pass1", a2.f20, 20);
+checkEq("A2 f21 pass1", a2.f21, 21);
+checkEq("A2 f22 pass1", a2.f22, 22);
+checkEq("A2 f23 pass1", a2.f23, 23);
+//second pass: every site must survive across all the rehashes
+checkEq("A2 f0 pass2", a2.f0, 0);
+checkEq("A2 f1 pass2", a2.f1, 1);
+checkEq("A2 f2 pass2", a2.f2, 2);
+checkEq("A2 f3 pass2", a2.f3, 3);
+checkEq("A2 f4 pass2", a2.f4, 4);
+checkEq("A2 f5 pass2", a2.f5, 5);
+checkEq("A2 f6 pass2", a2.f6, 6);
+checkEq("A2 f7 pass2", a2.f7, 7);
+checkEq("A2 f8 pass2", a2.f8, 8);
+checkEq("A2 f9 pass2", a2.f9, 9);
+checkEq("A2 f10 pass2", a2.f10, 10);
+checkEq("A2 f11 pass2", a2.f11, 11);
+checkEq("A2 f12 pass2", a2.f12, 12);
+checkEq("A2 f13 pass2", a2.f13, 13);
+checkEq("A2 f14 pass2", a2.f14, 14);
+checkEq("A2 f15 pass2", a2.f15, 15);
+checkEq("A2 f16 pass2", a2.f16, 16);
+checkEq("A2 f17 pass2", a2.f17, 17);
+checkEq("A2 f18 pass2", a2.f18, 18);
+checkEq("A2 f19 pass2", a2.f19, 19);
+checkEq("A2 f20 pass2", a2.f20, 20);
+checkEq("A2 f21 pass2", a2.f21, 21);
+checkEq("A2 f22 pass2", a2.f22, 22);
+checkEq("A2 f23 pass2", a2.f23, 23);
+
+//A3: polymorphic site - one call site, alternating instances with different field layouts
+//PA has 1 field (capacity 8), PB has 11 fields (capacity 16+) so the cached
+//(capacity, index) pair mismatches on every switch and must fall back safely
+class PA {
+	init() {
+		this.x = 1;
+	}
+}
+class PB {
+	init() {
+		this.p0 = 0;
+		this.p1 = 0;
+		this.p2 = 0;
+		this.p3 = 0;
+		this.p4 = 0;
+		this.p5 = 0;
+		this.p6 = 0;
+		this.p7 = 0;
+		this.p8 = 0;
+		this.p9 = 0;
+		this.x = 5;
+	}
+}
+var pa = PA();
+var pb = PB();
+var picks = [pa, pb];
+
+fun readX(o) {
+	return o.x;
+}
+
+var ti = 0;
+var accA = 0;
+var accB = 0;
+for (var i = 0; i < 400; i = i + 1) {
+	if (ti == 0) {
+		accA = accA + readX(pa);
+		ti = 1;
+	}
+	else {
+		accB = accB + readX(pb);
+		ti = 0;
+	}
+}
+checkEq("A3 polymorphic pa.x", accA, 200);
+checkEq("A3 polymorphic pb.x", accB, 1000);
+
+//A4: delete then re-read, re-set, re-delete
+class D4 {
+	init() {
+		this.v = 1;
+	}
+}
+var d4 = D4();
+checkEq("A4 initial", d4.v, 1);
+d4.v = nil;
+checkNil("A4 after delete", d4.v);
+d4.v = 7;
+checkEq("A4 re-added", d4.v, 7);
+d4.v = nil;
+checkNil("A4 re-deleted", d4.v);
+d4.v = 8;
+checkEq("A4 re-added again", d4.v, 8);
+
+//A5: SET overwrite existing field (fast direct write path)
+var d4b = D4();
+for (var i = 0; i < 50; i = i + 1) {
+	d4b.v = i;
+}
+checkEq("A5 overwrite loop", d4b.v, 49);
+
+//A6: value type roundtrip at cached sites
+class Inner {
+	init(v) {
+		this.v = v;
+	}
+}
+var mixed = D4();
+var inner = Inner(9);
+mixed.n = 1.5;
+mixed.s = "txt";
+mixed.b = true;
+mixed.arr = [1, 2, 3];
+mixed.inst = inner;
+checkEq("A6 number", mixed.n, 1.5);
+checkEq("A6 string", mixed.s, "txt");
+checkEq("A6 bool", mixed.b, true);
+checkEq("A6 array length", @array.length(mixed.arr), 3);
+checkEq("A6 array elem", mixed.arr[1], 2);
+checkEq("A6 nested instance", mixed.inst.v, 9);
+mixed.n = 2.25;
+checkEq("A6 number overwrite", mixed.n, 2.25);
+mixed.s = "txt2";
+checkEq("A6 string overwrite", mixed.s, "txt2");
+
+//A7: subscript form with string constant compiles to the same cached property ops
+class A7 {}
+var a7 = A7();
+a7["key"] = 11;
+checkEq("A7 subscript set/get", a7["key"], 11);
+a7["key"] = 12;
+checkEq("A7 subscript overwrite", a7["key"], 12);
+
+print "PASS fieldCache";
+print passCount;

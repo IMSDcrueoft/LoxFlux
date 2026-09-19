@@ -107,6 +107,17 @@ static inline Obj stateLess_obj_header(ObjType objType) {
 
 #endif
 
+//inline cache slot: cached probe position of a table entry
+//capacity==0 means "never filled" (a real table capacity is never 0) → guaranteed slow path
+//u16 pairs: tables bigger than UINT16_MAX are simply not cached (backfill-side guard)
+//pointer fields: method invoke cache (klass/closure); always NULL for field sites (GC marks non-NULL ones)
+typedef struct {
+	uint32_t capacity;
+	uint32_t index;
+	void* extraA; //invoke: ObjClass*
+	void* extraB; //invoke: ObjClosure*
+} InlineCacheSlot;
+
 typedef struct {
 	Obj obj;
 	uint16_t arity;
@@ -114,6 +125,10 @@ typedef struct {
 	uint32_t id;
 	Chunk chunk;			// function bytecodes
 	ValueArray constants;	// function field constants
+
+	uint16_t cacheCount;	// number of allocated slots (capped at UINT8_MAX: the slot operand is u8)
+	InlineCacheSlot* caches;			// inline cache slots, sized at compile time, runtime only overwrites (numbers + gc-marked pointers)
+	
 	ObjString* name;
 } ObjFunction;
 
@@ -158,7 +173,14 @@ typedef struct {
 	Obj obj;
 	ObjClass* klass;
 	Table fields;
+	//fields shadowing a method name is tracked by fields.isPoisoned (kept inside Table's padding
+	//so ObjInstance stays 8+8+24 = 40 bytes)
 } ObjInstance;
+
+// only 0 to 5
+#define INSTANCE_POISON_INDEX_IN_TABLE 0
+// get the poisoned flag of an instance, which is stored in the extendPayload of the fields table
+#define INSTANCE_POISON(instance) ((instance)->fields.extendPayload[INSTANCE_POISON_INDEX_IN_TABLE])
 
 #define INVALID_OBJ_STRING_SYMBOL UINT32_MAX
 struct ObjString {

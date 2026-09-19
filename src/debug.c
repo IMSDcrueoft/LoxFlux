@@ -166,9 +166,22 @@ static uint32_t invokeInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
 	//24bit index
 	uint32_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8) | ((uint32_t)chunk->code[offset + 3] << 16);
 	uint8_t argCount = chunk->code[offset + 4];
+	uint8_t slot = chunk->code[offset + 5];
 	printf("%-16s (%d args) %4d '", name, argCount, constant);
 	printValue(vm.constants.values[constant]);
-	printf("'\n");
+	printf("' (cache %u)\n", slot);
+	return offset + 6;
+}
+
+//property instruction: [op][name u24][cache slot u8]
+COLD_FUNCTION
+static uint32_t cachedPropertyInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
+	//24bit index
+	uint32_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8) | ((uint32_t)chunk->code[offset + 3] << 16);
+	uint8_t slot = chunk->code[offset + 4];
+	printf("%-16s %4d '", name, constant);
+	printValue(vm.constants.values[constant]);
+	printf("' (cache %u)\n", slot);
 	return offset + 5;
 }
 
@@ -290,11 +303,11 @@ uint32_t disassembleInstruction(ObjFunction* function, uint32_t offset) {
 	case OP_GET_SUPER:
 		return constantInstruction("OP_GET_SUPER", chunk, offset);
 	case OP_GET_PROPERTY:
-		return constantInstruction("OP_GET_PROPERTY", chunk, offset);
+		return cachedPropertyInstruction("OP_GET_PROPERTY", chunk, offset);
 	case OP_SET_PROPERTY:
-		return constantInstruction("OP_SET_PROPERTY", chunk, offset);
+		return cachedPropertyInstruction("OP_SET_PROPERTY", chunk, offset);
 	case OP_SET_PROPERTY_POP:
-		return constantInstruction("OP_SET_PROPERTY_POP", chunk, offset);
+		return cachedPropertyInstruction("OP_SET_PROPERTY_POP", chunk, offset);
 	case OP_GET_INDEX:
 		return numberConstantInstruction("OP_GET_INDEX", function, offset);
 	case OP_SET_INDEX:
@@ -442,9 +455,65 @@ void disassembleOpStack(OPStack* opStack) {
 		case OP_GREATER_EQUAL:    printf("OP_GREATER_EQUAL\n"); break;
 		case OP_BITWISE:		  printf("OP_BITWISE\n"); break;
 		case OP_POP:			  printf("OP_POP\n"); break;
-		default:
-			fprintf(stderr, "Unexpected(%u)\n", code);
-			break;
+		case OP_GET_PROPERTY:     printf("OP_GET_PROPERTY\n"); break;
+		case OP_SET_PROPERTY:     printf("OP_SET_PROPERTY\n"); break;
+		case OP_SET_PROPERTY_POP: printf("OP_SET_PROPERTY_POP\n"); break;
+		case OP_INVOKE:           printf("OP_INVOKE\n"); break;
+		case OP_CALL:             printf("OP_CALL\n"); break;
+		case OP_JUMP:             printf("OP_JUMP\n"); break;
+		case OP_LOOP:             printf("OP_LOOP\n"); break;
+		case OP_JUMP_IF_FALSE:    printf("OP_JUMP_IF_FALSE\n"); break;
+		case OP_JUMP_IF_FALSE_POP:printf("OP_JUMP_IF_FALSE_POP\n"); break;
+		case OP_JUMP_IF_TRUE:     printf("OP_JUMP_IF_TRUE\n"); break;
+		case OP_POP_N:            printf("OP_POP_N\n"); break;
+		case OP_SET_LOCAL_POP:    printf("OP_SET_LOCAL_POP\n"); break;
+		case OP_MOVE_LOCAL:       printf("OP_MOVE_LOCAL\n"); break;
+		case OP_GET_GLOBAL:       printf("OP_GET_GLOBAL\n"); break;
+		case OP_SET_GLOBAL:       printf("OP_SET_GLOBAL\n"); break;
+		case OP_DEFINE_GLOBAL:    printf("OP_DEFINE_GLOBAL\n"); break;
+		case OP_ADD_LOCAL:        printf("OP_ADD_LOCAL\n"); break;
+		case OP_SUBTRACT_LOCAL:   printf("OP_SUBTRACT_LOCAL\n"); break;
+		case OP_MULTIPLY_LOCAL:   printf("OP_MULTIPLY_LOCAL\n"); break;
+		case OP_DIVIDE_LOCAL:     printf("OP_DIVIDE_LOCAL\n"); break;
+		case OP_MODULUS_LOCAL:    printf("OP_MODULUS_LOCAL\n"); break;
+		case OP_EQUAL_LOCAL:      printf("OP_EQUAL_LOCAL\n"); break;
+		case OP_ADD_CONST:        printf("OP_ADD_CONST\n"); break;
+		case OP_SUBTRACT_CONST:   printf("OP_SUBTRACT_CONST\n"); break;
+		case OP_MULTIPLY_CONST:   printf("OP_MULTIPLY_CONST\n"); break;
+		case OP_DIVIDE_CONST:     printf("OP_DIVIDE_CONST\n"); break;
+		case OP_MODULUS_CONST:    printf("OP_MODULUS_CONST\n"); break;
+		case OP_EQUAL_CONST:      printf("OP_EQUAL_CONST\n"); break;
+		case OP_EQUAL_CONST_NUMBER: printf("OP_EQUAL_CONST_NUMBER\n"); break;
+		case OP_LESS_CONST:       printf("OP_LESS_CONST\n"); break;
+		case OP_GREATER_CONST:    printf("OP_GREATER_CONST\n"); break;
+		case OP_LESS_EQUAL_CONST: printf("OP_LESS_EQUAL_CONST\n"); break;
+		case OP_GREATER_EQUAL_CONST: printf("OP_GREATER_EQUAL_CONST\n"); break;
+		case OP_SET_INDEX:        printf("OP_SET_INDEX\n"); break;
+		case OP_GET_INDEX:        printf("OP_GET_INDEX\n"); break;
+		case OP_GET_SUPER:        printf("OP_GET_SUPER\n"); break;
+		case OP_SUPER_INVOKE:     printf("OP_SUPER_INVOKE\n"); break;
+		case OP_METHOD:           printf("OP_METHOD\n"); break;
+		case OP_INHERIT:          printf("OP_INHERIT\n"); break;
+		case OP_CLASS:            printf("OP_CLASS\n"); break;
+		case OP_MODULE_BUILTIN:   printf("OP_MODULE_BUILTIN\n"); break;
+		case OP_CLOSURE:          printf("OP_CLOSURE\n"); break;
+		case OP_RETURN:           printf("OP_RETURN\n"); break;
+		case OP_PRINT:            printf("OP_PRINT\n"); break;
+		case OP_SET_SUBSCRIPT:    printf("OP_SET_SUBSCRIPT\n"); break;
+		case OP_GET_SUBSCRIPT:    printf("OP_GET_SUBSCRIPT\n"); break;
+		case OP_GET_UPVALUE:      printf("OP_GET_UPVALUE\n"); break;
+		case OP_SET_UPVALUE:      printf("OP_SET_UPVALUE\n"); break;
+		case OP_CLOSE_UPVALUE:    printf("OP_CLOSE_UPVALUE\n"); break;
+		case OP_NEW_ARRAY:        printf("OP_NEW_ARRAY\n"); break;
+		case OP_NEW_OBJECT:       printf("OP_NEW_OBJECT\n"); break;
+		case OP_NEW_PROPERTY:     printf("OP_NEW_PROPERTY\n"); break;
+		case OP_INSTANCE_OF:      printf("OP_INSTANCE_OF\n"); break;
+		case OP_TYPE_OF:          printf("OP_TYPE_OF\n"); break;
+		case OP_THROW:            printf("OP_THROW\n"); break;
+		case OP_IMPORT:           printf("OP_IMPORT\n"); break;
+		case OP_NOT_EQUAL_CONST_NUMBER: printf("OP_NOT_EQUAL_CONST_NUMBER\n"); break;
+		case OP_NOT_EQUAL_CONST:  printf("OP_NOT_EQUAL_CONST\n"); break;
+		default: break;//unknown codes are silently ignored in the debug dump
 		}
 	}
 	printf("== opStack end ==\n");

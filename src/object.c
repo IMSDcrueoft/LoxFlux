@@ -86,6 +86,8 @@ ObjFunction* newFunction() {
 	function->name = NULL;
 	chunk_init(&function->chunk);
 	valueArray_init(&function->constants);
+	function->caches = NULL;
+	function->cacheCount = 0;
 	return function;
 }
 
@@ -136,6 +138,7 @@ ObjInstance* newInstance(ObjClass* klass) {
 	instance->klass = klass;
 	instance->fields.isGlobal = false;
 	instance->fields.isFrozen = false;
+	INSTANCE_POISON(instance) = 0;
 	table_init(&instance->fields);
 	return instance;
 }
@@ -485,7 +488,7 @@ static void printArrayLike(ObjArray* array, bool isExpand) {
 					break;
 				}
 				case OBJ_ARRAY_U32:
-					printf("%d", ARRAY_ELEMENT(array, uint32_t, i));
+					printf("%u", ARRAY_ELEMENT(array, uint32_t, i));
 					break;
 				case OBJ_ARRAY_I32:
 					printf("%d", ARRAY_ELEMENT(array, int32_t, i));

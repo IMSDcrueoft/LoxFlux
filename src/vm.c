@@ -196,6 +196,14 @@ Value stack_pop()
 #define STACK_PEEK(distance) (vm.stackTop[-1 - distance])
 
 COLD_FUNCTION
+void defineNative_math_number(C_STR name, double value) {
+	tableSet(&vm.builtins[MODULE_MATH].fields,
+		copyString(name, (uint32_t)strlen(name), false),
+		NUMBER_VAL(value)
+	);
+}
+
+COLD_FUNCTION
 void defineNative_math(C_STR name, NativeFn function) {
 	tableSet(&vm.builtins[MODULE_MATH].fields,
 		copyString(name, (uint32_t)strlen(name), false),
@@ -397,8 +405,29 @@ void vm_init()
 }
 
 COLD_FUNCTION
+void vm_register_ic_function(ObjFunction* function) {
+	if (vm.icFuncCapacity < vm.icFuncCount + 1) {
+		uint32_t capacity = GROW_CAPACITY(vm.icFuncCapacity);
+		vm.icFuncs = GROW_ARRAY_NO_GC(ObjFunction*, vm.icFuncs, vm.icFuncCapacity, capacity);
+		vm.icFuncCapacity = capacity;
+	}
+	vm.icFuncs[vm.icFuncCount++] = function;
+}
+
 void vm_free()
 {
+	//release the immortal functions' cache arrays (sized cacheCount+1 after shrink-to-fit)
+	for (uint32_t i = 0; i < vm.icFuncCount; i++) {
+		ObjFunction* fn = vm.icFuncs[i];
+		FREE_ARRAY_NO_GC(InlineCacheSlot, fn->caches, (uint32_t)fn->cacheCount + 1);
+		fn->caches = NULL;
+	}
+
+	FREE_ARRAY_NO_GC(ObjFunction*, vm.icFuncs, vm.icFuncCapacity);
+	vm.icFuncs = NULL;
+	vm.icFuncCount = 0;
+	vm.icFuncCapacity = 0;
+
 	valueArray_free(&vm.constants);
 	valueHoles_free(&vm.constantHoles);
 
@@ -542,6 +571,7 @@ static bool call(ObjClosure* closure, int argCount) {
 	//-1 is for function itself
 	frame->slots = vm.stackTop - argCount - 1;
 	frame->slotsOffset = (ptrdiff_t)(frame->slots - vm.stack);
+	frame->caches = closure->function->caches;
 
 	// clear extra args
 	if (argCount > closure->function->arity) {
@@ -615,23 +645,23 @@ static inline bool invokeFromClass(ObjClass* klass, ObjString* name, int argCoun
 	return call(AS_CLOSURE(method), argCount);
 }
 
-HOT_FUNCTION
-static inline bool invoke(ObjString* name, int argCount) {
-	Value receiver = STACK_PEEK(argCount);
-	if (!IS_INSTANCE(receiver)) {
-		runtimeError("Only instances have methods.");
-		return false;
-	}
-	ObjInstance* instance = AS_INSTANCE(receiver);
-
-	Value value;
-	if (tableGet(&instance->fields, name, &value)) {
-		STACK_PEEK(argCount) = value;
-		return callValue(value, argCount);
-	}
-
-	return invokeFromClass(instance->klass, name, argCount);
-}
+//HOT_FUNCTION
+//static inline bool invoke(ObjString* name, int argCount) {
+//	Value receiver = STACK_PEEK(argCount);
+//	if (!IS_INSTANCE(receiver)) {
+//		runtimeError("Only instances have methods.");
+//		return false;
+//	}
+//	ObjInstance* instance = AS_INSTANCE(receiver);
+//
+//	Value value;
+//	if (tableGet(&instance->fields, name, &value)) {
+//		STACK_PEEK(argCount) = value;
+//		return callValue(value, argCount);
+//	}
+//
+//	return invokeFromClass(instance->klass, name, argCount);
+//}
 
 HOT_FUNCTION
 static void bindMethod(ObjClass* klass, ObjString* name) {
@@ -894,6 +924,117 @@ static bool bitInstruction(uint8_t bitOpType, uint8_t** ip_ptr) {
 #undef READ_WORD
 }
 
+//IC slow paths: extracted from the dispatch handlers to keep run()'s code small
+//(cold + noinline so a single call site cannot be inlined back into the hot dispatch loop)
+
+COLD_FUNCTION
+NOINLINE_FUNCTION
+static void icGetPropertySlow(ObjInstance* instance, ObjString* name, uint8_t slot, InlineCacheSlot* icCache) {
+	Value value;
+	Entry* entry;
+	if (tableGetEntry(&instance->fields, name, &value, &entry)) {
+		//backfill cache
+		if (slot != 0 && instance->fields.capacity <= UINT16_MAX) {
+			icCache[slot].capacity = instance->fields.capacity;
+			icCache[slot].index = (entry - instance->fields.entries);
+		}
+		stack_replace(value);
+		return;
+	}
+	//don't throw error
+	if (instance->klass != NULL) {
+		bindMethod(instance->klass, name);
+	}
+	else {
+		//klass-less instances (builtin modules) have no method fallback:undefined property reads nil
+		//(without this the instance itself would leak out as the read result)
+		stack_replace(NIL_VAL);
+	}
+}
+
+COLD_FUNCTION
+NOINLINE_FUNCTION
+static void icSetPropertySlow(ObjInstance* instance, ObjString* name, Value newValue, uint8_t slot, InlineCacheSlot* icCache) {
+	if (NOT_NIL(newValue)) {
+		Value oldValue;
+		Entry* entry;
+		if (tableGetEntry(&instance->fields, name, &oldValue, &entry)) {
+			//existing field: single-probe direct write + backfill
+			entry->value = newValue;
+			if (slot != 0 && instance->fields.capacity <= UINT16_MAX) {
+				icCache[slot].capacity = instance->fields.capacity;
+				icCache[slot].index = (entry - instance->fields.entries);
+			}
+		}
+		else {
+			//new field: insert (cold path, may rehash)
+			tableSet(&instance->fields, name, newValue);
+			//shadow check: a NEW field name colliding with a method name poisons this instance
+			//memoized per call site in the slot's spare pointers:the property name is a compile-time
+			//constant,so for one klass the answer never changes (methods are immutable once instances
+			//exist,same assumption as the invoke cache)
+			//extraA = klass guard,extraB = NULL (no shadow) or the shadowing method closure
+			if (instance->klass == NULL) {
+				//nothing to shadow
+			}
+			else if (slot != 0 && (ObjClass*)icCache[slot].extraA == instance->klass) {
+				//memo hit:skip the methods table probe
+				if (icCache[slot].extraB != NULL) {
+					INSTANCE_POISON(instance) = 1;
+				}
+			}
+			else {
+				Value methodValue;
+				if (tableGet(&instance->klass->methods, name, &methodValue)) {
+					INSTANCE_POISON(instance) = 1;
+					if (slot != 0) {
+						icCache[slot].extraA = instance->klass;
+						icCache[slot].extraB = AS_CLOSURE(methodValue);
+					}
+				}
+				else if (slot != 0) {
+					icCache[slot].extraA = instance->klass;
+					icCache[slot].extraB = NULL;
+				}
+			}
+		}
+	}
+	else {
+		tableDelete(&instance->fields, name);
+	}
+}
+
+//returns true if a callee was entered,false if a runtime error was reported
+COLD_FUNCTION
+NOINLINE_FUNCTION
+static bool icInvokeSlow(ObjInstance* instance, ObjString* method, uint8_t argCount, uint8_t slot, InlineCacheSlot* icCache) {
+	//slow path: field hit shadows method → poison + callValue
+	Value value;
+	Entry* entry;
+	if (tableGetEntry(&instance->fields, method, &value, &entry)) {
+		INSTANCE_POISON(instance) = 1;
+		STACK_PEEK(argCount) = value;
+		return callValue(value, argCount);
+	}
+
+	//method lookup (klass may be NULL → undefined)
+	if (instance->klass == NULL) {
+		runtimeError("Undefined property '%s'.", method->chars);
+		return false;
+	}
+	Value methodValue;
+	if (!tableGetEntry(&instance->klass->methods, method, &methodValue, &entry)) {
+		runtimeError("Undefined property '%s'.", method->chars);
+		return false;
+	}
+	//backfill cache
+	if (slot != 0) {
+		icCache[slot].extraA = instance->klass;
+		icCache[slot].extraB = AS_CLOSURE(methodValue);
+	}
+	return call(AS_CLOSURE(methodValue), argCount);
+}
+
 //to run code in vm
 HOT_FUNCTION
 static InterpretResult run()
@@ -1023,8 +1164,8 @@ static InterpretResult run()
 #define READ_SHORT() (ip += 2, (uint16_t)(ip[-2] | (ip[-1] << 8)))
 #define READ_24bits() (ip += 3, (uint32_t)(ip[-3] | (ip[-2] << 8) | (ip[-1] << 16)))
 #define READ_CONSTANT(index) (vm.constants.values[(index)])
-//constants in function's own table (number),16bits index
-//cached as a run() local next to frame/ip,refreshed at every frame switch
+	//constants in function's own table (number),16bits index
+	//cached as a run() local next to frame/ip,refreshed at every frame switch
 #define READ_LOCAL_CONSTANT(index) (constants[(index)])
 
 	// push(pop() op pop())
@@ -1134,6 +1275,11 @@ static InterpretResult run()
 			if (IS_CLASS(superclass)) {
 				ObjClass* subclass = AS_CLASS(vm.stackTop[-1]);
 				tableAddAll(&AS_CLASS(superclass)->methods, &subclass->methods);
+				//inherited constructor:keep the initializer fast path in sync with the copied methods table
+				//(a subclass init declared after this would overwrite it via defineMethod)
+				if (IS_NIL(subclass->initializer)) {
+					subclass->initializer = AS_CLASS(superclass)->initializer;
+				}
 				stack_pop(); // Subclass.
 			}
 			else {
@@ -1160,16 +1306,24 @@ static InterpretResult run()
 			ObjInstance* instance = AS_INSTANCE(vm.stackTop[-1]);
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
+			uint8_t slot = READ_BYTE();
+			//icCache derived per handler,not a run()-wide local,to keep the dispatch loop's live ranges small
+			InlineCacheSlot* icCache = frame->caches;
 
-			Value value;
-			if (tableGet(&instance->fields, name, &value)) {
-				stack_replace(value);
-				NEXT_INSTRUCTION;
+			//inline cache: validate [capacity, entry index] against the live table
+			//slot 0 = sentinel slot {0,0}: real table capacity is never 0 → miss; idx bound check guards capacity==0 tables
+			{
+				Table* fields = &instance->fields;
+				if ((uint32_t)icCache[slot].capacity == fields->capacity) {
+					uint32_t idx = icCache[slot].index;
+					if (idx < fields->capacity && fields->entries[idx].key == name) {
+						stack_replace(fields->entries[idx].value);
+						NEXT_INSTRUCTION;
+					}
+				}
 			}
-			//don't throw error
-			if (instance->klass != NULL) {
-				bindMethod(instance->klass, name);
-			}
+
+			icGetPropertySlow(instance, name, slot, icCache);
 			NEXT_INSTRUCTION;
 		}
 		case OP_SET_PROPERTY: {
@@ -1182,12 +1336,24 @@ static InterpretResult run()
 			ObjInstance* instance = AS_INSTANCE(vm.stackTop[-2]);
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
+			uint8_t slot = READ_BYTE();
+			InlineCacheSlot* icCache = frame->caches;
+
+			//inline cache: direct write only for existing entries with non-nil value (nil means delete)
 			if (NOT_NIL(vm.stackTop[-1])) {
-				tableSet(&instance->fields, name, vm.stackTop[-1]);
+				Table* fields = &instance->fields;
+				if ((uint32_t)icCache[slot].capacity == fields->capacity) {
+					uint32_t idx = icCache[slot].index;
+					if (idx < fields->capacity && fields->entries[idx].key == name) {
+						fields->entries[idx].value = vm.stackTop[-1];
+						Value value = stack_pop();
+						stack_replace(value);
+						NEXT_INSTRUCTION;
+					}
+				}
 			}
-			else {
-				tableDelete(&instance->fields, name);
-			}
+
+			icSetPropertySlow(instance, name, vm.stackTop[-1], slot, icCache);
 			Value value = stack_pop();
 			stack_replace(value);
 			NEXT_INSTRUCTION;
@@ -1202,12 +1368,24 @@ static InterpretResult run()
 			ObjInstance* instance = AS_INSTANCE(vm.stackTop[-2]);
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
+			uint8_t slot = READ_BYTE();
+			InlineCacheSlot* icCache = frame->caches;
+
+			//inline cache: direct write only for existing entries with non-nil value (nil means delete)
 			if (NOT_NIL(vm.stackTop[-1])) {
-				tableSet(&instance->fields, name, vm.stackTop[-1]);
+				Table* fields = &instance->fields;
+				if ((uint32_t)icCache[slot].capacity == fields->capacity) {
+					uint32_t idx = icCache[slot].index;
+					if (idx < fields->capacity && fields->entries[idx].key == name) {
+						fields->entries[idx].value = vm.stackTop[-1];
+						//pop value and instance
+						vm.stackTop -= 2;
+						NEXT_INSTRUCTION;
+					}
+				}
 			}
-			else {
-				tableDelete(&instance->fields, name);
-			}
+
+			icSetPropertySlow(instance, name, vm.stackTop[-1], slot, icCache);
 			//pop value and instance
 			vm.stackTop -= 2;
 			NEXT_INSTRUCTION;
@@ -1328,6 +1506,10 @@ static InterpretResult run()
 					//don't throw error
 					if (instance->klass != NULL) {
 						bindMethod(instance->klass, name);
+					}
+					else {
+						//klass-less instances (builtin modules):undefined property reads nil
+						stack_replace(NIL_VAL);
 					}
 					NEXT_INSTRUCTION;
 				}
@@ -1767,9 +1949,34 @@ static InterpretResult run()
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* method = AS_STRING(constant);
 			uint8_t argCount = READ_BYTE();
+			uint8_t slot = READ_BYTE();
+			InlineCacheSlot* icCache = frame->caches;
+
+			Value receiver = STACK_PEEK(argCount);
+			if (!IS_INSTANCE(receiver)) {
+				frame->ip = ip;//change before call
+				runtimeError("Only instances have methods.");
+				return INTERPRET_RUNTIME_ERROR;
+			}
+			ObjInstance* instance = AS_INSTANCE(receiver);
+
+			//inline cache: [klass, closure] pointer pair; klass pointer identity is the guard
+			//(methods tables are immutable once instances can exist, so the cached closure is stable)
+			if (!INSTANCE_POISON(instance) && instance->klass != NULL) {
+				InlineCacheSlot* c = &icCache[slot];
+				if ((ObjClass*)c->extraA == instance->klass) {
+					frame->ip = ip;//change before call
+					if (!call((ObjClosure*)c->extraB, argCount)) {
+						return INTERPRET_RUNTIME_ERROR;
+					}
+					//we entered the function
+					UPDATE_FRAME();
+					NEXT_INSTRUCTION;
+				}
+			}
 
 			frame->ip = ip;//change before call
-			if (!invoke(method, argCount)) {
+			if (!icInvokeSlow(instance, method, argCount, slot, icCache)) {
 				return INTERPRET_RUNTIME_ERROR;
 			}
 			//we entered the function

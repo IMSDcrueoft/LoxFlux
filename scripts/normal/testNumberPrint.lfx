@@ -1,0 +1,47 @@
+//number printing regression: output must be byte-identical to JS String(number)
+//(ECMAScript Number::toString aligned, see convert_double_js in src/value.c)
+//verify with: python3 temp/tools/run_expect.py <bin> scripts/normal
+
+//precision: shortest round-trip digits
+print 0.1 + 0.2; // expect: 0.30000000000000004
+print 1 / 3; // expect: 0.3333333333333333
+print 2 / 3; // expect: 0.6666666666666666
+print 123.456; // expect: 123.456
+print 3.141592653589793; // expect: 3.141592653589793
+
+//tiny values must never collapse to 0
+print 1e-16; // expect: 1e-16
+print 2.5e-16; // expect: 2.5e-16
+print -2.5e-16; // expect: -2.5e-16
+print 5e-324; // expect: 5e-324
+print 5e-324 * 2; // expect: 1e-323
+
+//notation thresholds (plain decimal for 1e-6 <= |x| < 1e21)
+print 1e-7; // expect: 1e-7
+print 1e-6; // expect: 0.000001
+print 1.5e-6; // expect: 0.0000015
+print 1e20; // expect: 100000000000000000000
+print 1e21; // expect: 1e+21
+print 1e22; // expect: 1e+22
+
+//large integers: scientific notation, no silent truncation
+print @math.pow(10, 40); // expect: 1e+40
+print @math.pow(10, 45); // expect: 1e+45
+print @math.pow(10, 50); // expect: 1e+50
+print @math.pow(10, 308); // expect: 1e+308
+print @math.pow(10, 309); // expect: Infinity
+
+//special values
+print -0.0; // expect: 0
+print 1 / 0; // expect: Infinity
+print -1 / 0; // expect: -Infinity
+print 0 / 0; // expect: NaN
+
+//integer boundaries
+print 9007199254740991; // expect: 9007199254740991
+print 9007199254740993; // expect: 9007199254740992
+print @math.pow(2, 53); // expect: 9007199254740992
+print -9007199254740991; // expect: -9007199254740991
+print 100; // expect: 100
+print 1e15; // expect: 1000000000000000
+print 1e16; // expect: 10000000000000000

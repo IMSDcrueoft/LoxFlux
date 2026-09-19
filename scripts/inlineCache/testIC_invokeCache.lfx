@@ -1,0 +1,194 @@
+//IC invoke cache (OP_INVOKE) correctness tests
+//covers: hit path, klass guard with alternating classes, field shadowing (poison),
+//inheritance, super invoke, nested invokes across frames
+var passCount = 0;
+
+fun checkEq(name, actual, expected) {
+	if (actual != expected) {
+		print "FAIL: " + name;
+		print "  expected:";
+		print expected;
+		print "  actual:";
+		print actual;
+		throw "assertion failed";
+	}
+	passCount = passCount + 1;
+}
+
+//B1: repeated invoke on one instance (cache hit path)
+class Counter {
+	init() {
+		this.n = 0;
+	}
+	inc(by) {
+		this.n = this.n + by;
+		return this.n;
+	}
+}
+var counter = Counter();
+var last = 0;
+for (var i = 0; i < 1000; i = i + 1) {
+	last = counter.inc(1);
+}
+checkEq("B1 invoke hit last", last, 1000);
+checkEq("B1 field state", counter.n, 1000);
+
+//B2: single call site, alternating receiver classes (klass guard must miss + re-backfill)
+class Ca {
+	greet() {
+		return 1;
+	}
+}
+class Cb {
+	greet() {
+		return 2;
+	}
+}
+var ca = Ca();
+var cb = Cb();
+
+fun callGreet(o) {
+	return o.greet();
+}
+
+var ti = 0;
+var sumA = 0;
+var sumB = 0;
+for (var i = 0; i < 400; i = i + 1) {
+	var pick = ca;
+	if (ti == 0) {
+		pick = ca;
+		ti = 1;
+	}
+	else {
+		pick = cb;
+		ti = 0;
+	}
+	sumA = sumA + callGreet(pick);
+}
+checkEq("B2 alternating classes", sumA, 600);
+
+//B3: field shadows method name -> poison, invoke must dispatch to the field
+class Shadow {
+	init() {
+		this.h = 0;
+	}
+	act() {
+		return 100;
+	}
+}
+var sh = Shadow();
+checkEq("B3 method before shadow", sh.act(), 100);
+sh.h = 5;
+checkEq("B3 method after unrelated field", sh.act(), 100);
+var fn = lambda () => 999;
+sh.act = fn;
+checkEq("B3 shadow field value", sh.act, fn);
+checkEq("B3 invoke shadowed", sh.act(), 999);
+sh.act = nil;
+checkEq("B3 method after unshadow", sh.act(), 100);
+//re-shadow and invoke again (poison already set)
+sh.act = fn;
+checkEq("B3 invoke re-shadowed", sh.act(), 999);
+
+//B4: inheritance - inherited method, overridden method, super invoke
+class Base {
+	init() {
+		this.tag = 1;
+	}
+	who() {
+		return 1;
+	}
+	common() {
+		return 77;
+	}
+}
+class Derived < Base {
+	init() {
+		super.init();
+		this.extra = 2;
+	}
+	who() {
+		return 2;
+	}
+	callBase() {
+		return super.who();
+	}
+}
+var der = Derived();
+checkEq("B4 overridden", der.who(), 2);
+checkEq("B4 inherited", der.common(), 77);
+checkEq("B4 super invoke", der.callBase(), 1);
+checkEq("B4 base fields init", der.tag, 1);
+checkEq("B4 derived fields", der.extra, 2);
+
+//B5: constructor path followed by cached usage
+class Point5 {
+	init(x, y) {
+		this.x = x;
+		this.y = y;
+	}
+	sum() {
+		return this.x + this.y;
+	}
+}
+var total = 0;
+for (var i = 0; i < 200; i = i + 1) {
+	var p = Point5(i, 1);
+	total = total + p.sum();
+}
+checkEq("B5 ctor + invoke loop", total, 20100);
+
+//B6: nested invokes across frames (UPDATE_FRAME must refresh the cache base)
+class Chain {
+	init() {
+		this.v = 0;
+	}
+	step3() {
+		this.v = this.v + 1;
+		return this.v;
+	}
+	step2() {
+		return this.step3() + this.step3();
+	}
+	step1() {
+		return this.step2() * 10;
+	}
+}
+var chain = Chain();
+checkEq("B6 nested invoke", chain.step1(), 30);
+var t = 0;
+for (var i = 0; i < 500; i = i + 1) {
+	t = chain.step1();
+}
+checkEq("B6 nested invoke loop", t, 20030);
+checkEq("B6 chain state", chain.v, 1002);
+
+//B7: method invoking method on OTHER instances (multi-receiver cache)
+class Src {
+	init() {
+		this.v = 0;
+	}
+	add(o) {
+		this.v = this.v + o.value();
+		return this.v;
+	}
+}
+class Box {
+	init(v) {
+		this.v = v;
+	}
+	value() {
+		return this.v;
+	}
+}
+var src = Src();
+var acc = 0;
+for (var i = 0; i < 100; i = i + 1) {
+	acc = src.add(Box(i));
+}
+checkEq("B7 cross instance", acc, 4950);
+checkEq("B7 src state", src.v, 4950);
+
+print "PASS invokeCache";
+print passCount;

@@ -127,7 +127,7 @@ static void emitByte(uint8_t byte) {
 }
 
 //dynamic args
-static void emitBytes(uint32_t count, uint8_t byte, ...) {
+static void emitBytes(uint32_t count, int byte, ...) {
 	//write the first
 	emitByte(byte);
 
@@ -136,7 +136,7 @@ static void emitBytes(uint32_t count, uint8_t byte, ...) {
 	va_start(arguments, byte);
 
 	for (uint32_t i = 1; i < count; ++i) {
-		byte = va_arg(arguments, int); // int is uint8_t's upper format
+		byte = va_arg(arguments, int);
 		emitByte(byte);
 	}
 
@@ -161,6 +161,52 @@ static void emitShortCommand(OpCode target, uint32_t index) {
 	else {
 		error("Too many constants in function.");
 	}
+}
+
+//allocate one inline cache slot (raw InlineCacheSlot, zero-filled = guaranteed miss before first backfill)
+//operand encoding: 0 = sentinel (uncached site, array[0] is the shared sentinel slot), real slot k emitted as k+1
+//returns the operand to embed in the instruction
+static uint8_t emitCacheSlot(void) {
+	if (current->cacheCount + 1 > UINT8_MAX) {//operand values 1..255 are real slots
+#if DEBUG_PRINT_CODE
+		if (!current->icWarned) {
+			current->icWarned = true;
+			fprintf(stderr, "[ic] function '%s' exhausted inline-cache slots, remaining sites will not be cached\n",
+				current->function->name != NULL ? current->function->name->chars : "<script>");
+		}
+#endif
+		if (current->cacheCapacity == 0) {//sentinel sites still need array[0] to exist
+			current->function->caches = ALLOCATE_NO_GC(InlineCacheSlot, 1);
+			current->cacheCapacity = 1;
+			current->function->caches[0].capacity = 0;
+			current->function->caches[0].index = 0;
+			current->function->caches[0].extraA = NULL;
+			current->function->caches[0].extraB = NULL;
+		}
+		return 0;//sentinel
+	}
+
+	if (current->cacheCapacity < (uint32_t)current->cacheCount + 2) {//real slot k lives at array index k+1
+		uint32_t capacity = GROW_CAPACITY(current->cacheCapacity);
+		bool firstAlloc = (current->function->caches == NULL);
+		current->function->caches = GROW_ARRAY_NO_GC(InlineCacheSlot, current->function->caches, current->cacheCapacity, capacity);
+		if (firstAlloc) {//malloc memory is not zeroed: init the shared sentinel slot at index 0
+			current->function->caches[0].capacity = 0;
+			current->function->caches[0].index = 0;
+			current->function->caches[0].extraA = NULL;
+			current->function->caches[0].extraB = NULL;
+		}
+		current->cacheCapacity = capacity;
+	}
+
+	uint8_t slot = (uint8_t)(current->cacheCount + 1);//operand = real index + 1
+	current->cacheCount++;
+	current->function->caches[slot].capacity = 0;
+	current->function->caches[slot].index = 0;
+	current->function->caches[slot].extraA = NULL;
+	current->function->caches[slot].extraB = NULL;
+	current->function->cacheCount = current->cacheCount;//sync real slot count for the VM
+	return slot;
 }
 
 static int32_t emitJump(uint8_t instruction) {
@@ -197,16 +243,14 @@ static uint32_t makeConstant(Value value) {
 		//find if string is in constant,because it is in pool
 		StringEntry* entry = getStringEntryInPool(AS_STRING(value));
 
-		if (entry->index == UINT32_MAX) {
-			return (entry->index = addConstant(value) & UINT24_MAX);//set value and return
-		}
-		else {
+		if (entry != NULL) {
+			if (entry->index == UINT32_MAX) {
+				return (entry->index = addConstant(value) & UINT24_MAX);//set value and return
+			}
 			return entry->index;
 		}
 	}
-	else {
-		return addConstant(value);
-	}
+	return addConstant(value);
 }
 
 //number constants only,16bits index into function's own constants
@@ -231,6 +275,49 @@ static void emitConstant(Value value) {
 static void emitNumberConstant(Value value) {
 	emitShortCommand(OP_CONST_NUMBER, makeNumberConstant(value));
 	emitOpStack(OP_CONST_NUMBER, false);
+}
+
+//fold `OP_MODULE_BUILTIN m` + `OP_GET_PROPERTY name slot` into an immediate number constant
+//valid because builtin module fields are frozen once vm_init populates them (they never change at runtime)
+//the pre-allocated IC slot is rolled back:the folded site no longer owns one
+static bool foldBuiltinNumber(void) {
+#if COMPILATION_TIME_OPTIMIZATION
+	Chunk* chunk = currentChunk();
+
+	//chech opStack first,than use this to override old codes
+#define CHUNK_PEEK(offset) chunk->code[chunk->count - offset - 1]
+#define READ_24BITS_INDEX(offset)	\
+	(((uint32_t)chunk->code[chunk->count - (offset) - 1] << 16) +	\
+	 ((uint32_t)chunk->code[chunk->count - (offset) - 2] << 8) +	\
+	 (uint32_t)(chunk->code[chunk->count - (offset) - 3]))
+
+	if (chunk->count < 7) return false;
+	//tail layout: [BUILTIN u8][module u8][GET_PROPERTY][name u24][slot u8]
+	if (CHUNK_PEEK(6) != OP_MODULE_BUILTIN) return false;
+	if (CHUNK_PEEK(4) != OP_GET_PROPERTY) return false;
+
+	uint8_t module = CHUNK_PEEK(5);
+	uint32_t nameIdx = READ_24BITS_INDEX(1);
+	uint8_t slot = CHUNK_PEEK(0);
+
+	Value member;
+	if (!tableGet(&vm.builtins[module].fields, AS_STRING(vm.constants.values[nameIdx]), &member)) return false;
+	if (!IS_NUMBER(member)) return false;
+
+	chunk_fallback(chunk, 7);
+	// revert the allocated IC slot: the folded site no longer owns one
+	if (slot != 0) {
+		current->cacheCount--;
+		current->function->cacheCount = current->cacheCount;
+	}
+	emitNumberConstant(NUMBER_VAL(AS_NUMBER(member)));
+	return true;
+
+#undef CHUNK_PEEK
+#undef READ_24BITS_INDEX
+#else
+	return false;
+#endif
 }
 
 static void patchJump(int32_t offset) {
@@ -264,6 +351,11 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 
 	compiler->function = newFunction();
 	compiler->objectNestingDepth = 0;
+
+	//inline cache slots
+	compiler->cacheCount = 0;
+	compiler->icWarned = false;
+	compiler->cacheCapacity = 0;
 
 	opStack_init(&compiler->stack);
 	numberTable_init(&compiler->numbers);
@@ -324,6 +416,20 @@ static ObjFunction* endCompiler() {
 	numberTable_free(&current->numbers);//free every compiler's number pool (nested compilers were leaking)
 
 	ObjFunction* function = current->function;
+
+	//shrink inline caches to exactly cacheCount+1 entries (index 0 = shared sentinel slot)
+	//small functions/lambdas keep no doubling slack; functions without ic sites keep NULL
+	if (current->cacheCapacity > (uint32_t)current->cacheCount + 1) {
+		function->caches = GROW_ARRAY_NO_GC(InlineCacheSlot, function->caches, current->cacheCapacity, (uint32_t)current->cacheCount + 1);
+		current->cacheCapacity = (uint32_t)current->cacheCount + 1;
+	}
+
+	//register for gc: invoke cache slots hold ObjClass*/ObjClosure* that must stay marked
+	//also lets vm_free release the cache arrays (functions are immortal)
+	if (current->cacheCapacity > 0) {
+		vm_register_ic_function(function);
+	}
+
 #if DEBUG_PRINT_CODE
 	if (!parser.hadError) {
 		disassembleChunk(function, (function->name != NULL)
@@ -1252,6 +1358,7 @@ static void dot(bool canAssign) {
 	if (canAssign && match(TOKEN_EQUAL)) {
 		expression();
 		emitConstantCommond(OP_SET_PROPERTY, name);
+		emitByte(emitCacheSlot());
 		//clear expression ops,keep SET_PROPERTY for POP merge
 		clearOpStack();
 		emitOpStack(OP_SET_PROPERTY, false);
@@ -1260,11 +1367,15 @@ static void dot(bool canAssign) {
 		uint8_t argCount = argumentList();
 		emitConstantCommond(OP_INVOKE, name);
 		emitByte(argCount);
+		emitByte(emitCacheSlot());
 		clearOpStack();
 	}
 	else {
 		emitConstantCommond(OP_GET_PROPERTY, name);
-		clearOpStack();
+		emitByte(emitCacheSlot());
+		if (!foldBuiltinNumber()) {
+			clearOpStack();
+		}
 	}
 }
 
@@ -1340,13 +1451,13 @@ static void mergeSubscript(uint8_t code, bool isAssignment) {
 	(((uint32_t)chunk->code[chunk->count - 1] << 16) +	\
 	 ((uint32_t)chunk->code[chunk->count - 2] << 8) +	\
 	 (uint32_t)(chunk->code[chunk->count - 3]))
-#define READ_16BITS_INDEX()	\
+#define READ_SHORT_INDEX()	\
 	(((uint32_t)chunk->code[chunk->count - 2]) +	\
 	 ((uint32_t)chunk->code[chunk->count - 1] << 8))
 
 	//number constant index : OP_CONST_NUMBER 1 + 2 byte
 	if (code == OP_CONST_NUMBER) {
-		uint32_t index = READ_16BITS_INDEX();
+		uint32_t index = READ_SHORT_INDEX();
 
 		//must fallback
 		chunk_fallback(chunk, 3);
@@ -1370,7 +1481,10 @@ static void mergeSubscript(uint8_t code, bool isAssignment) {
 
 		if (IS_STRING(val)) {
 			emitConstantCommond(isAssignment ? OP_SET_PROPERTY : OP_GET_PROPERTY, index);
-			clearOpStack();
+			emitByte(emitCacheSlot());
+			if (isAssignment || !foldBuiltinNumber()) {
+				clearOpStack();
+			}
 		}
 		else {
 			error("Can only subscript with string or number.\n");
@@ -1378,7 +1492,7 @@ static void mergeSubscript(uint8_t code, bool isAssignment) {
 	}
 #undef READ_CONSTANT
 #undef READ_24BITS_INDEX
-#undef READ_16BITS_INDEX
+#undef READ_SHORT_INDEX
 }
 
 static void subscript(bool canAssign) {
@@ -1789,7 +1903,7 @@ static void instructionOptimize() {
 	bool isBothLocal = (isLeftLocal && isRightLocal);
 
 #define CHUNK_PEEK(offset) chunk->code[chunk->count - (offset) - 1]
-//constants in vm.constants (non-number),24bits index
+	//constants in vm.constants (non-number),24bits index
 #define READ_GLOBAL_CONSTANT(index) (vm.constants.values[(index)])
 //constants in function's own table (number),16bits index
 #define READ_LOCAL_CONSTANT(index) (current->function->constants.values[(index)])
@@ -1803,16 +1917,11 @@ static void instructionOptimize() {
 	 ((uint32_t)chunk->code[chunk->count - (offset) - 2] << 8) +	\
 	 (uint32_t)(chunk->code[chunk->count - (offset) - 3]))
 
-//16bits index : OP_CONST_NUMBER 1 + 2 byte
-#define READ_16BITS_INDEX(offset)	\
-	(((uint32_t)chunk->code[chunk->count - (offset) - 1] << 8) +	\
-	 ((uint32_t)chunk->code[chunk->count - (offset) - 2]))
-
 //instruction size of a constant load
 #define CONST_SIZE(isConstNumber) ((isConstNumber) ? 3 : 4)
 
 //read the index by the constant kind,offset counts from the last emitted byte
-#define READ_INDEX(isConstNumber, offset)	((isConstNumber) ? READ_16BITS_INDEX(offset) : READ_24BITS_INDEX(offset))
+#define READ_INDEX(isConstNumber, offset)	((isConstNumber) ? READ_SHORT_INDEX(offset) : READ_24BITS_INDEX(offset))
 
 //read the constant Value by the constant kind
 #define READ_CONST_VALUE(isConstNumber, offset)	\
@@ -1825,7 +1934,7 @@ static void instructionOptimize() {
 
 //resolve a compile-time constant operand (OP_CONSTANT/OP_CONST_NUMBER/OP_TRUE/OP_FALSE/OP_NIL) to its Value
 #define READ_OPERAND(op, offset)	\
-	(((op) == OP_CONST_NUMBER)	? READ_LOCAL_CONSTANT(READ_16BITS_INDEX(offset)) :	\
+	(((op) == OP_CONST_NUMBER)	? READ_LOCAL_CONSTANT(READ_SHORT_INDEX(offset)) :	\
 	 ((op) == OP_CONSTANT)		? READ_GLOBAL_CONSTANT(READ_24BITS_INDEX(offset)) :	\
 	 ((op) == OP_TRUE)			? TRUE_VAL :	\
 	 ((op) == OP_FALSE)			? FALSE_VAL : NIL_VAL)
@@ -2016,7 +2125,7 @@ static void instructionOptimize() {
 	case OP_NEGATE: {
 		if (isRightConstNumber) {
 			//number constants only,always foldable
-			Value right = READ_LOCAL_CONSTANT(READ_16BITS_INDEX(1));
+			Value right = READ_LOCAL_CONSTANT(READ_SHORT_INDEX(1));
 
 			double val = -AS_NUMBER(right);
 			chunk_fallback(chunk, 1 + 3);//op + const
@@ -2185,7 +2294,7 @@ static void instructionOptimize() {
 				break;
 			}
 
-			uint32_t idx_right = READ_16BITS_INDEX(2); //op
+			uint32_t idx_right = READ_SHORT_INDEX(2); //op
 			Value right = READ_LOCAL_CONSTANT(idx_right);
 
 			if (!IS_NUMBER(right)) {
@@ -2278,8 +2387,9 @@ static void instructionOptimize() {
 		}
 		else if (prevRight == OP_SET_PROPERTY) {
 			//set property + pop -> set property and pop
+			//set property is now [op][name u24][slot u8] = 5 bytes, op sits at count-5
 			chunk_fallback(chunk, 1);//pop
-			CHUNK_PEEK(3) = OP_SET_PROPERTY_POP; //convert command
+			CHUNK_PEEK(4) = OP_SET_PROPERTY_POP; //convert command
 			clearOpStack();
 		}
 		else if (prevRight == OP_GET_LOCAL) {
@@ -2318,7 +2428,6 @@ static void instructionOptimize() {
 #undef READ_LOCAL_CONSTANT
 #undef READ_SHORT_INDEX
 #undef READ_24BITS_INDEX
-#undef READ_16BITS_INDEX
 #undef CONST_SIZE
 #undef READ_INDEX
 #undef READ_CONST_VALUE

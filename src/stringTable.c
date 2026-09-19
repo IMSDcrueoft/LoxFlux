@@ -95,6 +95,8 @@ bool tableSet_string(StringTable* table, ObjString* key)
 StringEntry* tableGetStringEntry(StringTable* table, ObjString* key)
 {
 	//check it
+	if (table->count == 0) return NULL;//empty pool:capacity - 1 would go out of bounds
+
 	StringEntry* entry = NULL;
 	uint32_t index = key->hash & (table->capacity - 1);
 

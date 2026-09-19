@@ -21,7 +21,12 @@ typedef struct {
 	uint8_t* ip;
 	Value* slots; //first avilable slot
 	ptrdiff_t slotsOffset;// offset of the first slot in the vm stack, not a ptr, so that we can realloc the stack when needed
+	InlineCacheSlot* caches;// IC slots of frame->closure->function, resolved once per call to avoid per-op deref chains
 } CallFrame;
+
+//frames live in a static array indexed by the dispatch loop; a silent size/layout
+//shift here changes cache-line packing of hot frames and can move dispatch performance
+_Static_assert(sizeof(CallFrame) == 40, "CallFrame layout changed; re-verify dispatch benchmarks");
 
 typedef struct {
 	//a cache
@@ -81,9 +86,13 @@ typedef struct {
 	ObjString* initString;
 	ObjString* typeStrings[TYPE_STRING_COUNT];
 
+	//inline cache gc registry: functions whose invoke cache slots hold ObjClass*/ObjClosure*
+	ObjFunction** icFuncs;
+	uint32_t icFuncCount;
+	uint32_t icFuncCapacity;
+
 	//id for compiled functions
 	uint32_t functionID;
-
 	//frames
 	uint32_t frameCount;
 	CallFrame frames[FRAMES_MAX];
@@ -100,6 +109,7 @@ extern VM vm;
 
 void vm_init();
 void vm_free();
+void vm_register_ic_function(ObjFunction* function);
 
 void stack_push(Value value);
 Value stack_pop();
@@ -114,6 +124,7 @@ InterpretResult interpret(C_STR source);
 InterpretResult interpret_repl(C_STR source);
 
 //for builtin
+void defineNative_math_number(C_STR name, double value);
 void defineNative_math(C_STR name, NativeFn function);
 void defineNative_array(C_STR name, NativeFn function);
 void defineNative_object(C_STR name, NativeFn function);

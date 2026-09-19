@@ -1,0 +1,90 @@
+//IC + GC interaction stress: hot invoke caches while many instances/classes are
+//created and dropped, forcing repeated GC cycles through the IC marking path
+var passCount = 0;
+
+fun checkEq(name, actual, expected) {
+	if (actual != expected) {
+		print "FAIL: " + name;
+		print "  expected:";
+		print expected;
+		print "  actual:";
+		print actual;
+		throw "assertion failed";
+	}
+	passCount = passCount + 1;
+}
+
+fun checkNil(name, actual) {
+	if (actual != nil) {
+		print "FAIL: " + name;
+		print "  expected nil, actual:";
+		print actual;
+		throw "assertion failed";
+	}
+	passCount = passCount + 1;
+}
+
+class Node {
+	init(v) {
+		this.v = v;
+		this.next = nil;
+	}
+	link(o) {
+		this.next = o;
+		return this;
+	}
+	val() {
+		return this.v;
+	}
+}
+
+//40k instances, chained via fields, invoke caches for link/val stay hot
+//expected acc: sum over i of (i + 2i + 2i) = 5 * (19999 * 20000 / 2) = 999950000
+var acc = 0;
+for (var i = 0; i < 20000; i = i + 1) {
+	var a = Node(i);
+	var b = Node(i * 2);
+	a.link(b);
+	acc = acc + a.val() + b.val() + a.next.val();
+}
+checkEq("gcStress acc", acc, 999950000);
+
+//survivor object must keep correct field values after all the garbage collections
+var keeper = Node(123);
+for (var i = 0; i < 5000; i = i + 1) {
+	var junk = Node(i);
+	junk.link(Node(i));
+}
+checkEq("gcStress keeper", keeper.val(), 123);
+checkNil("gcStress keeper next", keeper.next);
+
+//two classes alternating invokes under GC pressure (klass guard vs recycled memory)
+class Ga {
+	id() {
+		return 1;
+	}
+}
+class Gb {
+	id() {
+		return 2;
+	}
+}
+var s1 = 0;
+var s2 = 0;
+var ti = 0;
+for (var i = 0; i < 10000; i = i + 1) {
+	var junk = Node(i);
+	if (ti == 0) {
+		s1 = s1 + Ga().id();
+		ti = 1;
+	}
+	else {
+		s2 = s2 + Gb().id();
+		ti = 0;
+	}
+}
+checkEq("gcStress Ga sum", s1, 5000);
+checkEq("gcStress Gb sum", s2, 10000);
+
+print "PASS gcStress";
+print passCount;
