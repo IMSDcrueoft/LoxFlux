@@ -215,6 +215,54 @@ static int32_t emitJump(uint8_t instruction) {
 	return currentChunk()->count - 2;
 }
 
+//branch-style conditional jump (if/branch/while/do-while only)
+//whole condition is exactly one compile-time constant load:
+//  falsy (OP_FALSE/OP_NIL/nil constant)              -> always taken : rollback cond, emit OP_JUMP (no runtime compare)
+//  truthy (OP_TRUE/number constant/non-nil constant) -> never taken  : rollback cond, no jump, return -1 (no backpatch)
+//truthiness mirrors vm's isTruthy: only nil and false are falsy
+//returns patch offset like emitJump, or -1 when nothing to patch
+static int32_t emitBranchJump(uint8_t instruction, int32_t condStart) {
+#if COMPILATION_TIME_OPTIMIZATION
+	if (instruction == OP_JUMP_IF_FALSE_POP) {
+		Chunk* chunk = currentChunk();
+		uint32_t regionSize = chunk->count - (uint32_t)condStart;
+		uint8_t cond = chunk->code[condStart];
+
+		//1 byte literal / 3 bytes number constant / 4 bytes non-number constant
+		if ((regionSize == 1 && (cond == OP_TRUE || cond == OP_FALSE || cond == OP_NIL))
+			|| (regionSize == 3 && cond == OP_CONST_NUMBER)
+			|| (regionSize == 4 && cond == OP_CONSTANT)) {
+			bool truthy;
+
+			switch (cond) {
+			case OP_FALSE:
+			case OP_NIL: {
+				truthy = false;
+				break;
+			}
+			case OP_TRUE:
+			case OP_CONST_NUMBER:
+			case OP_CONSTANT: {
+				truthy = true;
+				break;
+			}
+			}
+
+			chunk_fallback(chunk, regionSize);//rollback the condition bytes
+			clearOpStack();
+
+			if (!truthy) {
+				return emitJump(OP_JUMP);//always taken
+			}
+			return -1;//never taken
+		}
+	}
+#else
+	(void)condStart;
+#endif
+	return emitJump(instruction);
+}
+
 // generate loop
 static void emitLoop(int32_t loopStart) {
 	emitByte(OP_LOOP);
@@ -949,14 +997,15 @@ static void forStatement() {
 
 static void ifStatement() {
 	consume(TOKEN_LEFT_PAREN, "Expect '(' after 'if'.");
+	int32_t condStart = currentChunk()->count;
 	expression();
 	consume(TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
 
-	int32_t thenJump = emitJump(OP_JUMP_IF_FALSE_POP);
+	int32_t thenJump = emitBranchJump(OP_JUMP_IF_FALSE_POP, condStart);
 	statement();
 
 	int32_t elseJump = emitJump(OP_JUMP);
-	patchJump(thenJump);
+	if (thenJump != -1) patchJump(thenJump);
 
 	if (match(TOKEN_ELSE)) statement();
 	patchJump(elseJump);
@@ -964,13 +1013,14 @@ static void ifStatement() {
 
 static void branchCaseStatement() {
 	if (!match(TOKEN_NONE)) {
+		int32_t condStart = currentChunk()->count;
 		expression();
-		int32_t thenJump = emitJump(OP_JUMP_IF_FALSE_POP);
+		int32_t thenJump = emitBranchJump(OP_JUMP_IF_FALSE_POP, condStart);
 		consume(TOKEN_COLON, "Expect ':' after condition.");
 		statement();
 
 		int32_t elseJump = emitJump(OP_JUMP);
-		patchJump(thenJump);
+		if (thenJump != -1) patchJump(thenJump);
 
 		//prevent endless stack overflow
 		if (parser.hadError) return;
@@ -1058,10 +1108,11 @@ static void whileStatement() {
 	int32_t loopStart = currentChunk()->count;
 
 	consume(TOKEN_LEFT_PAREN, "Expect '(' after 'while'.");
+	int32_t condStart = currentChunk()->count;
 	expression();
 	consume(TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
 
-	int32_t exitJump = emitJump(OP_JUMP_IF_FALSE_POP);
+	int32_t exitJump = emitBranchJump(OP_JUMP_IF_FALSE_POP, condStart);
 
 	//record the loop
 	LoopContext loop = (LoopContext){ .start = loopStart, .enclosing = current->currentLoop,.breakJumps = NULL,.breakJumpCount = 0 ,.enterParamCount = current->localCount };
@@ -1073,7 +1124,9 @@ static void whileStatement() {
 
 	emitLoop(loopStart);
 
-	patchJump(exitJump);
+	if (exitJump != -1) {
+		patchJump(exitJump);
+	}
 
 	while (loop.breakJumpCount > 0) {
 		patchJump(loop.breakJumps[--loop.breakJumpCount]);
@@ -1095,13 +1148,16 @@ static void doWhileStatement() {
 
 	consume(TOKEN_WHILE, "Expect 'while' after 'do' to form a valid 'do-while'.");
 	consume(TOKEN_LEFT_PAREN, "Expect '(' after 'while'.");
+	int32_t condStart = currentChunk()->count;
 	expression();
 	consume(TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
 	consume(TOKEN_SEMICOLON, "Expect ';' after 'do-while' loop.");
 
-	int32_t exitJump = emitJump(OP_JUMP_IF_FALSE_POP);
+	int32_t exitJump = emitBranchJump(OP_JUMP_IF_FALSE_POP, condStart);
 	emitLoop(loopStart);
-	patchJump(exitJump);
+	if (exitJump != -1) {
+		patchJump(exitJump);
+	}
 
 	while (loop.breakJumpCount > 0) {
 		patchJump(loop.breakJumps[--loop.breakJumpCount]);

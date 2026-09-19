@@ -339,8 +339,9 @@ uint32_t disassembleInstruction(ObjFunction* function, uint32_t offset) {
 	case OP_JUMP:
 		return jumpInstruction("OP_JUMP", 1, chunk, offset);
 	case OP_JUMP_IF_FALSE:
-	case OP_JUMP_IF_FALSE_POP:
 		return jumpInstruction("OP_JUMP_IF_FALSE", 1, chunk, offset);
+	case OP_JUMP_IF_FALSE_POP:
+		return jumpInstruction("OP_JUMP_IF_FALSE_POP", 1, chunk, offset);
 	case OP_JUMP_IF_TRUE:
 		return jumpInstruction("OP_JUMP_IF_TRUE", 1, chunk, offset);
 	case OP_LOOP:
