@@ -1,0 +1,9 @@
+// OP_JIF_*_LC runtime error path:
+// relational compare against a non-number constant must raise
+// "Operands must be numbers." exactly like the unfused sequence did.
+{
+    var i = 1;
+    while (i < "hello") {
+        i = i + 1;
+    }
+}

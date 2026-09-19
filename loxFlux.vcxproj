@@ -109,6 +109,7 @@
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <FloatingPointModel>Strict</FloatingPointModel>
+      <AssemblerOutput>All</AssemblerOutput>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -159,6 +160,7 @@
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <FloatingPointModel>Strict</FloatingPointModel>
+      <AssemblerOutput>All</AssemblerOutput>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

@@ -114,6 +114,34 @@ typedef enum {
 
 	OP_NOT_LOCAL,
 	OP_NEGATE_LOCAL,
+
+	//branch super command (fused compare + jump if false)
+	//LL forms: both operands are local slots; > / >= reuse the LESS forms via slot swap
+	//format: [op:8][localA:16][localB:16][offset:16]
+	OP_JIF_LESS_LL,			// a <  b else jump
+	OP_JIF_LESS_EQUAL_LL,	// a <= b else jump
+	OP_JIF_EQUAL_LL,		// a == b else jump
+	OP_JIF_NOT_EQUAL_LL,	// a != b else jump
+
+	//LC forms: local slot vs compile-time constant; > / >= cover the const-on-left
+	//cases via direction flip (== / != commute, no flip needed)
+	//number constants (ordering + equality) ride the function's own 16bit pool,
+	//compile-time guaranteed number: no runtime type check on the constant operand
+	//format: [op:8][local:16][const:16][offset:16]
+	OP_JIF_LESS_LC_NUMBER,			// local <  const else jump
+	OP_JIF_LESS_EQUAL_LC_NUMBER,	// local <= const else jump
+	OP_JIF_GREATER_LC_NUMBER,		// local >  const else jump
+	OP_JIF_GREATER_EQUAL_LC_NUMBER,	// local >= const else jump
+	OP_JIF_EQUAL_LC_NUMBER,			// local == const else jump
+	OP_JIF_NOT_EQUAL_LC_NUMBER,		// local != const else jump
+
+	//non-number constants (equality only) ride vm.constants with 24bit index
+	//format: [op:8][local:16][const:24][offset:16]
+	OP_JIF_EQUAL_LC,		// local == const else jump
+	OP_JIF_NOT_EQUAL_LC,	// local != const else jump
+
+	// guard
+	INVALID_OP = UINT8_MAX
 } OpCode;
 
 typedef enum {

@@ -1,0 +1,184 @@
+// OP_JIF_*_LC fusion tests (branch super instructions)
+// covers: pattern B (local op const), pattern C (const op local, flipped),
+//         == / != with number & string consts, for / while / do-while,
+//         non-fused fallbacks, break / continue
+
+// ---- pattern B: local < const ----
+{
+    var i = 0;
+    while (i < 100) {
+        i = i + 1;
+    }
+    print i; // expect: 100
+}
+
+// ---- pattern B: local <= const ----
+{
+    var i = 0;
+    while (i <= 99) {
+        i = i + 1;
+    }
+    print i; // expect: 100
+}
+
+// ---- pattern B: local > const ----
+{
+    var i = 10;
+    while (i > 0) {
+        i = i - 1;
+    }
+    print i; // expect: 0
+}
+
+// ---- pattern B: local >= const ----
+{
+    var i = 10;
+    while (i >= 1) {
+        i = i - 1;
+    }
+    print i; // expect: 0
+}
+
+// ---- pattern C: const > local (flips to local < const) ----
+{
+    var i = 0;
+    while (100 > i) {
+        i = i + 1;
+    }
+    print i; // expect: 100
+}
+
+// ---- pattern C: const <= local, false at entry ----
+{
+    var i = 0;
+    while (1 <= i) {
+        i = i + 1;
+    }
+    print i; // expect: 0
+}
+
+// ---- pattern B: local != numberConst ----
+{
+    var i = 0;
+    while (i != 50) {
+        i = i + 1;
+    }
+    print i; // expect: 50
+}
+
+// ---- pattern B: local == numberConst (inside if) ----
+{
+    var done = false;
+    var i = 0;
+    while (!done) {
+        i = i + 1;
+        if (i == 25) {
+            done = true;
+        }
+    }
+    print i; // expect: 25
+}
+
+// ---- string const: local == const (valuesEqual path) ----
+{
+    var s = "hello";
+    var i = 0;
+    while (s == "hello") {
+        i = i + 1;
+        if (i == 3) {
+            s = "world";
+        }
+    }
+    print i; // expect: 3
+    print s; // expect: world
+}
+
+// ---- string const: local != const ----
+{
+    var s = "a";
+    var i = 0;
+    while (s != "b") {
+        i = i + 1;
+        if (i == 5) {
+            s = "b";
+        }
+    }
+    print i; // expect: 5
+}
+
+// ---- pattern C with strings: const == local (no flip needed) ----
+{
+    var s = "x";
+    var i = 0;
+    while ("x" == s) {
+        i = i + 1;
+        if (i == 4) {
+            s = "y";
+        }
+    }
+    print i; // expect: 4
+}
+
+// ---- for loop fusion ----
+{
+    var sum = 0;
+    for (var i = 0; i < 10; i = i + 1) {
+        sum = sum + i;
+    }
+    print sum; // expect: 45
+}
+
+// ---- do-while fusion ----
+{
+    var i = 0;
+    do {
+        i = i + 1;
+    } while (i < 7);
+    print i; // expect: 7
+}
+
+// ---- non-fused fallbacks still behave correctly ----
+{
+    var a = 1;
+    var b = 2;
+    var c = 3;
+    if ((a < b) == true) { // nested compare: no fusion
+        print "nested ok"; // expect: nested ok
+    }
+    if (!(a < c)) { // OP_NOT after compare: no fusion
+        print "wrong";
+    } else {
+        print "not ok"; // expect: not ok
+    }
+    if (a < b and b < c) { // and_: no fusion
+        print "and ok"; // expect: and ok
+    }
+}
+
+// ---- break inside fused loop ----
+{
+    var i = 0;
+    while (i < 1000) {
+        i = i + 1;
+        if (i >= 5) {
+            break;
+        }
+    }
+    print i; // expect: 5
+}
+
+// ---- continue inside fused loop ----
+{
+    var i = 0;
+    var evens = 0;
+    while (i < 10) {
+        i = i + 1;
+        if (i % 2 == 1) {
+            continue;
+        }
+        evens = evens + 1;
+    }
+    print evens; // expect: 5
+}
+
+print "jif lc tests done"; // expect: jif lc tests done

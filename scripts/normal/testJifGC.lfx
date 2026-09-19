@@ -1,0 +1,60 @@
+// OP_JIF fusion vs GC: allocations inside fused loops, captured locals under GC
+
+// ---- E1: string allocations inside fused loop force GC cycles ----
+{
+    var base = "x";
+    var i = 0;
+    var n = 0;
+    while (i < 50000) {
+        var s = base + base;    // fresh ObjString every iteration
+        n = n + 1;
+        i = i + 1;
+    }
+    print n; // expect 50000
+}
+
+// ---- E2: array allocations + fused loop condition ----
+{
+    var i = 0;
+    var sum = 0;
+    while (i < 5000) {
+        var arr = [i, i + 1];   // fresh ObjArray every iteration
+        sum = sum + arr[0];
+        i = i + 1;
+    }
+    print sum; // expect 12497500
+}
+
+// ---- E3: captured local mutated through closure across GC-heavy fused loop ----
+fun makeCnt() {
+    var c = 0;
+    fun inc() { c = c + 1; return c; }
+    return inc;
+}
+{
+    var cnt = makeCnt();
+    var i = 0;
+    while (i < 3000) {
+        var junk = cnt();       // closure call + upvalue write per iteration
+        i = i + 1;
+    }
+    print cnt(); // expect 3001
+}
+
+// ---- E4: long-lived fused loop with captured loop-invariant under allocation pressure ----
+fun outer() {
+    var limit = 2000;
+    fun getLimit() { return limit; }
+    var i = 0;
+    var acc = 0;
+    while (i < limit) {         // fused; limit is captured
+        var pad = "pad" + "p";  // allocation churn
+        acc = acc + getLimit() - limit;  // always 0
+        i = i + 1;
+    }
+    print acc;  // expect 0
+    print getLimit(); // expect 2000
+}
+outer();
+
+print "jif gc tests done";

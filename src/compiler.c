@@ -256,6 +256,121 @@ static int32_t emitBranchJump(uint8_t instruction, int32_t condStart) {
 			}
 			return -1;//never taken
 		}
+
+		//try to fuse [operand load][fused compare] + jump into one OP_JIF_*_LL/LC_NUMBER:
+		//pattern A: GET_LOCAL a + <CMP>_LOCAL b   (6 bytes; both slots can swap, so > / >= reuse the LESS forms)
+		//pattern B: GET_LOCAL a + <CMP>_CONST c   (6 bytes, number constant on the right)
+		//pattern C: CONST_NUMBER c + <CMP>_LOCAL a (6 bytes, number constant on the left, flip the direction)
+		//anything else falls through to the plain jump
+		if (regionSize == 6 && (cond == OP_GET_LOCAL || cond == OP_CONST_NUMBER)) {
+			uint32_t indexA = ((uint32_t)chunk->code[condStart + 1]) | ((uint32_t)chunk->code[condStart + 2] << 8);
+			uint8_t cmpOp = chunk->code[condStart + 3];
+			uint32_t indexB = ((uint32_t)chunk->code[condStart + 4]) | ((uint32_t)chunk->code[condStart + 5] << 8);
+
+			uint8_t fused = INVALID_OP;
+			bool swap = false;
+			bool isLL = false;
+
+			if (cond == OP_GET_LOCAL) {
+				//local on the left
+				switch (cmpOp) {
+				case OP_LESS_LOCAL:				fused = OP_JIF_LESS_LL; isLL = true; break;
+				case OP_LESS_EQUAL_LOCAL:		fused = OP_JIF_LESS_EQUAL_LL; isLL = true; break;
+				case OP_GREATER_LOCAL:			fused = OP_JIF_LESS_LL; swap = true; isLL = true; break;
+				case OP_GREATER_EQUAL_LOCAL:	fused = OP_JIF_LESS_EQUAL_LL; swap = true; isLL = true; break;
+				case OP_EQUAL_LOCAL:			fused = OP_JIF_EQUAL_LL; isLL = true; break;
+				case OP_NOT_EQUAL_LOCAL:		fused = OP_JIF_NOT_EQUAL_LL; isLL = true; break;
+
+				case OP_LESS_CONST:				fused = OP_JIF_LESS_LC_NUMBER; break;
+				case OP_LESS_EQUAL_CONST:		fused = OP_JIF_LESS_EQUAL_LC_NUMBER; break;
+				case OP_GREATER_CONST:			fused = OP_JIF_GREATER_LC_NUMBER; break;
+				case OP_GREATER_EQUAL_CONST:	fused = OP_JIF_GREATER_EQUAL_LC_NUMBER; break;
+				case OP_EQUAL_CONST_NUMBER:		fused = OP_JIF_EQUAL_LC_NUMBER; break;
+				case OP_NOT_EQUAL_CONST_NUMBER:	fused = OP_JIF_NOT_EQUAL_LC_NUMBER; break;
+				}
+			}
+			else {
+				//number constant on the left: flip the direction (== / != need no flip)
+				switch (cmpOp) {
+				case OP_LESS_LOCAL:				fused = OP_JIF_GREATER_LC_NUMBER; break;
+				case OP_LESS_EQUAL_LOCAL:		fused = OP_JIF_GREATER_EQUAL_LC_NUMBER; break;
+				case OP_GREATER_LOCAL:			fused = OP_JIF_LESS_LC_NUMBER; break;
+				case OP_GREATER_EQUAL_LOCAL:	fused = OP_JIF_LESS_EQUAL_LC_NUMBER; break;
+				case OP_EQUAL_LOCAL:			fused = OP_JIF_EQUAL_LC_NUMBER; break;
+				case OP_NOT_EQUAL_LOCAL:		fused = OP_JIF_NOT_EQUAL_LC_NUMBER; break;
+				}
+			}
+
+			if (fused != INVALID_OP) {
+				chunk_fallback(chunk, regionSize);//rollback the condition bytes
+
+				if (isLL) {
+					uint32_t slotA = (swap ? indexB : indexA);
+					uint32_t slotB = (swap ? indexA : indexB);
+					//[op:8][localA:16][localB:16][offset:16 placeholder]
+					emitBytes(7, fused,
+						(uint8_t)slotA, (uint8_t)(slotA >> 8),
+						(uint8_t)slotB, (uint8_t)(slotB >> 8),
+						0xff, 0xff);
+				}
+				else {
+					//local left: local=indexA,const=indexB; const left: local=indexB,const=indexA
+					uint32_t localIndex = (cond == OP_GET_LOCAL) ? indexA : indexB;
+					uint32_t constIndex = (cond == OP_GET_LOCAL) ? indexB : indexA;
+					//[op:8][local:16][const:16][offset:16 placeholder]
+					emitBytes(7, fused,
+						(uint8_t)localIndex, (uint8_t)(localIndex >> 8),
+						(uint8_t)constIndex, (uint8_t)(constIndex >> 8),
+						0xff, 0xff);
+				}
+				clearOpStack();
+				return currentChunk()->count - 2;
+			}
+		}
+
+		//fused equality with non-number constants (24bit index into vm.constants):
+		//pattern D: GET_LOCAL a + OP_EQUAL_CONST/OP_NOT_EQUAL_CONST c  (7 bytes)
+		//pattern E: OP_CONSTANT c + OP_EQUAL_LOCAL/OP_NOT_EQUAL_LOCAL a (7 bytes)
+		//note: ordering comparisons against non-number constants have no super
+		//instruction, so a 7-byte region starting with OP_CONSTANT is only matched
+		//for the equality _LOCAL ops (a 4-byte non-number constant is never treated
+		//as a 16bit one)
+		if (regionSize == 7 && (cond == OP_GET_LOCAL || cond == OP_CONSTANT)) {
+			uint32_t localIndex = 0;
+			uint32_t constIndex = 0;
+			uint8_t cmpOp = 0;
+			uint8_t fused = INVALID_OP;
+
+			if (cond == OP_GET_LOCAL) {
+				localIndex = ((uint32_t)chunk->code[condStart + 1]) | ((uint32_t)chunk->code[condStart + 2] << 8);
+				cmpOp = chunk->code[condStart + 3];
+				constIndex = ((uint32_t)chunk->code[condStart + 4]) | ((uint32_t)chunk->code[condStart + 5] << 8) | ((uint32_t)chunk->code[condStart + 6] << 16);
+
+				if (cmpOp == OP_EQUAL_CONST) fused = OP_JIF_EQUAL_LC;
+				else if (cmpOp == OP_NOT_EQUAL_CONST) fused = OP_JIF_NOT_EQUAL_LC;
+			}
+			else {
+				constIndex = ((uint32_t)chunk->code[condStart + 1]) | ((uint32_t)chunk->code[condStart + 2] << 8) | ((uint32_t)chunk->code[condStart + 3] << 16);
+				cmpOp = chunk->code[condStart + 4];
+				localIndex = ((uint32_t)chunk->code[condStart + 5]) | ((uint32_t)chunk->code[condStart + 6] << 8);
+
+				//const was on the left: == / != commute, no flip
+				if (cmpOp == OP_EQUAL_LOCAL) fused = OP_JIF_EQUAL_LC;
+				else if (cmpOp == OP_NOT_EQUAL_LOCAL) fused = OP_JIF_NOT_EQUAL_LC;
+			}
+
+			if (fused != INVALID_OP) {
+				chunk_fallback(chunk, regionSize);//rollback the condition bytes
+
+				//[op:8][local:16][const:24][offset:16 placeholder]
+				emitBytes(8, fused,
+					(uint8_t)localIndex, (uint8_t)(localIndex >> 8),
+					(uint8_t)constIndex, (uint8_t)(constIndex >> 8), (uint8_t)(constIndex >> 16),
+					0xff, 0xff);
+				clearOpStack();
+				return currentChunk()->count - 2;
+			}
+		}
 	}
 #else
 	(void)condStart;

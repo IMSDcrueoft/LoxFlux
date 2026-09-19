@@ -1,0 +1,135 @@
+// OP_JIF_*_LL fusion tests (local-local compare + jump)
+// covers: a<b, a>b (slot swap), a<=b, a>=b (slot swap), a==b, a!=b,
+//         number & string equality, while / for / do-while,
+//         non-fused fallbacks, break
+
+// ---- a < b ----
+{
+    var i = 0;
+    var n = 100;
+    while (i < n) {
+        i = i + 1;
+    }
+    print i; // expect: 100
+}
+
+// ---- a > b (swapped slots) ----
+{
+    var i = 10;
+    var n = 0;
+    while (i > n) {
+        i = i - 1;
+    }
+    print i; // expect: 0
+}
+
+// ---- a <= b ----
+{
+    var i = 0;
+    var n = 99;
+    while (i <= n) {
+        i = i + 1;
+    }
+    print i; // expect: 100
+}
+
+// ---- a >= b (swapped slots) ----
+{
+    var i = 10;
+    var n = 1;
+    while (i >= n) {
+        i = i - 1;
+    }
+    print i; // expect: 0
+}
+
+// ---- a != b (numbers) ----
+{
+    var i = 0;
+    var n = 50;
+    while (i != n) {
+        i = i + 1;
+    }
+    print i; // expect: 50
+}
+
+// ---- a == b (numbers, inside if) ----
+{
+    var a = 7;
+    var b = 7;
+    if (a == b) {
+        print "eq ok"; // expect: eq ok
+    }
+    if (a == 8) {
+        print "wrong";
+    } else {
+        print "ne ok"; // expect: ne ok
+    }
+}
+
+// ---- strings: a == b / a != b ----
+{
+    var s = "hello";
+    var t = "hello";
+    if (s == t) {
+        print "str eq"; // expect: str eq
+    }
+    if (s != t) {
+        print "wrong";
+    } else {
+        print "str ne ok"; // expect: str ne ok
+    }
+}
+
+// ---- for loop with LL condition ----
+{
+    var sum = 0;
+    var n = 10;
+    for (var i = 0; i < n; i = i + 1) {
+        sum = sum + i;
+    }
+    print sum; // expect: 45
+}
+
+// ---- do-while with LL condition ----
+{
+    var i = 0;
+    var n = 7;
+    do {
+        i = i + 1;
+    } while (i < n);
+    print i; // expect: 7
+}
+
+// ---- non-fused fallbacks still behave correctly ----
+{
+    var a = 1;
+    var b = 2;
+    var c = 3;
+    if ((a < b) == true) { // nested compare: no fusion
+        print "nested ok"; // expect: nested ok
+    }
+    if (a < b and b < c) { // and_: no fusion
+        print "and ok"; // expect: and ok
+    }
+    if (!(a < c)) { // OP_NOT after compare: no fusion
+        print "wrong";
+    } else {
+        print "not ok"; // expect: not ok
+    }
+}
+
+// ---- break inside fused LL loop ----
+{
+    var i = 0;
+    var n = 1000;
+    while (i < n) {
+        i = i + 1;
+        if (i >= 5) {
+            break;
+        }
+    }
+    print i; // expect: 5
+}
+
+print "jif ll tests done"; // expect: jif ll tests done
