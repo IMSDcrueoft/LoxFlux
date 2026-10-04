@@ -1,0 +1,62 @@
+// opt_scopes.lfx
+// optimized conditions interacting with locals, scopes, break/continue, nesting, functions, closures
+// expected prints: 1 2 32 1 3 99 3 13 3 7 3 1 98
+
+if (true) { var x = 1; print x; } else { var y = 2; print y; }
+if (false) { var x = 1; print x; } else { var y = 2; print y; }
+if (false) print 31; else if (true) print 32; else print 33;
+
+var i = 0;
+while (true) {
+	i = i + 1;
+	if (i == 2) continue;
+	if (i > 3) break;
+	print i;
+}
+print 99;
+
+var total = 0;
+while (true) {
+	while (false) { total = total + 100; }
+	total = total + 1;
+	if (total >= 3) break;
+}
+print total;
+
+do {
+	do { total = total + 10; break; } while (true);
+} while (false);
+print total;
+
+var s = 0;
+while (true) {
+	var local = s + 1;
+	s = local;
+	if (s > 2) break;
+}
+print s;
+
+fun f() {
+	while (true) {
+		return 7;
+	}
+	return 8;
+}
+print f();
+
+fun counter() {
+	var c = 0;
+	while (true) {
+		c = c + 1;
+		if (c >= 3) break;
+	}
+	return lambda() => c;
+}
+var get = counter();
+print get();
+
+do {
+	var d = 1;
+	if (true) { print d; break; }
+} while (true);
+print 98;

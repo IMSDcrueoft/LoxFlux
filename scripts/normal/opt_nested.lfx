@@ -1,0 +1,86 @@
+// opt_nested.lfx
+// deep nesting of optimized conditions (rollback / OP_JUMP forms) across all 4 statements
+// expected prints: 11 24 2 0 2 2 32 21 0 42 3 52
+
+// 1. nested if(true){if(true)} and if(false){if(false)} -> double rollback / double OP_JUMP
+if (true) { if (true) print 11; else print 12; } else { if (true) print 13; else print 14; }
+if (false) { if (false) print 21; else print 22; } else { if (false) print 23; else print 24; }
+
+// 2. triple nested while(true), break binds to innermost
+var count = 0;
+while (true) {
+	while (true) {
+		while (true) {
+			count = count + 1;
+			if (count >= 2) break;
+		}
+		break;
+	}
+	break;
+}
+print count;
+
+// 3. while(false) containing while(true)+break (dead loop inside dead loop)
+var ran = 0;
+while (false) {
+	while (true) { ran = ran + 1; break; }
+}
+print ran;
+
+// 4. if(true) containing while(true)+break; if(false) containing infinite while (dead)
+var c2 = 0;
+if (true) {
+	while (true) { c2 = c2 + 1; if (c2 > 1) break; }
+}
+print c2;
+if (false) {
+	while (true) { c2 = 999; break; }
+}
+print c2;
+
+// 5. branch nested in branch with optimized conditions
+branch {
+	true:
+		branch { false: print 31; true: print 32; none: print 33; }
+	none:
+		print 34;
+}
+
+// 6. nested while(true): continue binds inner loop
+var n = 0;
+while (true) {
+	n = n + 1;
+	while (true) {
+		n = n + 10;
+		if (n < 15) continue;
+		break;
+	}
+	if (n >= 15) break;
+}
+print n;
+
+// 7. do-while(true) nested inside while(false) (dead)
+var q = 0;
+while (false) {
+	do { q = q + 1; break; } while (true);
+}
+print q;
+
+// 8. if(false) else { if(true) }; if(true){ if(false) }
+if (false) { print 41; } else { if (true) print 42; else print 43; }
+if (true) { if (false) print 44; }
+
+// 9. if(true) > while(true) > if(true) with break through two levels
+var r = 0;
+if (true) {
+	while (true) {
+		if (true) {
+			r = r + 1;
+			if (r == 3) break;
+		}
+	}
+}
+print r;
+
+// 10. if(true) { while(false) } dead skip
+if (true) { while (false) { print 51; } print 52; }

@@ -77,9 +77,6 @@ typedef struct {
 	uint64_t beginGC;
 	uint64_t nextGC;
 
-	//ip for debug error
-	uint8_t** ip_error;
-
 	//literal object
 	ObjClass emptyClass;
 

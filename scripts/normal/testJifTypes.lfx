@@ -1,0 +1,78 @@
+// OP_JIF fusion vs IEEE754 edge values & cross-type equality
+// note: `0 / 0` etc. are constant-folded into pool constants at compile time,
+// so the compare operands below are locals vs folded constants (fused paths)
+
+// ---- C1: NaN ----
+{
+    var nan = 0 / 0;
+    if (nan < 5) { print "C1a wrong"; } else { print "C1a ok"; }     // NaN<x always false -> else
+    if (nan > 5) { print "C1b wrong"; } else { print "C1b ok"; }     // -> else
+    if (nan == nan) { print "C1c wrong"; } else { print "C1c ok"; }  // NaN!=NaN -> else
+    var c = 0;
+    // IEEE: NaN != NaN is always TRUE, so the loop body IS entered once;
+    // this also exercises the fused LL "condition true" path
+    while (nan != nan) { c = c + 1; break; }
+    print c; // expect 1
+    while (nan < 100) { c = c + 1; }     // must not enter (LC, NaN<x false)
+    while (100 > nan) { c = c + 1; }     // must not enter (flipped LC)
+    print c; // expect 1
+}
+
+// ---- C2: -0.0 vs 0.0 ----
+{
+    var z = -0.0;
+    if (z == 0.0) { print "C2a ok"; } else { print "C2a wrong"; }    // -0.0 == 0.0 (IEEE true)
+    if (z < 0.0) { print "C2b wrong"; } else { print "C2b ok"; }     // -0.0 < 0.0 false
+    if (z <= 0.0) { print "C2c ok"; } else { print "C2c wrong"; }    // -0.0 <= 0.0 true
+}
+
+// ---- C3: infinity ----
+{
+    var big = 1e308;
+    var inf = big * 10;                    // local * const -> OP_MULTIPLY_CONST, not folded
+    if (inf > 1e308) { print "C3a ok"; } else { print "C3a wrong"; } // inf > 1e308 true
+    if (inf < 1e308) { print "C3b wrong"; } else { print "C3b ok"; }
+    var c = 0;
+    while (c < inf) { c = c + 1; if (c == 3) { break; } }  // c < inf true forever -> break at 3
+    print c; // expect 3
+}
+
+// ---- C4: cross-type equality (string local vs number const) ----
+{
+    var s = "5";
+    if (s == 5) { print "C4a wrong"; } else { print "C4a ok"; }      // valuesEqual false
+    if (s != 5) { print "C4b ok"; } else { print "C4b wrong"; }
+    var t = "abc";
+    if (t == "abc") { print "C4c ok"; } else { print "C4c wrong"; }  // string string equality (LC 24bit)
+    if (t != "abd") { print "C4d ok"; } else { print "C4d wrong"; }
+}
+
+// ---- C5: nil comparisons (fallback path: OP_NIL literal is not fused) ----
+{
+    var x = 1;
+    if (x == nil) { print "C5a wrong"; } else { print "C5a ok"; }
+    if (nil == x) { print "C5b wrong"; } else { print "C5b ok"; }
+    if (x != nil) { print "C5c ok"; } else { print "C5c wrong"; }
+    var y = nil;
+    if (y == nil) { print "C5d ok"; } else { print "C5d wrong"; }
+}
+
+// ---- C6: bool comparisons (fallback path) ----
+{
+    var flag = true;
+    if (flag == true) { print "C6a ok"; } else { print "C6a wrong"; }
+    if (flag == false) { print "C6b wrong"; } else { print "C6b ok"; }
+    if (flag != false) { print "C6c ok"; } else { print "C6c wrong"; }
+}
+
+// ---- C7: large magnitudes / precision ----
+{
+    var big = 1e308;
+    if (big < 1e309) { print "C7a ok"; } else { print "C7a wrong"; } // 1e309 folds to inf
+    var tiny = 5e-324;   // smallest subnormal
+    if (tiny > 0) { print "C7b ok"; } else { print "C7b wrong"; }
+    if (tiny == 0) { print "C7c wrong"; } else { print "C7c ok"; }
+    print big + big; // expect inf (printed form)
+}
+
+print "jif types tests done";

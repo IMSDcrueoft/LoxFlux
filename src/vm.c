@@ -71,10 +71,6 @@ static bool throwError(Value error, C_STR format, ...) {
 	va_end(args);
 	fputs("\n", stderr);
 
-	if ((vm.frameCount - 1) >= 0) {
-		vm.frames[vm.frameCount - 1].ip = *vm.ip_error;
-	}
-
 	for (int32_t i = vm.frameCount - 1; i >= 0; i--) {
 		CallFrame* frame = &vm.frames[i];
 
@@ -114,10 +110,6 @@ static void runtimeError(C_STR format, ...) {
 	vfprintf(stderr, format, args);
 	va_end(args);
 	fputs("\n", stderr);
-
-	if ((vm.frameCount - 1) >= 0) {
-		vm.frames[vm.frameCount - 1].ip = *vm.ip_error;
-	}
 
 	for (int32_t i = vm.frameCount - 1; i >= 0; i--) {
 		CallFrame* frame = &vm.frames[i];
@@ -389,8 +381,6 @@ void vm_init()
 	//import native funcs
 	importNative_global();
 
-	vm.ip_error = NULL;
-
 	vm.initString = NULL;
 	vm.initString = copyString("init", strlen("init"), false);
 	initTypeStrings();
@@ -451,7 +441,6 @@ void vm_free()
 	vm.initString = NULL;
 	removeBuiltins();
 
-	vm.ip_error = NULL;
 	table_free(&vm.emptyClass.methods);
 }
 
@@ -730,11 +719,11 @@ static inline bool isTruthy(Value value) {
 }
 
 HOT_FUNCTION
-static bool bitInstruction(uint8_t bitOpType, uint8_t** ip_ptr) {
-	uint8_t* ip = *ip_ptr;
-
-#define READ_BYTE() (*ip_ptr = (ip + 1), *ip)
-#define READ_WORD() (*ip_ptr = (ip + 4), (uint32_t)(ip[0] | (ip[1] << 8) | (ip[2] << 16) | (ip[3] << 24)))
+//returns the advanced ip on success,NULL on failure (no operand bytes are
+//consumed on failure paths, so no rollback is needed)
+static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
+#define READ_BYTE() (*(ip)++)
+#define READ_WORD() (ip += 4, (uint32_t)((ip[-4]) | ((uint32_t)ip[-3] << 8) | ((uint32_t)ip[-2] << 16) | ((uint32_t)ip[-1] << 24)))
 
 #define BINARAY_OP_BIT(op)																			\
     do {																							\
@@ -743,7 +732,7 @@ static bool bitInstruction(uint8_t bitOpType, uint8_t** ip_ptr) {
 			/* Perform the operation and push the result back */									\
 			vm.stackTop[-2] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-2]) op (int32_t)AS_NUMBER(vm.stackTop[-1]));	\
 			vm.stackTop--;																			\
-			return true;																			\
+			return ip;																				\
 		}																							\
 	} while (false)
 
@@ -754,7 +743,7 @@ static bool bitInstruction(uint8_t bitOpType, uint8_t** ip_ptr) {
 			int32_t constant = READ_WORD();													\
 			/* Perform the operation and push the result back */							\
 			vm.stackTop[-1] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-1]) op constant);	\
-			return true;																	\
+			return ip;																		\
 		}																					\
 	} while (false)
 
@@ -785,7 +774,7 @@ static bool bitInstruction(uint8_t bitOpType, uint8_t** ip_ptr) {
 	label_bit_not:
 		if (IS_NUMBER(vm.stackTop[-1])) {
 			vm.stackTop[-1] = NUMBER_VAL(~(int32_t)AS_NUMBER(vm.stackTop[-1]));
-			return true;
+			return ip;
 		}
 		break;
 	}
@@ -818,7 +807,7 @@ static bool bitInstruction(uint8_t bitOpType, uint8_t** ip_ptr) {
 				vm.stackTop[-2] = NUMBER_VAL(0);
 				vm.stackTop--;
 			}
-			return true;
+			return ip;
 		}
 		break;
 	}
@@ -835,7 +824,7 @@ static bool bitInstruction(uint8_t bitOpType, uint8_t** ip_ptr) {
 				vm.stackTop[-2] = NUMBER_VAL(0);
 				vm.stackTop--;
 			}
-			return true;
+			return ip;
 		}
 		break;
 	}
@@ -852,7 +841,7 @@ static bool bitInstruction(uint8_t bitOpType, uint8_t** ip_ptr) {
 				vm.stackTop[-2] = NUMBER_VAL(0);
 				vm.stackTop--;
 			}
-			return true;
+			return ip;
 		}
 		break;
 	}
@@ -882,7 +871,7 @@ static bool bitInstruction(uint8_t bitOpType, uint8_t** ip_ptr) {
 			else {
 				vm.stackTop[-1] = NUMBER_VAL(0);
 			}
-			return true;
+			return ip;
 		}
 		break;
 	}
@@ -897,7 +886,7 @@ static bool bitInstruction(uint8_t bitOpType, uint8_t** ip_ptr) {
 			else {
 				vm.stackTop[-1] = NUMBER_VAL(0);
 			}
-			return true;
+			return ip;
 		}
 		break;
 	}
@@ -912,12 +901,12 @@ static bool bitInstruction(uint8_t bitOpType, uint8_t** ip_ptr) {
 			else {
 				vm.stackTop[-1] = NUMBER_VAL(0);
 			}
-			return true;
+			return ip;
 		}
 		break;
 	}
 	}
-	return false;
+	return NULL;
 #undef BINARAY_OP_BIT
 #undef BINARAY_OP_BIT_IMM
 #undef READ_BYTE
@@ -1039,10 +1028,10 @@ static bool icInvokeSlow(ObjInstance* instance, ObjString* method, uint8_t argCo
 HOT_FUNCTION
 static InterpretResult run()
 {
-	CallFrame* frame = NULL;
-	uint8_t* ip = NULL;
+	CallFrame* frame = &vm.frames[vm.frameCount - 1];
+	register uint8_t* ip = frame->ip;
 	//cached constants base of the current function,refreshed at every frame switch
-	Value* constants = NULL;
+	Value* constants = frame->closure->function->constants.values;
 
 #define UPDATE_FRAME()	\
 	do {				\
@@ -1050,11 +1039,6 @@ static InterpretResult run()
 		ip = frame->ip; \
 		constants = frame->closure->function->constants.values;	\
 	} while (false)
-
-	//init
-	UPDATE_FRAME();
-	//if error,use this to print
-	vm.ip_error = &ip;
 
 #if COMPUTE_GOTO
 	static void* label_instructions[] = {
@@ -1157,6 +1141,20 @@ static InterpretResult run()
 
 		[OP_NOT_LOCAL] = && label_op_not_local,
 		[OP_NEGATE_LOCAL] = && label_op_negate_local,
+
+		[OP_JIF_LESS_LL] = && label_op_jif_less_ll,
+		[OP_JIF_LESS_EQUAL_LL] = && label_op_jif_less_equal_ll,
+		[OP_JIF_EQUAL_LL] = && label_op_jif_equal_ll,
+		[OP_JIF_NOT_EQUAL_LL] = && label_op_jif_not_equal_ll,
+
+		[OP_JIF_LESS_LC_NUMBER] = && label_op_jif_less_lc_number,
+		[OP_JIF_LESS_EQUAL_LC_NUMBER] = && label_op_jif_less_equal_lc_number,
+		[OP_JIF_GREATER_LC_NUMBER] = && label_op_jif_greater_lc_number,
+		[OP_JIF_GREATER_EQUAL_LC_NUMBER] = && label_op_jif_greater_equal_lc_number,
+		[OP_JIF_EQUAL_LC_NUMBER] = && label_op_jif_equal_lc_number,
+		[OP_JIF_NOT_EQUAL_LC_NUMBER] = && label_op_jif_not_equal_lc_number,
+		[OP_JIF_EQUAL_LC] = && label_op_jif_equal_lc,
+		[OP_JIF_NOT_EQUAL_LC] = && label_op_jif_not_equal_lc,
 	};
 #endif
 
@@ -1177,8 +1175,7 @@ static InterpretResult run()
 			vm.stackTop[-2] = valueType(AS_NUMBER(vm.stackTop[-2]) op AS_NUMBER(vm.stackTop[-1]));	\
 			vm.stackTop--;																			\
 		} else {														                            \
-			runtimeError("Operands must be numbers.");										\
-			return INTERPRET_RUNTIME_ERROR;															\
+			RUNTIME_ERROR("Operands must be numbers.");										\
 		}																							\
 	} while (false)
 
@@ -1189,10 +1186,37 @@ static InterpretResult run()
 			/* Perform the operation and push the result back */							\
 			vm.stackTop[-1] = valueType(AS_NUMBER(vm.stackTop[-1]) op AS_NUMBER(right));	\
 		} else {																			\
-			runtimeError("Operands must be numbers.");								\
-			return INTERPRET_RUNTIME_ERROR;													\
+			RUNTIME_ERROR("Operands must be numbers.");										\
 		}																					\
 	} while (false)
+
+//fused compare + jump-if-false: no stack traffic, jump when compare is false.
+//dual NEXT_INSTRUCTION on purpose: a single-exit form (`if (!cmp) ip += offset`)
+//makes the compiler fold the ip adjustment into a cmov, which serializes the
+//next-ip selection into every dispatch; with two exits the hot path dispatches
+//through a predictable branch and its next-ip is ready before the compare resolves
+#define JIF_CMP_WITH_RIGHT(left,right,offset,op)										\
+	if (IS_NUMBER(left) && IS_NUMBER(right)) {											\
+		if (AS_NUMBER(left) op AS_NUMBER(right)) NEXT_INSTRUCTION;						\
+		ip += offset;																	\
+		NEXT_INSTRUCTION;																\
+	}																					\
+	else {																				\
+		RUNTIME_ERROR("Operands must be numbers.");										\
+	}
+
+//fused compare + jump-if-false, number-constant form: the constant operand rides
+//the function's own pool and is compile-time guaranteed number, so only the local
+//side is checked (dual NEXT_INSTRUCTION exits, same reason as JIF_CMP_WITH_RIGHT)
+#define JIF_CMP_NUM_WITH_RIGHT(left,right,offset,op)									\
+	if (IS_NUMBER(left)) {																\
+		if (AS_NUMBER(left) op AS_NUMBER(right)) NEXT_INSTRUCTION;						\
+		ip += offset;																	\
+		NEXT_INSTRUCTION;																\
+	}																					\
+	else {																				\
+		RUNTIME_ERROR("Operands must be numbers.");										\
+	}
 
 //we need continue/break when debug trace
 #if !COMPUTE_GOTO || DEBUG_TRACE_EXECUTION
@@ -1200,6 +1224,16 @@ static InterpretResult run()
 #else //direct threading code
 #define NEXT_INSTRUCTION goto *label_instructions[READ_BYTE()]
 #endif
+
+//error inside run(): sync the top frame's ip for the stack trace, then raise.
+//error paths are cold, so this store costs nothing and keeps `ip` free of any
+//stack escape (register-resident across the whole dispatch loop)
+#define RUNTIME_ERROR(...)						\
+	do {										\
+		frame->ip = ip;							\
+		runtimeError(__VA_ARGS__);				\
+		return INTERPRET_RUNTIME_ERROR;			\
+	} while (false)
 
 	while (true) //let it loop
 	{
@@ -1283,8 +1317,7 @@ static InterpretResult run()
 				stack_pop(); // Subclass.
 			}
 			else {
-				runtimeError("Superclass must be a class.");
-				return INTERPRET_RUNTIME_ERROR;
+				RUNTIME_ERROR("Superclass must be a class.");
 			}
 			NEXT_INSTRUCTION;
 		}
@@ -1299,8 +1332,7 @@ static InterpretResult run()
 		case OP_GET_PROPERTY: {
 		label_op_get_property:
 			if (!IS_INSTANCE(vm.stackTop[-1])) {
-				runtimeError("Only instances have properties.");
-				return INTERPRET_RUNTIME_ERROR;
+				RUNTIME_ERROR("Only instances have properties.");
 			}
 
 			ObjInstance* instance = AS_INSTANCE(vm.stackTop[-1]);
@@ -1329,8 +1361,7 @@ static InterpretResult run()
 		case OP_SET_PROPERTY: {
 		label_op_set_property:
 			if (!IS_INSTANCE(vm.stackTop[-2])) {
-				runtimeError("Only instances have fields.");
-				return INTERPRET_RUNTIME_ERROR;
+				RUNTIME_ERROR("Only instances have fields.");
 			}
 
 			ObjInstance* instance = AS_INSTANCE(vm.stackTop[-2]);
@@ -1361,8 +1392,7 @@ static InterpretResult run()
 		case OP_SET_PROPERTY_POP: {
 		label_op_set_property_pop:
 			if (!IS_INSTANCE(vm.stackTop[-2])) {
-				runtimeError("Only instances have fields.");
-				return INTERPRET_RUNTIME_ERROR;
+				RUNTIME_ERROR("Only instances have fields.");
 			}
 
 			ObjInstance* instance = AS_INSTANCE(vm.stackTop[-2]);
@@ -1426,8 +1456,7 @@ static InterpretResult run()
 				NEXT_INSTRUCTION;
 			}
 
-			runtimeError("Only arrayLike,stringBuilder and string can get number subscript.");
-			return INTERPRET_RUNTIME_ERROR;
+			RUNTIME_ERROR("Only arrayLike,stringBuilder and string can get number subscript.");
 		}
 		case OP_SET_INDEX: {
 		label_op_set_index:
@@ -1454,13 +1483,11 @@ static InterpretResult run()
 					NEXT_INSTRUCTION;
 				}
 				else {
-					runtimeError("Array index out of range.");
-					return INTERPRET_RUNTIME_ERROR;
+					RUNTIME_ERROR("Array index out of range.");
 				}
 			}
 
-			runtimeError("Only arrayLike can set number subscript.");
-			return INTERPRET_RUNTIME_ERROR;
+			RUNTIME_ERROR("Only arrayLike can set number subscript.");
 		}
 		case OP_GET_SUBSCRIPT: {
 		label_op_get_subscript:
@@ -1488,8 +1515,7 @@ static InterpretResult run()
 					NEXT_INSTRUCTION;
 				}
 				else {
-					runtimeError("Array subscript must be number.");
-					return INTERPRET_RUNTIME_ERROR;
+					RUNTIME_ERROR("Array subscript must be number.");
 				}
 			}
 			else if (IS_INSTANCE(target)) {
@@ -1514,8 +1540,7 @@ static InterpretResult run()
 					NEXT_INSTRUCTION;
 				}
 				else {
-					runtimeError("Instance subscript must be string.");
-					return INTERPRET_RUNTIME_ERROR;
+					RUNTIME_ERROR("Instance subscript must be string.");
 				}
 			}
 			else if (IS_STRING(target)) {
@@ -1534,13 +1559,11 @@ static InterpretResult run()
 					NEXT_INSTRUCTION;
 				}
 				else {
-					runtimeError("String subscript must be number.");
-					return INTERPRET_RUNTIME_ERROR;
+					RUNTIME_ERROR("String subscript must be number.");
 				}
 			}
 
-			runtimeError("Only instances,arrayLike,stringBuilder and string can get subscript.");
-			return INTERPRET_RUNTIME_ERROR;
+			RUNTIME_ERROR("Only instances,arrayLike,stringBuilder and string can get subscript.");
 		}
 		case OP_SET_SUBSCRIPT: {
 		label_op_set_subscript:
@@ -1567,13 +1590,11 @@ static InterpretResult run()
 						NEXT_INSTRUCTION;
 					}
 					else {
-						runtimeError("Array index out of range.");
-						return INTERPRET_RUNTIME_ERROR;
+						RUNTIME_ERROR("Array index out of range.");
 					}
 				}
 				else {
-					runtimeError("Array subscript must be number.");
-					return INTERPRET_RUNTIME_ERROR;
+					RUNTIME_ERROR("Array subscript must be number.");
 				}
 			}
 			else if (IS_INSTANCE(target)) {
@@ -1593,13 +1614,11 @@ static InterpretResult run()
 					NEXT_INSTRUCTION;
 				}
 				else {
-					runtimeError("Instance subscript must be string.");
-					return INTERPRET_RUNTIME_ERROR;
+					RUNTIME_ERROR("Instance subscript must be string.");
 				}
 			}
 
-			runtimeError("Only instances and arrayLike can set subscript.");
-			return INTERPRET_RUNTIME_ERROR;
+			RUNTIME_ERROR("Only instances and arrayLike can set subscript.");
 		}
 		case OP_DEFINE_GLOBAL: {
 		label_op_define_global:
@@ -1629,8 +1648,7 @@ static InterpretResult run()
 
 			Value value;
 			if (!tableGet(&vm.globals.fields, name, &value)) {
-				runtimeError("Undefined variable '%s'.", name->chars);
-				return INTERPRET_RUNTIME_ERROR;
+				RUNTIME_ERROR("Undefined variable '%s'.", name->chars);
 			}
 			stack_push(value);
 			NEXT_INSTRUCTION;
@@ -1653,8 +1671,7 @@ static InterpretResult run()
 			if (tableSet(&vm.globals.fields, name, vm.stackTop[-1])) {
 				//lox dont allow setting undefined one
 				tableDelete(&vm.globals.fields, name);
-				runtimeError("Undefined variable '%s'.", name->chars);
-				return INTERPRET_RUNTIME_ERROR;
+				RUNTIME_ERROR("Undefined variable '%s'.", name->chars);
 			}
 			NEXT_INSTRUCTION;
 		}
@@ -1778,8 +1795,7 @@ static InterpretResult run()
 				NEXT_INSTRUCTION;
 			}
 
-			runtimeError("Operands must be two numbers or two strings.");
-			return INTERPRET_RUNTIME_ERROR;
+			RUNTIME_ERROR("Operands must be two numbers or two strings.");
 		}
 		case OP_SUBTRACT: {
 		label_op_subtract:
@@ -1806,8 +1822,7 @@ static InterpretResult run()
 				NEXT_INSTRUCTION;
 			}
 			else {
-				runtimeError("Operands must be numbers.");
-				return INTERPRET_RUNTIME_ERROR;
+				RUNTIME_ERROR("Operands must be numbers.");
 			}
 		}
 
@@ -1824,20 +1839,20 @@ static InterpretResult run()
 				NEXT_INSTRUCTION;
 			}
 			else {
-				runtimeError("Operand must be a number.");
-				return INTERPRET_RUNTIME_ERROR;
+				RUNTIME_ERROR("Operand must be a number.");
 			}
 		}
 
 		case OP_BITWISE: {
 		label_op_bitwise:
 			uint8_t bitOpType = READ_BYTE();
-			if (bitInstruction(bitOpType, &ip)) {
+			uint8_t* nextIp = bitInstruction(bitOpType, ip);
+			if (nextIp != NULL) {
+				ip = nextIp;
 				NEXT_INSTRUCTION;
 			}
 			else {
-				runtimeError("Operands must be numbers.");
-				return INTERPRET_RUNTIME_ERROR;
+				RUNTIME_ERROR("Operands must be numbers.");
 			}
 		}
 
@@ -1853,6 +1868,8 @@ static InterpretResult run()
 		case OP_THROW: {
 		label_op_throw:
 			//if solved break else error
+			//sync for the stack trace before the error printer walks the frames
+			frame->ip = ip;
 			if (throwError(stack_pop(), "An exception was thrown.")) {
 				NEXT_INSTRUCTION;
 			}
@@ -1916,20 +1933,32 @@ static InterpretResult run()
 		case OP_JUMP_IF_FALSE: {
 		label_op_jump_if_false:
 			uint16_t offset = READ_SHORT();
-			if (isFalsey(vm.stackTop[-1])) ip += offset;
+			Value condition = vm.stackTop[-1];
+			if (isFalsey(condition)) {
+				ip += offset;
+				NEXT_INSTRUCTION;
+			}
 			NEXT_INSTRUCTION;
 		}
 		case OP_JUMP_IF_FALSE_POP: {
 		label_op_jump_if_false_pop:
 			uint16_t offset = READ_SHORT();
-			if (isFalsey(vm.stackTop[-1])) ip += offset;
+			Value condition = vm.stackTop[-1];
 			vm.stackTop--;
+			if (isFalsey(condition)) {
+				ip += offset;
+				NEXT_INSTRUCTION;
+			}
 			NEXT_INSTRUCTION;
 		}
 		case OP_JUMP_IF_TRUE: {
 		label_op_jump_if_true:
 			uint16_t offset = READ_SHORT();
-			if (isTruthy(vm.stackTop[-1])) ip += offset;
+			Value condition = vm.stackTop[-1];
+			if (isTruthy(condition)) {
+				ip += offset;
+				NEXT_INSTRUCTION;
+			}
 			NEXT_INSTRUCTION;
 		}
 		case OP_CALL: {
@@ -1954,9 +1983,7 @@ static InterpretResult run()
 
 			Value receiver = STACK_PEEK(argCount);
 			if (!IS_INSTANCE(receiver)) {
-				frame->ip = ip;//change before call
-				runtimeError("Only instances have methods.");
-				return INTERPRET_RUNTIME_ERROR;
+				RUNTIME_ERROR("Only instances have methods.");
 			}
 			ObjInstance* instance = AS_INSTANCE(receiver);
 
@@ -2036,15 +2063,13 @@ static InterpretResult run()
 				path = pathStringBuilder->payload;
 			}
 			else {
-				runtimeError("Path to import must be a string or stringBuilder.");
-				return INTERPRET_RUNTIME_ERROR;
+				RUNTIME_ERROR("Path to import must be a string or stringBuilder.");
 			}
 
 			STR absolutePath = getAbsolutePath(path);
 
 			if (absolutePath == NULL) {
-				runtimeError("Failed to get absolute file path.");
-				return INTERPRET_RUNTIME_ERROR;
+				RUNTIME_ERROR("Failed to get absolute file path.");
 			}
 
 			ObjFunction* function = getCachedScript(absolutePath);
@@ -2074,8 +2099,7 @@ static InterpretResult run()
 				NEXT_INSTRUCTION;
 			}
 
-			runtimeError("Operands must be two numbers or two strings.");
-			return INTERPRET_RUNTIME_ERROR;
+			RUNTIME_ERROR("Operands must be two numbers or two strings.");
 		}
 		case OP_SUBTRACT_CONST: {
 		label_op_subtract_const:
@@ -2105,8 +2129,7 @@ static InterpretResult run()
 				NEXT_INSTRUCTION;
 			}
 			else {
-				runtimeError("Operands must be numbers.");
-				return INTERPRET_RUNTIME_ERROR;
+				RUNTIME_ERROR("Operands must be numbers.");
 			}
 		}
 		case OP_EQUAL_CONST: {
@@ -2178,8 +2201,7 @@ static InterpretResult run()
 				NEXT_INSTRUCTION;
 			}
 
-			runtimeError("Operands must be two numbers or two strings.");
-			return INTERPRET_RUNTIME_ERROR;
+			RUNTIME_ERROR("Operands must be two numbers or two strings.");
 		}
 		case OP_SUBTRACT_LOCAL: {
 		label_op_subtract_local:
@@ -2217,8 +2239,7 @@ static InterpretResult run()
 				NEXT_INSTRUCTION;
 			}
 			else {
-				runtimeError("Operands must be numbers.");
-				return INTERPRET_RUNTIME_ERROR;
+				RUNTIME_ERROR("Operands must be numbers.");
 			}
 		}
 		case OP_EQUAL_LOCAL: {
@@ -2264,6 +2285,118 @@ static InterpretResult run()
 			NEXT_INSTRUCTION;
 		}
 
+		//fused compare + jump-if-false:[op:8][localA:16][localB:16][offset:16]
+		//no stack traffic, jump when compare is false
+		case OP_JIF_LESS_LL: {
+		label_op_jif_less_ll:
+			uint32_t indexA = READ_SHORT();
+			uint32_t indexB = READ_SHORT();
+			uint16_t offset = READ_SHORT();
+			Value left = frame->slots[indexA];
+			Value right = frame->slots[indexB];
+			JIF_CMP_WITH_RIGHT(left, right, offset, < );
+		}
+		case OP_JIF_LESS_EQUAL_LL: {
+		label_op_jif_less_equal_ll:
+			uint32_t indexA = READ_SHORT();
+			uint32_t indexB = READ_SHORT();
+			uint16_t offset = READ_SHORT();
+			Value left = frame->slots[indexA];
+			Value right = frame->slots[indexB];
+			JIF_CMP_WITH_RIGHT(left, right, offset, <= );
+		}
+		case OP_JIF_EQUAL_LL: {
+		label_op_jif_equal_ll:
+			uint32_t indexA = READ_SHORT();
+			uint32_t indexB = READ_SHORT();
+			uint16_t offset = READ_SHORT();
+			if (valuesEqual(frame->slots[indexA], frame->slots[indexB])) NEXT_INSTRUCTION;
+			ip += offset;
+			NEXT_INSTRUCTION;
+		}
+		case OP_JIF_NOT_EQUAL_LL: {
+		label_op_jif_not_equal_ll:
+			uint32_t indexA = READ_SHORT();
+			uint32_t indexB = READ_SHORT();
+			uint16_t offset = READ_SHORT();
+			if (!valuesEqual(frame->slots[indexA], frame->slots[indexB])) NEXT_INSTRUCTION;
+			ip += offset;
+			NEXT_INSTRUCTION;
+		}
+
+		//fused compare + jump-if-false, number constant:[op:8][local:16][const:16][offset:16]
+		//the constant is compile-time guaranteed number,only the local side is checked
+		case OP_JIF_LESS_LC_NUMBER: {
+		label_op_jif_less_lc_number:
+			uint32_t index = READ_SHORT();
+			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			uint16_t offset = READ_SHORT();
+			Value local = frame->slots[index];
+			JIF_CMP_NUM_WITH_RIGHT(local, constant, offset, < );
+		}
+		case OP_JIF_LESS_EQUAL_LC_NUMBER: {
+		label_op_jif_less_equal_lc_number:
+			uint32_t index = READ_SHORT();
+			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			uint16_t offset = READ_SHORT();
+			Value local = frame->slots[index];
+			JIF_CMP_NUM_WITH_RIGHT(local, constant, offset, <= );
+		}
+		case OP_JIF_GREATER_LC_NUMBER: {
+		label_op_jif_greater_lc_number:
+			uint32_t index = READ_SHORT();
+			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			uint16_t offset = READ_SHORT();
+			Value local = frame->slots[index];
+			JIF_CMP_NUM_WITH_RIGHT(local, constant, offset, > );
+		}
+		case OP_JIF_GREATER_EQUAL_LC_NUMBER: {
+		label_op_jif_greater_equal_lc_number:
+			uint32_t index = READ_SHORT();
+			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			uint16_t offset = READ_SHORT();
+			Value local = frame->slots[index];
+			JIF_CMP_NUM_WITH_RIGHT(local, constant, offset, >= );
+		}
+		case OP_JIF_EQUAL_LC_NUMBER: {
+		label_op_jif_equal_lc_number:
+			uint32_t index = READ_SHORT();
+			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			uint16_t offset = READ_SHORT();
+			if (valuesEqual(frame->slots[index], constant)) NEXT_INSTRUCTION;
+			ip += offset;
+			NEXT_INSTRUCTION;
+		}
+		case OP_JIF_NOT_EQUAL_LC_NUMBER: {
+		label_op_jif_not_equal_lc_number:
+			uint32_t index = READ_SHORT();
+			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			uint16_t offset = READ_SHORT();
+			if (!valuesEqual(frame->slots[index], constant)) NEXT_INSTRUCTION;
+			ip += offset;
+			NEXT_INSTRUCTION;
+		}
+
+		//fused equality, non-number constant:[op:8][local:16][const:24][offset:16]
+		case OP_JIF_EQUAL_LC: {
+		label_op_jif_equal_lc:
+			uint32_t index = READ_SHORT();
+			Value constant = READ_CONSTANT(READ_24bits());
+			uint16_t offset = READ_SHORT();
+			if (valuesEqual(frame->slots[index], constant)) NEXT_INSTRUCTION;
+			ip += offset;
+			NEXT_INSTRUCTION;
+		}
+		case OP_JIF_NOT_EQUAL_LC: {
+		label_op_jif_not_equal_lc:
+			uint32_t index = READ_SHORT();
+			Value constant = READ_CONSTANT(READ_24bits());
+			uint16_t offset = READ_SHORT();
+			if (!valuesEqual(frame->slots[index], constant)) NEXT_INSTRUCTION;
+			ip += offset;
+			NEXT_INSTRUCTION;
+		}
+
 		case OP_NOT_LOCAL: {
 		label_op_not_local:
 			uint32_t index = READ_SHORT();
@@ -2279,11 +2412,10 @@ static InterpretResult run()
 
 			if (IS_NUMBER(local)) {
 				stack_push(NUMBER_VAL(-AS_NUMBER(local)));
-				break;
+				NEXT_INSTRUCTION;
 			}
 			else {
-				runtimeError("Operand must be a number.");
-				return INTERPRET_RUNTIME_ERROR;
+				RUNTIME_ERROR("Operand must be a number.");
 			}
 		}
 		}
@@ -2298,6 +2430,9 @@ static InterpretResult run()
 #undef READ_LOCAL_CONSTANT
 #undef BINARY_OP
 #undef BINARY_OP_WITH_RIGHT
+#undef JIF_CMP_WITH_RIGHT
+#undef JIF_CMP_NUM_WITH_RIGHT
+#undef RUNTIME_ERROR
 }
 
 InterpretResult interpret(C_STR source)

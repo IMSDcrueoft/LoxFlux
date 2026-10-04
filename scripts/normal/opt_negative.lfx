@@ -1,0 +1,26 @@
+// opt_negative.lfx
+// negative controls: nothing here may be optimized, output must be runtime-correct
+// expected prints: 11 14 16 0 1 2 21 22 24 25 26 28 0 1 30 31 99
+
+var t = true;
+var f = false;
+var n = nil;
+var i = 0;
+
+if (t) print 11; else print 12;
+if (f) print 13; else print 14;
+if (n) print 15; else print 16;
+
+while (i < 3) { print i; i = i + 1; }
+
+while (t and true) { print 21; break; } print 22;
+while (f and true) { print 23; } print 24;
+while (t or false) { print 25; break; } print 26;
+while (f or false) { print 27; } print 28;
+
+for (var j = 0; j < 2; j = j + 1) { print j; }
+for (;false;) { print 29; } print 30;
+
+if ([1]) print 31; else print 32;
+
+print 99;

@@ -215,6 +215,169 @@ static int32_t emitJump(uint8_t instruction) {
 	return currentChunk()->count - 2;
 }
 
+//branch-style conditional jump (if/branch/while/do-while only)
+//whole condition is exactly one compile-time constant load:
+//  falsy (OP_FALSE/OP_NIL/nil constant)              -> always taken : rollback cond, emit OP_JUMP (no runtime compare)
+//  truthy (OP_TRUE/number constant/non-nil constant) -> never taken  : rollback cond, no jump, return -1 (no backpatch)
+//truthiness mirrors vm's isTruthy: only nil and false are falsy
+//returns patch offset like emitJump, or -1 when nothing to patch
+static int32_t emitBranchJump(uint8_t instruction, int32_t condStart) {
+#if COMPILATION_TIME_OPTIMIZATION
+	if (instruction == OP_JUMP_IF_FALSE_POP) {
+		Chunk* chunk = currentChunk();
+		uint32_t regionSize = chunk->count - (uint32_t)condStart;
+		uint8_t cond = chunk->code[condStart];
+
+		//1 byte literal / 3 bytes number constant / 4 bytes non-number constant
+		if ((regionSize == 1 && (cond == OP_TRUE || cond == OP_FALSE || cond == OP_NIL))
+			|| (regionSize == 3 && cond == OP_CONST_NUMBER)
+			|| (regionSize == 4 && cond == OP_CONSTANT)) {
+			bool truthy;
+
+			switch (cond) {
+			case OP_FALSE:
+			case OP_NIL: {
+				truthy = false;
+				break;
+			}
+			case OP_TRUE:
+			case OP_CONST_NUMBER:
+			case OP_CONSTANT: {
+				truthy = true;
+				break;
+			}
+			}
+
+			chunk_fallback(chunk, regionSize);//rollback the condition bytes
+			clearOpStack();
+
+			if (!truthy) {
+				return emitJump(OP_JUMP);//always taken
+			}
+			return -1;//never taken
+		}
+
+		//try to fuse [operand load][fused compare] + jump into one OP_JIF_*_LL/LC_NUMBER:
+		//pattern A: GET_LOCAL a + <CMP>_LOCAL b   (6 bytes; both slots can swap, so > / >= reuse the LESS forms)
+		//pattern B: GET_LOCAL a + <CMP>_CONST c   (6 bytes, number constant on the right)
+		//pattern C: CONST_NUMBER c + <CMP>_LOCAL a (6 bytes, number constant on the left, flip the direction)
+		//anything else falls through to the plain jump
+		if (regionSize == 6 && (cond == OP_GET_LOCAL || cond == OP_CONST_NUMBER)) {
+			uint32_t indexA = ((uint32_t)chunk->code[condStart + 1]) | ((uint32_t)chunk->code[condStart + 2] << 8);
+			uint8_t cmpOp = chunk->code[condStart + 3];
+			uint32_t indexB = ((uint32_t)chunk->code[condStart + 4]) | ((uint32_t)chunk->code[condStart + 5] << 8);
+
+			uint8_t fused = INVALID_OP;
+			bool swap = false;
+			bool isLL = false;
+
+			if (cond == OP_GET_LOCAL) {
+				//local on the left
+				switch (cmpOp) {
+				case OP_LESS_LOCAL:				fused = OP_JIF_LESS_LL; isLL = true; break;
+				case OP_LESS_EQUAL_LOCAL:		fused = OP_JIF_LESS_EQUAL_LL; isLL = true; break;
+				case OP_GREATER_LOCAL:			fused = OP_JIF_LESS_LL; swap = true; isLL = true; break;
+				case OP_GREATER_EQUAL_LOCAL:	fused = OP_JIF_LESS_EQUAL_LL; swap = true; isLL = true; break;
+				case OP_EQUAL_LOCAL:			fused = OP_JIF_EQUAL_LL; isLL = true; break;
+				case OP_NOT_EQUAL_LOCAL:		fused = OP_JIF_NOT_EQUAL_LL; isLL = true; break;
+
+				case OP_LESS_CONST:				fused = OP_JIF_LESS_LC_NUMBER; break;
+				case OP_LESS_EQUAL_CONST:		fused = OP_JIF_LESS_EQUAL_LC_NUMBER; break;
+				case OP_GREATER_CONST:			fused = OP_JIF_GREATER_LC_NUMBER; break;
+				case OP_GREATER_EQUAL_CONST:	fused = OP_JIF_GREATER_EQUAL_LC_NUMBER; break;
+				case OP_EQUAL_CONST_NUMBER:		fused = OP_JIF_EQUAL_LC_NUMBER; break;
+				case OP_NOT_EQUAL_CONST_NUMBER:	fused = OP_JIF_NOT_EQUAL_LC_NUMBER; break;
+				}
+			}
+			else {
+				//number constant on the left: flip the direction (== / != need no flip)
+				switch (cmpOp) {
+				case OP_LESS_LOCAL:				fused = OP_JIF_GREATER_LC_NUMBER; break;
+				case OP_LESS_EQUAL_LOCAL:		fused = OP_JIF_GREATER_EQUAL_LC_NUMBER; break;
+				case OP_GREATER_LOCAL:			fused = OP_JIF_LESS_LC_NUMBER; break;
+				case OP_GREATER_EQUAL_LOCAL:	fused = OP_JIF_LESS_EQUAL_LC_NUMBER; break;
+				case OP_EQUAL_LOCAL:			fused = OP_JIF_EQUAL_LC_NUMBER; break;
+				case OP_NOT_EQUAL_LOCAL:		fused = OP_JIF_NOT_EQUAL_LC_NUMBER; break;
+				}
+			}
+
+			if (fused != INVALID_OP) {
+				chunk_fallback(chunk, regionSize);//rollback the condition bytes
+
+				if (isLL) {
+					uint32_t slotA = (swap ? indexB : indexA);
+					uint32_t slotB = (swap ? indexA : indexB);
+					//[op:8][localA:16][localB:16][offset:16 placeholder]
+					emitBytes(7, fused,
+						(uint8_t)slotA, (uint8_t)(slotA >> 8),
+						(uint8_t)slotB, (uint8_t)(slotB >> 8),
+						0xff, 0xff);
+				}
+				else {
+					//local left: local=indexA,const=indexB; const left: local=indexB,const=indexA
+					uint32_t localIndex = (cond == OP_GET_LOCAL) ? indexA : indexB;
+					uint32_t constIndex = (cond == OP_GET_LOCAL) ? indexB : indexA;
+					//[op:8][local:16][const:16][offset:16 placeholder]
+					emitBytes(7, fused,
+						(uint8_t)localIndex, (uint8_t)(localIndex >> 8),
+						(uint8_t)constIndex, (uint8_t)(constIndex >> 8),
+						0xff, 0xff);
+				}
+				clearOpStack();
+				return currentChunk()->count - 2;
+			}
+		}
+
+		//fused equality with non-number constants (24bit index into vm.constants):
+		//pattern D: GET_LOCAL a + OP_EQUAL_CONST/OP_NOT_EQUAL_CONST c  (7 bytes)
+		//pattern E: OP_CONSTANT c + OP_EQUAL_LOCAL/OP_NOT_EQUAL_LOCAL a (7 bytes)
+		//note: ordering comparisons against non-number constants have no super
+		//instruction, so a 7-byte region starting with OP_CONSTANT is only matched
+		//for the equality _LOCAL ops (a 4-byte non-number constant is never treated
+		//as a 16bit one)
+		if (regionSize == 7 && (cond == OP_GET_LOCAL || cond == OP_CONSTANT)) {
+			uint32_t localIndex = 0;
+			uint32_t constIndex = 0;
+			uint8_t cmpOp = 0;
+			uint8_t fused = INVALID_OP;
+
+			if (cond == OP_GET_LOCAL) {
+				localIndex = ((uint32_t)chunk->code[condStart + 1]) | ((uint32_t)chunk->code[condStart + 2] << 8);
+				cmpOp = chunk->code[condStart + 3];
+				constIndex = ((uint32_t)chunk->code[condStart + 4]) | ((uint32_t)chunk->code[condStart + 5] << 8) | ((uint32_t)chunk->code[condStart + 6] << 16);
+
+				if (cmpOp == OP_EQUAL_CONST) fused = OP_JIF_EQUAL_LC;
+				else if (cmpOp == OP_NOT_EQUAL_CONST) fused = OP_JIF_NOT_EQUAL_LC;
+			}
+			else {
+				constIndex = ((uint32_t)chunk->code[condStart + 1]) | ((uint32_t)chunk->code[condStart + 2] << 8) | ((uint32_t)chunk->code[condStart + 3] << 16);
+				cmpOp = chunk->code[condStart + 4];
+				localIndex = ((uint32_t)chunk->code[condStart + 5]) | ((uint32_t)chunk->code[condStart + 6] << 8);
+
+				//const was on the left: == / != commute, no flip
+				if (cmpOp == OP_EQUAL_LOCAL) fused = OP_JIF_EQUAL_LC;
+				else if (cmpOp == OP_NOT_EQUAL_LOCAL) fused = OP_JIF_NOT_EQUAL_LC;
+			}
+
+			if (fused != INVALID_OP) {
+				chunk_fallback(chunk, regionSize);//rollback the condition bytes
+
+				//[op:8][local:16][const:24][offset:16 placeholder]
+				emitBytes(8, fused,
+					(uint8_t)localIndex, (uint8_t)(localIndex >> 8),
+					(uint8_t)constIndex, (uint8_t)(constIndex >> 8), (uint8_t)(constIndex >> 16),
+					0xff, 0xff);
+				clearOpStack();
+				return currentChunk()->count - 2;
+			}
+		}
+	}
+#else
+	(void)condStart;
+#endif
+	return emitJump(instruction);
+}
+
 // generate loop
 static void emitLoop(int32_t loopStart) {
 	emitByte(OP_LOOP);
@@ -898,11 +1061,12 @@ static void forStatement() {
 
 	int32_t exitJump = -1;
 	if (!match(TOKEN_SEMICOLON)) {//for(; here ;)
+		int32_t condStart = currentChunk()->count;
 		expression();
 		consume(TOKEN_SEMICOLON, "Expect ';' after loop condition.");
 
 		// Jump out of the loop if the condition is false.
-		exitJump = emitJump(OP_JUMP_IF_FALSE_POP);
+		exitJump = emitBranchJump(OP_JUMP_IF_FALSE_POP, condStart);
 	}
 
 	//the code is: init,condition,increase,body,loop_to_increase
@@ -949,14 +1113,15 @@ static void forStatement() {
 
 static void ifStatement() {
 	consume(TOKEN_LEFT_PAREN, "Expect '(' after 'if'.");
+	int32_t condStart = currentChunk()->count;
 	expression();
 	consume(TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
 
-	int32_t thenJump = emitJump(OP_JUMP_IF_FALSE_POP);
+	int32_t thenJump = emitBranchJump(OP_JUMP_IF_FALSE_POP, condStart);
 	statement();
 
 	int32_t elseJump = emitJump(OP_JUMP);
-	patchJump(thenJump);
+	if (thenJump != -1) patchJump(thenJump);
 
 	if (match(TOKEN_ELSE)) statement();
 	patchJump(elseJump);
@@ -964,13 +1129,14 @@ static void ifStatement() {
 
 static void branchCaseStatement() {
 	if (!match(TOKEN_NONE)) {
+		int32_t condStart = currentChunk()->count;
 		expression();
-		int32_t thenJump = emitJump(OP_JUMP_IF_FALSE_POP);
+		int32_t thenJump = emitBranchJump(OP_JUMP_IF_FALSE_POP, condStart);
 		consume(TOKEN_COLON, "Expect ':' after condition.");
 		statement();
 
 		int32_t elseJump = emitJump(OP_JUMP);
-		patchJump(thenJump);
+		if (thenJump != -1) patchJump(thenJump);
 
 		//prevent endless stack overflow
 		if (parser.hadError) return;
@@ -1058,10 +1224,11 @@ static void whileStatement() {
 	int32_t loopStart = currentChunk()->count;
 
 	consume(TOKEN_LEFT_PAREN, "Expect '(' after 'while'.");
+	int32_t condStart = currentChunk()->count;
 	expression();
 	consume(TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
 
-	int32_t exitJump = emitJump(OP_JUMP_IF_FALSE_POP);
+	int32_t exitJump = emitBranchJump(OP_JUMP_IF_FALSE_POP, condStart);
 
 	//record the loop
 	LoopContext loop = (LoopContext){ .start = loopStart, .enclosing = current->currentLoop,.breakJumps = NULL,.breakJumpCount = 0 ,.enterParamCount = current->localCount };
@@ -1073,7 +1240,9 @@ static void whileStatement() {
 
 	emitLoop(loopStart);
 
-	patchJump(exitJump);
+	if (exitJump != -1) {
+		patchJump(exitJump);
+	}
 
 	while (loop.breakJumpCount > 0) {
 		patchJump(loop.breakJumps[--loop.breakJumpCount]);
@@ -1095,13 +1264,16 @@ static void doWhileStatement() {
 
 	consume(TOKEN_WHILE, "Expect 'while' after 'do' to form a valid 'do-while'.");
 	consume(TOKEN_LEFT_PAREN, "Expect '(' after 'while'.");
+	int32_t condStart = currentChunk()->count;
 	expression();
 	consume(TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
 	consume(TOKEN_SEMICOLON, "Expect ';' after 'do-while' loop.");
 
-	int32_t exitJump = emitJump(OP_JUMP_IF_FALSE_POP);
+	int32_t exitJump = emitBranchJump(OP_JUMP_IF_FALSE_POP, condStart);
 	emitLoop(loopStart);
-	patchJump(exitJump);
+	if (exitJump != -1) {
+		patchJump(exitJump);
+	}
 
 	while (loop.breakJumpCount > 0) {
 		patchJump(loop.breakJumps[--loop.breakJumpCount]);
@@ -1482,7 +1654,12 @@ static void mergeSubscript(uint8_t code, bool isAssignment) {
 		if (IS_STRING(val)) {
 			emitConstantCommond(isAssignment ? OP_SET_PROPERTY : OP_GET_PROPERTY, index);
 			emitByte(emitCacheSlot());
-			if (isAssignment || !foldBuiltinNumber()) {
+			if (isAssignment) {
+				//clear expression ops,keep SET_PROPERTY for POP merge
+				clearOpStack();
+				emitOpStack(OP_SET_PROPERTY, false);
+			}
+			else if (!foldBuiltinNumber()) {
 				clearOpStack();
 			}
 		}

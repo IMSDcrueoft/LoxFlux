@@ -1,0 +1,110 @@
+// OP_JIF fusion vs branch statement, else-if chains, and control-flow combos
+
+// ---- D1: branch statement with local compares (fusion call sites in branchStatement) ----
+{
+    var x = 5;
+    branch {
+        x < 3: print "D1a wrong";      // 5<3 false -> skipped
+        x > 1: print "D1a ok";         // 5>1 true  -> hit
+        none: print "D1a wrong2";
+    }
+}
+{
+    var x = 2;
+    branch {
+        x < 3: print "D1b ok";         // 2<3 true -> first case hit
+        x > 1: print "D1b wrong";
+        none: print "D1b wrong2";
+    }
+}
+{
+    var x = 0;
+    branch {
+        x < -1: print "D1c wrong";
+        x > 1: print "D1c wrong2";
+        none: print "D1c ok";          // neither -> none
+    }
+}
+
+// ---- D2: else-if chain (third emitBranchJump call site) ----
+{
+    var v = 2;
+    if (v == 1) { print "D2 wrong"; }
+    else if (v == 2) { print "D2 ok"; }
+    else if (v == 3) { print "D2 wrong"; }
+    else { print "D2 wrong"; }
+
+    var w = 9;
+    if (w == 1) { print "D2 wrong"; }
+    else if (w == 2) { print "D2 wrong"; }
+    else if (w == 3) { print "D2 wrong"; }
+    else { print "D2 ok"; }
+}
+
+// ---- D3: do-while + continue inside fused loop ----
+{
+    var i = 0;
+    var n = 0;
+    do {
+        i = i + 1;
+        if (i % 2 == 0) { continue; }
+        n = n + 1;
+    } while (i < 9);
+    print n; // expect 5 (odd: 1,3,5,7,9)
+}
+
+// ---- D4: loop body > 255 bytes (jump offset high byte != 0) ----
+{
+    var s = 0;
+    var i = 0;
+    while (i < 3) {
+        s = s + 1; s = s + 1; s = s + 1; s = s + 1; s = s + 1;
+        s = s + 1; s = s + 1; s = s + 1; s = s + 1; s = s + 1;
+        s = s + 1; s = s + 1; s = s + 1; s = s + 1; s = s + 1;
+        s = s + 1; s = s + 1; s = s + 1; s = s + 1; s = s + 1;
+        s = s + 1; s = s + 1; s = s + 1; s = s + 1; s = s + 1;
+        s = s + 1; s = s + 1; s = s + 1; s = s + 1; s = s + 1;
+        s = s + 1; s = s + 1; s = s + 1; s = s + 1; s = s + 1;
+        s = s + 1; s = s + 1; s = s + 1; s = s + 1; s = s + 1;
+        s = s + 1;
+        i = i + 1;
+    }
+    print s; // expect 123 (41 per iteration x 3)
+}
+
+// ---- D5: fused condition directly after another optimizing sequence ----
+{
+    var a = 1;
+    var b = 2;
+    var y = 7;
+    var x = 0;
+    x = y;                      // SET_LOCAL_POP right before the fused jump
+    if (a < b) { print "D5 ok"; } else { print "D5 wrong"; }
+    print x; // expect 7
+}
+
+// ---- D6: call-expression condition (must NOT fuse) + fused loop inside callee ----
+fun f() {
+    var i = 0;
+    while (i < 3) { i = i + 1; }
+    return i;
+}
+if (f() < 5) { print "D6a ok"; } else { print "D6a wrong"; }   // 3<5 true
+if (f() < 2) { print "D6b wrong"; } else { print "D6b ok"; }   // fallback
+
+// ---- D7: nested fused loops ----
+{
+    var total = 0;
+    var i = 0;
+    while (i < 4) {
+        var j = 0;
+        while (j < 5) {
+            total = total + 1;
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    print total; // expect 20
+}
+
+print "jif branch stmt tests done";

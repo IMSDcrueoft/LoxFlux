@@ -1,0 +1,21 @@
+// opt_literals.lfx
+// bare true/false/nil conditions across if/while/do-while/branch
+// expected prints: 11 22 32 41 61 62 63 64 71 74 76 99
+
+if (true) print 11; else print 12;
+if (false) print 21; else print 22;
+if (nil) print 31; else print 32;
+if (true) print 41;
+if (false) print 51;
+
+while (false) { print 61; }
+while (true) { print 62; break; }
+
+do { print 63; } while (false);
+do { print 64; break; } while (true);
+
+branch { true: print 71; none: print 72; }
+branch { false: print 73; none: print 74; }
+branch { nil: print 75; none: print 76; }
+
+print 99;

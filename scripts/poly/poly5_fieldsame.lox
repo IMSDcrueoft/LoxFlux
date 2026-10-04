@@ -1,0 +1,19 @@
+class FA { init() { this.x = 1; } }
+class FB { init() { this.x = 2; } }
+var fa = FA();
+var fb = FB();
+var obj = fa;
+var i = 0;
+var s = 0;
+var start = clock();
+while (i < 3000000) {
+  s = s + obj.x;
+  if (obj == fa) {
+    obj = fb;
+  } else {
+    obj = fa;
+  }
+  i = i + 1;
+}
+print "field_same_layout";
+print clock() - start;

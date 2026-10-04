@@ -1,0 +1,11 @@
+class Mono { m() { return 1; } }
+var mono = Mono();
+var i = 0;
+var s = 0;
+var start = clock();
+while (i < 3000000) {
+  s = s + mono.m();
+  i = i + 1;
+}
+print "mono";
+print clock() - start;

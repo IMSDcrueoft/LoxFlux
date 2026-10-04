@@ -1,0 +1,25 @@
+// opt_constants.lfx
+// constant-load conditions (OP_CONST_NUMBER / OP_CONSTANT)
+// NOTE: numbers are ALWAYS truthy in this language (even 0), strings are always truthy
+// expected prints: 11 13 15 17 19 21 23 25 27 31 32 33 34 35 36 37 38 39 41 43 99
+
+if (0) print 11; else print 12;
+if (1) print 13; else print 14;
+if (-1) print 15; else print 16;
+if (0.0) print 17; else print 18;
+if (0xff) print 19; else print 20;
+if (0b101) print 21; else print 22;
+if (1e2) print 23; else print 24;
+if ("") print 25; else print 26;
+if ("a") print 27; else print 28;
+
+while (0) { print 31; break; } print 32;
+while (1) { print 33; break; } print 34;
+while ("x") { print 35; break; } print 36;
+do { print 37; break; } while (0); print 38;
+do { print 39; break; } while (1); print 40;
+
+branch { 0: print 41; none: print 42; }
+branch { "s": print 43; none: print 44; }
+
+print 99;
