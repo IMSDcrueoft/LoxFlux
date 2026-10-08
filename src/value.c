@@ -12,16 +12,29 @@ bool valuesEqual(Value a, Value b)
 	if (IS_NUMBER(a) && IS_NUMBER(b)) {
 		return AS_NUMBER(a) == AS_NUMBER(b);
 	}
-	else {
-		return a == b;
+	if (a == b) return true;//identity: same interned string/object, equal bools/nil
+
+	//slow path: string/stringBuilder content equality (string pairs never get here
+	//with equal content, interning makes them the same pointer)
+	if (isStringLike(a) && isStringLike(b)) {
+		return compareStringLike(a, b) == 0;
 	}
+	return false;
 #else
 	if (a.type != b.type) return false;
 	switch (a.type) {
 	case VAL_BOOL:   return AS_BOOL(a) == AS_BOOL(b);
 	case VAL_NUMBER: return AS_NUMBER(a) == AS_NUMBER(b);
 	case VAL_NIL:    return true;
-	case VAL_OBJ:    return AS_OBJ(a) == AS_OBJ(b);
+	case VAL_OBJ: {
+		if (AS_OBJ(a) == AS_OBJ(b)) return true;
+
+		//slow path: string/stringBuilder content equality
+		if (isStringLike(a) && isStringLike(b)) {
+			return compareStringLike(a, b) == 0;
+		}
+		return false;
+	}
 	default:         return false; // Unreachable.
 	}
 #endif

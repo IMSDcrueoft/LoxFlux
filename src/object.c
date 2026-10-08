@@ -420,6 +420,42 @@ ObjString* connectString(ObjString* strA, ObjString* strB) {
 	}
 }
 
+//memcmp-style three-way ordering for string/stringBuilder pairs:
+//byte compare over the common prefix, then the shorter operand is the smaller one
+int compareStringLike(Value a, Value b) {
+	C_STR charsA;
+	C_STR charsB;
+	uint32_t lengthA;
+	uint32_t lengthB;
+
+	if (IS_STRING(a)) {
+		ObjString* string = AS_STRING(a);
+		charsA = string->chars;
+		lengthA = string->length;
+	}
+	else {//stringBuilder
+		ObjArray* stringBuilder = AS_ARRAY(a);
+		charsA = (C_STR)stringBuilder->payload;
+		lengthA = stringBuilder->length;
+	}
+
+	if (IS_STRING(b)) {
+		ObjString* string = AS_STRING(b);
+		charsB = string->chars;
+		lengthB = string->length;
+	}
+	else {//stringBuilder
+		ObjArray* stringBuilder = AS_ARRAY(b);
+		charsB = (C_STR)stringBuilder->payload;
+		lengthB = stringBuilder->length;
+	}
+
+	uint32_t common = (lengthA < lengthB) ? lengthA : lengthB;
+	int cmp = memcmp(charsA, charsB, common);
+	if (cmp != 0) return cmp;
+	return (lengthA < lengthB) ? -1 : ((lengthA > lengthB) ? 1 : 0);
+}
+
 static void printFunction(ObjFunction* function) {
 	if (function->name == NULL) {
 		printf("<script> (%d)", function->id);

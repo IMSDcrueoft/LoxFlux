@@ -1,0 +1,96 @@
+//ordering comparison (< <= > >=) and content equality for string / stringBuilder
+//semantics: memcmp byte order over the common prefix, then the shorter operand is smaller
+var Builder = @ctor.StringBuilder;
+
+//constant folding (compile-time, string literals)
+print "abc" < "abd";// true
+print "abd" < "abc";// false
+print "abc" <= "abc";// true
+print "abc" < "abc";// false
+print "abc" >= "abc";// true
+print "abc" > "abd";// false
+print "ab" < "abc";// true :prefix is smaller
+print "abc" < "ab";// false
+print "" < "a";// true
+print "" <= "";// true
+print "Z" < "a";// true :byte order
+print "😈" > "zzz";// true :UTF-8 byte order (0xF0 > 0x7A)
+
+//generic runtime path (globals on the stack)
+var g1 = "abc";
+var g2 = "abd";
+var ge = "abc";
+print g1 < g2;// true
+print g2 <= g1;// false
+print g1 >= ge;// true
+print g1 > g2;// false
+print g1 == ge;// true :interned
+print g1 != g2;// true
+
+//superinstruction path (locals)
+{
+    var a = "aaa";
+    var b = "bbb";
+    print a < b;// true
+    print b <= a;// false
+    print a >= b;// false
+    print b > a;// true
+    print a < "zzz";// true :local vs string constant
+    print b >= "bbb";// true
+}
+
+//stringBuilder : stringBuilder and string : stringBuilder (mixed)
+{
+    var s = "abc";
+    var sb = Builder("abd");
+    var sb2 = Builder("abc");
+    var sbEmpty = Builder();
+    print sb > s;// true
+    print s < sb;// true
+    print sb2 <= s;// true :equal content
+    print sb2 >= s;// true :equal content
+    print s < sb2;// false
+    print sb < sb2;// false
+    print sbEmpty < s;// true
+    print s > sbEmpty;// true
+    //content equality across kinds (== / !=)
+    print s == sb2;// true
+    print sb2 == s;// true
+    print s == sb;// false
+    print s != sb;// true
+    print sb2 == Builder("abc");// true :builder vs builder, same content
+    print Builder("xyz") == Builder("abd");// false
+}
+
+//fused compare + jump (if / while with two locals)
+{
+    var a = "apple";
+    var b = "banana";
+    if (a < b) print "if-less";// if-less
+    if (a <= b) print "if-le";// if-le
+    if (a > b) print "unreachable";
+    if (a >= b) print "unreachable";
+    if (a == "apple") print "if-eq";// if-eq
+
+    var c = "a";
+    var limit = "m";
+    var steps = 0;
+    while (c < limit) {
+        c = "z";
+        steps = steps + 1;
+    }
+    print steps;// 1
+    print c > limit;// true
+}
+
+//number comparisons still intact
+{
+    var i = 0;
+    var n = 3;
+    while (i < n) i = i + 1;
+    print i;// 3
+    print 2 <= 2;// true
+    print 3 > 2;// true
+    if (i >= 3) print "num-ok";// num-ok
+    print "final";
+}

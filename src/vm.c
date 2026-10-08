@@ -1190,6 +1190,36 @@ static InterpretResult run()
 		}																					\
 	} while (false)
 
+	//ordering comparison (< <= > >=): numbers or string/stringBuilder (memcmp order)
+#define COMPARE_OP(op)																		\
+	do {																					\
+		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {						\
+			vm.stackTop[-2] = BOOL_VAL(AS_NUMBER(vm.stackTop[-2]) op AS_NUMBER(vm.stackTop[-1]));\
+			vm.stackTop--;																	\
+		}																					\
+		else if (isStringLike(vm.stackTop[-2]) && isStringLike(vm.stackTop[-1])) {			\
+			vm.stackTop[-2] = BOOL_VAL(compareStringLike(vm.stackTop[-2], vm.stackTop[-1]) op 0);\
+			vm.stackTop--;																	\
+		}																					\
+		else {																				\
+			RUNTIME_ERROR("Operands must be two numbers or two strings.");					\
+		}																					\
+	} while (false)
+
+	//ordering comparison with a non-stack right operand (local or number constant)
+#define COMPARE_OP_WITH_RIGHT(right,op)													\
+	do {																					\
+		if (IS_NUMBER(vm.stackTop[-1]) && IS_NUMBER(right)) {								\
+			vm.stackTop[-1] = BOOL_VAL(AS_NUMBER(vm.stackTop[-1]) op AS_NUMBER(right));		\
+		}																					\
+		else if (isStringLike(vm.stackTop[-1]) && isStringLike(right)) {					\
+			vm.stackTop[-1] = BOOL_VAL(compareStringLike(vm.stackTop[-1], right) op 0);		\
+		}																					\
+		else {																				\
+			RUNTIME_ERROR("Operands must be two numbers or two strings.");					\
+		}																					\
+	} while (false)
+
 //fused compare + jump-if-false: no stack traffic, jump when compare is false.
 //dual NEXT_INSTRUCTION on purpose: a single-exit form (`if (!cmp) ip += offset`)
 //makes the compiler fold the ip adjustment into a cmov, which serializes the
@@ -1201,8 +1231,13 @@ static InterpretResult run()
 		ip += offset;																	\
 		NEXT_INSTRUCTION;																\
 	}																					\
+	else if (isStringLike(left) && isStringLike(right)) {								\
+		if (compareStringLike(left, right) op 0) NEXT_INSTRUCTION;						\
+		ip += offset;																	\
+		NEXT_INSTRUCTION;																\
+	}																					\
 	else {																				\
-		RUNTIME_ERROR("Operands must be numbers.");										\
+		RUNTIME_ERROR("Operands must be two numbers or two strings.");					\
 	}
 
 //fused compare + jump-if-false, number-constant form: the constant operand rides
@@ -1215,7 +1250,7 @@ static InterpretResult run()
 		NEXT_INSTRUCTION;																\
 	}																					\
 	else {																				\
-		RUNTIME_ERROR("Operands must be numbers.");										\
+		RUNTIME_ERROR("Operands must be two numbers or two strings.");					\
 	}
 
 //we need continue/break when debug trace
@@ -1750,22 +1785,22 @@ static InterpretResult run()
 		}
 		case OP_GREATER: {
 		label_op_greater:
-			BINARY_OP(BOOL_VAL, > );
+			COMPARE_OP(> );
 			NEXT_INSTRUCTION;
 		}
 		case OP_LESS: {
 		label_op_less:
-			BINARY_OP(BOOL_VAL, < );
+			COMPARE_OP(< );
 			NEXT_INSTRUCTION;
 		}
 		case OP_GREATER_EQUAL: {
 		label_op_greater_equal:
-			BINARY_OP(BOOL_VAL, >= );
+			COMPARE_OP(>= );
 			NEXT_INSTRUCTION;
 		}
 		case OP_LESS_EQUAL: {
 		label_op_less_equal:
-			BINARY_OP(BOOL_VAL, <= );
+			COMPARE_OP(<= );
 			NEXT_INSTRUCTION;
 		}
 		case OP_INSTANCE_OF: {
@@ -2149,25 +2184,25 @@ static InterpretResult run()
 		case OP_GREATER_CONST: {
 		label_op_greater_const:
 			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
-			BINARY_OP_WITH_RIGHT(BOOL_VAL, constant, > );
+			COMPARE_OP_WITH_RIGHT(constant, > );
 			NEXT_INSTRUCTION;
 		}
 		case OP_LESS_CONST: {
 		label_op_less_const:
 			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
-			BINARY_OP_WITH_RIGHT(BOOL_VAL, constant, < );
+			COMPARE_OP_WITH_RIGHT(constant, < );
 			NEXT_INSTRUCTION;
 		}
 		case OP_GREATER_EQUAL_CONST: {
 		label_op_greater_equal_const:
 			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
-			BINARY_OP_WITH_RIGHT(BOOL_VAL, constant, >= );
+			COMPARE_OP_WITH_RIGHT(constant, >= );
 			NEXT_INSTRUCTION;
 		}
 		case OP_LESS_EQUAL_CONST: {
 		label_op_less_equal_const:
 			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
-			BINARY_OP_WITH_RIGHT(BOOL_VAL, constant, <= );
+			COMPARE_OP_WITH_RIGHT(constant, <= );
 			NEXT_INSTRUCTION;
 		}
 		case OP_EQUAL_CONST_NUMBER: {
@@ -2260,28 +2295,28 @@ static InterpretResult run()
 		label_op_greater_local:
 			uint32_t index = READ_SHORT();
 			Value local = frame->slots[index];
-			BINARY_OP_WITH_RIGHT(BOOL_VAL, local, > );
+			COMPARE_OP_WITH_RIGHT(local, > );
 			NEXT_INSTRUCTION;
 		}
 		case OP_LESS_LOCAL: {
 		label_op_less_local:
 			uint32_t index = READ_SHORT();
 			Value local = frame->slots[index];
-			BINARY_OP_WITH_RIGHT(BOOL_VAL, local, < );
+			COMPARE_OP_WITH_RIGHT(local, < );
 			NEXT_INSTRUCTION;
 		}
 		case OP_GREATER_EQUAL_LOCAL: {
 		label_op_greater_equal_local:
 			uint32_t index = READ_SHORT();
 			Value local = frame->slots[index];
-			BINARY_OP_WITH_RIGHT(BOOL_VAL, local, >= );
+			COMPARE_OP_WITH_RIGHT(local, >= );
 			NEXT_INSTRUCTION;
 		}
 		case OP_LESS_EQUAL_LOCAL: {
 		label_op_less_equal_local:
 			uint32_t index = READ_SHORT();
 			Value local = frame->slots[index];
-			BINARY_OP_WITH_RIGHT(BOOL_VAL, local, <= );
+			COMPARE_OP_WITH_RIGHT(local, <= );
 			NEXT_INSTRUCTION;
 		}
 
@@ -2430,6 +2465,8 @@ static InterpretResult run()
 #undef READ_LOCAL_CONSTANT
 #undef BINARY_OP
 #undef BINARY_OP_WITH_RIGHT
+#undef COMPARE_OP
+#undef COMPARE_OP_WITH_RIGHT
 #undef JIF_CMP_WITH_RIGHT
 #undef JIF_CMP_NUM_WITH_RIGHT
 #undef RUNTIME_ERROR

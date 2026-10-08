@@ -1,5 +1,5 @@
 # LoxFlux
-![Version](https://img.shields.io/badge/version-0.11.1-blue)
+![Version](https://img.shields.io/badge/version-0.11.2-blue)
 
 LoxFlux is an independent reimplementation of the cLox interpreter described in "Crafting Interpreters"—a stack-based bytecode virtual machine. All code is written from scratch, following the book’s design principles. This project is still actively being developed and improved.
 
@@ -71,6 +71,8 @@ _(AMD Ryzen7-5800X, Windows 11, Use ClangCL/LLVM 22.1.3 for loxflux & clox (loop
 - **Hexadecimal literal**: Use `0x` or `0X` prefix, e.g., `0xFF`.
 - **Scientific notation**: Supports formats like `1.2e+3` and `123E-2`.
 - **Escape characters**: Supports escaping with backslash `\`, such as `\"` for double quotes; Example: `"\"hello world\""` renders as `"hello world"`.
+- **String ordering comparison**: `<` `<=` `>` `>=` accept strings and StringBuilders (any mix of the two), compared by memcmp byte order over the common prefix, then the shorter operand is the smaller one. e.g., `"ab" < "abc"`, `"😈" > "zzz"` (UTF-8 byte order). Mixing strings with numbers is a runtime error.
+- **String content equality**: `==` / `!=` on string/stringBuilder pairs (any mix) compare by content; two equal-content values are equal even when one is a `StringBuilder` and the other an immutable string.
 
 ---
 
@@ -298,7 +300,7 @@ The `@string` module provides advanced string manipulation capabilities, support
   - `utf8At`: Retrieves a UTF-8 character by logical character position. e.g.,`@string.utf8At("αβγ", 1)` → `"β"`
   - `append`: Efficiently appends strings or other builders to a `StringBuilder`.
   - `intern`: Converts a `StringBuilder` to an immutable string(will occupy the constant scale), or returns existing strings directly.
-  - `equals`: Compare whether the content of two strings|stringBuilders is the same.
+  - `equals`: Compare whether the content of two strings|stringBuilders is the same. (The `==` / `!=` operators also compare string/stringBuilder pairs by content.)
   - `slice`: Extracts a section of a string or StringBuilder and returns it as a new StringBuilder, supporting negative indices.
   - `parseInt`: Parses string to integer (supports hex/octal/binary prefixes)	and base(2 to 36).
   - `parseFloat`: Parses string to float (supports scientific notation).

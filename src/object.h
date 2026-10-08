@@ -246,8 +246,17 @@ static inline bool isTypedArray(Value value) {
 	return IS_OBJ(value) && (AS_OBJ(value)->type >= OBJ_ARRAY_F64);//enum type
 }
 
+//string or stringBuilder
+static inline bool isStringLike(Value value) {
+	return IS_STRING(value) || IS_STRING_BUILDER(value);
+}
+
 ObjString* copyString(C_STR chars, uint32_t length, bool escapeChars);
 ObjString* connectString(ObjString* strA, ObjString* strB);
+
+//memcmp-style three-way ordering for string/stringBuilder pairs (assumes isStringLike on both):
+//byte compare over the common prefix, then the shorter operand is the smaller one
+int compareStringLike(Value a, Value b);
 
 void printObject(Value value, bool isExpand);
 

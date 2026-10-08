@@ -2139,8 +2139,16 @@ static void instructionOptimize() {
 			opStack_fallback(opStack,3);						\
 			emitByte(val ? OP_TRUE : OP_FALSE);					\
 			emitOpStack(val ? OP_TRUE : OP_FALSE, false);		\
-		} else {												\
-			error("Operands must be numbers.");					\
+		}														\
+		else if (IS_STRING(left) && IS_STRING(right)) {			\
+			bool val = compareStringLike(left, right) op 0;		\
+			chunk_fallback(chunk, 1 + sizeLeft + sizeRight);	\
+			opStack_fallback(opStack,3);						\
+			emitByte(val ? OP_TRUE : OP_FALSE);					\
+			emitOpStack(val ? OP_TRUE : OP_FALSE, false);		\
+		}														\
+		else {													\
+			error("Operands must be two numbers or two strings.");\
 		}														\
 	} while (false)
 
