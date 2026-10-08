@@ -140,6 +140,9 @@ static Value inputNative(int argCount, Value* args) {
 				case 'n':
 					input[writePos++] = '\n';
 					break;
+				case 't':
+					input[writePos++] = '\t';
+					break;
 				default:
 					input[writePos++] = '\\';
 					input[writePos++] = input[readPos];

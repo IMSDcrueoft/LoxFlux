@@ -270,7 +270,7 @@ static inline ObjString* deduplicateString(C_STR chars, uint32_t length, uint64_
 	return tableFindString(&vm.strings, chars, length, hash);
 }
 
-//will check '\\' '\"'
+//will check '\\' '\"' '\n' '\t'
 ObjString* copyString(C_STR chars, uint32_t length, bool escapeChars)
 {
 	uint32_t heapSize = sizeof(ObjString) + 1;
@@ -311,6 +311,7 @@ ObjString* copyString(C_STR chars, uint32_t length, bool escapeChars)
 					case '\\':
 					case '\"':
 					case 'n':
+					case 't':
 						++i;
 						break;
 					default:
@@ -348,6 +349,10 @@ ObjString* copyString(C_STR chars, uint32_t length, bool escapeChars)
 					break;
 				case 'n':
 					string->chars[writeIndex] = '\n';
+					++writeIndex;
+					break;
+				case 't':
+					string->chars[writeIndex] = '\t';
 					++writeIndex;
 					break;
 				default:
