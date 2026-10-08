@@ -1,0 +1,24 @@
+// @object.hasOwn: own-property detection on instances (closed class, no chain)
+// exit: 0
+// out: true
+// out: false
+// out: true
+// out: false
+// out: false
+// out: false
+// out: false
+// out: true
+var o = { x: 1 };
+print @object.hasOwn(o, "x");
+print @object.hasOwn(o, "y");
+o.y = 2;
+print @object.hasOwn(o, "y");
+print @object.hasOwn(o, 1);
+print @object.hasOwn([1, 2], 0);
+
+class K { m() { return 1; } }
+var k = K();
+print @object.hasOwn(k, "m");
+print @object.hasOwn(k, "n");
+k.n = 5;
+print @object.hasOwn(k, "n");

@@ -92,6 +92,18 @@ static Value keysNative(int argCount, Value* args) {
 	return OBJ_VAL(result);
 }
 
+//pure predicate: any type mismatch is simply "not an own property"
+//own property = data field only (methods live on the klass, not the instance)
+static Value hasOwnNative(int argCount, Value* args) {
+	if (argCount < 2 || !IS_INSTANCE(args[0]) || !IS_STRING(args[1])) {
+		return FALSE_VAL;
+	}
+
+	ObjInstance* instance = AS_INSTANCE(args[0]);
+	Value dummy;
+	return BOOL_VAL(tableGet(&instance->fields, AS_STRING(args[1]), &dummy));
+}
+
 COLD_FUNCTION
 void importNative_object() {
 	defineNative_object("isNumber", isNumberNative);
@@ -108,4 +120,5 @@ void importNative_object() {
 	defineNative_object("getGlobal", getGlobalNative);
 
 	defineNative_object("keys", keysNative);
+	defineNative_object("hasOwn", hasOwnNative);
 }

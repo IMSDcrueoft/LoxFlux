@@ -101,6 +101,7 @@ export const BUILTIN_MODULES: Record<string, BuiltinModule> = {
 			fn('isBoolean', 'v', 'Verifies whether a value is a boolean.'),
 			fn('getGlobal', '', 'Returns the global object.'),
 			fn('keys', 'obj', 'Returns the own keys array of an instance.'),
+			fn('hasOwn', 'obj, key', 'Returns true if the instance has an own data property with the given string key. Methods are not own properties. Any type mismatch returns false.'),
 		],
 	},
 	'@string': {

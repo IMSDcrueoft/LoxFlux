@@ -3,8 +3,7 @@
 // Without markObject(superclass) in blackenObject, gcRun frees the ancestors
 // and the instanceof chain walk dereferences freed memory (verified: 0xC0000005).
 // exit: 0
-// out: 2848
-// out: 2848
+// out: true
 // out: true
 // out: false
 // out: alive
@@ -23,8 +22,9 @@ make();
 var before = @sys.allocatedBytes();
 @sys.gcRun();
 var after = @sys.allocatedBytes();
-print before;
-print after;
+//zero reclaim across gcRun proves the whole chain survived: without
+//markObject(superclass) the ancestors would be freed here (verified 0xC0000005)
+print before == after;
 
 print sink[0] instanceof sink[1];
 print sink[0] instanceof D;
