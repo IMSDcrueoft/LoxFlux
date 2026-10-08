@@ -13,7 +13,8 @@
 *
 * TOKEN_FOREACH、TOKEN_IN
 *
-* foreach(var k,v : arr){ code }
+* foreach(var k,v in arr){ code }
+* foreach(const k,v in arr){ code }
 *
 * FOREACH IDENTIFIER IDENTIFIER IN EXPRESSION BLOCK
 *

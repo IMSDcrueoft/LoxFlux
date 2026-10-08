@@ -1,0 +1,18 @@
+// continue must close upvalues per iteration: each closure must snapshot its
+// own iteration's value (pre-fix: all closures shared one dangling slot and
+// printed garbage)
+// exit: 0
+// out: 0
+// out: 1
+// out: 2
+var fs = [];
+var i = 0;
+while (i < 3) {
+	var x = i;
+	@array.push(fs, lambda() => x);
+	i = i + 1;
+	continue;
+}
+print fs[0]();
+print fs[1]();
+print fs[2]();

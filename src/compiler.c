@@ -656,6 +656,31 @@ static void endScope() {
 	}
 }
 
+//emit the same close/pop sequence endScope would, from the innermost local
+//down to `target`, without releasing the local records: the code after
+//break/continue still needs them for name resolution, and the block's own
+//endScope cleanup bytes become dead code after the jump (harmless)
+static void closeLoopLocals(uint32_t target) {
+	uint32_t popCount = 0;
+	for (int32_t i = current->localCount - 1; i >= (int32_t)target; i--) {
+		if (current->locals[i].isCaptured) {
+			if (popCount > 0) {
+				emitPopCount(popCount);
+				popCount = 0;
+			}
+			emitByte(OP_CLOSE_UPVALUE);
+			clearOpStack();
+		}
+		else {
+			++popCount;
+		}
+	}
+
+	if (popCount > 0) {
+		emitPopCount(popCount);
+	}
+}
+
 static void parsePrecedenceInner(Precedence precedence) {
 	advance();
 
@@ -1324,8 +1349,7 @@ static void breakStatement() {
 		return;
 	}
 
-	uint16_t offsetParam = current->localCount - current->currentLoop->enterParamCount;
-	emitPopCount(offsetParam);
+	closeLoopLocals(current->currentLoop->enterParamCount);
 	int32_t jump = emitJump(OP_JUMP);
 
 	if (current->currentLoop->breakJumpCount == current->currentLoop->breakJumpCapacity) {
@@ -1353,8 +1377,7 @@ static void continueStatement() {
 		return;
 	}
 
-	uint16_t offsetParam = current->localCount - current->currentLoop->enterParamCount;
-	emitPopCount(offsetParam);
+	closeLoopLocals(current->currentLoop->enterParamCount);
 	emitLoop(current->currentLoop->start);
 	consume(TOKEN_SEMICOLON, "Expect ';' after 'continue'.");
 }

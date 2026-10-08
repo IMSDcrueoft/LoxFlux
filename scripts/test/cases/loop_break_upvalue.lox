@@ -1,0 +1,16 @@
+// break must close upvalues of captured loop-body locals before popping
+// their slots, otherwise the closure reads whatever later overwrites the slot
+// (pre-fix: printed the lambda object pushed onto the dangling slot)
+// exit: 0
+// out: 42
+var f = nil;
+var n = 0;
+while (n < 1) {
+	var x = 42;
+	f = lambda() => x;
+	n = 1;
+	break;
+}
+var junk = [1, 2, 3];
+@array.push(junk, 4);
+print f();
