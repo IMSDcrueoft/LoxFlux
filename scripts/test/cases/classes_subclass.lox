@@ -1,0 +1,25 @@
+// class-level subclass detection via instanceof (dual semantics)
+// exit: 0
+// out: true
+// out: true
+// out: true
+// out: false
+// out: false
+// out: false
+// out: true
+// out: true
+class A { }
+class B < A { }
+class C < B { }
+class D { }
+
+print C instanceof A;
+print C instanceof B;
+print C instanceof C;
+print A instanceof C;
+print D instanceof A;
+print A instanceof D;
+
+var c = C();
+print c instanceof B;
+print c instanceof C;

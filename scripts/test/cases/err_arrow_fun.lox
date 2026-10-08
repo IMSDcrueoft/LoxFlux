@@ -1,0 +1,7 @@
+// '=>' on a named function must be a clean compile error, and must NOT
+// corrupt compiler state (regression: early return skipped endCompiler and
+// left 'current' pointing at a dead stack frame)
+// exit: 65
+// err: '=>' can only be used after lambda parameters.
+fun f() => 1;
+print "should not run";

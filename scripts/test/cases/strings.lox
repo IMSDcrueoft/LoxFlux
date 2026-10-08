@@ -1,0 +1,27 @@
+// strings: concatenation, comparison, escapes, @string API (functional form)
+// exit: 0
+// out: hello world
+// out: true
+// out: true
+// out: tab	here
+// out: line1
+// out: line2
+// out: quote"inside
+// out: back\slash
+// out: 5
+// out: e
+// out: 42
+// out: 3.14
+// out: true
+print "hello" + " " + "world";
+print "abc" == "abc";
+print "abc" != "abd";
+print "tab\there";
+print "line1\nline2";
+print "quote\"inside";
+print "back\\slash";
+print @string.length("hello");
+print @string.charAt("hello", 1);
+print @string.parseInt("42");
+print @string.parseFloat("3.14");
+print @string.equals("abc", "abc");

@@ -20,6 +20,8 @@
 #define OBJECT_MAX_NESTING 12
 //function nesting
 #define FUNCTION_MAX_NESTING 8
+//max parser recursion depth (expressions/statements),guard against C stack overflow
+#define MAX_PARSE_DEPTH 512
 
 typedef struct {
 	Token current;
@@ -27,6 +29,8 @@ typedef struct {
 
 	bool hadError;
 	bool panicMode;
+
+	uint32_t parseDepth;
 } Parser;
 
 //must be ordered

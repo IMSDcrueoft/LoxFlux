@@ -1,0 +1,44 @@
+// functions: calls, recursion, lambdas, closures, nested funs
+// exit: 0
+// out: 5
+// out: 610
+// out: 42
+// out: nil
+// out: 4.5
+// out: 2
+// out: 40
+// out: 1
+// out: 2
+// out: 1
+fun add(a, b) { return a + b; }
+print add(2, 3);
+
+fun fib(n) { if (n < 2) return n; return fib(n - 1) + fib(n - 2); }
+print fib(15);
+
+fun noargs() { return 42; }
+print noargs();
+
+fun noret() { }
+print noret();
+
+var half = lambda(x) => x / 2;
+print half(9);
+
+var two = lambda() => 2;
+print two();
+
+fun outer(a) { fun inner() { return a * 10; } return inner; }
+print outer(4)();
+
+// closures: independent state per closure instance
+fun counter() {
+	var n = 0;
+	fun inc() { n = n + 1; return n; }
+	return inc;
+}
+var c1 = counter();
+var c2 = counter();
+print c1();
+print c1();
+print c2();

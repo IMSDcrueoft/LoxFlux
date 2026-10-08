@@ -1,0 +1,37 @@
+// variables: globals, locals, block scope, shadowing, const
+// exit: 0
+// out: 1
+// out: 2
+// out: 1
+// out: 10
+// out: 5
+// out: 4
+// out: 3
+// out: 14
+// out: nil
+var g = 1;
+print g;
+
+fun f() { var g = 2; return g; }
+print f();
+print g;
+
+{ var b = 10; print b; }
+
+fun useConst() {
+	const c = 5;
+	return c;
+}
+print useConst();
+
+var x = 3;
+{ var x = 4; print x; }
+print x;
+
+var a = 7;
+var b = a + 0;
+b = b + 0;
+print a + b;
+
+var empty;
+print empty;

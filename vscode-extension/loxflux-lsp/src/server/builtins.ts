@@ -195,7 +195,7 @@ export const KEYWORD_DOCS: KeywordDoc[] = [
 	{ keyword: 'this', doc: 'Refers to the current instance inside a method.' },
 	{ keyword: 'super', doc: 'Calls a method from the superclass: `super.method(args)`.' },
 	{ keyword: 'typeof', doc: "Returns a string describing the item's subdivision type." },
-	{ keyword: 'instanceof', doc: 'Checks if an object is an instance of a specific class: `x instanceof Foo`.' },
+	{ keyword: 'instanceof', doc: 'Checks the class chain: `x instanceof Foo` is true when x is an instance of Foo (or of a subclass), or when x is itself a class derived from Foo.' },
 	{ keyword: 'and', doc: 'Logical AND (short-circuit).' },
 	{ keyword: 'or', doc: 'Logical OR (short-circuit).' },
 	{ keyword: 'nil', doc: 'The nil (null) literal.' },

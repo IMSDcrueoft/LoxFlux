@@ -41,10 +41,14 @@ interface Rule {
 }
 
 export class Parser {
+	//recursion cap: deep nesting would overflow the Node.js call stack
+	private static readonly MAX_PARSE_DEPTH = 256;
+
 	private tokens: Token[];
 	private current = 0;
 	private errors: ParseError[] = [];
 	private panicMode = false;
+	private depth = 0;
 
 	constructor(tokens: Token[]) {
 		this.tokens = tokens;
@@ -335,6 +339,21 @@ export class Parser {
 	// ---- statements ----------------------------------------------------
 
 	private statement(): Stmt {
+		//recursion guard: if/else chains, branch and nested blocks recurse through here
+		if (this.depth >= Parser.MAX_PARSE_DEPTH) {
+			this.errorAtCurrent('Code nesting is too deep.');
+			const t = this.peek;
+			return { kind: 'ExprStmt', start: t.start, end: t.end, expression: { kind: 'Literal', start: t.start, end: t.end, token: t } };
+		}
+		this.depth++;
+		try {
+			return this.statementInner();
+		} finally {
+			this.depth--;
+		}
+	}
+
+	private statementInner(): Stmt {
 		if (this.match(TokenType.Print)) {
 			return this.printStatement();
 		}
@@ -661,6 +680,21 @@ export class Parser {
 	}
 
 	private parsePrecedence(precedence: Precedence): Expr {
+		//recursion guard: parens/unary/and-or chains recurse through here
+		if (this.depth >= Parser.MAX_PARSE_DEPTH) {
+			this.errorAtCurrent('Code nesting is too deep.');
+			const t = this.peek;
+			return { kind: 'Literal', start: t.start, end: t.end, token: t };
+		}
+		this.depth++;
+		try {
+			return this.parsePrecedenceInner(precedence);
+		} finally {
+			this.depth--;
+		}
+	}
+
+	private parsePrecedenceInner(precedence: Precedence): Expr {
 		this.advance();
 		const canAssign = precedence <= Precedence.PrecAssignment;
 

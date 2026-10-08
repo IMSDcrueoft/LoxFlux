@@ -1,0 +1,30 @@
+// @math module (functional form): precision, division by zero, NaN
+// exit: 0
+// out: 0.30000000000000004
+// out: Infinity
+// out: -Infinity
+// out: NaN
+// out: true
+// out: 3
+// out: 4
+// out: 5
+// out: 9
+// out: 1
+// out: 2
+// out: 1024
+// out: 3.141592653589793
+// out: 9007199254740992
+print 0.1 + 0.2;
+print 1 / 0;
+print -1 / 0;
+print 0 / 0;
+print @math.isNaN(0 / 0);
+print @math.floor(3.7);
+print @math.ceil(3.2);
+print @math.abs(-5);
+print @math.max(1, 9);
+print @math.min(1, 9);
+print @math.sqrt(4);
+print @math.pow(2, 10);
+print @math.PI;
+print 9007199254740993;

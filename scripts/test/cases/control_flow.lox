@@ -1,0 +1,43 @@
+// control flow: if/else, while, do-while, for, branch (incl. none)
+// note: only nil and false are falsy; 0 is truthy; branch cases are
+// `<expr>: <statement>` with `none:` as the final catch-all
+// exit: 0
+// out: yes
+// out: no
+// out: f
+// out: zero is truthy
+// out: 0
+// out: 1
+// out: 2
+// out: 10
+// out: 11
+// out: 0
+// out: 1
+// out: 2
+// out: two
+// out: other
+if (true) print "yes"; else print "no";
+if (false) print "yes"; else print "no";
+if (nil) print "t"; else print "f";
+if (0) print "zero is truthy";
+
+var i = 0;
+while (i < 3) { print i; i = i + 1; }
+
+var j = 10;
+do { print j; j = j + 1; } while (j < 12);
+
+for (var k = 0; k < 3; k = k + 1) print k;
+
+var x = 2;
+branch {
+	x == 1: print "one";
+	x == 2: print "two";
+	none: print "other";
+}
+
+var y = 9;
+branch {
+	y == 1: print "one";
+	none: print "other";
+}

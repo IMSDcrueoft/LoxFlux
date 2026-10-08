@@ -341,17 +341,14 @@ static Value parseIntNative(int argCount, Value* args) {
 static Value parseFloatNative(int argCount, Value* args) {
 	if (argCount >= 1) {
 		C_STR stringPtr = NULL;
-		uint32_t length = 0;
 
 		if (IS_STRING(args[0])) {
 			ObjString* string = AS_STRING(args[0]);
 			stringPtr = string->chars;
-			length = string->length;
 		}
 		else if (IS_STRING_BUILDER(args[0])) {
 			ObjArray* string = AS_ARRAY(args[0]);
 			stringPtr = string->payload;
-			length = string->length;
 		}
 
 		if (stringPtr != NULL) {

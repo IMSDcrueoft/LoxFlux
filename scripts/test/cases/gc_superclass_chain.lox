@@ -1,0 +1,31 @@
+// GC must keep the superclass chain alive: only the leaf class escapes the
+// enclosing scope, ancestors survive solely via the superclass pointers.
+// Without markObject(superclass) in blackenObject, gcRun frees the ancestors
+// and the instanceof chain walk dereferences freed memory (verified: 0xC0000005).
+// exit: 0
+// out: 2848
+// out: 2848
+// out: true
+// out: false
+// out: alive
+class D { }
+var sink = [nil, nil];
+
+fun make() {
+	class A { }
+	class B < A { }
+	class C < B { }
+	sink[0] = C();
+	sink[1] = B;
+}
+make();
+
+var before = @sys.allocatedBytes();
+@sys.gcRun();
+var after = @sys.allocatedBytes();
+print before;
+print after;
+
+print sink[0] instanceof sink[1];
+print sink[0] instanceof D;
+print "alive";

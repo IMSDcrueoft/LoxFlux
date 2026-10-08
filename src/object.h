@@ -162,11 +162,12 @@ typedef struct {
 	NativeFn function;
 } ObjNative;
 
-typedef struct {
+typedef struct ObjClass {
 	Obj obj;
 	ObjString* name;
-	Value initializer;//inline cache
 	Table methods;
+	Value initializer;//inline cache
+	struct ObjClass* superclass;//recorded by OP_INHERIT,walked by instanceof
 } ObjClass;
 
 typedef struct {

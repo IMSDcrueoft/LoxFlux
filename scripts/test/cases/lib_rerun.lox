@@ -1,0 +1,2 @@
+print "lib loaded";
+export { "v": 1 };

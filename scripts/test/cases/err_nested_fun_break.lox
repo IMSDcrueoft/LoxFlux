@@ -1,0 +1,7 @@
+// break/continue cannot cross a function boundary
+// exit: 65
+// err: Cannot use 'break' outside of a loop.
+var a = false;
+while (a) {
+	fun f() { break; }
+}

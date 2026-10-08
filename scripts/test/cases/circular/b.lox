@@ -1,0 +1,3 @@
+print "b start";
+var c = import "./c.lox";
+print "b end";

@@ -1,0 +1,3 @@
+const PI = 3.14;
+fun double(a) { return a * 2; }
+export { "pi": PI, "double": double };

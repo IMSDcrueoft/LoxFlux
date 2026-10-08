@@ -1,0 +1,75 @@
+// loops with break/continue: for/while/do-while, local cleanup (POP_N path),
+// nested loops, continue-to-increment
+// exit: 0
+// out: 16
+// out: 3
+// out: 5
+// out: ok
+// out: 7
+// out: 6
+// out: 10
+var sum = 0;
+for (var i = 0; i < 10; i = i + 1) {
+	if (i % 2 == 0) continue;
+	if (i > 7) break;
+	sum = sum + i;
+}
+print sum;
+
+var j = 0;
+while (true) {
+	j = j + 1;
+	if (j >= 3) break;
+}
+print j;
+
+var k = 0;
+do {
+	k = k + 1;
+	if (k == 2) continue;
+	if (k == 5) break;
+} while (k < 10);
+print k;
+
+// break with locals in scope (exercises OP_POP_N cleanup)
+var done = false;
+while (!done) {
+	var a = 1;
+	var b = 2;
+	var c = 3;
+	done = true;
+	break;
+}
+print "ok";
+
+// continue skips to the increment clause
+var s2 = 0;
+for (var m = 0; m < 5; m = m + 1) {
+	if (m < 3) continue;
+	s2 = s2 + m;
+}
+print s2;
+
+// break only leaves the inner loop
+var count = 0;
+for (var p = 0; p < 3; p = p + 1) {
+	for (var q = 0; q < 10; q = q + 1) {
+		if (q == 2) break;
+		count = count + 1;
+	}
+}
+print count;
+
+// break inside nested blocks still cleans all block locals
+var n = 0;
+while (n < 1) {
+	{
+		var u1 = 1;
+		{
+			var u2 = 2;
+			n = 10;
+			break;
+		}
+	}
+}
+print n;

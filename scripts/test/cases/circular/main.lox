@@ -1,0 +1,9 @@
+// circular import is detected at runtime instead of re-running bodies forever
+// exit: 70
+// out: main start
+// out: b start
+// out: c start
+// err: Circular import detected.
+print "main start";
+var b = import "./b.lox";
+print "main end";

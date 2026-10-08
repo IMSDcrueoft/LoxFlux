@@ -1,0 +1,43 @@
+// arrays, typed arrays, objects, nested containers; @array API (functional)
+// exit: 0
+// out: 3
+// out: 1
+// out: 10
+// out: 4
+// out: 4
+// out: 3
+// out: 3
+// out: 5
+// out: 3
+// out: 1.5
+// out: NaN
+var arr = [1, 2, 3];
+print @array.length(arr);
+print arr[0];
+arr[0] = 10;
+print arr[0];
+@array.push(arr, 4);
+print @array.length(arr);
+print @array.pop(arr);
+
+var nested = [[1, 2], [3, 4]];
+print nested[1][0];
+
+var o = { x: 1, "y": 2 };
+print o.x + o.y;
+o.z = 5;
+print o.z;
+
+var t = @ctor.F64Array(3);
+print @array.length(t);
+t[0] = 1.5;
+print t[0];
+
+// NOTE: @array.length(stringBuilder) intentionally returns NaN: the
+// array-like check (`type >= OBJ_ARRAY`) excludes OBJ_STRING_BUILDER by
+// design, because @string owns stringBuilder length semantics and allowing
+// both to resolve length would be ambiguous.
+var sb = @ctor.StringBuilder();
+@string.append(sb, "ab");
+@string.append(sb, "cd");
+print @array.length(sb);

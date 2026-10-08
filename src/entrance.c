@@ -82,7 +82,8 @@ void repl() {
 
 	vm_init();
 
-	char line[256];
+	//512 chars max per line (+ '\n' + '\0'),matches the documented limit
+	char line[514];
 	STR fullLine = (STR)mem_alloc(512);
 	STR result = NULL;
 

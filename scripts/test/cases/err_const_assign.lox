@@ -1,0 +1,7 @@
+// assignment to a local const is rejected (const is local-scope only)
+// exit: 65
+// err: Assignment to constant variable.
+fun f() {
+	const c = 1;
+	c = 2;
+}

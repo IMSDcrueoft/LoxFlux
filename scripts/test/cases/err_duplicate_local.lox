@@ -1,0 +1,7 @@
+// duplicate local in the same scope is rejected
+// exit: 65
+// err: Already a variable with this name in this scope.
+fun f() {
+	var a = 1;
+	var a = 2;
+}

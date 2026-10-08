@@ -1,0 +1,7 @@
+// module import/export
+// exit: 0
+// out: 3.14
+// out: 42
+var lib = import "./lib.lox";
+print lib.pi;
+print lib.double(21);

@@ -1,0 +1,4 @@
+// break/continue outside any loop is rejected
+// exit: 65
+// err: Cannot use 'break' outside of a loop.
+break;

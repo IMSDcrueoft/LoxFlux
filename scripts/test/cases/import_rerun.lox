@@ -1,0 +1,9 @@
+// re-importing the same module re-executes its body (documented current
+// semantics; circular imports are rejected separately)
+// exit: 0
+// out: lib loaded
+// out: lib loaded
+// out: 1
+var a = import "./lib_rerun.lox";
+var b = import "./lib_rerun.lox";
+print b.v;

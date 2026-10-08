@@ -1,5 +1,16 @@
-var start = @time.milli();
-for(var i = 0;i<100000000;){
-    i = i+1;
+
+{
+    var start = @time.milli();
+    for(var i = 0;i<100000000;){
+        i = i+1;
+    }
+    @sys.log("forLoop: ", @time.milli() - start);
 }
-print @time.milli() - start;
+{
+    var start = @time.milli();
+    var i = 0;
+    while(i<100000000){
+        i = 1 + i;
+    }
+    @sys.log("whileLoop: ", @time.milli() - start);
+}

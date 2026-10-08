@@ -22,6 +22,7 @@ ClassCompiler* currentClass = NULL;
 static void declaration();
 static void expression();
 static void statement();
+static void branchCaseStatement();
 //need to declare first
 static ParseRule* getRule(TokenType type);
 static void namedVariable(Token name, bool canAssign);
@@ -408,7 +409,17 @@ static uint32_t makeConstant(Value value) {
 
 		if (entry != NULL) {
 			if (entry->index == UINT32_MAX) {
-				return (entry->index = addConstant(value) & UINT24_MAX);//set value and return
+				uint32_t index = addConstant(value);
+
+				//never mask the index: a wrapped value would silently reference
+				//the wrong constant; report and return the sentinel instead
+				if (index > UINT24_MAX) {
+					error("Too many constants in chunk.");
+					return UINT32_MAX;
+				}
+
+				entry->index = index;//set value and return
+				return index;
 			}
 			return entry->index;
 		}
@@ -645,7 +656,7 @@ static void endScope() {
 	}
 }
 
-static void parsePrecedence(Precedence precedence) {
+static void parsePrecedenceInner(Precedence precedence) {
 	advance();
 
 	ParseFn prefixRule = getRule(parser.previous.type)->prefix;
@@ -673,6 +684,18 @@ static void parsePrecedence(Precedence precedence) {
 	if (canAssign && match(TOKEN_EQUAL)) {
 		error("Invalid assignment target.");
 	}
+}
+
+//recursion guard:parens/unary/and-or/subscript chains recurse through here,
+//nesting beyond the cap would overflow the C stack
+static void parsePrecedence(Precedence precedence) {
+	if (parser.parseDepth >= MAX_PARSE_DEPTH) {
+		error("Code nesting is too deep.");
+		return;
+	}
+	parser.parseDepth++;
+	parsePrecedenceInner(precedence);
+	parser.parseDepth--;
 }
 
 static uint32_t identifierConstant(Token* name) {
@@ -893,8 +916,9 @@ static void function(FunctionType type) {
 	}
 	else {
 		if (type != TYPE_LAMBDA) {
+			//no early return here:endCompiler/freeLocals must run,otherwise
+			//'current' keeps pointing at this dead stack frame (use-after-scope)
 			errorAtCurrent("'=>' can only be used after lambda parameters.");
-			return;
 		}
 
 		expression();
@@ -1127,7 +1151,7 @@ static void ifStatement() {
 	patchJump(elseJump);
 }
 
-static void branchCaseStatement() {
+static void branchCaseStatementInner() {
 	if (!match(TOKEN_NONE)) {
 		int32_t condStart = currentChunk()->count;
 		expression();
@@ -1153,6 +1177,17 @@ static void branchCaseStatement() {
 		//'none' must be the last case
 		consume(TOKEN_RIGHT_BRACE, "Expect '}' after 'none' case.");
 	}
+}
+
+//recursion guard:one frame per case
+static void branchCaseStatement() {
+	if (parser.parseDepth >= MAX_PARSE_DEPTH) {
+		error("Code nesting is too deep.");
+		return;
+	}
+	parser.parseDepth++;
+	branchCaseStatementInner();
+	parser.parseDepth--;
 }
 
 static void branchStatement() {
@@ -1352,7 +1387,7 @@ static void synchronize() {
 	}
 }
 
-static void statement() {
+static void statementInner() {
 	if (match(TOKEN_PRINT)) {
 		printStatement();
 	}
@@ -1394,6 +1429,17 @@ static void statement() {
 	else {
 		expressionStatement();
 	}
+}
+
+//recursion guard:if/else chains,branch and nested blocks recurse through here
+static void statement() {
+	if (parser.parseDepth >= MAX_PARSE_DEPTH) {
+		error("Code nesting is too deep.");
+		return;
+	}
+	parser.parseDepth++;
+	statementInner();
+	parser.parseDepth--;
 }
 
 static void declaration() {
@@ -2028,6 +2074,7 @@ ObjFunction* compile(C_STR source, FunctionType compileType) {
 	//init flags
 	parser.hadError = false;
 	parser.panicMode = false;
+	parser.parseDepth = 0;
 
 	advance();
 
@@ -2080,7 +2127,6 @@ static void instructionOptimize() {
 	// local
 	bool isLeftLocal = (prevLeft == OP_GET_LOCAL);
 	bool isRightLocal = (prevRight == OP_GET_LOCAL);
-	bool isBothLocal = (isLeftLocal && isRightLocal);
 
 #define CHUNK_PEEK(offset) chunk->code[chunk->count - (offset) - 1]
 	//constants in vm.constants (non-number),24bits index

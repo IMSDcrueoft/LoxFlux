@@ -1,0 +1,6 @@
+// '=>' on a class method must also be a clean compile error
+// exit: 65
+// err: '=>' can only be used after lambda parameters.
+class C {
+	m() => 2;
+}

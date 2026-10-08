@@ -1,0 +1,28 @@
+// classes: methods, init, this, inheritance, super, instanceof
+// exit: 0
+// out: dog speaks
+// out: dog
+// out: rex speaks!
+// out: fetching
+// out: true
+// out: true
+// out: false
+class Animal {
+	init(name) { this.name = name; }
+	speak() { return this.name + " speaks"; }
+}
+var a = Animal("dog");
+print a.speak();
+print a.name;
+
+class Dog < Animal {
+	speak() { return super.speak() + "!"; }
+	fetch() { return "fetching"; }
+}
+var d = Dog("rex");
+print d.speak();
+print d.fetch();
+
+print d instanceof Animal;
+print d instanceof Dog;
+print a instanceof Dog;

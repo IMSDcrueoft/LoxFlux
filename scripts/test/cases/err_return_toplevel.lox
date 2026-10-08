@@ -1,0 +1,4 @@
+// return at top level is rejected
+// exit: 65
+// err: Can't return from top-level code.
+return 1;

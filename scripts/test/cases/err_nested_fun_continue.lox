@@ -1,0 +1,7 @@
+// break/continue cannot cross a function boundary (continue variant)
+// exit: 65
+// err: Cannot use 'continue' outside of a loop.
+var a = false;
+while (a) {
+	fun f() { continue; }
+}

@@ -1,0 +1,42 @@
+// arithmetic, precedence, unary, modulo, hex/bin literals, bitwise
+// exit: 0
+// out: 7
+// out: 9
+// out: 5
+// out: 3.5
+// out: 1
+// out: -3
+// out: -6
+// out: 21
+// out: 1
+// out: 7
+// out: 6
+// out: 16
+// out: 4
+// out: -6
+// out: number
+// out: nil
+// out: true
+// out: false
+// out: true
+// out: true
+print 1 + 2 * 3;
+print (1 + 2) * 3;
+print 10 - 3 - 2;
+print 7 / 2;
+print 7 % 3;
+print -5 + 2;
+print 2 * -3;
+print 0x10 + 0b101;
+print 5 & 3;
+print 5 | 3;
+print 5 ^ 3;
+print 1 << 4;
+print 16 >> 2;
+print ~5;
+print typeof 1;
+print typeof nil;
+print 1 < 2 and 2 < 3;
+print 1 > 2 or 2 > 3;
+print 1 == 1.0;
+print "a" != "b";

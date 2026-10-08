@@ -130,6 +130,7 @@ ObjClass* newClass(ObjString* name)
 	klass->initializer = NIL_VAL;
 	klass->methods.isGlobal = false;
 	klass->methods.isFrozen = false;
+	klass->superclass = NULL;
 	table_init(&klass->methods);
 	return klass;
 }

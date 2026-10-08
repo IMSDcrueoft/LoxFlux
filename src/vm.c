@@ -1349,6 +1349,8 @@ static InterpretResult run()
 				if (IS_NIL(subclass->initializer)) {
 					subclass->initializer = AS_CLASS(superclass)->initializer;
 				}
+				//record the link for instanceof (methods above are copies, not a lookup chain)
+				subclass->superclass = AS_CLASS(superclass);
 				stack_pop(); // Subclass.
 			}
 			else {
@@ -1805,7 +1807,28 @@ static InterpretResult run()
 		}
 		case OP_INSTANCE_OF: {
 		label_op_instance_of:
-			bool isInstanceOf = (IS_INSTANCE(vm.stackTop[-2]) && IS_CLASS(vm.stackTop[-1])) && (AS_INSTANCE(vm.stackTop[-2])->klass == AS_CLASS(vm.stackTop[-1]));
+			//"x instanceof y" walks x's class chain looking for y: an
+			//instance's chain starts at its klass, a class's chain starts at
+			//itself (so a class matches itself and every ancestor)
+			bool isInstanceOf = false;
+			ObjClass* k = NULL;
+			if (IS_INSTANCE(vm.stackTop[-2])) {
+				k = AS_INSTANCE(vm.stackTop[-2])->klass;
+			}
+			else if (IS_CLASS(vm.stackTop[-2])) {
+				k = AS_CLASS(vm.stackTop[-2]);
+			}
+
+			if (k != NULL && IS_CLASS(vm.stackTop[-1])) {
+				ObjClass* target = AS_CLASS(vm.stackTop[-1]);
+				while (k != NULL) {
+					if (k == target) {
+						isInstanceOf = true;
+						break;
+					}
+					k = k->superclass;
+				}
+			}
 			vm.stackTop[-2] = BOOL_VAL(isInstanceOf);
 			vm.stackTop--;
 			NEXT_INSTRUCTION;
@@ -2110,6 +2133,14 @@ static InterpretResult run()
 			ObjFunction* function = getCachedScript(absolutePath);
 			mem_free(absolutePath);// free memory
 			if (function == NULL) return INTERPRET_COMPILE_ERROR;
+
+			//circular import:the module is already executing somewhere on the
+			//call stack,calling it again would re-run its body without end
+			for (int32_t i = 0; i < vm.frameCount; i++) {
+				if (vm.frames[i].closure != NULL && vm.frames[i].closure->function == function) {
+					RUNTIME_ERROR("Circular import detected.");
+				}
+			}
 
 			//same as interpret()
 			ObjClosure* closure = newClosure(function);
