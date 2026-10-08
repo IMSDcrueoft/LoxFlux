@@ -616,6 +616,10 @@ export class Analyzer {
 	private walkFunction(params: Token[], body: Stmt | Expr): void {
 		this.pushScope(false, body.start, body.end);
 		this.functionDepth++;
+		//break/continue cannot cross a function boundary: mirror the compiler's
+		//per-Compiler currentLoop reset by clearing loopDepth inside the body
+		const savedLoopDepth = this.loopDepth;
+		this.loopDepth = 0;
 		try {
 			for (const p of params) {
 				this.declare(p, DeclKind.Param, {});
@@ -630,6 +634,7 @@ export class Analyzer {
 				this.walkExpr(body as Expr);
 			}
 		} finally {
+			this.loopDepth = savedLoopDepth;
 			this.functionDepth--;
 			this.popScope();
 		}

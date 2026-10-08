@@ -1248,7 +1248,7 @@ static void whileStatement() {
 		patchJump(loop.breakJumps[--loop.breakJumpCount]);
 	}
 
-	FREE_ARRAY(int32_t, loop.breakJumps, loop.breakJumpCapacity);
+	FREE_ARRAY_NO_GC(int32_t, loop.breakJumps, loop.breakJumpCapacity);
 	current->currentLoop = current->currentLoop->enclosing;
 }
 
@@ -1294,14 +1294,17 @@ static void breakStatement() {
 	int32_t jump = emitJump(OP_JUMP);
 
 	if (current->currentLoop->breakJumpCount == current->currentLoop->breakJumpCapacity) {
-		if (current->currentLoop->breakJumpCapacity == UINT16_MAX) {
+		uint32_t oldCapacity = current->currentLoop->breakJumpCapacity;
+		uint32_t newCapacity = GROW_CAPACITY(oldCapacity);
+
+		//capacity is uint16_t: 32768 << 1 wraps to 0, must check before the store
+		if (newCapacity > UINT16_MAX) {
 			error("Too many break statements in one loop.");
 			return;
 		}
 
-		uint32_t oldCapacity = current->currentLoop->breakJumpCapacity;
-		current->currentLoop->breakJumpCapacity = GROW_CAPACITY(oldCapacity);
-		current->currentLoop->breakJumps = GROW_ARRAY_NO_GC(int32_t, current->currentLoop->breakJumps, oldCapacity, current->currentLoop->breakJumpCapacity);
+		current->currentLoop->breakJumpCapacity = (uint16_t)newCapacity;
+		current->currentLoop->breakJumps = GROW_ARRAY_NO_GC(int32_t, current->currentLoop->breakJumps, oldCapacity, newCapacity);
 	}
 
 	current->currentLoop->breakJumps[current->currentLoop->breakJumpCount++] = jump;
