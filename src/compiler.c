@@ -1278,7 +1278,7 @@ static void doWhileStatement() {
 	while (loop.breakJumpCount > 0) {
 		patchJump(loop.breakJumps[--loop.breakJumpCount]);
 	}
-	FREE_ARRAY(int32_t, loop.breakJumps, loop.breakJumpCapacity);
+	FREE_ARRAY_NO_GC(int32_t, loop.breakJumps, loop.breakJumpCapacity);
 	current->currentLoop = current->currentLoop->enclosing;
 }
 
