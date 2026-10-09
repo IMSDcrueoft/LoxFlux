@@ -309,4 +309,10 @@ void reserveArray(ObjArray* array, uint64_t size);
 Value getTypedArrayElement(ObjArray* array, uint32_t index);
 void setTypedArrayElement(ObjArray* array, uint32_t index, Value val);
 
+//extracts a NUL-terminated C buffer from a string-like value: strings return
+//their internal chars, stringBuilders return their payload (every mutator
+//keeps a terminator right past the length, asserted in debug builds) — the
+//result is owned by the value, never free it. NULL for any other value kind.
+C_STR getBufferFromStringLike(Value value);
+
 #undef COMPRESS_OBJ_HEADER

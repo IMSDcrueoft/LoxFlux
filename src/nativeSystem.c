@@ -7,6 +7,7 @@
 #include "vm.h"
 #include "object.h"
 #include "gc.h"
+#include "allocator.h"
 //System
 #define KiB16 (16 * 1024)
 #define GiB1 (1024 * 1024 * 1024)
@@ -170,17 +171,9 @@ static Value readFileNative(int argCount, Value* args) {
 		return NIL_VAL;
 	}
 
-	C_STR path = NULL;
+	C_STR path = getBufferFromStringLike(args[0]);
 
-	if (IS_STRING(args[0])) {
-		ObjString* pathString = AS_STRING(args[0]);
-		path = pathString->chars;
-	}
-	else if (IS_STRING_BUILDER(args[0])) {
-		ObjArray* pathBuilder = AS_ARRAY(args[0]);
-		path = pathBuilder->payload;
-	}
-	else {
+	if (path == NULL) {
 		fprintf(stderr, "readFile expects a string or stringBuilder path argument.\n");
 		return NIL_VAL;
 	}

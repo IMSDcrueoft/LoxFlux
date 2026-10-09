@@ -2110,17 +2110,9 @@ static InterpretResult run()
 		case OP_IMPORT: {
 		label_op_import:
 			Value target = vm.stackTop[-1];
-			C_STR path = NULL;
 
-			if (IS_STRING(target)) {
-				ObjString* pathString = AS_STRING(target);
-				path = pathString->chars;
-			}
-			else if (IS_STRING_BUILDER(target)) {
-				ObjArray* pathStringBuilder = AS_ARRAY(target);
-				path = pathStringBuilder->payload;
-			}
-			else {
+			C_STR path = getBufferFromStringLike(target);
+			if (path == NULL) {
 				RUNTIME_ERROR("Path to import must be a string or stringBuilder.");
 			}
 

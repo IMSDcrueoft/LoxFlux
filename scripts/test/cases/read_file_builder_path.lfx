@@ -1,0 +1,9 @@
+// stringBuilder paths carry no terminator: readFile must copy [0, length)
+// into a fresh NUL-terminated buffer instead of walking raw payload memory
+// (pre-fix: fread opened a garbage path read past the buffer)
+// exit: 0
+// out: hello data
+var sb = @ctor.StringBuilder();
+@string.append(sb, "./data.txt");
+var c = @sys.readFile(sb);
+print @string.intern(c);

@@ -8,6 +8,8 @@
 #include "hash.h"
 #include "memory.h"
 #include "gc.h"
+#include "allocator.h"
+#include <assert.h>
 
 #if DEBUG_LOG_GC
 const C_STR objTypeInfo[] = {
@@ -616,4 +618,25 @@ void printObject(Value value, bool isExpand) {
 StringEntry* getStringEntryInPool(ObjString* string)
 {
 	return tableGetStringEntry(&vm.strings, string);
+}
+
+//string and stringBuilder both carry raw bytes and every mutator (ctor,
+//append, slice, readFile) keeps a terminator right past the length: return
+//the internal buffer as-is, no copy needed
+C_STR getBufferFromStringLike(Value value)
+{
+	if (IS_STRING(value)) {
+		return AS_STRING(value)->chars;
+	}
+
+	if (IS_STRING_BUILDER(value)) {
+		ObjArray* builder = AS_ARRAY(value);
+
+		//a violated invariant here is an internal bug, not user input
+		assert(builder->payload != NULL && builder->capacity > builder->length && ((const char*)builder->payload)[builder->length] == '\0');
+
+		return builder->payload;
+	}
+
+	return NULL;
 }

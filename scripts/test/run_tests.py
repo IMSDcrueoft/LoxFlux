@@ -70,8 +70,9 @@ def collect_tests():
     for sub in ("cases", "generated"):
         d = HERE / sub
         if d.is_dir():
-            files.extend(sorted(f for f in d.rglob("*.lox") if is_test_file(f)))
-    return files
+            for pattern in ("*.lox", "*.lfx"):
+                files.extend(sorted(f for f in d.rglob(pattern) if is_test_file(f)))
+    return sorted(set(files))
 
 
 def run_case(exe: Path, file: Path, timeout: int):

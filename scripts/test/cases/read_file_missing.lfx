@@ -1,0 +1,5 @@
+// readFile on a missing file returns nil and reports on stderr
+// exit: 0
+// out: nil
+// err: Could not open file
+print @sys.readFile("./nope.txt");

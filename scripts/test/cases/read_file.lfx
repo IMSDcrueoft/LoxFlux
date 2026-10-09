@@ -1,0 +1,5 @@
+// @sys.readFile with a plain string path
+// exit: 0
+// out: hello data
+var c = @sys.readFile("./data.txt");
+print @string.intern(c);

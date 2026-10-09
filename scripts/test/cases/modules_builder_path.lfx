@@ -1,0 +1,10 @@
+// import with a stringBuilder path must copy the path bytes, the payload has
+// no terminator (pre-fix: garbage path read past the buffer)
+// exit: 0
+// out: 3.14
+// out: 42
+var sb = @ctor.StringBuilder();
+@string.append(sb, "./lib.lox");
+var lib = import sb;
+print lib.pi;
+print lib.double(21);
