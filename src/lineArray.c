@@ -17,6 +17,12 @@ void lineArray_write(LineArray* array, uint32_t line, uint32_t offset) {
 
 	if ((index + 1) >= array->capacity) {
 		uint32_t oldCapacity = array->capacity;
+
+		if (oldCapacity >= GROW_CAPACITY_MAX) {
+			fprintf(stderr, "Line info too large.\n");
+			exit(1);
+		}
+
 		array->capacity = GROW_CAPACITY(oldCapacity);
 		array->ranges = GROW_ARRAY_NO_GC(RangeLine, array->ranges, oldCapacity, array->capacity);
 

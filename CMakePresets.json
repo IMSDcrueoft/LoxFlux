@@ -9,9 +9,7 @@
     {
       "name": "windows-msvc",
       "displayName": "Windows (MSVC via Visual Studio)",
-      "description": "Uses the Visual Studio generator with the default installed toolset.",
-      "generator": "Visual Studio 17 2022",
-      "architecture": "x64",
+      "description": "Uses the default/latest installed Visual Studio generator (no fixed version, picks VS 17/18 or newer automatically).",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
         "CMAKE_CONFIGURATION_TYPES": "Debug;Release"

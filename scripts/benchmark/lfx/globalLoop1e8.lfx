@@ -3,4 +3,18 @@ var i;
 for(i = 0;i<100000000;){
     i = i+1;
 }
-print @time.milli() - start;
+@sys.log("globalLoop1:", @time.milli() - start);
+
+start = @time.milli();
+i = 0;
+while(i<100000000){
+    i = i+1;
+}
+@sys.log("globalLoop1:", @time.milli() - start);
+
+start = @time.milli();
+i = 0;
+while(i<100000000){
+    i = 1+i;
+}
+@sys.log("globalLoop1:", @time.milli() - start);

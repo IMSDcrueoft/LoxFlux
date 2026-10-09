@@ -17,6 +17,11 @@ void chunk_write(Chunk* chunk, uint8_t byte, uint32_t line) {
 	if (chunk->capacity < chunk->count + 1) {
 		uint32_t oldCapacity = chunk->capacity;
 
+		if (oldCapacity >= GROW_CAPACITY_MAX) {
+			fprintf(stderr, "Chunk too large.\n");
+			exit(1);
+		}
+
 		chunk->capacity = GROW_CAPACITY(oldCapacity);
 		chunk->code = GROW_ARRAY_NO_GC(uint8_t, chunk->code, oldCapacity, chunk->capacity);
 	}
@@ -69,6 +74,11 @@ void opStack_push(OPStack* stack, uint8_t byte)
 {
 	if (stack->capacity < stack->count + 1) {
 		uint32_t oldCapacity = stack->capacity;
+
+		if (oldCapacity >= GROW_CAPACITY_MAX) {
+			fprintf(stderr, "Op stack too large.\n");
+			exit(1);
+		}
 
 		stack->capacity = GROW_CAPACITY(oldCapacity);
 		stack->code = GROW_ARRAY_NO_GC(uint8_t, stack->code, oldCapacity, stack->capacity);

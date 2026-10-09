@@ -202,6 +202,38 @@ typedef struct {
 	void* payload;
 } ObjArray;
 
+// iterator object for foreach
+typedef struct {
+	Obj obj;
+	uint32_t index;  // current index of array or hashTable
+	uint32_t padding;
+	Value target;
+} ObjIterator;
+
+/*
+* TODO:
+*
+* TOKEN_FOREACH、TOKEN_IN
+*
+* foreach(var k,v in arr){ code }
+* foreach(const k,v in arr){ code }
+*
+* FOREACH ( var/const IDENTIFIER , IDENTIFIER IN EXPRESSION ) BLOCK
+*
+* BYTECODE:
+* OP_NIL
+* OP_NIL
+* EXTRESSION...
+* OP_NEW_ITER (check type, push iter or throw error?)
+* OP_ITERATE OFFSET(for jump out) (check range, if false pop and jump to break) if jump, pop 3(k,v,iter) else update k,v
+* ...
+* OP_POPN (pop local vars)
+* OP_LOOP
+*
+* break: OP_POPN (pop local vars + 3slot) OP_JUMP(to end)
+* continue: OP_POPN (pop local vars) OP_LOOP(to check iter)
+*/
+
 #define OBJ_GET_TYPE(obj)			((obj).type)
 #define OBJ_SET_TYPE(obj,objType)	((obj).type = objType)
 #define OBJ_PTR_GET_TYPE(obj)		((obj)->type)

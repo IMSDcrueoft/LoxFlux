@@ -4,7 +4,14 @@
     for(var i = 0;i<100000000;){
         i = i+1;
     }
-    @sys.log("forLoop: ", @time.milli() - start);
+    @sys.log("forLoop1: ", @time.milli() - start);
+}
+{
+    var start = @time.milli();
+    for(var i = 0;i<100000000;){
+        i = 1+i;
+    }
+    @sys.log("forLoop2: ", @time.milli() - start);
 }
 {
     var start = @time.milli();
@@ -12,5 +19,13 @@
     while(i<100000000){
         i = 1 + i;
     }
-    @sys.log("whileLoop: ", @time.milli() - start);
+    @sys.log("whileLoop1: ", @time.milli() - start);
+}
+{
+    var start = @time.milli();
+    var i = 0;
+    while(i<100000000){
+        i = i + 1;
+    }
+    @sys.log("whileLoop2: ", @time.milli() - start);
 }

@@ -138,3 +138,14 @@ endif()
 # Executable ----------------------------------------------------------------
 add_executable(loxFlux main.c)
 target_link_libraries(loxFlux PRIVATE loxFluxCore)
+
+# Release symbol stripping ---------------------------------------------------
+# Keep function names out of the shipped binary: MSVC gets /DEBUG:NONE (no
+# PDB, no COFF symbol table), GCC/Clang get a post-build `strip --strip-all`.
+if(MSVC)
+  target_link_options(loxFlux PRIVATE $<$<CONFIG:Release>:/DEBUG:NONE>)
+else()
+  add_custom_command(TARGET loxFlux POST_BUILD
+    COMMAND $<$<CONFIG:Release>:${CMAKE_STRIP}> --strip-all $<TARGET_FILE:loxFlux>
+    COMMENT "Stripping release binary")
+endif()

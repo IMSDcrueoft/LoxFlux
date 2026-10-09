@@ -10,6 +10,11 @@
 #define GROW_CAPACITY(capacity) \
 	((capacity) < 8 ? 8 : (capacity << 1))
 
+//safety cap for the few GROW_CAPACITY users without their own upper bound
+//(chunk bytecode, opStack, lineArray): doubling a uint32_t capacity at or
+//past this point would wrap to 0 and free the backing storage
+#define GROW_CAPACITY_MAX 0x40000000u
+
 void* reallocate(void* pointer, uint64_t oldSize, uint64_t newSize);
 
 #define GROW_ARRAY(type, pointer, oldCount, newCount) \
