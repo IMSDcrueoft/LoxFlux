@@ -8,7 +8,7 @@
 //ctor
 
 static Value objectNative(int argCount, Value* args) {
-	return OBJ_VAL(newInstance(&vm.emptyClass));
+	return OBJ_VAL(newInstance(&vm.defaultClass));
 }
 
 static Value ArrayNative(int argCount, Value* args) {

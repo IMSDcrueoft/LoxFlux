@@ -286,6 +286,8 @@ The `@object` module provides utilities for type checking and object introspecti
   - `isBoolean`: Verifies whether a value is true or false.
   - `getGlobal`: Get global object.
   - `keys`: Returns the own keys array of an instance.
+  - `hasOwn`: Returns true if the instance has an own data property with the given string key (methods are not own properties).
+  - `getClass`: Returns the class object of an instance (nil for non-instances). Pairs with the class-level `instanceof`: `getClass(a) instanceof getClass(b)` is a dynamic subclass check.
 
 These functions are particularly useful for runtime type validation and debugging, allowing developers to write robust and error-resistant code.
 
@@ -339,13 +341,17 @@ The `@ctor` moudle provides built-in types of constructors.
 
 ---
 
-The `@sys` module offers low-level system utilities, primarily focused on memory management and garbage collection. These functions provide insights into the runtime environment and allow fine-grained control over resource allocation.
+The `@sys` module offers low-level system utilities, primarily focused on file I/O, memory management and garbage collection. These functions provide insights into the runtime environment and allow fine-grained control over resource allocation.
 
 - **Io**
   - `log`: Unlike the `print` keyword, it allows for multiple inputs and behaves slightly differently.It automatically expands the contents of the array and prints (but not recursively).
   - `error`: Output string or stringBuilder information to stderr.
   - `input`: Read a line of input from the console and return a stringBuilder.
   - `readFile`: Reads the contents of a file and returns them as a StringBuilder object. 
+  - `readBin`: Reads the raw bytes of a file into a u8 array (binary safe, NUL bytes preserved).
+  - `writeFile`: Writes a string, stringBuilder or u8 array to a file (overwrite). An optional offset enables positional writes with zero-fill past EOF. Returns the number of bytes written, or nil on failure.
+  - `appendFile`: Appends a string, stringBuilder or u8 array to a file, creating it when missing. Returns the number of bytes written, or nil on failure.
+  - `fileExists`: Returns true when the given path exists.
 
 - **Garbage Collection**:
   - `gcRun`: Triggers a full garbage collection cycle.

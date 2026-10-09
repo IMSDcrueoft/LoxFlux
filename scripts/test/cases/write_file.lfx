@@ -1,0 +1,25 @@
+// writeFile accepting string / stringBuilder / u8 array, verified by reading back
+// exit: 0
+// cleanup: write_file_out.txt
+// out: 5
+// out: hello
+// out: 5
+// out: world
+// out: 3
+// out: ABC
+var path = "./write_file_out.txt";
+
+print @sys.writeFile(path, "hello");
+print @string.intern(@sys.readFile(path));
+
+var sb = @ctor.StringBuilder();
+@string.append(sb, "world");
+print @sys.writeFile(path, sb);
+print @string.intern(@sys.readFile(path));
+
+var u8 = @ctor.U8Array(3);
+u8[0] = 65;
+u8[1] = 66;
+u8[2] = 67;
+print @sys.writeFile(path, u8);
+print @string.intern(@sys.readFile(path));

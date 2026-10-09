@@ -37,7 +37,7 @@ def find_exe() -> Path | None:
 
 
 def parse_expectations(file: Path):
-    exp = {"exit": 0, "out": [], "err": [], "err!": []}
+    exp = {"exit": 0, "out": [], "err": [], "err!": [], "cleanup": []}
     for line in file.read_text(encoding="utf-8", errors="replace").splitlines()[:60]:
         if not line.startswith("//"):
             break
@@ -50,6 +50,8 @@ def parse_expectations(file: Path):
             exp["err!"].append(body[5:].strip())
         elif body.startswith("err:"):
             exp["err"].append(body[4:].strip())
+        elif body.startswith("cleanup:"):
+            exp["cleanup"].append(body[8:].strip())
     return exp
 
 
@@ -141,6 +143,13 @@ def main():
             print("      timed out")
             failed += 1
             continue
+        finally:
+            #files the test created while running (declared via // cleanup:)
+            for target in exp["cleanup"]:
+                try:
+                    (file.parent / target).unlink(missing_ok=True)
+                except OSError:
+                    pass
         problems = check(file, exp, code, out, err)
         if not problems:
             passed += 1

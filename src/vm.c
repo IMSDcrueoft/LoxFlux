@@ -270,7 +270,7 @@ static void importBuiltins() {
 	for (uint32_t i = 0; i < BUILTIN_MODULE_COUNT; ++i) {
 		vm.builtins[i] = (ObjInstance){
 		.obj = stateLess_obj_header(OBJ_INSTANCE),
-		.klass = NULL,
+		.klass = &vm.defaultClass,
 		.fields = {.isGlobal = false,.isFrozen = false}//remind this
 		};
 	}
@@ -375,6 +375,19 @@ void vm_init()
 	vm.gcMark = true; //bool value
 	vm.gcWorking = false; //bool value
 
+	//the default class must exist before any builtin structure: every
+	//instance that has no real class (builtin modules, the global object)
+	//points at it, so the klass field is never NULL anywhere in the VM
+	vm.defaultClass = (ObjClass){
+		.obj = stateLess_obj_header(OBJ_CLASS),
+		.name = copyString("<object>", strlen("<object>"), false),
+		.initializer = NIL_VAL
+	};
+	table_init(&vm.defaultClass.methods);
+
+	//the global object joins the default class as well
+	vm.globals.klass = &vm.defaultClass;
+
 	//import the builtins
 	importBuiltins();
 
@@ -384,14 +397,6 @@ void vm_init()
 	vm.initString = NULL;
 	vm.initString = copyString("init", strlen("init"), false);
 	initTypeStrings();
-
-	//this is for literal object
-	vm.emptyClass = (ObjClass){
-		.obj = stateLess_obj_header(OBJ_CLASS),
-		.name = copyString("<object>", strlen("<object>"), false),
-		.initializer = NIL_VAL
-	};
-	table_init(&vm.emptyClass.methods);
 }
 
 COLD_FUNCTION
@@ -441,7 +446,7 @@ void vm_free()
 	vm.initString = NULL;
 	removeBuiltins();
 
-	table_free(&vm.emptyClass.methods);
+	table_free(&vm.defaultClass.methods);
 }
 
 uint32_t getConstantSize()
@@ -627,7 +632,7 @@ static bool callValue(Value callee, int argCount) {
 HOT_FUNCTION
 static inline bool invokeFromClass(ObjClass* klass, ObjString* name, int argCount) {
 	Value method;
-	if ((klass == NULL) || !tableGet(&klass->methods, name, &method)) {
+	if (!tableGet(&klass->methods, name, &method)) {
 		runtimeError("Undefined property '%s'.", name->chars);
 		return false;
 	}
@@ -930,15 +935,9 @@ static void icGetPropertySlow(ObjInstance* instance, ObjString* name, uint8_t sl
 		stack_replace(value);
 		return;
 	}
-	//don't throw error
-	if (instance->klass != NULL) {
-		bindMethod(instance->klass, name);
-	}
-	else {
-		//klass-less instances (builtin modules) have no method fallback:undefined property reads nil
-		//(without this the instance itself would leak out as the read result)
-		stack_replace(NIL_VAL);
-	}
+	//method fallback:builtin modules point at the default class with an empty
+	//method table,so an unknown property reads nil for every instance alike
+	bindMethod(instance->klass, name);
 }
 
 COLD_FUNCTION
@@ -963,10 +962,7 @@ static void icSetPropertySlow(ObjInstance* instance, ObjString* name, Value newV
 			//constant,so for one klass the answer never changes (methods are immutable once instances
 			//exist,same assumption as the invoke cache)
 			//extraA = klass guard,extraB = NULL (no shadow) or the shadowing method closure
-			if (instance->klass == NULL) {
-				//nothing to shadow
-			}
-			else if (slot != 0 && (ObjClass*)icCache[slot].extraA == instance->klass) {
+			if (slot != 0 && (ObjClass*)icCache[slot].extraA == instance->klass) {
 				//memo hit:skip the methods table probe
 				if (icCache[slot].extraB != NULL) {
 					INSTANCE_POISON(instance) = 1;
@@ -1006,11 +1002,7 @@ static bool icInvokeSlow(ObjInstance* instance, ObjString* method, uint8_t argCo
 		return callValue(value, argCount);
 	}
 
-	//method lookup (klass may be NULL → undefined)
-	if (instance->klass == NULL) {
-		runtimeError("Undefined property '%s'.", method->chars);
-		return false;
-	}
+	//method lookup
 	Value methodValue;
 	if (!tableGetEntry(&instance->klass->methods, method, &methodValue, &entry)) {
 		runtimeError("Undefined property '%s'.", method->chars);
@@ -1566,14 +1558,8 @@ static InterpretResult run()
 						stack_replace(value);
 						NEXT_INSTRUCTION;
 					}
-					//don't throw error
-					if (instance->klass != NULL) {
-						bindMethod(instance->klass, name);
-					}
-					else {
-						//klass-less instances (builtin modules):undefined property reads nil
-						stack_replace(NIL_VAL);
-					}
+					//method fallback via the (possibly default, empty) class
+					bindMethod(instance->klass, name);
 					NEXT_INSTRUCTION;
 				}
 				else {
@@ -1734,7 +1720,7 @@ static InterpretResult run()
 		}
 		case OP_NEW_OBJECT: {
 		label_op_new_object:
-			stack_push(OBJ_VAL(newInstance(&vm.emptyClass)));
+			stack_push(OBJ_VAL(newInstance(&vm.defaultClass)));
 			NEXT_INSTRUCTION;
 		}
 		case OP_NEW_PROPERTY: {
@@ -2047,7 +2033,7 @@ static InterpretResult run()
 
 			//inline cache: [klass, closure] pointer pair; klass pointer identity is the guard
 			//(methods tables are immutable once instances can exist, so the cached closure is stable)
-			if (!INSTANCE_POISON(instance) && instance->klass != NULL) {
+			if (!INSTANCE_POISON(instance)) {
 				InlineCacheSlot* c = &icCache[slot];
 				if ((ObjClass*)c->extraA == instance->klass) {
 					frame->ip = ip;//change before call

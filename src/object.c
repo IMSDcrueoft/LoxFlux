@@ -578,13 +578,8 @@ void printObject(Value value, bool isExpand) {
 		break;
 	}
 	case OBJ_INSTANCE: {
-		ObjClass* klass = AS_INSTANCE(value)->klass;
-		if (klass != NULL) {
-			printf("%s (instance)", klass->name->chars);
-		}
-		else {
-			printf("$anon (instance)");
-		}
+		//klass is never NULL: class-less instances point at vm.defaultClass
+		printf("%s (instance)", AS_INSTANCE(value)->klass->name->chars);
 		break;
 	}
 	case OBJ_BOUND_METHOD:

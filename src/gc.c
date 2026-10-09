@@ -153,11 +153,9 @@ static void blackenObject(Obj* object) {
 	}
 	case OBJ_INSTANCE: {
 		ObjInstance* instance = (ObjInstance*)object;
-		ObjClass* klass = instance->klass;
-		if (klass != NULL) {
-			markObject((Obj*)klass);
-			markTable(&instance->fields);
-		}
+		//klass is never NULL: class-less instances point at vm.defaultClass
+		markObject((Obj*)instance->klass);
+		markTable(&instance->fields);
 		break;
 	}
 	case OBJ_ARRAY: //only array-any needs gc scan

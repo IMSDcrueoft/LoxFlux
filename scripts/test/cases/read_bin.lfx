@@ -1,0 +1,11 @@
+// @sys.readBin: raw bytes into a u8 array (0x00 and 0xFF round-trip untouched)
+// exit: 0
+// out: 5
+// out: 0
+// out: 65
+// out: 255
+var b = @sys.readBin("./data.bin");
+print @array.length(b);
+print b[0];
+print b[1];
+print b[3];

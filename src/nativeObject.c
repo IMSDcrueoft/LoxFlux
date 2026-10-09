@@ -52,6 +52,18 @@ static Value isBooleanNative(int argCount, Value* args) {
 	return BOOL_VAL(argCount >= 1 && IS_BOOL(args[0]));
 }
 
+//returns the class object of an instance; pairs with the class-level
+//instanceof semantics: getClass(a) instanceof getClass(b) is a dynamic
+//subclass check. non-instances have no class -> nil
+static Value getClassNative(int argCount, Value* args) {
+	if (argCount < 1 || !IS_INSTANCE(args[0])) {
+		return NIL_VAL;
+	}
+
+	ObjClass* klass = AS_INSTANCE(args[0])->klass;
+	return OBJ_VAL(klass);
+}
+
 static Value getGlobalNative(int argCount, Value* args) {
 	return OBJ_VAL(&vm.globals);
 }
@@ -116,6 +128,7 @@ void importNative_object() {
 	defineNative_object("isTypedArray", isTypedArrayNative);
 	defineNative_object("isArrayLike", isArrayLikeNative);
 	defineNative_object("isBoolean", isBooleanNative);
+	defineNative_object("getClass", getClassNative);
 
 	defineNative_object("getGlobal", getGlobalNative);
 

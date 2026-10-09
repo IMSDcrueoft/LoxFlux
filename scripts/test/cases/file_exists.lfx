@@ -1,0 +1,6 @@
+// exists on a shipped fixture (true) and a missing file (false)
+// exit: 0
+// out: true
+// out: false
+print @sys.fileExists("./data.bin");
+print @sys.fileExists("./definitely_missing.bin");

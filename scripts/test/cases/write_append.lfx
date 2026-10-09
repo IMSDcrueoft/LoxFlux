@@ -1,0 +1,10 @@
+// appendFile: "ab" mode writes past the end, creating the file when missing
+// exit: 0
+// cleanup: append_file_out.txt
+// out: 3
+// out: 3
+// out: abcdef
+var path = "./append_file_out.txt";
+print @sys.appendFile(path, "abc");
+print @sys.appendFile(path, "def");
+print @string.intern(@sys.readFile(path));

@@ -1,0 +1,14 @@
+// unknown property reads fall back to nil for every instance alike: builtin
+// module instances and the global object point at vm.defaultClass (empty
+// method table), so no NULL special cases exist on the property paths
+// exit: 0
+// out: nil
+// out: nil
+// out: nil
+// out: true
+class A { }
+var a = A();
+print a.nope;
+print @math.nonexistent;
+print @sys.notAFunction;
+print @object.getClass(a) instanceof A;

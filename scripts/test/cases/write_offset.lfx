@@ -1,0 +1,22 @@
+// writeFile with an offset: positional rewrite, sparse expansion past EOF
+// exit: 0
+// cleanup: write_offset_out.txt
+// out: 10
+// out: 2
+// out: 0123AB6789
+// out: 1
+// out: 13
+// out: 0
+// out: 90
+var path = "./write_offset_out.txt";
+
+print @sys.writeFile(path, "0123456789");
+print @sys.writeFile(path, "AB", 4);
+print @string.intern(@sys.readFile(path));
+
+//offset 12 > length 10: bytes 10..11 are a zero-filled hole, 12 gets 'Z'
+print @sys.writeFile(path, "Z", 12);
+var r = @sys.readBin(path);
+print @array.length(r);
+print r[10];
+print r[12];

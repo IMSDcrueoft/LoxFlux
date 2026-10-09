@@ -1,0 +1,21 @@
+// @object.getClass: instance -> its class object; combined with the class-level
+// instanceof semantics this yields dynamic subclass checks
+// exit: 0
+// out: true
+// out: true
+// out: false
+// out: true
+// out: nil
+// out: Dog (class)
+class Animal { }
+class Dog < Animal { }
+
+var d = Dog();
+var k = @object.getClass(d);
+
+print k instanceof Animal;
+print d instanceof k;
+print @object.getClass(Animal()) instanceof k;
+print @object.getClass(Dog()) instanceof k;
+print @object.getClass("not an instance");
+print k;

@@ -77,8 +77,8 @@ typedef struct {
 	uint64_t beginGC;
 	uint64_t nextGC;
 
-	//literal object
-	ObjClass emptyClass;
+	//literal object and builtin object
+	ObjClass defaultClass;
 
 	ObjString* initString;
 	ObjString* typeStrings[TYPE_STRING_COUNT];

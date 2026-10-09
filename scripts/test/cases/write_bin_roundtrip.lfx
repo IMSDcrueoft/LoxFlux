@@ -1,0 +1,24 @@
+// binary round-trip: u8 array containing 0x00 survives writeFile -> readBin
+// exit: 0
+// cleanup: bin_roundtrip_out.bin
+// out: 4
+// out: 4
+// out: 0
+// out: 255
+// out: 7
+// out: 128
+var path = "./bin_roundtrip_out.bin";
+
+var w = @ctor.U8Array(4);
+w[0] = 0;
+w[1] = 255;
+w[2] = 7;
+w[3] = 128;
+print @sys.writeFile(path, w);
+
+var r = @sys.readBin(path);
+print @array.length(r);
+print r[0];
+print r[1];
+print r[2];
+print r[3];
