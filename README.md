@@ -186,7 +186,7 @@ print thing; // Prints the exported value from module.lfx
 - **export**: Used within a module file to specify what value should be returned to the importing file. It works similarly to `return` but in the module context.
 ```
 // Inside module.lox  
-const PI = 3.14159;  // the moudle file work in local scope, so you can use const
+const PI = 3.14159;  // the module file work in local scope, so you can use const
   
 // Export an object with math functions  
 export {  
@@ -324,7 +324,7 @@ These utilities enable precise time management in applications requiring perform
 
 ---
 
-The `@ctor` moudle provides built-in types of constructors.
+The `@ctor` module provides built-in types of constructors.
 
 - **Constructors**:
   - `Object`: Creates an empty object that can hold string-value pairs of any supported type.
