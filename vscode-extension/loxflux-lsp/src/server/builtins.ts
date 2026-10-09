@@ -1,6 +1,6 @@
 /*
  * MIT License
- * Copyright (c) 2025 IMSDCrueoft
+ * Copyright (c) 2025-2026 IMSDCrueoft
  * LoxFlux language server - builtin modules, keywords and native globals.
  * Docs derived from the LoxFlux README.
  */
