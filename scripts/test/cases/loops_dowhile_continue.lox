@@ -1,0 +1,91 @@
+// do-while continue: 'continue' must jump to the condition check, not the
+// body start (regression: jumping to the body start skipped the condition
+// and looped forever). A bare continue therefore only passes if the loop
+// terminates within the runner timeout.
+// exit: 0
+// out: 5
+// out: 1
+// out: 2
+// out: 4
+// out: 5
+// out: 13
+// out: ok
+// out: 6
+// out: 100
+// out: 3
+// out: 4
+// out: done
+var i = 0;
+do {
+	i = i + 1;
+	continue;
+} while (i < 5);
+print i;
+
+// continue skips the rest of the body; the condition still runs
+var j = 0;
+do {
+	j = j + 1;
+	if (j == 3) continue;
+	print j;
+} while (j < 5);
+
+// continue + break inside do-while(true) still terminates
+var k = 10;
+do {
+	k = k + 1;
+	if (k > 12) break;
+} while (true);
+print k;
+
+// continue on the only iteration of do-while(false) must fall through
+do {
+	continue;
+} while (false);
+print "ok";
+
+// inner continue does not escape the outer loop
+var n = 0;
+do {
+	var m = 0;
+	do {
+		m = m + 1;
+		continue;
+	} while (m < 2);
+	n = n + m;
+} while (n < 6);
+print n;
+
+// block locals declared before continue are popped by the forward jump,
+// locals after it are skipped without leaking onto the stack
+var s = 0;
+var r = 0;
+do {
+	var a = 3;
+	s = s + a;
+	if (s < 9) continue;
+	var b = 100;
+	r = r + b;
+} while (s < 9);
+print r;
+
+// continue closes upvalues of captured locals (forward-jump OP_CLOSE_UPVALUE)
+var fs = [];
+var d = 0;
+do {
+	var x = d;
+	@array.push(fs, lambda() => x);
+	d = d + 1;
+	if (d < 3) continue;
+} while (d < 3);
+print fs[0]() + fs[1]() + fs[2]();
+
+// break exits do-while(true) with locals in scope
+var t = 0;
+do {
+	var u = t;
+	t = u + 1;
+	if (t == 4) break;
+} while (true);
+print t;
+print "done";
