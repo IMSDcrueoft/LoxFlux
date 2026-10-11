@@ -49,7 +49,7 @@ static void markRoots() {
 		markValue(*slot);
 	}
 
-	for (int32_t i = 0; i < vm.frameCount; i++) {
+	for (uint32_t i = 0; i < vm.frameCount; i++) {
 		markObject((Obj*)vm.frames[i].closure);
 	}
 
@@ -87,7 +87,7 @@ void markObject(Obj* object)
 
 #if DEBUG_LOG_GC
 	printf("[gc] %p mark ", (void*)object);
-	printValue(OBJ_VAL(object));
+	printValue(stdout, OBJ_VAL(object), false);
 	printf("\n");
 #endif
 	object->isMarked = vm.gcMark;
@@ -105,7 +105,7 @@ void markObject(Obj* object)
 static void blackenObject(Obj* object) {
 #if DEBUG_LOG_GC
 	printf("[gc] %p blacken ", (void*)object);
-	printValue(OBJ_VAL(object));
+	printValue(stdout, OBJ_VAL(object), false);
 	printf("\n");
 #endif
 

@@ -122,3 +122,7 @@ typedef struct ClassCompiler {
 
 ObjFunction* compile(C_STR source, FunctionType compileType);
 void markCompilerRoots();
+
+//runtime --print-bytecode flag: process-level setting (set once by main,
+//survives /reset), read by endCompiler to dump the final bytecode to stderr
+extern bool vm_printBytecode;

@@ -376,6 +376,18 @@ These utilities are invaluable for monitoring and optimizing memory usage, espec
 
 ---
 
+### Command Line
+
+```
+loxFlux [--print-bytecode] [script]
+```
+
+- **`--print-bytecode`**: Dumps the compiled bytecode of every function to **stderr** as each function finishes compiling, so the script's own stdout stays clean and pipeable. Applies to `runFile` and inside the REPL (`/eval` included); the setting survives `/reset`.
+- **`--help` / `-h`**: Print usage information.
+- With no script argument, the REPL starts.
+
+---
+
 ### REPL
 
 - **Support for line break input**: Use `\` for multi-line input in REPL.

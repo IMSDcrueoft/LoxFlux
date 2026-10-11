@@ -6,15 +6,16 @@
 #include "compiler.h"
 #include "gc.h"
 #include "nativeBuiltin.h"
-#include <assert.h>
-
-#if DEBUG_PRINT_CODE
 #include "debug.h"
-#endif
+#include <assert.h>
 #if LOG_COMPILE_TIMING
 #include "timer.h"
 #endif
 
+
+//runtime --print-bytecode flag: process-level setting (set once by main,
+//survives /reset), read by endCompiler to dump the final bytecode
+bool vm_printBytecode = false;
 //shared parser
 Parser parser;
 Compiler* current = NULL;
@@ -615,6 +616,15 @@ static ObjFunction* endCompiler() {
 	if (!parser.hadError) {
 		disassembleChunk(function, (function->name != NULL)
 			? ((function->name->length != 0) ? function->name->chars : "<lambda>") : "<script>", function->id);
+	}
+#else
+	//runtime --print-bytecode (release builds): dump goes to stderr so the
+	//script's own stdout stays clean and pipeable
+	if (vm_printBytecode && !parser.hadError) {
+		debug_setDisasmStream(stderr);
+		disassembleChunk(function, (function->name != NULL)
+			? ((function->name->length != 0) ? function->name->chars : "<lambda>") : "<script>", function->id);
+		debug_setDisasmStream(stdout);
 	}
 #endif
 	current = current->enclosing;
@@ -1863,11 +1873,11 @@ static void number(bool canAssign) {
 }
 
 static void number_bin(bool canAssign) {
-	emitNumber(strtoll(parser.previous.start + 2, NULL, 2));
+	emitNumber((double)strtoll(parser.previous.start + 2, NULL, 2));
 }
 
 static void number_hex(bool canAssign) {
-	emitNumber(strtoll(parser.previous.start + 2, NULL, 16));
+	emitNumber((double)strtoll(parser.previous.start + 2, NULL, 16));
 }
 
 static void or_(bool canAssign) {
@@ -1944,7 +1954,7 @@ static void variable(bool canAssign) {
 
 static Token syntheticToken(C_STR text) {
 	return (Token) {
-		.start = text, .length = strlen(text)
+		.start = text, .length = (uint32_t)strlen(text)
 	};
 }
 
@@ -2581,7 +2591,7 @@ static void instructionOptimize() {
 			}
 
 			// convert to int
-			uint32_t rightIMM = AS_NUMBER(right);
+			uint32_t rightIMM = (uint32_t)AS_NUMBER(right);
 
 			switch (bitOp)
 			{

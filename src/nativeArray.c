@@ -51,13 +51,13 @@ static Value pushNative(int argCount, Value* args) {
 
 		if (OBJ_IS_TYPE(array, OBJ_ARRAY)) {
 			//no type check,so it's faster
-			for (uint32_t i = 1; i < argCount; ++i) {
+			for (int32_t i = 1; i < argCount; ++i) {
 				ARRAY_ELEMENT(array, Value, array->length) = args[i];
 				array->length++;
 			}
 		}
 		else {//typed array
-			for (uint32_t i = 1; i < argCount; ++i) {
+			for (int32_t i = 1; i < argCount; ++i) {
 				Value val = IS_NUMBER(args[i]) ? args[i] : NUMBER_VAL(0);
 
 				switch (OBJ_GET_TYPE(array->obj)) {
@@ -65,25 +65,25 @@ static Value pushNative(int argCount, Value* args) {
 					ARRAY_ELEMENT(array, double, array->length) = AS_NUMBER(val);
 					break;
 				case OBJ_ARRAY_F32:
-					ARRAY_ELEMENT(array, float, array->length) = AS_NUMBER(val);
+					ARRAY_ELEMENT(array, float, array->length) = (float)AS_NUMBER(val);
 					break;
 				case OBJ_ARRAY_U32:
-					ARRAY_ELEMENT(array, uint32_t, array->length) = AS_NUMBER(val);
+					ARRAY_ELEMENT(array, uint32_t, array->length) = (uint32_t)AS_NUMBER(val);
 					break;
 				case OBJ_ARRAY_I32:
-					ARRAY_ELEMENT(array, int32_t, array->length) = AS_NUMBER(val);
+					ARRAY_ELEMENT(array, int32_t, array->length) = (int32_t)AS_NUMBER(val);
 					break;
 				case OBJ_ARRAY_U16:
-					ARRAY_ELEMENT(array, uint16_t, array->length) = AS_NUMBER(val);
+					ARRAY_ELEMENT(array, uint16_t, array->length) = (uint16_t)AS_NUMBER(val);
 					break;
 				case OBJ_ARRAY_I16:
-					ARRAY_ELEMENT(array, int16_t, array->length) = AS_NUMBER(val);
+					ARRAY_ELEMENT(array, int16_t, array->length) = (int16_t)AS_NUMBER(val);
 					break;
 				case OBJ_ARRAY_U8:
-					ARRAY_ELEMENT(array, uint8_t, array->length) = AS_NUMBER(val);
+					ARRAY_ELEMENT(array, uint8_t, array->length) = (uint8_t)AS_NUMBER(val);
 					break;
 				case OBJ_ARRAY_I8:
-					ARRAY_ELEMENT(array, int8_t, array->length) = AS_NUMBER(val);
+					ARRAY_ELEMENT(array, int8_t, array->length) = (int8_t)AS_NUMBER(val);
 					break;
 				}
 
@@ -175,11 +175,11 @@ static Value resizeNative(int argCount, Value* args) {
 				}
 				}
 
-				array->length = length;
+				array->length = (uint32_t)length;
 			}
 		}
 		else {
-			array->length = length;//and do nothing
+			array->length = (uint32_t)length;//and do nothing
 		}
 
 		return BOOL_VAL(true);
@@ -230,7 +230,7 @@ static Value sliceNative(int argCount, Value* args) {
 
 	if (start > end) start = end;
 
-	uint32_t newLength = end - start;
+	uint32_t newLength = (uint32_t)(end - start);
 	ObjArray* result = newArray(OBJ_GET_TYPE(array->obj));
 	stack_push(OBJ_VAL(result));
 

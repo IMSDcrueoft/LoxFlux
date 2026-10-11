@@ -290,7 +290,8 @@ ObjString* connectString(ObjString* strA, ObjString* strB);
 //byte compare over the common prefix, then the shorter operand is the smaller one
 int compareStringLike(Value a, Value b);
 
-void printObject(Value value, bool isExpand);
+//stream-targeted core: renders an object value (class/instance/function/array/...)
+void printObjectTo(FILE* stream, Value value, bool isExpand);
 
 StringEntry* getStringEntryInPool(ObjString* string);
 

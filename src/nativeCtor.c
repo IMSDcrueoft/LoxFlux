@@ -314,7 +314,7 @@ static uint32_t calculateBuilderCapacity(uint64_t initialLength) {
 	else {
 		capacity = (((capacity * 3) >> 1) + 7) & ~7;
 	}
-	return min(ARRAYLIKE_MAX, capacity);
+	return (uint32_t)min(ARRAYLIKE_MAX, capacity);
 }
 
 //The builder accepts one parameter string/stringBuilder as the initial value

@@ -17,6 +17,12 @@
 #include "timer.h"
 #endif
 
+//dual dispatch: the case-body goto labels are consumed by computed-goto builds;
+//under MSVC switch dispatch they are intentionally unreferenced
+#ifdef _MSC_VER
+#pragma warning(disable : 4102)//unreferenced local label
+#endif
+
 //the global shared vm
 VM vm;
 
@@ -94,7 +100,7 @@ static bool throwError(Value error, C_STR format, ...) {
 	}
 
 	printf("[ErrorInfo] ");
-	printValue(error);
+	printValue(stdout, error, false);
 	printf("\n");
 
 	stack_reset();
@@ -142,7 +148,7 @@ void stack_push(Value value)
 
 	if (++vm.stackTop == vm.stackBoundary) {
 		ptrdiff_t oldCapacity = vm.stackBoundary - vm.stack;
-		uint32_t capacity = GROW_CAPACITY(oldCapacity);
+		uint32_t capacity = (uint32_t)GROW_CAPACITY(oldCapacity);
 
 		if (capacity > STACK_MAX_SIZE) {
 			runtimeError("Stack overflow.");
@@ -380,7 +386,7 @@ void vm_init()
 	//points at it, so the klass field is never NULL anywhere in the VM
 	vm.defaultClass = (ObjClass){
 		.obj = stateLess_obj_header(OBJ_CLASS),
-		.name = copyString("<object>", strlen("<object>"), false),
+		.name = copyString("<object>", (uint32_t)strlen("<object>"), false),
 		.initializer = NIL_VAL
 	};
 	table_init(&vm.defaultClass.methods);
@@ -395,7 +401,7 @@ void vm_init()
 	importNative_global();
 
 	vm.initString = NULL;
-	vm.initString = copyString("init", strlen("init"), false);
+	vm.initString = copyString("init", (uint32_t)strlen("init"), false);
 	initTypeStrings();
 }
 
@@ -810,7 +816,7 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
 	case BIT_OP_SHL: {
 	label_bit_shl:
 		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
-			int32_t shiftBits = AS_NUMBER(vm.stackTop[-1]);
+			int32_t shiftBits = (int32_t)AS_NUMBER(vm.stackTop[-1]);
 
 			if (shiftBits >= 0) {
 				vm.stackTop[-2] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-2]) << (shiftBits & 31));
@@ -827,7 +833,7 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
 	case BIT_OP_SAR: {
 	label_bit_sar:
 		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
-			int32_t shiftBits = AS_NUMBER(vm.stackTop[-1]);
+			int32_t shiftBits = (int32_t)AS_NUMBER(vm.stackTop[-1]);
 
 			if (shiftBits >= 0) {
 				vm.stackTop[-2] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-2]) >> (shiftBits & 31));
@@ -844,7 +850,7 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
 	case BIT_OP_SHR: {
 	label_bit_shr:
 		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
-			int32_t shiftBits = AS_NUMBER(vm.stackTop[-1]);
+			int32_t shiftBits = (int32_t)AS_NUMBER(vm.stackTop[-1]);
 
 			if (shiftBits >= 0) {
 				vm.stackTop[-2] = NUMBER_VAL((uint32_t)AS_NUMBER(vm.stackTop[-2]) >> (shiftBits & 31));
@@ -938,7 +944,7 @@ static void icGetPropertySlow(ObjInstance* instance, ObjString* name, uint8_t sl
 		//backfill cache
 		if (slot != 0 && instance->fields.capacity <= UINT16_MAX) {
 			icCache[slot].capacity = instance->fields.capacity;
-			icCache[slot].index = (entry - instance->fields.entries);
+			icCache[slot].index = (uint32_t)(entry - instance->fields.entries);
 		}
 		stack_replace(value);
 		return;
@@ -963,7 +969,7 @@ static void icSetPropertySlow(ObjInstance* instance, ObjString* name, Value newV
 			entry->value = newValue;
 			if (slot != 0 && instance->fields.capacity <= UINT16_MAX) {
 				icCache[slot].capacity = instance->fields.capacity;
-				icCache[slot].index = (entry - instance->fields.entries);
+				icCache[slot].index = (uint32_t)(entry - instance->fields.entries);
 			}
 		}
 		else {
@@ -1280,7 +1286,7 @@ static InterpretResult run()
 		printf("          ");
 		for (Value* slot = vm.stack; slot < vm.stackTop; slot++) {
 			printf("[ ");
-			printValue(*slot);
+			printValue(stdout, *slot, false);
 			printf(" ]");
 		}
 		printf("\n");
@@ -1929,7 +1935,7 @@ static InterpretResult run()
 			//each value uses the plain single-value print formatting (no expansion)
 			for (uint8_t i = 0; i < argCount; i++) {
 				if (i != 0) printf(" ");
-				printValue(vm.stackTop[-argCount + i]);
+				printValue(stdout, vm.stackTop[-argCount + i], false);
 			}
 			printf("\n");
 			vm.stackTop -= argCount;
@@ -2140,7 +2146,7 @@ static InterpretResult run()
 
 			//circular import:the module is already executing somewhere on the
 			//call stack,calling it again would re-run its body without end
-			for (int32_t i = 0; i < vm.frameCount; i++) {
+			for (uint32_t i = 0; i < vm.frameCount; i++) {
 				if (vm.frames[i].closure != NULL && vm.frames[i].closure->function == function) {
 					RUNTIME_ERROR("Circular import detected.");
 				}
