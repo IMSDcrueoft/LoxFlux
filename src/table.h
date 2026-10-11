@@ -25,10 +25,12 @@ typedef struct {
 } StringEntry;
 
 typedef struct {
-	bool isGlobal;
-	bool isFrozen;
+	bool isGlobal;	// global has its own ic
+	bool isFrozen;	// cannot write to it
+	bool isEternal;	// cannot be freed by gc and no need to mark it
+	bool isPoisoned;// for inline cache
 
-	uint8_t extendPayload[6];
+	uint8_t extendPayload[4];
 
 	uint32_t count;
 	uint32_t capacity;

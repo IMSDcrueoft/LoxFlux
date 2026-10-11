@@ -156,6 +156,8 @@ ObjClass* newClass(ObjString* name)
 	klass->initializer = NIL_VAL;
 	klass->methods.isGlobal = false;
 	klass->methods.isFrozen = false;
+	klass->methods.isEternal = false;
+	klass->methods.isPoisoned = false;
 	klass->superclass = NULL;
 	table_init(&klass->methods);
 	return klass;
@@ -167,7 +169,8 @@ ObjInstance* newInstance(ObjClass* klass) {
 	instance->klass = klass;
 	instance->fields.isGlobal = false;
 	instance->fields.isFrozen = false;
-	INSTANCE_POISON(instance) = 0;
+	instance->fields.isEternal = false;
+	instance->fields.isPoisoned = false;
 	table_init(&instance->fields);
 	return instance;
 }

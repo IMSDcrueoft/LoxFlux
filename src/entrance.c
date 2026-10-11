@@ -14,6 +14,7 @@ static void print_help() {
 	printf("/exit  - Exit the interpreter.\n");
 	printf("/eval  - Load file and run.\n");
 	printf("/mem   - Print memory statistics.\n");
+	printf("/reset - Reset VM state (globals, functions, pools are cleared).\n");
 	printf("/help  - Print this help message.\n");
 	printf("/clear - Clean console.\n");
 	printf("\nAbout:\n");
@@ -136,6 +137,15 @@ void repl() {
 				}
 				else if (match_string(line, "/clear")) {
 					clear_console();
+					continue;
+				}
+				else if (match_string(line, "/reset")) {
+					uint64_t reclaimed = vm.bytesAllocated + vm.bytesAllocated_no_gc;
+					//full teardown + fresh state: used by the REPL /reset command
+					//vm_free runs the DEBUG leak-accounting check, so every /reset doubles as a health check
+					vm_free();
+					vm_init();
+					printf("vm reset: reclaimed %.1f KiB\n", (double)reclaimed / 1024.0);
 					continue;
 				}
 				else if (startsWith_string(line, "/eval ")) {

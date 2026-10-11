@@ -179,10 +179,8 @@ typedef struct {
 	//so ObjInstance stays 8+8+24 = 40 bytes)
 } ObjInstance;
 
-// only 0 to 5
-#define INSTANCE_POISON_INDEX_IN_TABLE 0
 // get the poisoned flag of an instance, which is stored in the extendPayload of the fields table
-#define INSTANCE_POISON(instance) ((instance)->fields.extendPayload[INSTANCE_POISON_INDEX_IN_TABLE])
+#define INSTANCE_POISON(instance) ((instance)->fields.isPoisoned)
 
 #define INVALID_OBJ_STRING_SYMBOL UINT32_MAX
 struct ObjString {

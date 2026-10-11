@@ -271,7 +271,7 @@ static void importBuiltins() {
 		vm.builtins[i] = (ObjInstance){
 		.obj = stateLess_obj_header(OBJ_INSTANCE),
 		.klass = &vm.defaultClass,
-		.fields = {.isGlobal = false,.isFrozen = false}//remind this
+		.fields = {.isGlobal = false,.isFrozen = false,.isEternal = true,.isPoisoned = false}//remind this: isFrozen must stay false until the members are tableSet below
 		};
 	}
 
@@ -333,6 +333,12 @@ static void initTypeStrings() {
 COLD_FUNCTION
 void vm_init()
 {
+	//zero the accounting books BEFORE any allocation: everything vm_init
+	//allocates from here on (the stack included) must be counted, so the
+	//matching vm_free frees net the counters back to exactly zero
+	vm.bytesAllocated = 0;
+	vm.bytesAllocated_no_gc = 0;
+
 	vm.stack = NULL;
 	vm.stackTop = NULL;
 	vm.stackBoundary = NULL;
@@ -350,7 +356,7 @@ void vm_init()
 	vm.globals = (ObjInstance){
 		.obj = stateLess_obj_header(OBJ_INSTANCE),
 		.klass = NULL,
-		.fields = {.isGlobal = true,.isFrozen = false}//remind this
+		.fields = {.isGlobal = true,.isFrozen = false,.isEternal = false,.isPoisoned = false}//remind this
 	};
 
 	table_init(&vm.globals.fields);
@@ -368,8 +374,6 @@ void vm_init()
 
 	vm.functionID = 0;
 	//set
-	vm.bytesAllocated = 0;
-	vm.bytesAllocated_no_gc = 0;
 	vm.nextGC = GC_HEAP_BEGIN;
 	vm.beginGC = GC_HEAP_BEGIN;
 	vm.gcMark = true; //bool value
@@ -409,6 +413,7 @@ void vm_register_ic_function(ObjFunction* function) {
 	vm.icFuncs[vm.icFuncCount++] = function;
 }
 
+COLD_FUNCTION
 void vm_free()
 {
 	//cache arrays are owned by their ObjFunction and released by freeObject
@@ -442,6 +447,18 @@ void vm_free()
 	removeBuiltins();
 
 	table_free(&vm.defaultClass.methods);
+
+#if DEBUG_MODE
+	//leak accounting: every allocate/free pair runs through reallocate/reallocate_no_gc,
+	//so after the FULL teardown (objects, stack, builtin tables, defaultClass) both
+	//counters must net to exactly zero
+	//(direct mem_alloc/mem_free users: grayStack, readFile buffers, REPL line buffer, are
+	//uncounted on BOTH sides and therefore never show up here)
+	if (vm.bytesAllocated != 0 || vm.bytesAllocated_no_gc != 0) {
+		fprintf(stderr, "[mem] LEAK: bytesAllocated=%llu bytesAllocated_no_gc=%llu (both must be 0)\n",
+			(unsigned long long)vm.bytesAllocated, (unsigned long long)vm.bytesAllocated_no_gc);
+	}
+#endif
 }
 
 uint32_t getConstantSize()
@@ -960,13 +977,13 @@ static void icSetPropertySlow(ObjInstance* instance, ObjString* name, Value newV
 			if (slot != 0 && (ObjClass*)icCache[slot].extraA == instance->klass) {
 				//memo hit:skip the methods table probe
 				if (icCache[slot].extraB != NULL) {
-					INSTANCE_POISON(instance) = 1;
+					INSTANCE_POISON(instance) = true;
 				}
 			}
 			else {
 				Value methodValue;
 				if (tableGet(&instance->klass->methods, name, &methodValue)) {
-					INSTANCE_POISON(instance) = 1;
+					INSTANCE_POISON(instance) = true;
 					if (slot != 0) {
 						icCache[slot].extraA = instance->klass;
 						icCache[slot].extraB = AS_CLOSURE(methodValue);
@@ -992,7 +1009,7 @@ static bool icInvokeSlow(ObjInstance* instance, ObjString* method, uint8_t argCo
 	Value value;
 	Entry* entry;
 	if (tableGetEntry(&instance->fields, method, &value, &entry)) {
-		INSTANCE_POISON(instance) = 1;
+		INSTANCE_POISON(instance) = true;
 		STACK_PEEK(argCount) = value;
 		return callValue(value, argCount);
 	}

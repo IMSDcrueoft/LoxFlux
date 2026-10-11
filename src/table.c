@@ -172,6 +172,8 @@ void tableAddAll(Table* from, Table* to)
 //}
 
 void markTable(Table* table) {
+	if (table->isEternal) return;//eternal table don't need mark, live forever and its entries are eternal too
+
 	for (uint32_t i = 0; i < table->capacity; i++) {
 		Entry* entry = &table->entries[i];
 		//markObject((Obj*)entry->key);
