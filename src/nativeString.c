@@ -390,7 +390,7 @@ static Value sliceNative(int argCount, Value* args) {
 	}
 
 	double beginIndexf = AS_NUMBER(args[1]);
-	double endIndexf = length;
+	double endIndexf = (double)length;
 
 	if (argCount >= 3 && IS_NUMBER(args[2])) {
 		endIndexf = AS_NUMBER(args[2]);
@@ -412,7 +412,7 @@ static Value sliceNative(int argCount, Value* args) {
 	endIndex = (endIndex < beginIndex) ? beginIndex : (endIndex > length ? length : endIndex);
 
 	// calc slice length
-	uint32_t sliceLength = endIndex - beginIndex;
+	uint32_t sliceLength = (uint32_t)(endIndex - beginIndex);
 
 	ObjArray* stringBuilder = newArray(OBJ_STRING_BUILDER);
 	stack_push(OBJ_VAL(stringBuilder));

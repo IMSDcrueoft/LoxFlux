@@ -124,12 +124,13 @@ typedef struct {
 	uint16_t upvalueCount;
 	uint32_t id;
 	Chunk chunk;			// function bytecodes
-	ValueArray constants;	// function field constants
 
-	uint16_t cacheCount;	// number of allocated slots (capped at UINT8_MAX: the slot operand is u8)
-	InlineCacheSlot* caches;			// inline cache slots, sized at compile time, runtime only overwrites (numbers + gc-marked pointers)
-	
 	ObjString* name;
+	InlineCacheSlot* caches;			// inline cache slots, sized at compile time, runtime only overwrites (numbers + gc-marked pointers)
+	uint16_t cacheCount;	// number of allocated slots (capped at UINT8_MAX: the slot operand is u8)
+
+	uint32_t constantsCount; // number of constants in the FAM (sealed at endCompiler; code indexes are 16-bit)
+	Value constants[];
 } ObjFunction;
 
 #define CLOSED_OBJ_UPVALUE_LOCATION UINT32_MAX
@@ -178,10 +179,8 @@ typedef struct {
 	//so ObjInstance stays 8+8+24 = 40 bytes)
 } ObjInstance;
 
-// only 0 to 5
-#define INSTANCE_POISON_INDEX_IN_TABLE 0
 // get the poisoned flag of an instance, which is stored in the extendPayload of the fields table
-#define INSTANCE_POISON(instance) ((instance)->fields.extendPayload[INSTANCE_POISON_INDEX_IN_TABLE])
+#define INSTANCE_POISON(instance) ((instance)->fields.isPoisoned)
 
 #define INVALID_OBJ_STRING_SYMBOL UINT32_MAX
 struct ObjString {
@@ -291,12 +290,14 @@ ObjString* connectString(ObjString* strA, ObjString* strB);
 //byte compare over the common prefix, then the shorter operand is the smaller one
 int compareStringLike(Value a, Value b);
 
-void printObject(Value value, bool isExpand);
+//stream-targeted core: renders an object value (class/instance/function/array/...)
+void printObjectTo(FILE* stream, Value value, bool isExpand);
 
 StringEntry* getStringEntryInPool(ObjString* string);
 
 ObjUpvalue* newUpvalue(Value* slot, ptrdiff_t offset);
 ObjFunction* newFunction();
+ObjFunction* newFunctionMakeFAM(ObjFunction* function, ValueArray* constants);
 ObjClosure* newClosure(ObjFunction* function);
 ObjBoundMethod* newBoundMethod(Value receiver, ObjClosure* method);
 ObjNative* newNative(NativeFn function);

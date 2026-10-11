@@ -1,0 +1,14 @@
+// readFile refuses UTF-16 encoded source with a clear message instead of garbage scan errors
+// exit: 74
+// err: UTF-16 encoded source is not supported
+// cleanup: tmp_bom_utf16.lfx
+
+// bytes: FF FE (UTF-16 LE BOM) + "p\n" in UTF-16LE
+var data = @ctor.U8Array(6);
+data[0] = 0xFF; data[1] = 0xFE;
+data[2] = 0x70; data[3] = 0x00;
+data[4] = 0x0A; data[5] = 0x00;
+
+@sys.writeFile("./tmp_bom_utf16.lfx", data);
+import "./tmp_bom_utf16.lfx";
+print "unreachable";

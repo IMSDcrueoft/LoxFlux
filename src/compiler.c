@@ -6,14 +6,20 @@
 #include "compiler.h"
 #include "gc.h"
 #include "nativeBuiltin.h"
-
-#if DEBUG_PRINT_CODE
 #include "debug.h"
-#endif
+#include <assert.h>
 #if LOG_COMPILE_TIMING
 #include "timer.h"
 #endif
 
+
+//runtime --print-bytecode flag: process-level setting (set once by main,
+//survives /reset), read by endCompiler to dump the final bytecode
+bool vm_printBytecode = false;
+
+//runtime --no-optimize flag: when false, emitOpStack/instructionOptimize,
+//foldBuiltinNumber and emitBranchJump all pass through unoptimized
+bool vm_optimizationEnabled = true;
 //shared parser
 Parser parser;
 Compiler* current = NULL;
@@ -52,7 +58,7 @@ static void emitOpStack(uint8_t byte, bool doCheck) {
 	opStack_push(currentOpStack(), byte);
 
 #if COMPILATION_TIME_OPTIMIZATION
-	if (!doCheck) return;
+	if (!doCheck || !vm_optimizationEnabled) return;
 
 #if DEBUG_PRINT_CODE
 	//print before optimize
@@ -224,6 +230,8 @@ static int32_t emitJump(uint8_t instruction) {
 //returns patch offset like emitJump, or -1 when nothing to patch
 static int32_t emitBranchJump(uint8_t instruction, int32_t condStart) {
 #if COMPILATION_TIME_OPTIMIZATION
+	if (!vm_optimizationEnabled) return emitJump(instruction);
+
 	if (instruction == OP_JUMP_IF_FALSE_POP) {
 		Chunk* chunk = currentChunk();
 		uint32_t regionSize = chunk->count - (uint32_t)condStart;
@@ -433,7 +441,7 @@ static uint32_t makeNumberConstant(Value value) {
 	NumberEntry* entry = tableGetNumberEntry(&current->numbers, &value);
 
 	if (entry->index == UINT32_MAX) {
-		ValueArray* constants = &current->function->constants;
+		ValueArray* constants = &current->constants;
 		valueArray_write(constants, value);
 		entry->index = constants->count - 1;//set value and return
 	}
@@ -456,6 +464,8 @@ static void emitNumberConstant(Value value) {
 //the pre-allocated IC slot is rolled back:the folded site no longer owns one
 static bool foldBuiltinNumber(void) {
 #if COMPILATION_TIME_OPTIMIZATION
+	if (!vm_optimizationEnabled) return false;
+
 	Chunk* chunk = currentChunk();
 
 	//chech opStack first,than use this to override old codes
@@ -533,6 +543,8 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 
 	opStack_init(&compiler->stack);
 	numberTable_init(&compiler->numbers);
+	// init compile constants, after compile we copy it to FAM objFunction
+	valueArray_init(&compiler->constants);
 
 	//it's a function
 	switch (type) {
@@ -598,8 +610,12 @@ static ObjFunction* endCompiler() {
 		current->cacheCapacity = (uint32_t)current->cacheCount + 1;
 	}
 
+	//seal compile-time constants into the FAM (no-op when there are none)
+	//must run BEFORE IC registration: the registry and OP_CLOSURE must hold the final object pointer
+	current->function = function = newFunctionMakeFAM(function, &current->constants);
+	valueArray_free(&current->constants);
+
 	//register for gc: invoke cache slots hold ObjClass*/ObjClosure* that must stay marked
-	//also lets vm_free release the cache arrays (functions are immortal)
 	if (current->cacheCapacity > 0) {
 		vm_register_ic_function(function);
 	}
@@ -608,6 +624,15 @@ static ObjFunction* endCompiler() {
 	if (!parser.hadError) {
 		disassembleChunk(function, (function->name != NULL)
 			? ((function->name->length != 0) ? function->name->chars : "<lambda>") : "<script>", function->id);
+	}
+#else
+	//runtime --print-bytecode (release builds): dump goes to stderr so the
+	//script's own stdout stays clean and pipeable
+	if (vm_printBytecode && !parser.hadError) {
+		debug_setDisasmStream(stderr);
+		disassembleChunk(function, (function->name != NULL)
+			? ((function->name->length != 0) ? function->name->chars : "<lambda>") : "<script>", function->id);
+		debug_setDisasmStream(stdout);
 	}
 #endif
 	current = current->enclosing;
@@ -1221,9 +1246,15 @@ static void branchStatement() {
 }
 
 static void printStatement() {
-	expression();
+	uint32_t argCount = 0;
+	do {
+		expression();
+		if (++argCount > UINT8_MAX) error("Too many arguments in print.");
+	} while (match(TOKEN_COMMA));
 	consume(TOKEN_SEMICOLON, "Expect ';' after value.");
-	emitByte(OP_PRINT);
+
+	//values were pushed left-to-right; the VM prints and pops them in order
+	emitBytes(2, OP_PRINT, (uint8_t)argCount);
 	clearOpStack();
 }
 
@@ -1850,11 +1881,11 @@ static void number(bool canAssign) {
 }
 
 static void number_bin(bool canAssign) {
-	emitNumber(strtoll(parser.previous.start + 2, NULL, 2));
+	emitNumber((double)strtoll(parser.previous.start + 2, NULL, 2));
 }
 
 static void number_hex(bool canAssign) {
-	emitNumber(strtoll(parser.previous.start + 2, NULL, 16));
+	emitNumber((double)strtoll(parser.previous.start + 2, NULL, 16));
 }
 
 static void or_(bool canAssign) {
@@ -1931,7 +1962,7 @@ static void variable(bool canAssign) {
 
 static Token syntheticToken(C_STR text) {
 	return (Token) {
-		.start = text, .length = strlen(text)
+		.start = text, .length = (uint32_t)strlen(text)
 	};
 }
 
@@ -2154,8 +2185,9 @@ static void instructionOptimize() {
 #define CHUNK_PEEK(offset) chunk->code[chunk->count - (offset) - 1]
 	//constants in vm.constants (non-number),24bits index
 #define READ_GLOBAL_CONSTANT(index) (vm.constants.values[(index)])
-//constants in function's own table (number),16bits index
-#define READ_LOCAL_CONSTANT(index) (current->function->constants.values[(index)])
+//constants in the compiler's own table (number),16bits index (merged into the function FAM at endCompiler)
+//assert vanishes in release builds (NDEBUG)
+#define READ_LOCAL_CONSTANT(index)	(assert((uint32_t)(index) < current->constants.count), current->constants.values[(index)])
 
 #define READ_SHORT_INDEX(offset)	\
 	(((uint32_t)chunk->code[chunk->count - (offset) - 1] << 8) +	\
@@ -2567,7 +2599,7 @@ static void instructionOptimize() {
 			}
 
 			// convert to int
-			uint32_t rightIMM = AS_NUMBER(right);
+			uint32_t rightIMM = (uint32_t)AS_NUMBER(right);
 
 			switch (bitOp)
 			{

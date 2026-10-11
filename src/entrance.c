@@ -14,6 +14,7 @@ static void print_help() {
 	printf("/exit  - Exit the interpreter.\n");
 	printf("/eval  - Load file and run.\n");
 	printf("/mem   - Print memory statistics.\n");
+	printf("/reset - Reset VM state (globals, functions, pools are cleared).\n");
 	printf("/help  - Print this help message.\n");
 	printf("/clear - Clean console.\n");
 	printf("\nAbout:\n");
@@ -46,7 +47,7 @@ static STR dealWithFilePath(STR line) {
 	STR back = begin;
 
 	while (*back != '\0') {
-		if (*back == '"' || *back == '\n') {
+		if (*back == '"' || *back == '\n' || *back == '\r') {
 			*back = '\0';
 			break;
 		}
@@ -62,14 +63,14 @@ static STR dealWithFilePath(STR line) {
 		}
 
 		back = begin;
-		while (*back != '\0' && *back != '\n') {
+		while (*back != '\0' && *back != '\n' && *back != '\r') {
 			++back;
 		}
 		*back = '\0';
 	}
 
 	back = begin + strlen(begin) - 1;
-	while (back >= begin && (*back == ' ' || *back == '\t')) {
+	while (back >= begin && (*back == ' ' || *back == '\t' || *back == '\r' || *back == '\n')) {
 		*back = '\0';
 		--back;
 	}
@@ -110,6 +111,13 @@ void repl() {
 			break;
 		}
 
+		//strip a leading UTF-8 BOM if present: PowerShell pipes prepend EF BB BF to the
+		//first line, which would otherwise be compiled as garbage source instead of
+		//matching a command (e.g. '/eval' would never be recognized)
+		if ((uint8_t)line[0] == 0xEF && (uint8_t)line[1] == 0xBB && (uint8_t)line[2] == 0xBF) {
+			memmove(line, line + 3, strlen(line + 3) + 1);
+		}
+
 		lineLen = (uint32_t)strlen(line);
 		if (lineLen > 1 && line[lineLen - 2] == '\\') {
 			line[lineLen - 2] = '\n';
@@ -136,6 +144,15 @@ void repl() {
 				}
 				else if (match_string(line, "/clear")) {
 					clear_console();
+					continue;
+				}
+				else if (match_string(line, "/reset")) {
+					uint64_t reclaimed = vm.bytesAllocated + vm.bytesAllocated_no_gc;
+					//full teardown + fresh state: used by the REPL /reset command
+					//vm_free runs the DEBUG leak-accounting check, so every /reset doubles as a health check
+					vm_free();
+					vm_init();
+					printf("vm reset: reclaimed %.1f KiB\n", (double)reclaimed / 1024.0);
 					continue;
 				}
 				else if (startsWith_string(line, "/eval ")) {

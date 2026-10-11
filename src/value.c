@@ -135,69 +135,35 @@ void convert_adaptive_double(double value, char* buffer, uint32_t bufferSize) {
 	buffer[pos] = '\0';
 }
 
-void printValue(Value value) {
+void printValue(FILE* stream, Value value, bool isExpand) {
 #if NAN_BOXING
 	if (IS_BOOL(value)) {
-		printf(AS_BOOL(value) ? "true" : "false");
+		fprintf(stream, AS_BOOL(value) ? "true" : "false");
 	}
 	else if (IS_NIL(value)) {
-		printf("nil");
+		fprintf(stream, "nil");
 	}
 	else if (IS_NUMBER(value)) {
 		char buffer[40];
 		convert_adaptive_double(AS_NUMBER(value), buffer, sizeof(buffer));
-		printf("%s", buffer);
+		fprintf(stream, "%s", buffer);
 	}
 	else if (IS_OBJ(value)) {
-		printObject(value, false);
+		printObjectTo(stream, value, isExpand);
 	}
 #else
 	switch (value.type) {
 	case VAL_BOOL:
-		printf(AS_BOOL(value) ? "true" : "false");
+		fprintf(stream, AS_BOOL(value) ? "true" : "false");
 		break;
-	case VAL_NIL: printf("nil"); break;
+	case VAL_NIL: fprintf(stream, "nil"); break;
 	case VAL_NUMBER: {
 		char buffer[40];
 		convert_adaptive_double(AS_NUMBER(value), buffer, sizeof(buffer));
-		printf("%s", buffer);
+		fprintf(stream, "%s", buffer);
 		break;
 	}
-	case VAL_OBJ: printObject(value, false); break;
-	}
-#endif
-}
-
-void printValue_sys(Value value)
-{
-#if NAN_BOXING
-	if (IS_BOOL(value)) {
-		printf(AS_BOOL(value) ? "true" : "false");
-	}
-	else if (IS_NIL(value)) {
-		printf("nil");
-	}
-	else if (IS_NUMBER(value)) {
-		char buffer[40];
-		convert_adaptive_double(AS_NUMBER(value), buffer, sizeof(buffer));
-		printf("%s", buffer);
-	}
-	else if (IS_OBJ(value)) {
-		printObject(value, true);
-	}
-#else
-	switch (value.type) {
-	case VAL_BOOL:
-		printf(AS_BOOL(value) ? "true" : "false");
-		break;
-	case VAL_NIL: printf("nil"); break;
-	case VAL_NUMBER: {
-		char buffer[40];
-		convert_adaptive_double(AS_NUMBER(value), buffer, sizeof(buffer));
-		printf("%s", buffer);
-		break;
-	}
-	case VAL_OBJ: printObject(value, true); break;
+	case VAL_OBJ: printObjectTo(stream, value, isExpand); break;
 	}
 #endif
 }

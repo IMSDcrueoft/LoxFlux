@@ -17,6 +17,12 @@
 #include "timer.h"
 #endif
 
+//dual dispatch: the case-body goto labels are consumed by computed-goto builds;
+//under MSVC switch dispatch they are intentionally unreferenced
+#ifdef _MSC_VER
+#pragma warning(disable : 4102)//unreferenced local label
+#endif
+
 //the global shared vm
 VM vm;
 
@@ -94,7 +100,7 @@ static bool throwError(Value error, C_STR format, ...) {
 	}
 
 	printf("[ErrorInfo] ");
-	printValue(error);
+	printValue(stdout, error, false);
 	printf("\n");
 
 	stack_reset();
@@ -142,7 +148,7 @@ void stack_push(Value value)
 
 	if (++vm.stackTop == vm.stackBoundary) {
 		ptrdiff_t oldCapacity = vm.stackBoundary - vm.stack;
-		uint32_t capacity = GROW_CAPACITY(oldCapacity);
+		uint32_t capacity = (uint32_t)GROW_CAPACITY(oldCapacity);
 
 		if (capacity > STACK_MAX_SIZE) {
 			runtimeError("Stack overflow.");
@@ -271,7 +277,7 @@ static void importBuiltins() {
 		vm.builtins[i] = (ObjInstance){
 		.obj = stateLess_obj_header(OBJ_INSTANCE),
 		.klass = &vm.defaultClass,
-		.fields = {.isGlobal = false,.isFrozen = false}//remind this
+		.fields = {.isGlobal = false,.isFrozen = true,.isEternal = true,.isPoisoned = false}//frozen from birth: tableSet is unguarded now, so filling members below works fine
 		};
 	}
 
@@ -291,10 +297,6 @@ static void importBuiltins() {
 	importNative_time();
 	importNative_ctor();
 	importNative_system();
-
-	for (uint32_t i = 0; i < BUILTIN_MODULE_COUNT; ++i) {
-		vm.builtins[i].fields.isFrozen = true;//remind this,we can't set first
-	}
 }
 
 COLD_FUNCTION
@@ -333,6 +335,12 @@ static void initTypeStrings() {
 COLD_FUNCTION
 void vm_init()
 {
+	//zero the accounting books BEFORE any allocation: everything vm_init
+	//allocates from here on (the stack included) must be counted, so the
+	//matching vm_free frees net the counters back to exactly zero
+	vm.bytesAllocated = 0;
+	vm.bytesAllocated_no_gc = 0;
+
 	vm.stack = NULL;
 	vm.stackTop = NULL;
 	vm.stackBoundary = NULL;
@@ -350,7 +358,7 @@ void vm_init()
 	vm.globals = (ObjInstance){
 		.obj = stateLess_obj_header(OBJ_INSTANCE),
 		.klass = NULL,
-		.fields = {.isGlobal = true,.isFrozen = false}//remind this
+		.fields = {.isGlobal = true,.isFrozen = false,.isEternal = false,.isPoisoned = false}//remind this
 	};
 
 	table_init(&vm.globals.fields);
@@ -368,8 +376,6 @@ void vm_init()
 
 	vm.functionID = 0;
 	//set
-	vm.bytesAllocated = 0;
-	vm.bytesAllocated_no_gc = 0;
 	vm.nextGC = GC_HEAP_BEGIN;
 	vm.beginGC = GC_HEAP_BEGIN;
 	vm.gcMark = true; //bool value
@@ -380,7 +386,7 @@ void vm_init()
 	//points at it, so the klass field is never NULL anywhere in the VM
 	vm.defaultClass = (ObjClass){
 		.obj = stateLess_obj_header(OBJ_CLASS),
-		.name = copyString("<object>", strlen("<object>"), false),
+		.name = copyString("<object>", (uint32_t)strlen("<object>"), false),
 		.initializer = NIL_VAL
 	};
 	table_init(&vm.defaultClass.methods);
@@ -395,7 +401,7 @@ void vm_init()
 	importNative_global();
 
 	vm.initString = NULL;
-	vm.initString = copyString("init", strlen("init"), false);
+	vm.initString = copyString("init", (uint32_t)strlen("init"), false);
 	initTypeStrings();
 }
 
@@ -409,14 +415,10 @@ void vm_register_ic_function(ObjFunction* function) {
 	vm.icFuncs[vm.icFuncCount++] = function;
 }
 
+COLD_FUNCTION
 void vm_free()
 {
-	//release the immortal functions' cache arrays (sized cacheCount+1 after shrink-to-fit)
-	for (uint32_t i = 0; i < vm.icFuncCount; i++) {
-		ObjFunction* fn = vm.icFuncs[i];
-		FREE_ARRAY_NO_GC(InlineCacheSlot, fn->caches, (uint32_t)fn->cacheCount + 1);
-		fn->caches = NULL;
-	}
+	//cache arrays are owned by their ObjFunction and released by freeObject
 
 	FREE_ARRAY_NO_GC(ObjFunction*, vm.icFuncs, vm.icFuncCapacity);
 	vm.icFuncs = NULL;
@@ -447,6 +449,18 @@ void vm_free()
 	removeBuiltins();
 
 	table_free(&vm.defaultClass.methods);
+
+#if DEBUG_MODE
+	//leak accounting: every allocate/free pair runs through reallocate/reallocate_no_gc,
+	//so after the FULL teardown (objects, stack, builtin tables, defaultClass) both
+	//counters must net to exactly zero
+	//(direct mem_alloc/mem_free users: grayStack, readFile buffers, REPL line buffer, are
+	//uncounted on BOTH sides and therefore never show up here)
+	if (vm.bytesAllocated != 0 || vm.bytesAllocated_no_gc != 0) {
+		fprintf(stderr, "[mem] LEAK: bytesAllocated=%llu bytesAllocated_no_gc=%llu (both must be 0)\n",
+			(unsigned long long)vm.bytesAllocated, (unsigned long long)vm.bytesAllocated_no_gc);
+	}
+#endif
 }
 
 uint32_t getConstantSize()
@@ -802,7 +816,7 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
 	case BIT_OP_SHL: {
 	label_bit_shl:
 		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
-			int32_t shiftBits = AS_NUMBER(vm.stackTop[-1]);
+			int32_t shiftBits = (int32_t)AS_NUMBER(vm.stackTop[-1]);
 
 			if (shiftBits >= 0) {
 				vm.stackTop[-2] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-2]) << (shiftBits & 31));
@@ -819,7 +833,7 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
 	case BIT_OP_SAR: {
 	label_bit_sar:
 		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
-			int32_t shiftBits = AS_NUMBER(vm.stackTop[-1]);
+			int32_t shiftBits = (int32_t)AS_NUMBER(vm.stackTop[-1]);
 
 			if (shiftBits >= 0) {
 				vm.stackTop[-2] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-2]) >> (shiftBits & 31));
@@ -836,7 +850,7 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
 	case BIT_OP_SHR: {
 	label_bit_shr:
 		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
-			int32_t shiftBits = AS_NUMBER(vm.stackTop[-1]);
+			int32_t shiftBits = (int32_t)AS_NUMBER(vm.stackTop[-1]);
 
 			if (shiftBits >= 0) {
 				vm.stackTop[-2] = NUMBER_VAL((uint32_t)AS_NUMBER(vm.stackTop[-2]) >> (shiftBits & 31));
@@ -930,7 +944,7 @@ static void icGetPropertySlow(ObjInstance* instance, ObjString* name, uint8_t sl
 		//backfill cache
 		if (slot != 0 && instance->fields.capacity <= UINT16_MAX) {
 			icCache[slot].capacity = instance->fields.capacity;
-			icCache[slot].index = (entry - instance->fields.entries);
+			icCache[slot].index = (uint32_t)(entry - instance->fields.entries);
 		}
 		stack_replace(value);
 		return;
@@ -943,6 +957,10 @@ static void icGetPropertySlow(ObjInstance* instance, ObjString* name, uint8_t sl
 COLD_FUNCTION
 NOINLINE_FUNCTION
 static void icSetPropertySlow(ObjInstance* instance, ObjString* name, Value newValue, uint8_t slot, InlineCacheSlot* icCache) {
+	//frozen instances reject every write/delete; early return keeps the IC
+	//un-backfilled so later writes keep taking this cheap exit
+	if (instance->fields.isFrozen) return;
+
 	if (NOT_NIL(newValue)) {
 		Value oldValue;
 		Entry* entry;
@@ -951,7 +969,7 @@ static void icSetPropertySlow(ObjInstance* instance, ObjString* name, Value newV
 			entry->value = newValue;
 			if (slot != 0 && instance->fields.capacity <= UINT16_MAX) {
 				icCache[slot].capacity = instance->fields.capacity;
-				icCache[slot].index = (entry - instance->fields.entries);
+				icCache[slot].index = (uint32_t)(entry - instance->fields.entries);
 			}
 		}
 		else {
@@ -965,13 +983,13 @@ static void icSetPropertySlow(ObjInstance* instance, ObjString* name, Value newV
 			if (slot != 0 && (ObjClass*)icCache[slot].extraA == instance->klass) {
 				//memo hit:skip the methods table probe
 				if (icCache[slot].extraB != NULL) {
-					INSTANCE_POISON(instance) = 1;
+					INSTANCE_POISON(instance) = true;
 				}
 			}
 			else {
 				Value methodValue;
 				if (tableGet(&instance->klass->methods, name, &methodValue)) {
-					INSTANCE_POISON(instance) = 1;
+					INSTANCE_POISON(instance) = true;
 					if (slot != 0) {
 						icCache[slot].extraA = instance->klass;
 						icCache[slot].extraB = AS_CLOSURE(methodValue);
@@ -997,7 +1015,7 @@ static bool icInvokeSlow(ObjInstance* instance, ObjString* method, uint8_t argCo
 	Value value;
 	Entry* entry;
 	if (tableGetEntry(&instance->fields, method, &value, &entry)) {
-		INSTANCE_POISON(instance) = 1;
+		INSTANCE_POISON(instance) = true;
 		STACK_PEEK(argCount) = value;
 		return callValue(value, argCount);
 	}
@@ -1023,13 +1041,13 @@ static InterpretResult run()
 	CallFrame* frame = &vm.frames[vm.frameCount - 1];
 	register uint8_t* ip = frame->ip;
 	//cached constants base of the current function,refreshed at every frame switch
-	Value* constants = frame->closure->function->constants.values;
+	Value* constants = frame->closure->function->constants;
 
 #define UPDATE_FRAME()	\
 	do {				\
 		frame = &vm.frames[vm.frameCount - 1];\
 		ip = frame->ip; \
-		constants = frame->closure->function->constants.values;	\
+		constants = frame->closure->function->constants;	\
 	} while (false)
 
 #if COMPUTE_GOTO
@@ -1268,7 +1286,7 @@ static InterpretResult run()
 		printf("          ");
 		for (Value* slot = vm.stack; slot < vm.stackTop; slot++) {
 			printf("[ ");
-			printValue(*slot);
+			printValue(stdout, *slot, false);
 			printf(" ]");
 		}
 		printf("\n");
@@ -1400,9 +1418,10 @@ static InterpretResult run()
 			InlineCacheSlot* icCache = frame->caches;
 
 			//inline cache: direct write only for existing entries with non-nil value (nil means delete)
+			//frozen fields fall through to the slow path, which rejects the write
 			if (NOT_NIL(vm.stackTop[-1])) {
 				Table* fields = &instance->fields;
-				if ((uint32_t)icCache[slot].capacity == fields->capacity) {
+				if (!fields->isFrozen && (uint32_t)icCache[slot].capacity == fields->capacity) {
 					uint32_t idx = icCache[slot].index;
 					if (idx < fields->capacity && fields->entries[idx].key == name) {
 						fields->entries[idx].value = vm.stackTop[-1];
@@ -1431,9 +1450,10 @@ static InterpretResult run()
 			InlineCacheSlot* icCache = frame->caches;
 
 			//inline cache: direct write only for existing entries with non-nil value (nil means delete)
+			//frozen fields fall through to the slow path, which rejects the write
 			if (NOT_NIL(vm.stackTop[-1])) {
 				Table* fields = &instance->fields;
-				if ((uint32_t)icCache[slot].capacity == fields->capacity) {
+				if (!fields->isFrozen && (uint32_t)icCache[slot].capacity == fields->capacity) {
 					uint32_t idx = icCache[slot].index;
 					if (idx < fields->capacity && fields->entries[idx].key == name) {
 						fields->entries[idx].value = vm.stackTop[-1];
@@ -1625,11 +1645,14 @@ static InterpretResult run()
 					ObjInstance* instance = AS_INSTANCE(target);
 					ObjString* name = AS_STRING(index);
 
-					if (NOT_NIL(value)) {
-						tableSet(&instance->fields, name, value);
-					}
-					else {
-						tableDelete(&instance->fields, name);
+					//frozen instances reject writes and deletes (silent ignore, JS non-strict style)
+					if (!instance->fields.isFrozen) {
+						if (NOT_NIL(value)) {
+							tableSet(&instance->fields, name, value);
+						}
+						else {
+							tableDelete(&instance->fields, name);
+						}
 					}
 
 					vm.stackTop[-3] = value;
@@ -1648,7 +1671,7 @@ static InterpretResult run()
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 
-			//it's not a new key,no cache
+			//it's not a new key,no cache, global can't frozen
 			tableSet(&vm.globals.fields, name, vm.stackTop[-1]);
 			vm.stackTop--;//can not dec first,because gc will kill it
 			NEXT_INSTRUCTION;
@@ -1691,6 +1714,7 @@ static InterpretResult run()
 				}
 			}
 
+			// global can't frozen
 			if (tableSet(&vm.globals.fields, name, vm.stackTop[-1])) {
 				//lox dont allow setting undefined one
 				tableDelete(&vm.globals.fields, name);
@@ -1728,6 +1752,7 @@ static InterpretResult run()
 			ObjInstance* instance = AS_INSTANCE(vm.stackTop[-2]);
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
+			// this is used to create literal object,so we don't need to check frozen
 			tableSet(&instance->fields, name, vm.stackTop[-1]);
 			stack_pop();
 			NEXT_INSTRUCTION;
@@ -1902,11 +1927,18 @@ static InterpretResult run()
 
 		case OP_PRINT: {
 		label_op_print:
+			uint8_t argCount = READ_BYTE();
 #if DEBUG_MODE
 			printf("[print] ");
 #endif
-			printValue(stack_pop());
+			//values were pushed left-to-right: print in the same order, single-space joined
+			//each value uses the plain single-value print formatting (no expansion)
+			for (uint8_t i = 0; i < argCount; i++) {
+				if (i != 0) printf(" ");
+				printValue(stdout, vm.stackTop[-argCount + i], false);
+			}
 			printf("\n");
+			vm.stackTop -= argCount;
 			NEXT_INSTRUCTION;
 		}
 		case OP_THROW: {
@@ -2114,7 +2146,7 @@ static InterpretResult run()
 
 			//circular import:the module is already executing somewhere on the
 			//call stack,calling it again would re-run its body without end
-			for (int32_t i = 0; i < vm.frameCount; i++) {
+			for (uint32_t i = 0; i < vm.frameCount; i++) {
 				if (vm.frames[i].closure != NULL && vm.frames[i].closure->function == function) {
 					RUNTIME_ERROR("Circular import detected.");
 				}

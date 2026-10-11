@@ -89,10 +89,34 @@ ObjFunction* newFunction() {
 	function->id = vm.functionID++;//unique id
 	function->name = NULL;
 	chunk_init(&function->chunk);
-	valueArray_init(&function->constants);
 	function->caches = NULL;
 	function->cacheCount = 0;
+	function->constantsCount = 0;//scratch object, constants live in the compiler until sealed
 	return function;
+}
+
+ObjFunction* newFunctionMakeFAM(ObjFunction* function, ValueArray* constants){
+	if (constants->count == 0) {
+		return function;
+	}
+
+	// make FAM & reuse ID (ALLOCATE_FLEX_OBJ takes the total size: header + FAM)
+	ObjFunction* fresh = ALLOCATE_FLEX_OBJ(ObjFunction, OBJ_FUNCTION, sizeof(ObjFunction) + sizeof(Value) * constants->count);
+	Obj header = fresh->obj;//keep list link/type/mark state set by allocateObject
+	memcpy(fresh, function, sizeof(ObjFunction));//carries id/name/chunk/caches ownership over
+	fresh->obj = header;
+
+	memcpy(fresh->constants, constants->values, sizeof(Value) * constants->count);
+	fresh->constantsCount = constants->count;
+
+	//retire the scratch object: owned buffers were moved to fresh, leave nothing to release
+	chunk_init(&function->chunk);
+	function->caches = NULL;
+	function->constantsCount = 0;
+	unlinkObj_no_gc(&function->obj);
+	freeObject(&function->obj);
+
+	return fresh;
 }
 
 HOT_FUNCTION
@@ -132,6 +156,8 @@ ObjClass* newClass(ObjString* name)
 	klass->initializer = NIL_VAL;
 	klass->methods.isGlobal = false;
 	klass->methods.isFrozen = false;
+	klass->methods.isEternal = false;
+	klass->methods.isPoisoned = false;
 	klass->superclass = NULL;
 	table_init(&klass->methods);
 	return klass;
@@ -143,7 +169,8 @@ ObjInstance* newInstance(ObjClass* klass) {
 	instance->klass = klass;
 	instance->fields.isGlobal = false;
 	instance->fields.isFrozen = false;
-	INSTANCE_POISON(instance) = 0;
+	instance->fields.isEternal = false;
+	instance->fields.isPoisoned = false;
 	table_init(&instance->fields);
 	return instance;
 }
@@ -204,7 +231,7 @@ void reserveArray(ObjArray* array, uint64_t size)
 	}
 
 	array->payload = newPayload;
-	array->capacity = size;
+	array->capacity = (uint32_t)size;
 #undef GROW_TYPED_ARRAY
 }
 
@@ -245,25 +272,25 @@ void setTypedArrayElement(ObjArray* array, uint32_t index, Value val)
 		ARRAY_ELEMENT(array, double, index) = AS_NUMBER(val);
 		break;
 	case OBJ_ARRAY_F32:
-		ARRAY_ELEMENT(array, float, index) = AS_NUMBER(val);
+		ARRAY_ELEMENT(array, float, index) = (float)AS_NUMBER(val);
 		break;
 	case OBJ_ARRAY_U32:
-		ARRAY_ELEMENT(array, uint32_t, index) = AS_NUMBER(val);
+		ARRAY_ELEMENT(array, uint32_t, index) = (uint32_t)AS_NUMBER(val);
 		break;
 	case OBJ_ARRAY_I32:
-		ARRAY_ELEMENT(array, int32_t, index) = AS_NUMBER(val);
+		ARRAY_ELEMENT(array, int32_t, index) = (int32_t)AS_NUMBER(val);
 		break;
 	case OBJ_ARRAY_U16:
-		ARRAY_ELEMENT(array, uint16_t, index) = AS_NUMBER(val);
+		ARRAY_ELEMENT(array, uint16_t, index) = (uint16_t)AS_NUMBER(val);
 		break;
 	case OBJ_ARRAY_I16:
-		ARRAY_ELEMENT(array, int16_t, index) = AS_NUMBER(val);
+		ARRAY_ELEMENT(array, int16_t, index) = (int16_t)AS_NUMBER(val);
 		break;
 	case OBJ_ARRAY_U8:
-		ARRAY_ELEMENT(array, uint8_t, index) = AS_NUMBER(val);
+		ARRAY_ELEMENT(array, uint8_t, index) = (uint8_t)AS_NUMBER(val);
 		break;
 	case OBJ_ARRAY_I8:
-		ARRAY_ELEMENT(array, int8_t, index) = AS_NUMBER(val);
+		ARRAY_ELEMENT(array, int8_t, index) = (int8_t)AS_NUMBER(val);
 		break;
 	}
 }
@@ -459,25 +486,25 @@ int compareStringLike(Value a, Value b) {
 	return (lengthA < lengthB) ? -1 : ((lengthA > lengthB) ? 1 : 0);
 }
 
-static void printFunction(ObjFunction* function) {
+static void printFunction(FILE* stream, ObjFunction* function) {
 	if (function->name == NULL) {
-		printf("<script> (%d)", function->id);
+		fprintf(stream, "<script> (%d)", function->id);
 	}
 	else if (function->name->length == 0) {
-		printf("<lambda> (%d)", function->id);
+		fprintf(stream, "<lambda> (%d)", function->id);
 	}
 	else {
-		printf("<fn %s> (%d)", function->name->chars, function->id);
+		fprintf(stream, "<fn %s> (%d)", function->name->chars, function->id);
 	}
 }
 
-static void printArrayLike(ObjArray* array, bool isExpand) {
+static void printArrayLike(FILE* stream, ObjArray* array, bool isExpand) {
 	if (OBJ_GET_TYPE(array->obj) == OBJ_STRING_BUILDER) {
 		if (array->payload != NULL) {
-			printf("%s", (STR)array->payload);
+			fprintf(stream, "%s", (STR)array->payload);
 		}
 		else {
-			printf("<empty stringBuilder>");
+			fprintf(stream, "<empty stringBuilder>");
 		}
 		return;
 	}
@@ -485,31 +512,31 @@ static void printArrayLike(ObjArray* array, bool isExpand) {
 	if (!isExpand) {
 		switch (OBJ_GET_TYPE(array->obj)) {
 		case OBJ_ARRAY:
-			printf("<array>");
+			fprintf(stream, "<array>");
 			break;
 		case OBJ_ARRAY_F64:
-			printf("<array-f64>");
+			fprintf(stream, "<array-f64>");
 			break;
 		case OBJ_ARRAY_F32:
-			printf("<array-f32>");
+			fprintf(stream, "<array-f32>");
 			break;
 		case OBJ_ARRAY_U32:
-			printf("<array-u32>");
+			fprintf(stream, "<array-u32>");
 			break;
 		case OBJ_ARRAY_I32:
-			printf("<array-i32>");
+			fprintf(stream, "<array-i32>");
 			break;
 		case OBJ_ARRAY_U16:
-			printf("<array-u16>");
+			fprintf(stream, "<array-u16>");
 			break;
 		case OBJ_ARRAY_I16:
-			printf("<array-i16>");
+			fprintf(stream, "<array-i16>");
 			break;
 		case OBJ_ARRAY_U8:
-			printf("<array-u8>");
+			fprintf(stream, "<array-u8>");
 			break;
 		case OBJ_ARRAY_I8:
-			printf("<array-i8>");
+			fprintf(stream, "<array-i8>");
 			break;
 		}
 	}
@@ -517,93 +544,93 @@ static void printArrayLike(ObjArray* array, bool isExpand) {
 		if (array->length > 0) {
 			char buffer[40];
 
-			printf("[ ");
+			fprintf(stream, "[ ");
 			for (uint32_t i = 0; i < array->length;) {
 				switch (OBJ_GET_TYPE(array->obj)) {
 				case OBJ_ARRAY: //don't expand now ,or it's too slow and too much
-					printValue(ARRAY_ELEMENT(array, Value, i));
+					printValue(stream, ARRAY_ELEMENT(array, Value, i), false);
 					break;
 				case OBJ_ARRAY_F64: {
 					convert_adaptive_double(ARRAY_ELEMENT(array, double, i), buffer, sizeof(buffer));
-					printf("%s", buffer);
+					fprintf(stream, "%s", buffer);
 					break;
 				}
 				case OBJ_ARRAY_F32: {
 					convert_adaptive_double(ARRAY_ELEMENT(array, float, i), buffer, sizeof(buffer));
-					printf("%s", buffer);
+					fprintf(stream, "%s", buffer);
 					break;
 				}
 				case OBJ_ARRAY_U32:
-					printf("%u", ARRAY_ELEMENT(array, uint32_t, i));
+					fprintf(stream, "%u", ARRAY_ELEMENT(array, uint32_t, i));
 					break;
 				case OBJ_ARRAY_I32:
-					printf("%d", ARRAY_ELEMENT(array, int32_t, i));
+					fprintf(stream, "%d", ARRAY_ELEMENT(array, int32_t, i));
 					break;
 				case OBJ_ARRAY_U16:
-					printf("%d", ARRAY_ELEMENT(array, uint16_t, i));
+					fprintf(stream, "%d", ARRAY_ELEMENT(array, uint16_t, i));
 					break;
 				case OBJ_ARRAY_I16:
-					printf("%d", ARRAY_ELEMENT(array, int16_t, i));
+					fprintf(stream, "%d", ARRAY_ELEMENT(array, int16_t, i));
 					break;
 				case OBJ_ARRAY_U8:
-					printf("%d", ARRAY_ELEMENT(array, uint8_t, i));
+					fprintf(stream, "%d", ARRAY_ELEMENT(array, uint8_t, i));
 					break;
 				case OBJ_ARRAY_I8:
-					printf("%d", ARRAY_ELEMENT(array, int8_t, i));
+					fprintf(stream, "%d", ARRAY_ELEMENT(array, int8_t, i));
 					break;
 				}
 
 				if (++i < array->length) {
-					printf(", ");
+					fprintf(stream, ", ");
 				}
 			}
-			printf(" ]");
+			fprintf(stream, " ]");
 		}
 		else {
-			printf("[]");
+			fprintf(stream, "[]");
 		}
 	}
 }
 
-void printObject(Value value, bool isExpand) {
+void printObjectTo(FILE* stream, Value value, bool isExpand) {
 	switch (OBJ_TYPE(value)) {
 	case OBJ_CLASS: {
 		ObjString* name = AS_CLASS(value)->name;
 		if (name != NULL) {
-			printf("%s (class)", name->chars);
+			fprintf(stream, "%s (class)", name->chars);
 		}
 		else {
-			printf("$anon (class)");
+			fprintf(stream, "$anon (class)");
 		}
 		break;
 	}
 	case OBJ_INSTANCE: {
 		//klass is never NULL: class-less instances point at vm.defaultClass
-		printf("%s (instance)", AS_INSTANCE(value)->klass->name->chars);
+		fprintf(stream, "%s (instance)", AS_INSTANCE(value)->klass->name->chars);
 		break;
 	}
 	case OBJ_BOUND_METHOD:
-		printFunction(AS_BOUND_METHOD(value)->method->function);
+		printFunction(stream, AS_BOUND_METHOD(value)->method->function);
 		break;
 	case OBJ_CLOSURE:
-		printFunction(AS_CLOSURE(value)->function);
+		printFunction(stream, AS_CLOSURE(value)->function);
 		break;
 	case OBJ_FUNCTION:
-		printFunction(AS_FUNCTION(value));
+		printFunction(stream, AS_FUNCTION(value));
 		break;
 	case OBJ_NATIVE:
-		printf("<native fn>");
+		fprintf(stream, "<native fn>");
 		break;
 	case OBJ_STRING:
-		printf("%s", AS_STRING(value)->chars);
+		fprintf(stream, "%s", AS_STRING(value)->chars);
 		break;
 	case OBJ_UPVALUE:
-		printf("upvalue");
+		fprintf(stream, "upvalue");
 		break;
 	default: {
 		if (isIndexableArray(value)) {
 			ObjArray* array = AS_ARRAY(value);
-			printArrayLike(array, isExpand);
+			printArrayLike(stream, array, isExpand);
 		}
 		break;
 	}

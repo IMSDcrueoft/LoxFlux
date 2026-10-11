@@ -117,8 +117,8 @@ typedef struct {
 
 bool valuesEqual(Value a, Value b);
 void convert_adaptive_double(double value, char* buffer, uint32_t bufferSize);//ECMAScript type Number; buffer size 40 is enough
-void printValue(Value value);
-void printValue_sys(Value value);
+//all rendering goes through this: stream and expansion are explicit at every call site
+void printValue(FILE* stream, Value value, bool isExpand);
 
 void valueArray_init(ValueArray* array);
 void valueArray_write(ValueArray* array, Value value);

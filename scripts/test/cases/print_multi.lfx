@@ -1,0 +1,13 @@
+// print: multiple arguments, single-space joined, no object expansion
+// exit: 0
+// out: 1 two true nil
+// out: 42
+// out: arr: <array> end
+
+print 1, "two", true, nil;
+print 42;
+
+var arr = @ctor.Array();
+@array.push(arr, 1);
+@array.push(arr, 2);
+print "arr:", arr, "end";

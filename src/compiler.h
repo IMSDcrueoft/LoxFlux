@@ -95,6 +95,7 @@ typedef struct Compiler {
 	ObjFunction* function;
 	OPStack stack; //the command stack for optimizer
 	NumberTable numbers; //per-function number dedup pool, indexes into function's own constants
+	ValueArray constants;//pre-function constants, exits when function is compiled, then merged into objFunction FAM
 
 	FunctionType type;
 	uint16_t nestingDepth;
@@ -121,3 +122,12 @@ typedef struct ClassCompiler {
 
 ObjFunction* compile(C_STR source, FunctionType compileType);
 void markCompilerRoots();
+
+//runtime --print-bytecode flag: process-level setting (set once by main,
+//survives /reset), read by endCompiler to dump the final bytecode to stderr
+extern bool vm_printBytecode;
+
+//runtime --no-optimize flag: disables every compile-time optimization pass
+//(peephole fusion, constant folding, builtin member folding, branch-jump
+//fusion); the emitted bytecode stays fully valid, just unoptimized
+extern bool vm_optimizationEnabled;

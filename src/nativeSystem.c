@@ -106,7 +106,7 @@ static Value staticBytesNative(int argCount, Value* args) {
 //Print all the parameters
 static Value logNative(int argCount, Value* args) {
 	for (int i = 0; i < argCount;) {
-		printValue_sys(args[i]);
+		printValue(stdout, args[i], true);
 
 		if (++i < argCount) {
 			printf(" ");
@@ -246,7 +246,7 @@ static Value readFileNative(int argCount, Value* args) {
 	uint64_t bytesRead = fread(stringBuilder->payload, sizeof(char), fileSize, file);
 	fclose(file);
 
-	if (bytesRead < fileSize) {
+	if (bytesRead < (uint64_t)fileSize) {
 		fprintf(stderr, "Could not read file \"%s\".\n", path);
 		return NIL_VAL;
 	}

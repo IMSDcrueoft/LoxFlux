@@ -1,5 +1,5 @@
 # LoxFlux
-![Version](https://img.shields.io/badge/version-0.11.3-blue)
+![Version](https://img.shields.io/badge/version-0.11.4-blue)
 
 LoxFlux is an independent reimplementation of the cLox interpreter described in "Crafting Interpreters"—a stack-based bytecode virtual machine. All code is written from scratch, following the book’s design principles. This project is still actively being developed and improved.
 
@@ -37,21 +37,21 @@ Lox is a programming language designed for learning purposes. It is conceived as
 #### Performance test
 
 _(AMD Ryzen7-5800X, Windows 11, Use ClangCL/LLVM 22.1.3 for loxflux & clox (loop 1e8: LLVM 19, see note) & Lua 5.5.1; LoxFlux benchmarks in `scripts/benchmark/lfx`, CPython in `scripts/benchmark/py`, Lua in `scripts/benchmark/lua`)_
-|program|LoxFlux - [0.11.1]|clox|NodeJS - [24.19.0] - jitless|Cpython3 - [3.14.7]|Lua - [5.5.1]|
+|program|LoxFlux - [0.11.4]|clox|NodeJS - [24.19.0] - jitless|Cpython3 - [3.14.7]|Lua - [5.5.1]|
 |---|---|---|---|---|---|
-|fib30|46ms|81ms|50ms|121ms|51ms|
-|fib35|504ms|880ms|570ms|1319ms|546ms|
-|fib40|5560ms|10365ms|6131ms|14593ms|6038ms|
+|fib30|45ms|81ms|50ms|121ms|51ms|
+|fib35|495ms|880ms|570ms|1319ms|546ms|
+|fib40|5512ms|10365ms|6131ms|14593ms|6038ms|
 |loop 1e8|410ms|1109ms|583ms|2671ms|842ms (for: 213ms)|
-|global loop 1e8|776ms|2694ms|988ms|4462ms|2265ms|
-|binary_trees|913ms|2295ms|517ms|1247ms|2364ms|
+|global loop 1e8|770ms|2694ms|988ms|4462ms|2265ms|
+|binary_trees|900ms|2295ms|517ms|1247ms|2364ms|
 |instantiation|350ms|845ms|226ms|1020ms|1145ms|
-|invocation|159ms|244ms|203ms|312ms|286ms|
+|invocation|162ms|244ms|203ms|312ms|286ms|
 |method_call|89ms|167ms|93ms|160ms|137ms|
-|properties|195ms|373ms|229ms|339ms|329ms|
-|trees|1118ms|3884ms|1307ms|2002ms|3116ms|
+|properties|203ms|373ms|229ms|339ms|329ms|
+|trees|1077ms|3884ms|1307ms|2002ms|3116ms|
 |zoo|163ms|288ms|169ms|292ms|251ms|
-|zoo_batch(10sec)|10535batch|5063batch|9049batch|5665batch|6569batch|
+|zoo_batch(10sec)|10294batch|5063batch|9049batch|5665batch|6569batch|
 
 ---
 
@@ -80,6 +80,14 @@ _(AMD Ryzen7-5800X, Windows 11, Use ClangCL/LLVM 22.1.3 for loxflux & clox (loop
 
 - **Allows multiple definitions of variable constants**: (e.g., `var a = 1,b = 2,c = a + b;`).
 - **`const` keyword support**: Supported within blocks.
+
+---
+
+### Print
+
+- **Multiple arguments**: `print` accepts a comma-separated list of expressions. Values are printed left-to-right, joined by a single space, followed by a newline. e.g., `print 1, "two", true, nil;` → `1 two true nil`.
+- **No expansion**: Each value uses the plain single-value `print` formatting (objects/arrays are not recursively expanded).
+- **Limit**: Up to 255 arguments per statement.
 
 ---
 
@@ -287,6 +295,8 @@ The `@object` module provides utilities for type checking and object introspecti
   - `getGlobal`: Get global object.
   - `keys`: Returns the own keys array of an instance.
   - `hasOwn`: Returns true if the instance has an own data property with the given string key (methods are not own properties).
+  - `freeze`: Freezes an instance (JS-like `Object.freeze`, shallow): its own fields can no longer be added, modified or deleted; writes are silently ignored. Returns the frozen instance. The global object cannot be frozen.
+  - `isFrozen`: Returns true when the instance is frozen. Only instances carry a frozen state, every other value is just `false`.
   - `getClass`: Returns the class object of an instance (nil for non-instances). Pairs with the class-level `instanceof`: `getClass(a) instanceof getClass(b)` is a dynamic subclass check.
 
 These functions are particularly useful for runtime type validation and debugging, allowing developers to write robust and error-resistant code.
@@ -366,6 +376,19 @@ These utilities are invaluable for monitoring and optimizing memory usage, espec
 
 ---
 
+### Command Line
+
+```
+loxFlux [--print-bytecode] [--no-optimize] [script]
+```
+
+- **`--print-bytecode`**: Dumps the compiled bytecode of every function to **stderr** as each function finishes compiling, so the script's own stdout stays clean and pipeable. Applies to `runFile` and inside the REPL (`/eval` included); the setting survives `/reset`.
+- **`--no-optimize`**: Disables all compile-time optimizations (peephole fusion, constant folding, builtin member folding, branch-jump fusion). The emitted bytecode stays fully valid, just unoptimized — useful for debugging the optimizer or inspecting raw bytecode (combine with `--print-bytecode`).
+- **`--help` / `-h`**: Print usage information.
+- With no script argument, the REPL starts.
+
+---
+
 ### REPL
 
 - **Support for line break input**: Use `\` for multi-line input in REPL.
@@ -375,6 +398,7 @@ These utilities are invaluable for monitoring and optimizing memory usage, espec
   - `/clear`: Clean the console.
   - `/eval` : Load file and Run.
   - `/mem`  : Print memory information (using mimalloc).
+  - `/reset`: Reset VM state (globals, functions, pools are cleared) and print the reclaimed bytes.
 
 ## Licenses
 The project **loxFlux** is based on `MIT` and uses two third-party projects.
