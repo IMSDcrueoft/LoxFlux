@@ -321,6 +321,8 @@ uint32_t disassembleInstruction(ObjFunction* function, uint32_t offset) {
 		return simpleInstruction("OP_LESS_EQUAL", offset);
 	case OP_INSTANCE_OF:
 		return simpleInstruction("OP_INSTANCE_OF", offset);
+	case OP_TYPE_OF:
+		return simpleInstruction("OP_TYPE_OF", offset);
 
 	case OP_BITWISE:
 		return bitwiseInStruction("OP_BITWISE", chunk, offset);
