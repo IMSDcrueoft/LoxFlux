@@ -124,12 +124,13 @@ typedef struct {
 	uint16_t upvalueCount;
 	uint32_t id;
 	Chunk chunk;			// function bytecodes
-	ValueArray constants;	// function field constants
 
-	uint16_t cacheCount;	// number of allocated slots (capped at UINT8_MAX: the slot operand is u8)
-	InlineCacheSlot* caches;			// inline cache slots, sized at compile time, runtime only overwrites (numbers + gc-marked pointers)
-	
 	ObjString* name;
+	InlineCacheSlot* caches;			// inline cache slots, sized at compile time, runtime only overwrites (numbers + gc-marked pointers)
+	uint16_t cacheCount;	// number of allocated slots (capped at UINT8_MAX: the slot operand is u8)
+
+	uint32_t constantsCount; // number of constants in the FAM (sealed at endCompiler; code indexes are 16-bit)
+	Value constants[];
 } ObjFunction;
 
 #define CLOSED_OBJ_UPVALUE_LOCATION UINT32_MAX
@@ -297,6 +298,7 @@ StringEntry* getStringEntryInPool(ObjString* string);
 
 ObjUpvalue* newUpvalue(Value* slot, ptrdiff_t offset);
 ObjFunction* newFunction();
+ObjFunction* newFunctionMakeFAM(ObjFunction* function, ValueArray* constants);
 ObjClosure* newClosure(ObjFunction* function);
 ObjBoundMethod* newBoundMethod(Value receiver, ObjClosure* method);
 ObjNative* newNative(NativeFn function);

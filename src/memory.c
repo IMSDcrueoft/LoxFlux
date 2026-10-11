@@ -76,6 +76,30 @@ void* reallocate(void* pointer, uint64_t oldSize, uint64_t newSize)
 	return result;
 }
 
+//unlink one object from the immortal no-GC list
+//(prev/cur walk, works with both Obj header layouts; must run before freeObject on no-GC objects)
+void unlinkObj_no_gc(Obj* object) {
+	Obj* prev = NULL;
+	Obj* cur = vm.objects_no_gc;
+
+	while (cur != NULL) {
+		Obj* next = OBJ_PTR_GET_NEXT(cur);
+
+		if (cur == object) {
+			if (prev == NULL) {
+				vm.objects_no_gc = next;
+			}
+			else {
+				OBJ_PTR_SET_NEXT(prev, next);
+			}
+			return;
+		}
+
+		prev = cur;
+		cur = next;
+	}
+}
+
 void freeObject(Obj* object) {
 #if DEBUG_LOG_GC
 	printf("[gc] %p free (%s)\n", (void*)object, objTypeInfo[object->type]);
@@ -111,8 +135,13 @@ void freeObject(Obj* object) {
 	case OBJ_FUNCTION: {
 		ObjFunction* function = (ObjFunction*)object;
 		chunk_free(&function->chunk);
-		valueArray_free(&function->constants);
-		FREE_NO_GC(ObjFunction, object);
+		//inline cache slots are owned by the object (post-endCompiler size is exactly cacheCount+1;
+		//FAM-sealed scratch objects arrive with caches == NULL, so they skip this)
+		if (function->caches != NULL) {
+			FREE_ARRAY_NO_GC(InlineCacheSlot, function->caches, (uint32_t)function->cacheCount + 1);
+			function->caches = NULL;
+		}
+		FREE_FLEX_NO_GC(ObjFunction, function, Value, function->constantsCount);
 		break;
 	}
 	case OBJ_NATIVE:

@@ -6,6 +6,7 @@
 #include "compiler.h"
 #include "gc.h"
 #include "nativeBuiltin.h"
+#include <assert.h>
 
 #if DEBUG_PRINT_CODE
 #include "debug.h"
@@ -433,7 +434,7 @@ static uint32_t makeNumberConstant(Value value) {
 	NumberEntry* entry = tableGetNumberEntry(&current->numbers, &value);
 
 	if (entry->index == UINT32_MAX) {
-		ValueArray* constants = &current->function->constants;
+		ValueArray* constants = &current->constants;
 		valueArray_write(constants, value);
 		entry->index = constants->count - 1;//set value and return
 	}
@@ -533,6 +534,8 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 
 	opStack_init(&compiler->stack);
 	numberTable_init(&compiler->numbers);
+	// init compile constants, after compile we copy it to FAM objFunction
+	valueArray_init(&compiler->constants);
 
 	//it's a function
 	switch (type) {
@@ -598,8 +601,12 @@ static ObjFunction* endCompiler() {
 		current->cacheCapacity = (uint32_t)current->cacheCount + 1;
 	}
 
+	//seal compile-time constants into the FAM (no-op when there are none)
+	//must run BEFORE IC registration: the registry and OP_CLOSURE must hold the final object pointer
+	current->function = function = newFunctionMakeFAM(function, &current->constants);
+	valueArray_free(&current->constants);
+
 	//register for gc: invoke cache slots hold ObjClass*/ObjClosure* that must stay marked
-	//also lets vm_free release the cache arrays (functions are immortal)
 	if (current->cacheCapacity > 0) {
 		vm_register_ic_function(function);
 	}
@@ -2154,8 +2161,9 @@ static void instructionOptimize() {
 #define CHUNK_PEEK(offset) chunk->code[chunk->count - (offset) - 1]
 	//constants in vm.constants (non-number),24bits index
 #define READ_GLOBAL_CONSTANT(index) (vm.constants.values[(index)])
-//constants in function's own table (number),16bits index
-#define READ_LOCAL_CONSTANT(index) (current->function->constants.values[(index)])
+//constants in the compiler's own table (number),16bits index (merged into the function FAM at endCompiler)
+//assert vanishes in release builds (NDEBUG)
+#define READ_LOCAL_CONSTANT(index)	(assert((uint32_t)(index) < current->constants.count), current->constants.values[(index)])
 
 #define READ_SHORT_INDEX(offset)	\
 	(((uint32_t)chunk->code[chunk->count - (offset) - 1] << 8) +	\

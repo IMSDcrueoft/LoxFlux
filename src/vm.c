@@ -411,12 +411,7 @@ void vm_register_ic_function(ObjFunction* function) {
 
 void vm_free()
 {
-	//release the immortal functions' cache arrays (sized cacheCount+1 after shrink-to-fit)
-	for (uint32_t i = 0; i < vm.icFuncCount; i++) {
-		ObjFunction* fn = vm.icFuncs[i];
-		FREE_ARRAY_NO_GC(InlineCacheSlot, fn->caches, (uint32_t)fn->cacheCount + 1);
-		fn->caches = NULL;
-	}
+	//cache arrays are owned by their ObjFunction and released by freeObject
 
 	FREE_ARRAY_NO_GC(ObjFunction*, vm.icFuncs, vm.icFuncCapacity);
 	vm.icFuncs = NULL;
@@ -1023,13 +1018,13 @@ static InterpretResult run()
 	CallFrame* frame = &vm.frames[vm.frameCount - 1];
 	register uint8_t* ip = frame->ip;
 	//cached constants base of the current function,refreshed at every frame switch
-	Value* constants = frame->closure->function->constants.values;
+	Value* constants = frame->closure->function->constants;
 
 #define UPDATE_FRAME()	\
 	do {				\
 		frame = &vm.frames[vm.frameCount - 1];\
 		ip = frame->ip; \
-		constants = frame->closure->function->constants.values;	\
+		constants = frame->closure->function->constants;	\
 	} while (false)
 
 #if COMPUTE_GOTO

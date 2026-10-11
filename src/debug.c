@@ -154,7 +154,8 @@ static uint32_t jifLCNumberInstruction(C_STR name, ObjFunction* function, uint32
 	uint16_t jump = (uint16_t)(function->chunk.code[offset + 5] | (function->chunk.code[offset + 6] << 8));
 
 	printf("%-16s R:%4d '", name, slot);
-	printValue(function->constants.values[constant]);
+	assert(constant < function->constantsCount);
+	printValue(function->constants[constant]);
 	printf("' %4d -> %d\n", offset, offset + 7 + jump);
 	return offset + 7;
 }
@@ -191,7 +192,8 @@ static uint32_t numberConstantInstruction(C_STR name, ObjFunction* function, uin
 	uint32_t constant = ((uint32_t)function->chunk.code[offset + 1]) | ((uint32_t)function->chunk.code[offset + 2] << 8);
 
 	printf("%-16s %4d '", name, constant);
-	printValue(function->constants.values[constant]);
+	assert(constant < function->constantsCount);
+	printValue(function->constants[constant]);
 	printf("'\n");
 
 	//OP_CONST_NUMBER 3

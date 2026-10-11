@@ -89,10 +89,34 @@ ObjFunction* newFunction() {
 	function->id = vm.functionID++;//unique id
 	function->name = NULL;
 	chunk_init(&function->chunk);
-	valueArray_init(&function->constants);
 	function->caches = NULL;
 	function->cacheCount = 0;
+	function->constantsCount = 0;//scratch object, constants live in the compiler until sealed
 	return function;
+}
+
+ObjFunction* newFunctionMakeFAM(ObjFunction* function, ValueArray* constants){
+	if (constants->count == 0) {
+		return function;
+	}
+
+	// make FAM & reuse ID (ALLOCATE_FLEX_OBJ takes the total size: header + FAM)
+	ObjFunction* fresh = ALLOCATE_FLEX_OBJ(ObjFunction, OBJ_FUNCTION, sizeof(ObjFunction) + sizeof(Value) * constants->count);
+	Obj header = fresh->obj;//keep list link/type/mark state set by allocateObject
+	memcpy(fresh, function, sizeof(ObjFunction));//carries id/name/chunk/caches ownership over
+	fresh->obj = header;
+
+	memcpy(fresh->constants, constants->values, sizeof(Value) * constants->count);
+	fresh->constantsCount = constants->count;
+
+	//retire the scratch object: owned buffers were moved to fresh, leave nothing to release
+	chunk_init(&function->chunk);
+	function->caches = NULL;
+	function->constantsCount = 0;
+	unlinkObj_no_gc(&function->obj);
+	freeObject(&function->obj);
+
+	return fresh;
 }
 
 HOT_FUNCTION
