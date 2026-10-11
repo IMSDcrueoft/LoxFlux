@@ -71,7 +71,15 @@ typedef struct LoopContext {
 	uint32_t enterParamCount;
 	uint16_t breakJumpCount;
 	uint16_t breakJumpCapacity;
+	//do-while: 'continue' must target the condition check, which sits AFTER
+	//the body, so the forward jumps are collected here and patched once the
+	//condition position is known; while/for loops keep it NULL and jump back
+	//to loop.start directly
+	uint16_t continueJumpCount;
+	uint16_t continueJumpCapacity;
+	bool isDoWhile;
 	int32_t* breakJumps;
+	int32_t* continueJumps;
 	struct LoopContext* enclosing;
 } LoopContext;
 
