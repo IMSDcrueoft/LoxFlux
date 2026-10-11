@@ -1928,9 +1928,6 @@ static InterpretResult run()
 		case OP_PRINT: {
 		label_op_print:
 			uint8_t argCount = READ_BYTE();
-#if DEBUG_MODE
-			printf("[print] ");
-#endif
 			//values were pushed left-to-right: print in the same order, single-space joined
 			//each value uses the plain single-value print formatting (no expansion)
 			for (uint8_t i = 0; i < argCount; i++) {
