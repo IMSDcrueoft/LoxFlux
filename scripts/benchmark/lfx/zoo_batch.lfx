@@ -31,6 +31,6 @@ while (@time.milli() - start < 10000) {
   batch = batch + 1;
 }
 
-@sys.log("zoo_batch Time:", @time.milli() - start);
-@sys.log("zoo_batch Sum:", sum);
-@sys.log("zoo_batch Batch:", batch);
+print "zoo_batch Time:", @time.milli() - start;
+print "zoo_batch Sum:", sum;
+print "zoo_batch Batch:", batch;

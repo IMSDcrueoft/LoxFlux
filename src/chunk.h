@@ -79,7 +79,7 @@ typedef enum {
 
 	OP_MODULE_BUILTIN,	// load builtin module
 
-	OP_PRINT,			// print string or value
+	OP_PRINT,			// 1 + 1 byte, print values space-joined (u8 count)
 	OP_THROW,			// throw
 	OP_IMPORT,			// import module
 

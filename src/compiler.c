@@ -1228,9 +1228,15 @@ static void branchStatement() {
 }
 
 static void printStatement() {
-	expression();
+	uint32_t argCount = 0;
+	do {
+		expression();
+		if (++argCount > UINT8_MAX) error("Too many arguments in print.");
+	} while (match(TOKEN_COMMA));
 	consume(TOKEN_SEMICOLON, "Expect ';' after value.");
-	emitByte(OP_PRINT);
+
+	//values were pushed left-to-right; the VM prints and pops them in order
+	emitBytes(2, OP_PRINT, (uint8_t)argCount);
 	clearOpStack();
 }
 

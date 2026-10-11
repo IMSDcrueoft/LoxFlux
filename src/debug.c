@@ -252,8 +252,11 @@ uint32_t disassembleInstruction(ObjFunction* function, uint32_t offset) {
 		return simpleInstruction("OP_THROW", offset);
 	case OP_POP:
 		return simpleInstruction("OP_POP", offset);
-	case OP_PRINT:
-		return simpleInstruction("OP_PRINT", offset);
+	case OP_PRINT: {
+		uint8_t argCount = chunk->code[offset + 1];
+		printf("%-16s %4u\n", "OP_PRINT", argCount);
+		return offset + 2;
+	}
 	case OP_ADD:
 		return simpleInstruction("OP_ADD", offset);
 	case OP_SUBTRACT:
