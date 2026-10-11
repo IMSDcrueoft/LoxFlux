@@ -40,14 +40,14 @@ _(AMD Ryzen7-5800X, Windows 11, Use ClangCL/LLVM 22.1.3 for loxflux & clox (loop
 |program|LoxFlux - [0.11.4]|clox|NodeJS - [24.19.0] - jitless|Cpython3 - [3.14.7]|Lua - [5.5.1]|
 |---|---|---|---|---|---|
 |fib30|45ms|81ms|50ms|121ms|51ms|
-|fib35|504ms|880ms|570ms|1319ms|546ms|
-|fib40|5560ms|10365ms|6131ms|14593ms|6038ms|
+|fib35|495ms|880ms|570ms|1319ms|546ms|
+|fib40|5512ms|10365ms|6131ms|14593ms|6038ms|
 |loop 1e8|410ms|1109ms|583ms|2671ms|842ms (for: 213ms)|
-|global loop 1e8|776ms|2694ms|988ms|4462ms|2265ms|
+|global loop 1e8|770ms|2694ms|988ms|4462ms|2265ms|
 |binary_trees|900ms|2295ms|517ms|1247ms|2364ms|
 |instantiation|350ms|845ms|226ms|1020ms|1145ms|
 |invocation|162ms|244ms|203ms|312ms|286ms|
-|method_call|92ms|167ms|93ms|160ms|137ms|
+|method_call|89ms|167ms|93ms|160ms|137ms|
 |properties|203ms|373ms|229ms|339ms|329ms|
 |trees|1077ms|3884ms|1307ms|2002ms|3116ms|
 |zoo|163ms|288ms|169ms|292ms|251ms|
@@ -379,10 +379,11 @@ These utilities are invaluable for monitoring and optimizing memory usage, espec
 ### Command Line
 
 ```
-loxFlux [--print-bytecode] [script]
+loxFlux [--print-bytecode] [--no-optimize] [script]
 ```
 
 - **`--print-bytecode`**: Dumps the compiled bytecode of every function to **stderr** as each function finishes compiling, so the script's own stdout stays clean and pipeable. Applies to `runFile` and inside the REPL (`/eval` included); the setting survives `/reset`.
+- **`--no-optimize`**: Disables all compile-time optimizations (peephole fusion, constant folding, builtin member folding, branch-jump fusion). The emitted bytecode stays fully valid, just unoptimized — useful for debugging the optimizer or inspecting raw bytecode (combine with `--print-bytecode`).
 - **`--help` / `-h`**: Print usage information.
 - With no script argument, the REPL starts.
 

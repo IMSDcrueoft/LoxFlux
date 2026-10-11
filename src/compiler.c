@@ -16,6 +16,10 @@
 //runtime --print-bytecode flag: process-level setting (set once by main,
 //survives /reset), read by endCompiler to dump the final bytecode
 bool vm_printBytecode = false;
+
+//runtime --no-optimize flag: when false, emitOpStack/instructionOptimize,
+//foldBuiltinNumber and emitBranchJump all pass through unoptimized
+bool vm_optimizationEnabled = true;
 //shared parser
 Parser parser;
 Compiler* current = NULL;
@@ -54,7 +58,7 @@ static void emitOpStack(uint8_t byte, bool doCheck) {
 	opStack_push(currentOpStack(), byte);
 
 #if COMPILATION_TIME_OPTIMIZATION
-	if (!doCheck) return;
+	if (!doCheck || !vm_optimizationEnabled) return;
 
 #if DEBUG_PRINT_CODE
 	//print before optimize
@@ -226,6 +230,8 @@ static int32_t emitJump(uint8_t instruction) {
 //returns patch offset like emitJump, or -1 when nothing to patch
 static int32_t emitBranchJump(uint8_t instruction, int32_t condStart) {
 #if COMPILATION_TIME_OPTIMIZATION
+	if (!vm_optimizationEnabled) return emitJump(instruction);
+
 	if (instruction == OP_JUMP_IF_FALSE_POP) {
 		Chunk* chunk = currentChunk();
 		uint32_t regionSize = chunk->count - (uint32_t)condStart;
@@ -458,6 +464,8 @@ static void emitNumberConstant(Value value) {
 //the pre-allocated IC slot is rolled back:the folded site no longer owns one
 static bool foldBuiltinNumber(void) {
 #if COMPILATION_TIME_OPTIMIZATION
+	if (!vm_optimizationEnabled) return false;
+
 	Chunk* chunk = currentChunk();
 
 	//chech opStack first,than use this to override old codes

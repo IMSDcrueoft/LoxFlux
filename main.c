@@ -7,9 +7,11 @@
 #include "src/compiler.h"
 
 static void print_usage(FILE* stream) {
-	fprintf(stream, "Usage: loxFlux [--print-bytecode] [script]\n");
+	fprintf(stream, "Usage: loxFlux [--print-bytecode] [--no-optimize] [script]\n");
 	fprintf(stream, "  --print-bytecode  dump the compiled bytecode of every function to stderr\n");
-	fprintf(stream, "  (with no script, the REPL starts; the flag applies to /eval too)\n");
+	fprintf(stream, "  --no-optimize     disable all compile-time optimizations (peephole fusion,\n");
+	fprintf(stream, "                    constant folding, branch-jump fusion)\n");
+	fprintf(stream, "  (with no script, the REPL starts; flags apply to /eval too)\n");
 }
 
 //the main
@@ -19,6 +21,9 @@ int main(int argc, C_STR argv[]) {
 	for (int i = 1; i < argc; i++) {
 		if (strcmp(argv[i], "--print-bytecode") == 0) {
 			vm_printBytecode = true;
+		}
+		else if (strcmp(argv[i], "--no-optimize") == 0) {
+			vm_optimizationEnabled = false;
 		}
 		else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
 			print_usage(stdout);

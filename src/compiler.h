@@ -126,3 +126,8 @@ void markCompilerRoots();
 //runtime --print-bytecode flag: process-level setting (set once by main,
 //survives /reset), read by endCompiler to dump the final bytecode to stderr
 extern bool vm_printBytecode;
+
+//runtime --no-optimize flag: disables every compile-time optimization pass
+//(peephole fusion, constant folding, builtin member folding, branch-jump
+//fusion); the emitted bytecode stays fully valid, just unoptimized
+extern bool vm_optimizationEnabled;
