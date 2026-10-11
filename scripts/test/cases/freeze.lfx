@@ -1,0 +1,46 @@
+// freeze: instance field immutability (JS-like silent ignore, global excluded)
+// exit: 0
+// out: 1
+// out: true
+// out: 1
+// out: true
+// out: false
+// out: false
+// out: true
+// out: done
+// err: Cannot freeze the global object.
+
+class P {}
+var p = P();
+
+// hot the inline cache for this write site, then freeze mid-loop:
+// iterations after the freeze hit the direct-write fast path and must be rejected
+var i = 0;
+while (i < 4) {
+	p.x = i;
+	if (i == 1) { @object.freeze(p); }
+	i = i + 1;
+}
+print p.x;
+
+print @object.isFrozen(p);
+
+// subscript writes route through tableSet/tableDelete, rejected too
+p["x"] = 9;
+print p.x;
+
+// nil-assignment delete is rejected as well
+p["x"] = nil;
+print @object.hasOwn(p, "x");
+
+// new field rejected
+p.y = 7;
+print @object.hasOwn(p, "y");
+
+// only instances carry a frozen state
+print @object.isFrozen(42);
+print @object.isFrozen(p);
+
+// global cannot be frozen (message goes to stderr, execution continues)
+@object.freeze(@object.getGlobal());
+print "done";

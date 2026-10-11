@@ -68,6 +68,36 @@ static Value getGlobalNative(int argCount, Value* args) {
 	return OBJ_VAL(&vm.globals);
 }
 
+//JS-like Object.freeze, instance fields only (shallow): no add/modify/delete
+//after freezing. The global object is excluded: it backs the VM's variable
+//store, so freezing it would brick every global definition
+static Value freezeNative(int argCount, Value* args) {
+	if (argCount < 1 || !IS_INSTANCE(args[0])) {
+		fprintf(stderr, "freeze() expects an instance.\n");
+		return NIL_VAL;
+	}
+
+	ObjInstance* instance = AS_INSTANCE(args[0]);
+
+	if (instance->fields.isGlobal) {
+		fprintf(stderr, "Cannot freeze the global object.\n");
+		return NIL_VAL;
+	}
+
+	instance->fields.isFrozen = true;
+	return args[0];//JS-style: returns the frozen object
+}
+
+//JS-like Object.isFrozen, restricted to what freeze() can freeze:
+//only instances carry a frozen state, every other value is just "not frozen"
+static Value isFrozenNative(int argCount, Value* args) {
+	if (argCount < 1 || !IS_INSTANCE(args[0])) {
+		return FALSE_VAL;
+	}
+
+	return BOOL_VAL(AS_INSTANCE(args[0])->fields.isFrozen);
+}
+
 COLD_FUNCTION
 static Value keysNative(int argCount, Value* args) {
 	// Create an empty array as result  
@@ -134,4 +164,6 @@ void importNative_object() {
 
 	defineNative_object("keys", keysNative);
 	defineNative_object("hasOwn", hasOwnNative);
+	defineNative_object("freeze", freezeNative);
+	defineNative_object("isFrozen", isFrozenNative);
 }

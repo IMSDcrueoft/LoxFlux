@@ -1,0 +1,16 @@
+// readFile strips a UTF-8 BOM: build a BOM-prefixed source file at runtime, import it
+// exit: 0
+// out: bom ok
+// out: imported
+// cleanup: tmp_bom_test.lfx
+
+// bytes: EF BB BF + 'print "bom ok";'
+var data = @ctor.U8Array(18);
+data[0] = 0xEF; data[1] = 0xBB; data[2] = 0xBF;
+data[3] = 112; data[4] = 114; data[5] = 105; data[6] = 110; data[7] = 116; data[8] = 32;
+data[9] = 34; data[10] = 98; data[11] = 111; data[12] = 109; data[13] = 32; data[14] = 111;
+data[15] = 107; data[16] = 34; data[17] = 59;
+
+@sys.writeFile("./tmp_bom_test.lfx", data);
+import "./tmp_bom_test.lfx";
+print "imported";

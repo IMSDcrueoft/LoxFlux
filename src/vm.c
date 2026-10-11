@@ -271,7 +271,7 @@ static void importBuiltins() {
 		vm.builtins[i] = (ObjInstance){
 		.obj = stateLess_obj_header(OBJ_INSTANCE),
 		.klass = &vm.defaultClass,
-		.fields = {.isGlobal = false,.isFrozen = false,.isEternal = true,.isPoisoned = false}//remind this: isFrozen must stay false until the members are tableSet below
+		.fields = {.isGlobal = false,.isFrozen = true,.isEternal = true,.isPoisoned = false}//frozen from birth: tableSet is unguarded now, so filling members below works fine
 		};
 	}
 
@@ -291,10 +291,6 @@ static void importBuiltins() {
 	importNative_time();
 	importNative_ctor();
 	importNative_system();
-
-	for (uint32_t i = 0; i < BUILTIN_MODULE_COUNT; ++i) {
-		vm.builtins[i].fields.isFrozen = true;//remind this,we can't set first
-	}
 }
 
 COLD_FUNCTION
@@ -955,6 +951,10 @@ static void icGetPropertySlow(ObjInstance* instance, ObjString* name, uint8_t sl
 COLD_FUNCTION
 NOINLINE_FUNCTION
 static void icSetPropertySlow(ObjInstance* instance, ObjString* name, Value newValue, uint8_t slot, InlineCacheSlot* icCache) {
+	//frozen instances reject every write/delete; early return keeps the IC
+	//un-backfilled so later writes keep taking this cheap exit
+	if (instance->fields.isFrozen) return;
+
 	if (NOT_NIL(newValue)) {
 		Value oldValue;
 		Entry* entry;
@@ -1412,9 +1412,10 @@ static InterpretResult run()
 			InlineCacheSlot* icCache = frame->caches;
 
 			//inline cache: direct write only for existing entries with non-nil value (nil means delete)
+			//frozen fields fall through to the slow path, which rejects the write
 			if (NOT_NIL(vm.stackTop[-1])) {
 				Table* fields = &instance->fields;
-				if ((uint32_t)icCache[slot].capacity == fields->capacity) {
+				if (!fields->isFrozen && (uint32_t)icCache[slot].capacity == fields->capacity) {
 					uint32_t idx = icCache[slot].index;
 					if (idx < fields->capacity && fields->entries[idx].key == name) {
 						fields->entries[idx].value = vm.stackTop[-1];
@@ -1443,9 +1444,10 @@ static InterpretResult run()
 			InlineCacheSlot* icCache = frame->caches;
 
 			//inline cache: direct write only for existing entries with non-nil value (nil means delete)
+			//frozen fields fall through to the slow path, which rejects the write
 			if (NOT_NIL(vm.stackTop[-1])) {
 				Table* fields = &instance->fields;
-				if ((uint32_t)icCache[slot].capacity == fields->capacity) {
+				if (!fields->isFrozen && (uint32_t)icCache[slot].capacity == fields->capacity) {
 					uint32_t idx = icCache[slot].index;
 					if (idx < fields->capacity && fields->entries[idx].key == name) {
 						fields->entries[idx].value = vm.stackTop[-1];
@@ -1637,11 +1639,14 @@ static InterpretResult run()
 					ObjInstance* instance = AS_INSTANCE(target);
 					ObjString* name = AS_STRING(index);
 
-					if (NOT_NIL(value)) {
-						tableSet(&instance->fields, name, value);
-					}
-					else {
-						tableDelete(&instance->fields, name);
+					//frozen instances reject writes and deletes (silent ignore, JS non-strict style)
+					if (!instance->fields.isFrozen) {
+						if (NOT_NIL(value)) {
+							tableSet(&instance->fields, name, value);
+						}
+						else {
+							tableDelete(&instance->fields, name);
+						}
 					}
 
 					vm.stackTop[-3] = value;
@@ -1660,7 +1665,7 @@ static InterpretResult run()
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 
-			//it's not a new key,no cache
+			//it's not a new key,no cache, global can't frozen
 			tableSet(&vm.globals.fields, name, vm.stackTop[-1]);
 			vm.stackTop--;//can not dec first,because gc will kill it
 			NEXT_INSTRUCTION;
@@ -1703,6 +1708,7 @@ static InterpretResult run()
 				}
 			}
 
+			// global can't frozen
 			if (tableSet(&vm.globals.fields, name, vm.stackTop[-1])) {
 				//lox dont allow setting undefined one
 				tableDelete(&vm.globals.fields, name);
@@ -1740,6 +1746,7 @@ static InterpretResult run()
 			ObjInstance* instance = AS_INSTANCE(vm.stackTop[-2]);
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
+			// this is used to create literal object,so we don't need to check frozen
 			tableSet(&instance->fields, name, vm.stackTop[-1]);
 			stack_pop();
 			NEXT_INSTRUCTION;

@@ -1,5 +1,5 @@
 # LoxFlux
-![Version](https://img.shields.io/badge/version-0.11.3-blue)
+![Version](https://img.shields.io/badge/version-0.11.4-blue)
 
 LoxFlux is an independent reimplementation of the cLox interpreter described in "Crafting Interpreters"—a stack-based bytecode virtual machine. All code is written from scratch, following the book’s design principles. This project is still actively being developed and improved.
 
@@ -287,6 +287,8 @@ The `@object` module provides utilities for type checking and object introspecti
   - `getGlobal`: Get global object.
   - `keys`: Returns the own keys array of an instance.
   - `hasOwn`: Returns true if the instance has an own data property with the given string key (methods are not own properties).
+  - `freeze`: Freezes an instance (JS-like `Object.freeze`, shallow): its own fields can no longer be added, modified or deleted; writes are silently ignored. Returns the frozen instance. The global object cannot be frozen.
+  - `isFrozen`: Returns true when the instance is frozen. Only instances carry a frozen state, every other value is just `false`.
   - `getClass`: Returns the class object of an instance (nil for non-instances). Pairs with the class-level `instanceof`: `getClass(a) instanceof getClass(b)` is a dynamic subclass check.
 
 These functions are particularly useful for runtime type validation and debugging, allowing developers to write robust and error-resistant code.
@@ -375,6 +377,7 @@ These utilities are invaluable for monitoring and optimizing memory usage, espec
   - `/clear`: Clean the console.
   - `/eval` : Load file and Run.
   - `/mem`  : Print memory information (using mimalloc).
+  - `/reset`: Reset VM state (globals, functions, pools are cleared) and print the reclaimed bytes.
 
 ## Licenses
 The project **loxFlux** is based on `MIT` and uses two third-party projects.

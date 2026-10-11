@@ -118,7 +118,10 @@ bool tableGetEntry(Table* table, ObjString* key, Value* value_out, Entry** entry
 HOT_FUNCTION
 bool tableSet(Table* table, ObjString* key, Value value)
 {
-	if (table->isFrozen) return false;// not allowed
+	//NOTE: no frozen guard here on purpose: freezing is a property-write concept,
+	//enforced by the instance property paths in vm.c. Generic tables (builtins
+	//import, globals, class methods) must stay freely writable while being built
+	//(builtins are frozen at construction and still filled through this function)
 
 	//if (table->count + 1 > table->capacity * TABLE_MAX_LOAD) {
 	if ((table->count + 1) > MUL_3_DIV_4((uint64_t)(table->capacity))) {
@@ -137,7 +140,8 @@ bool tableSet(Table* table, ObjString* key, Value value)
 
 HOT_FUNCTION
 bool tableDelete(Table* table, ObjString* key) {
-	if (table->isFrozen) return false;// not allowed
+	//NOTE: no frozen guard here (see tableSet): deletion is rejected by the
+	//instance property paths in vm.c
 
 	if (table->count == 0) return false;
 
