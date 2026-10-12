@@ -99,7 +99,7 @@ static Value allocatedBytesNative(int argCount, Value* args) {
 	return NUMBER_VAL((double)vm.bytesAllocated);
 }
 
-static Value staticBytesNative(int argCount, Value* args) {
+static Value pinnedBytesNative(int argCount, Value* args) {
 	return NUMBER_VAL((double)vm.bytesAllocated_no_gc);
 }
 
@@ -410,7 +410,7 @@ void importNative_system() {
 	defineNative_system("gcNext", gcNextNative);
 	defineNative_system("gcBegin", gcBeginNative);
 	defineNative_system("allocatedBytes", allocatedBytesNative);
-	defineNative_system("pinnedBytes", staticBytesNative);
+	defineNative_system("pinnedBytes", pinnedBytesNative);
 
 	defineNative_system("log", logNative);
 	defineNative_system("error", errorNative);
