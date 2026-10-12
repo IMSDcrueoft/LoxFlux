@@ -21,6 +21,10 @@
 //physical memory is committed lazily in ARENA_BUMP_COMMIT_CHUNK steps
 #define STACK_ARENA_SIZE (STACK_MAX_SIZE * sizeof(Value))
 
+//vm stack arena: same fixed-VA model as the stack arena; 512MiB reservation,
+//committed lazily in 16KB steps (a single oversized string commits more at once)
+#define STRING_ARENA_SIZE ((size_t)512 * 1024 * 1024)
+
 typedef struct {
 	ObjClosure* closure;
 	uint8_t* ip;
@@ -107,6 +111,11 @@ typedef struct {
 
 	//fixed-base backing storage for the stack (VA never moves, lazy commit)
 	ArenaBumpAllocator stackArena;
+
+	//fixed-base backing storage for interned strings (append-only bump): all
+	//ObjString allocations come from here and the whole arena is released at
+	//vm exit; strings are NOT linked into the object lists anymore
+	ArenaBumpAllocator stringArena;
 } VM;
 
 typedef enum {
@@ -130,6 +139,11 @@ void stack_replace(Value val);
 uint32_t getConstantSize();
 //add a constant and get the index of it,i will handle it later
 uint32_t addConstant(Value value);
+
+//committed / used bytes of the vm string arena (memory stats; interned strings
+//left the no_gc accounting book, pinnedBytes folds stringBytes back in)
+uint64_t stringBytes();
+uint64_t stringCommittedBytes();
 
 //committed bytes of the vm stack arena (for the memory stats interfaces;
 //the stack lives outside the allocator, so the stats books can't see it)

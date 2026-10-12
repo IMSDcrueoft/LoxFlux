@@ -349,8 +349,8 @@ void vm_init()
 	//zero the accounting books BEFORE any allocation: everything vm_init
 	//allocates from here on must be counted, so the matching vm_free frees net
 	//the counters back to exactly zero
-	//(the vm stack is NOT counted anymore: it lives in a fixed OS VA arena
-	//outside the allocator, like the grayStack)
+	//(the vm stack and the interned strings are NOT counted anymore: they live
+	//in fixed OS VA arenas outside the allocator, like the grayStack)
 	vm.bytesAllocated = 0;
 	vm.bytesAllocated_no_gc = 0;
 
@@ -379,6 +379,16 @@ void vm_init()
 
 	vm.stack = (Value*)vm.stackArena.base;
 	vm.stackBoundary = (Value*)((char*)vm.stackArena.base + vm.stackArena.commitTop);
+
+	//string arena: reserve 512MiB of VA (committed lazily in 16KB steps); no
+	//eager commit needed - the first string allocation triggers it; strings
+	//are NOT counted in the accounting books anymore (same class as the stack
+	//arena and the grayStack)
+	assert(vm.stringArena.base == NULL);
+	if (!arenaBump_init(&vm.stringArena, STRING_ARENA_SIZE, false, 8, 16 * 1024)) {
+		fprintf(stderr, "Failed to reserve the vm string arena.\n");
+		exit(1);
+	}
 
 	stack_reset();
 
@@ -466,8 +476,9 @@ void vm_free()
 	}
 	freeObjects();
 
-	//release the stack arena (VA reservation + committed pages)
+	//release the stack + string arenas (VA reservations + committed pages)
 	arenaBump_destroy(&vm.stackArena);
+	arenaBump_destroy(&vm.stringArena);
 	//any surviving bump reservation is a leak (e.g. an init without a matching destroy)
 	assert(arenaBump_liveSegments() == 0);
 	vm.stack = NULL;
@@ -484,7 +495,7 @@ void vm_free()
 	//so after the FULL teardown (objects, builtin tables, defaultClass) both
 	//counters must net to exactly zero
 	//(direct mem_alloc/mem_free users: grayStack, readFile buffers, REPL line buffer,
-	//the stack arena, are uncounted on BOTH sides and therefore never show up here)
+	//the stack and string arenas, are uncounted on BOTH sides and therefore never show up here)
 	if (vm.bytesAllocated != 0 || vm.bytesAllocated_no_gc != 0) {
 		fprintf(stderr, "[mem] LEAK: bytesAllocated=%llu bytesAllocated_no_gc=%llu (both must be 0)\n",
 			(unsigned long long)vm.bytesAllocated, (unsigned long long)vm.bytesAllocated_no_gc);
@@ -501,6 +512,20 @@ COLD_FUNCTION
 uint64_t stackCommittedBytes()
 {
 	return (uint64_t)arenaBump_committed(&vm.stackArena);
+}
+
+COLD_FUNCTION
+uint64_t stringBytes()
+{
+	//append-only arena: the bump cursor IS the exact interned-string size
+	//(allocation sizes + alignment padding)
+	return (uint64_t)arenaBump_used(&vm.stringArena);
+}
+
+COLD_FUNCTION
+uint64_t stringCommittedBytes()
+{
+	return (uint64_t)vm.stringArena.commitTop;
 }
 
 //return the constant index

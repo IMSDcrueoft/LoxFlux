@@ -46,15 +46,30 @@ static Obj* allocateObject(uint64_t size, ObjType type) {
 
 	//link the objects
 	switch (type) {
+	case OBJ_STRING: {
+		//strings come from the fixed-VA string arena (append-only bump, the
+		//whole arena is released at vm exit); they are NOT linked into the
+		//object lists anymore, the arena owns their lifetime
+		ObjString* string = (ObjString*)arenaBump_alloc(&vm.stringArena, size);
+		if (string == NULL) {
+			fprintf(stderr, "Memory reallocation failed!\n");
+			exit(1);
+		}
+
+		memset(&string->obj, 0, sizeof(Obj));
+		string->obj.type = OBJ_STRING;
+		object = (Obj*)string;
+		break;
+	}
 	case OBJ_FUNCTION:
-	case OBJ_NATIVE:
-	case OBJ_STRING:
+	case OBJ_NATIVE: {
 		object = (Obj*)reallocate_no_gc(NULL, 0, size);
 		OBJ_PTR_SET_NEXT(object, vm.objects_no_gc);
 		object->type = type;
 		object->isMarked = !vm.gcMark;
 		vm.objects_no_gc = object;
 		break;
+	}
 	default:
 		object = (Obj*)reallocate(NULL, 0, size);
 		OBJ_PTR_SET_NEXT(object, vm.objects);
@@ -393,9 +408,9 @@ ObjString* copyString(C_STR chars, uint32_t length, bool escapeChars)
 		const uint64_t escapedHash = HASH_64bits(content, writeIndex);
 		ObjString* interned = deduplicateString(content, writeIndex, escapedHash);
 		if (interned == NULL) {
-			//genuinely new content: allocate, copy, intern
-			string = ALLOCATE_FLEX_OBJ(ObjString, OBJ_STRING, sizeof(ObjString) + 1 + writeIndex);
-			memcpy(string->chars, content, writeIndex);
+		//genuinely new content: allocate, copy, intern
+		string = ALLOCATE_FLEX_OBJ(ObjString, OBJ_STRING, sizeof(ObjString) + 1 + writeIndex);
+		memcpy(string->chars, content, writeIndex);
 			string->chars[writeIndex] = '\0';
 			string->length = writeIndex;
 			string->hash = escapedHash;
