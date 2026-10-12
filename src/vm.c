@@ -1037,8 +1037,27 @@ static void icSetPropertySlow(ObjInstance* instance, ObjString* name, Value newV
 			}
 		}
 	}
-	else {
+	else if (!instance->fields.isGlobal) {
 		tableDelete(&instance->fields, name);
+	}
+	else {
+		//the global object backs the variable store: nil-assign ASSIGNS nil and
+		//never deletes (a deleted variable would break already-emitted global
+		//accesses); mirrors OP_SET_GLOBAL's plain assign semantics
+		Value oldValue;
+		Entry* entry;
+		if (tableGetEntry(&instance->fields, name, &oldValue, &entry)) {
+			entry->value = NIL_VAL;
+			if (slot != 0 && instance->fields.capacity <= UINT16_MAX) {
+				icCache[slot].capacity = instance->fields.capacity;
+				icCache[slot].index = (uint32_t)(entry - instance->fields.entries);
+			}
+		}
+		else {
+			//defining a fresh global as nil; defaultClass.methods is empty for
+			//the global object's lifetime, so no method-shadow poisoning applies
+			tableSet(&instance->fields, name, NIL_VAL);
+		}
 	}
 }
 
@@ -1681,8 +1700,12 @@ static InterpretResult run()
 					ObjString* name = AS_STRING(index);
 
 					//frozen instances reject writes and deletes (silent ignore, JS non-strict style)
+					//the global object backs the variable store: nil-assign assigns nil
+					//and never deletes (a deleted variable would break already-emitted
+					//global accesses); mirrors the property-write path above
 					if (!instance->fields.isFrozen) {
-						if (NOT_NIL(value)) {
+						// you can't delete a global variable,so we don't delete it
+						if (NOT_NIL(value) || instance->fields.isGlobal) {
 							tableSet(&instance->fields, name, value);
 						}
 						else {

@@ -163,7 +163,7 @@ noneState  ::= "none" ":" statement
 ### Instance
 
 - **Object Literals**: Supports defining object literals directly with `{k1:v1,"k2":v2}`,making object creation more intuitive and convenient(Nesting is supported).
-- **Delete property**: Remove key-value pairs by assigning nil to the object.
+- **Delete property**: Remove key-value pairs by assigning nil to the object (exempt: the object returned by `@object.getGlobal()` — nil-assign sets the global variable to nil, it is never deleted).
 - **`instanceof` keyword**:  Checks if an object is an instance of a specific class.
 - **`typeof` keyword**: Returns the string of item's subdivision type.
 
