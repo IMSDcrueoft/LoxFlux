@@ -480,7 +480,6 @@ uint32_t addConstant(Value value)
 	}
 	else {
 		valueArray_writeAt(&vm.constants, value, index);
-		valueHoles_pop(&vm.constantHoles);
 		return index;
 	}
 }
