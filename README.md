@@ -397,8 +397,18 @@ loxFlux [--print-bytecode] [--no-optimize] [script]
   - `/exit` : Exit the REPL.
   - `/clear`: Clean the console.
   - `/eval` : Load file and Run.
-  - `/mem`  : Print memory information (mimalloc stats, plus a vm stack arena line showing its committed/peak/reserved bytes).
+  - `/mem`  : Print memory information (mimalloc stats, plus the vm stack and interned-string arenas' committed/reserved bytes).
   - `/reset`: Reset VM state (globals, functions, pools are cleared) and print the reclaimed bytes.
+
+---
+
+### Memory arenas
+
+The VM's two hottest regions — the value stack and the interned string pool — live in fixed virtual-address bump arenas backed by `third-party/memAllocator`. Each arena is reserved once and never moves; physical pages are committed lazily, in small page-granular steps, only as they are actually touched.
+
+- **Value stack**: growth is a page commit instead of a realloc — no copy, and no re-fixing of `frame->slots` or open-upvalue pointers, which a movable heap stack would need on every growth. Exhausting the arena is a clean `Stack overflow.` runtime error.
+- **Interned strings**: every string is interned into a single pool and lives until the VM exits, so the lifecycle is exactly "append while running, release wholesale at exit" — the shape a bump allocator is made for. Allocation is a pointer bump (no per-object allocator bookkeeping, no individual free path), interned strings end up physically contiguous, and the dedup probes that hash and compare candidate strings benefit from that locality.
+- The arenas sit outside the allocator's accounting books by design; `@sys.pinnedBytes` folds the interned-string usage back in, and the REPL `/mem` command reports each arena's committed bytes.
 
 ## Licenses
 The project **loxFlux** is based on `MIT` and uses three third-party projects.

@@ -1,0 +1,20 @@
+//sequential string-arena allocations must walk the commit watermark across
+//multiple 16KB chunks; earlier strings must stay intact after later commits
+//(a broken step-advance would write into uncommitted PAGE_NOACCESS memory)
+// exit: 0
+// out: x
+// out: 5000
+// out: x
+var b = @ctor.StringBuilder();
+var first = "";
+var i = 0;
+while (i < 5000) {
+	@string.append(b, "x");
+	var s = @string.intern(b);
+	if (i == 0) { first = s; }
+	i = i + 1;
+}
+print first;
+print @string.length(@string.intern(b));
+print first;
+
