@@ -1,0 +1,5 @@
+//a backslash at end-of-source must be rejected as an unterminated string
+//instead of letting the escape-pair scan step past the source terminator
+// exit: 65
+// err: Unterminated string
+print "a\

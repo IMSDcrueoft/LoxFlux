@@ -377,9 +377,12 @@ static Token string() {
 			scanner.line++;
 			break;
 		case '\\': {
-			if (isAtEnd()) return errorToken("Unterminated string.");
-
 			advance(); // skip "\\"
+
+			//the backslash was the last source character: the escape pair can
+			//never complete and the loop's advance() would step past the
+			//terminator (1-byte out-of-bounds read) -> unterminated string
+			if (isAtEnd()) return errorToken("Unterminated string.");
 
 			if (!isEscapeString) {
 				switch (peek()) {
