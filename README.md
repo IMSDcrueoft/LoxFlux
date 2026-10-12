@@ -1,5 +1,5 @@
 # LoxFlux
-![Version](https://img.shields.io/badge/version-0.11.4-blue)
+![Version](https://img.shields.io/badge/version-0.11.5-blue)
 
 LoxFlux is an independent reimplementation of the cLox interpreter described in "Crafting Interpreters"—a stack-based bytecode virtual machine. All code is written from scratch, following the book’s design principles. This project is still actively being developed and improved.
 
@@ -37,21 +37,21 @@ Lox is a programming language designed for learning purposes. It is conceived as
 #### Performance test
 
 _(AMD Ryzen7-5800X, Windows 11, Use ClangCL/LLVM 22.1.3 for loxflux & clox (loop 1e8: LLVM 19, see note) & Lua 5.5.1; LoxFlux benchmarks in `scripts/benchmark/lfx`, CPython in `scripts/benchmark/py`, Lua in `scripts/benchmark/lua`)_
-|program|LoxFlux - [0.11.4]|clox|NodeJS - [24.19.0] - jitless|Cpython3 - [3.14.7]|Lua - [5.5.1]|
+|program|LoxFlux - [0.11.5]|clox|NodeJS - [24.19.0] - jitless|Cpython3 - [3.14.7]|Lua - [5.5.1]|
 |---|---|---|---|---|---|
-|fib30|45ms|81ms|50ms|121ms|51ms|
-|fib35|495ms|880ms|570ms|1319ms|546ms|
-|fib40|5512ms|10365ms|6131ms|14593ms|6038ms|
+|fib30|44ms|81ms|50ms|121ms|51ms|
+|fib35|480ms|880ms|570ms|1319ms|546ms|
+|fib40|5431ms|10365ms|6131ms|14593ms|6038ms|
 |loop 1e8|410ms|1109ms|583ms|2671ms|842ms (for: 213ms)|
-|global loop 1e8|770ms|2694ms|988ms|4462ms|2265ms|
-|binary_trees|900ms|2295ms|517ms|1247ms|2364ms|
-|instantiation|350ms|845ms|226ms|1020ms|1145ms|
-|invocation|162ms|244ms|203ms|312ms|286ms|
-|method_call|89ms|167ms|93ms|160ms|137ms|
+|global loop 1e8|785ms|2694ms|988ms|4462ms|2265ms|
+|binary_trees|913ms|2295ms|517ms|1247ms|2364ms|
+|instantiation|343ms|845ms|226ms|1020ms|1145ms|
+|invocation|154ms|244ms|203ms|312ms|286ms|
+|method_call|91ms|167ms|93ms|160ms|137ms|
 |properties|203ms|373ms|229ms|339ms|329ms|
-|trees|1077ms|3884ms|1307ms|2002ms|3116ms|
-|zoo|163ms|288ms|169ms|292ms|251ms|
-|zoo_batch(10sec)|10294batch|5063batch|9049batch|5665batch|6569batch|
+|trees|1024ms|3884ms|1307ms|2002ms|3116ms|
+|zoo|156ms|288ms|169ms|292ms|251ms|
+|zoo_batch(10sec)|10537batch|5063batch|9049batch|5665batch|6569batch|
 
 ---
 
@@ -163,7 +163,7 @@ noneState  ::= "none" ":" statement
 ### Instance
 
 - **Object Literals**: Supports defining object literals directly with `{k1:v1,"k2":v2}`,making object creation more intuitive and convenient(Nesting is supported).
-- **Delete property**: Remove key-value pairs by assigning nil to the object.
+- **Delete property**: Remove key-value pairs by assigning nil to the object (exempt: the object returned by `@object.getGlobal()` — nil-assign sets the global variable to nil, it is never deleted).
 - **`instanceof` keyword**:  Checks if an object is an instance of a specific class.
 - **`typeof` keyword**: Returns the string of item's subdivision type.
 
@@ -397,11 +397,21 @@ loxFlux [--print-bytecode] [--no-optimize] [script]
   - `/exit` : Exit the REPL.
   - `/clear`: Clean the console.
   - `/eval` : Load file and Run.
-  - `/mem`  : Print memory information (using mimalloc).
+  - `/mem`  : Print memory information (mimalloc stats, plus the vm stack and interned-string arenas' committed/reserved bytes).
   - `/reset`: Reset VM state (globals, functions, pools are cleared) and print the reclaimed bytes.
 
+---
+
+### Memory arenas
+
+The VM's two hottest regions — the value stack and the interned string pool — live in fixed virtual-address bump arenas backed by `third-party/memAllocator`. Each arena is reserved once and never moves; physical pages are committed lazily, in small page-granular steps, only as they are actually touched.
+
+- **Value stack**: growth is a page commit instead of a realloc — no copy, and no re-fixing of `frame->slots` or open-upvalue pointers, which a movable heap stack would need on every growth. Exhausting the arena is a clean `Stack overflow.` runtime error.
+- **Interned strings**: every string is interned into a single pool and lives until the VM exits, so the lifecycle is exactly "append while running, release wholesale at exit" — the shape a bump allocator is made for. Allocation is a pointer bump (no per-object allocator bookkeeping, no individual free path), interned strings end up physically contiguous, and the dedup probes that hash and compare candidate strings benefit from that locality.
+- The arenas sit outside the allocator's accounting books by design; `@sys.pinnedBytes` folds the interned-string usage back in, and the REPL `/mem` command reports each arena's committed bytes.
+
 ## Licenses
-The project **loxFlux** is based on `MIT` and uses two third-party projects.
+The project **loxFlux** is based on `MIT` and uses three third-party projects.
   - Copyright (c) 2025-2026 IMSDCrueoft
   - License: `MIT`
 
@@ -412,6 +422,10 @@ The project **loxFlux** is based on `MIT` and uses two third-party projects.
 2. **xxHash**
    - Copyright (c) 2012-2021 Yann Collet
    - License: `BSD 2-Clause`
+
+3. **memAllocator** (`palloc_os` / `arena_bump` / `bits`)
+   - Copyright (c) 2025-2026 IMSDcrueoft
+   - License: `MIT`
 
 ## Other expectations
 1. try catch syntax.

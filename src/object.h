@@ -137,7 +137,10 @@ typedef struct {
 typedef struct ObjUpvalue {
 	Obj obj;
 	Value closed; //closed value
-	ptrdiff_t location_offset; // store the offset, so we can update location when stack grow
+	//ptrdiff_t location_offset; // store the offset, so we can update location when stack grow
+	//kept as a comment for future use: the vm stack now lives at a fixed arena base
+	//that never moves, so location pointers never go stale and no offset bookkeeping
+	//is needed; restore this field if the stack becomes movable again
 	Value* location;
 	struct ObjUpvalue* next;
 } ObjUpvalue;
@@ -295,7 +298,7 @@ void printObjectTo(FILE* stream, Value value, bool isExpand);
 
 StringEntry* getStringEntryInPool(ObjString* string);
 
-ObjUpvalue* newUpvalue(Value* slot, ptrdiff_t offset);
+ObjUpvalue* newUpvalue(Value* slot);
 ObjFunction* newFunction();
 ObjFunction* newFunctionMakeFAM(ObjFunction* function, ValueArray* constants);
 ObjClosure* newClosure(ObjFunction* function);

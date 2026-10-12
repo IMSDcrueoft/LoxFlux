@@ -78,7 +78,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <AdditionalIncludeDirectories>third-party/xxHash;third-party/mimalloc/include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>third-party/xxHash;third-party/mimalloc/include;third-party/memAllocator;</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ExceptionHandling>false</ExceptionHandling>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
@@ -101,7 +101,7 @@
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
-      <AdditionalIncludeDirectories>third-party/xxHash;third-party/mimalloc/include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>third-party/xxHash;third-party/mimalloc/include;third-party/memAllocator;</AdditionalIncludeDirectories>
       <CompileAs>Default</CompileAs>
       <Optimization>MaxSpeed</Optimization>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
@@ -127,7 +127,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <AdditionalIncludeDirectories>third-party/xxHash;third-party/mimalloc/include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>third-party/xxHash;third-party/mimalloc/include;third-party/memAllocator;</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ExceptionHandling>false</ExceptionHandling>
       <FloatingPointModel>Strict</FloatingPointModel>
@@ -152,7 +152,7 @@
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
-      <AdditionalIncludeDirectories>third-party/xxHash;third-party/mimalloc/include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>third-party/xxHash;third-party/mimalloc/include;third-party/memAllocator;</AdditionalIncludeDirectories>
       <CompileAs>Default</CompileAs>
       <Optimization>MaxSpeed</Optimization>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
@@ -199,6 +199,9 @@
     <ClCompile Include="src\value.c" />
     <ClCompile Include="src\vm.c" />
     <ClCompile Include="src\xoshiro256.c" />
+    <ClCompile Include="third-party\memAllocator\arena_bump.c" />
+    <ClCompile Include="third-party\memAllocator\palloc_os.c" />
+    <ClCompile Include="third-party\memAllocator\bits.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\file.h" />

@@ -1,0 +1,30 @@
+// getGlobal() as a plain object: property and subscript writes map onto the
+// global variable store; nil-assign ASSIGNS nil and never deletes the variable
+// exit: 0
+// out: 1
+// out: nil
+// out: 2
+// out: nil
+// out: nil
+// out: nil
+// out: false
+var g = @object.getGlobal();
+g.foo = 1;
+print foo;
+g.foo = nil;
+print foo;
+foo = 2;
+print foo;
+
+g["bar"] = nil;
+print g["bar"];
+print bar;
+
+class A {}
+var a = A();
+a.f = 8;
+a.f = nil;
+print a.f;
+print @object.hasOwn(a, "f");
+
+

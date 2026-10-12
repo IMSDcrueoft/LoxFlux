@@ -46,15 +46,30 @@ static Obj* allocateObject(uint64_t size, ObjType type) {
 
 	//link the objects
 	switch (type) {
+	case OBJ_STRING: {
+		//strings come from the fixed-VA string arena (append-only bump, the
+		//whole arena is released at vm exit); they are NOT linked into the
+		//object lists anymore, the arena owns their lifetime
+		ObjString* string = (ObjString*)arenaBump_alloc(&vm.stringArena, size);
+		if (string == NULL) {
+			fprintf(stderr, "Memory reallocation failed!\n");
+			exit(1);
+		}
+
+		memset(&string->obj, 0, sizeof(Obj));
+		string->obj.type = OBJ_STRING;
+		object = (Obj*)string;
+		break;
+	}
 	case OBJ_FUNCTION:
-	case OBJ_NATIVE:
-	case OBJ_STRING:
+	case OBJ_NATIVE: {
 		object = (Obj*)reallocate_no_gc(NULL, 0, size);
 		OBJ_PTR_SET_NEXT(object, vm.objects_no_gc);
 		object->type = type;
 		object->isMarked = !vm.gcMark;
 		vm.objects_no_gc = object;
 		break;
+	}
 	default:
 		object = (Obj*)reallocate(NULL, 0, size);
 		OBJ_PTR_SET_NEXT(object, vm.objects);
@@ -72,11 +87,11 @@ static Obj* allocateObject(uint64_t size, ObjType type) {
 }
 
 HOT_FUNCTION
-ObjUpvalue* newUpvalue(Value* slot, ptrdiff_t offset)
+ObjUpvalue* newUpvalue(Value* slot)
 {
 	ObjUpvalue* upvalue = ALLOCATE_OBJ(ObjUpvalue, OBJ_UPVALUE);
 	upvalue->location = slot;
-	upvalue->location_offset = offset;
+	//upvalue->location_offset = offset; //unused since the arena stack (fixed base, never re-fixed)
 	upvalue->closed = NIL_VAL;
 	upvalue->next = NULL;
 	return upvalue;
@@ -332,122 +347,117 @@ ObjString* copyString(C_STR chars, uint32_t length, bool escapeChars)
 		return string;
 	}
 	else {
-		uint32_t actualLength = 0;
-
-		for (uint32_t i = 0; i < length; ++i) {
-			if (chars[i] == '\\') {
-				if (i + 1 < length) {
-					switch (chars[i + 1]) {
-					case '\\':
-					case '\"':
-					case 'n':
-					case 't':
-						++i;
-						break;
-					default:
-						++actualLength;
-						++i;
-						break;
-					}
-				}
-			}
-
-			++actualLength;
+		//the unescaped content is never longer than the source, so the source
+		//length bounds the scratch need; short literals stay on the stack,
+		//long ones use a transient heap buffer (always released below)
+		char stackScratch[512];// no init
+		char* scratch = NULL;
+		char* content = stackScratch;
+		if (length > (uint32_t)sizeof(stackScratch)) {
+			scratch = ALLOCATE_NO_GC(char, length);
+			content = scratch;
 		}
 
-		heapSize += actualLength;
-		string = ALLOCATE_FLEX_OBJ(ObjString, OBJ_STRING, heapSize);
-
-		for (uint32_t readIndex = 0, writeIndex = 0; readIndex < length;) {
+		//single fused pass: unescape into the scratch (writeIndex ends up as
+		//the unescaped length; unescaping never grows the content)
+		uint32_t writeIndex = 0;
+		for (uint32_t readIndex = 0; readIndex < length;) {
+			//copy the run of plain characters
 			uint32_t start = readIndex;
-
 			while (readIndex < length && chars[readIndex] != '\\') {
 				++readIndex;
 			}
-
 			if (start < readIndex) {
-				memcpy(string->chars + writeIndex, chars + start, readIndex - start);
+				memcpy(content + writeIndex, chars + start, readIndex - start);
 				writeIndex += readIndex - start;
 			}
 
-			if ((readIndex + 1) < length) {
-				switch (chars[readIndex + 1]) {
+			if (readIndex >= length) {
+				break;
+			}
+
+			++readIndex;//consume the backslash
+			if (readIndex < length) {
+				switch (chars[readIndex]) {
 				case '\\':
 				case '\"':
-					string->chars[writeIndex] = chars[readIndex + 1];
-					++writeIndex;
+					content[writeIndex++] = chars[readIndex];
 					break;
 				case 'n':
-					string->chars[writeIndex] = '\n';
-					++writeIndex;
+					content[writeIndex++] = '\n';
 					break;
 				case 't':
-					string->chars[writeIndex] = '\t';
-					++writeIndex;
+					content[writeIndex++] = '\t';
 					break;
 				default:
-					string->chars[writeIndex] = '\\';
-					++writeIndex;
-					string->chars[writeIndex] = chars[readIndex + 1];
-					++writeIndex;
+					//unknown escape: keep both characters verbatim
+					content[writeIndex++] = '\\';
+					content[writeIndex++] = chars[readIndex];
 					break;
 				}
-				readIndex += 2;
+				++readIndex;
+			}
+			else {
+				//trailing backslash: keep it verbatim (unreachable via the
+				//scanner, which treats \" as an escaped quote)
+				content[writeIndex++] = '\\';
 			}
 		}
 
-		string->chars[actualLength] = '\0';
-		string->length = actualLength;
-
-		//the string escaped
-		hash = HASH_64bits(string->chars, string->length);
-		string->hash = hash;
-		string->symbol = INVALID_OBJ_STRING_SYMBOL;
-
-		//find deduplicate one
-		ObjString* interned = deduplicateString(string->chars, string->length, string->hash);
+		//probe the pool with the unescaped content: a hit costs zero allocations
+		const uint64_t escapedHash = HASH_64bits(content, writeIndex);
+		ObjString* interned = deduplicateString(content, writeIndex, escapedHash);
 		if (interned == NULL) {
-			//stack_push(OBJ_VAL(string));
-			tableSet_string(&vm.strings, string);
-			//stack_pop();
-			return string;
+		//genuinely new content: allocate, copy, intern
+		string = ALLOCATE_FLEX_OBJ(ObjString, OBJ_STRING, sizeof(ObjString) + 1 + writeIndex);
+		memcpy(string->chars, content, writeIndex);
+			string->chars[writeIndex] = '\0';
+			string->length = writeIndex;
+			string->hash = escapedHash;
+			string->symbol = INVALID_OBJ_STRING_SYMBOL;
 		}
-		else {
-			//free memory this should be the first obj of the object list
-			vm.objects_no_gc = OBJ_PTR_GET_NEXT(&string->obj);
-			freeObject((Obj*)string);
+
+		if (scratch != NULL) {
+			FREE_ARRAY_NO_GC(char, scratch, length);
+		}
+
+		if (interned != NULL) {
 			return interned;
 		}
+
+		tableSet_string(&vm.strings, string);
+		return string;
 	}
 }
 
 ObjString* connectString(ObjString* strA, ObjString* strB) {
-	uint32_t heapSize = sizeof(ObjString) + strA->length + strB->length + 1;
-	ObjString* string = ALLOCATE_FLEX_OBJ(ObjString, OBJ_STRING, heapSize);
+	const uint32_t length = strA->length + strB->length;
+
+	//hash the two segments without materializing the joined content
+	HashStream stream;
+	hashStreamBegin(&stream, length);
+	hashStreamUpdate(&stream, strA->chars, strA->length);
+	hashStreamUpdate(&stream, strB->chars, strB->length);
+	const uint64_t hash = hashStreamFinalize(&stream);
+
+	//probe first: a dedup hit costs zero allocations and no list surgery
+	ObjString* interned = tableFindConcatString(&vm.strings, strA->chars, strA->length, strB->chars, strB->length, hash);
+	if (interned != NULL) {
+		return interned;
+	}
+
+	//genuinely new content: allocate, assemble, intern
+	ObjString* string = ALLOCATE_FLEX_OBJ(ObjString, OBJ_STRING, sizeof(ObjString) + length + 1);
 
 	memcpy(string->chars, strA->chars, strA->length);
 	memcpy(string->chars + strA->length, strB->chars, strB->length);
-	string->chars[strA->length + strB->length] = '\0';
-	string->length = strA->length + strB->length;
-
-	uint64_t hash = HASH_64bits(string->chars, string->length);
+	string->chars[length] = '\0';
+	string->length = length;
 	string->hash = hash;
 	string->symbol = INVALID_OBJ_STRING_SYMBOL;
 
-	//do deduplicate
-	ObjString* interned = deduplicateString(string->chars, string->length, string->hash);
-	if (interned == NULL) {
-		//stack_push(OBJ_VAL(string));
-		tableSet_string(&vm.strings, string);
-		//stack_pop();
-		return string;
-	}
-	else {
-		//free memory
-		vm.objects_no_gc = OBJ_PTR_GET_NEXT(&string->obj);
-		freeObject((Obj*)string);
-		return interned;
-	}
+	tableSet_string(&vm.strings, string);
+	return string;
 }
 
 //memcmp-style three-way ordering for string/stringBuilder pairs:

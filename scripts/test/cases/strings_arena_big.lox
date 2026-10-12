@@ -1,0 +1,19 @@
+//a single interned string larger than the 16KB string-arena commit chunk:
+//the arena must commit multiple pages in one go and the content must survive
+// exit: 0
+// out: 20000
+// out: x
+// out: x
+// out: true
+var b = @ctor.StringBuilder();
+var i = 0;
+while (i < 20000) {
+	@string.append(b, "x");
+	i = i + 1;
+}
+var s = @string.intern(b);
+print @string.length(s);
+print @string.charAt(s, 0);
+print @string.charAt(s, 19999);
+print s == @string.intern(b);
+
