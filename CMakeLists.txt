@@ -103,12 +103,16 @@ set(LOXFLUX_CORE_SOURCES
   src/value.c
   src/vm.c
   src/xoshiro256.c
+  third-party/memAllocator/arena_bump.c
+  third-party/memAllocator/palloc_os.c
+  third-party/memAllocator/bits.c
 )
 
 add_library(loxFluxCore STATIC ${LOXFLUX_CORE_SOURCES})
 target_include_directories(loxFluxCore PUBLIC
   ${CMAKE_SOURCE_DIR}/src
   ${CMAKE_SOURCE_DIR}/third-party/xxHash
+  ${CMAKE_SOURCE_DIR}/third-party/memAllocator
 )
 target_link_libraries(loxFluxCore PUBLIC xxhash)
 
