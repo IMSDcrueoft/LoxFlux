@@ -63,6 +63,9 @@ void tableAddAll(Table* from, Table* to);
 void markTable(Table* table);
 
 ObjString* tableFindString(StringTable* table, C_STR chars, uint32_t length, uint64_t hash);
+//tableFindString over a not-materialized concat: the target content is
+//segment a followed by segment b (connect-string dedup, zero temporaries)
+ObjString* tableFindConcatString(StringTable* table, C_STR charsA, uint32_t lengthA, C_STR charsB, uint32_t lengthB, uint64_t hash);
 
 void stringTable_init(StringTable* table);
 void stringTable_free(StringTable* table);

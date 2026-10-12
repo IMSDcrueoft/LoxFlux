@@ -156,22 +156,46 @@ StringEntry* tableGetScriptEntry(StringTable* table, ObjString* key)
 
 ObjString* tableFindString(StringTable* table, C_STR chars, uint32_t length, uint64_t hash)
 {
-	if (table->count == 0) return NULL;
+    if (table->count == 0) return NULL;
 
-	uint32_t index = hash & (table->capacity - 1);
+    uint32_t index = hash & (table->capacity - 1);
 
-	while (true) {
-		StringEntry* entry = &table->entries[index];
-		if (entry->key == NULL) {
-			return NULL;
-		}
-		else if (entry->key->length == length &&
-			entry->key->hash == hash &&
-			memcmp(entry->key->chars, chars, length) == 0) {
-			// We found it.
-			return entry->key;
-		}
+    while (true) {
+        StringEntry* entry = &table->entries[index];
+        if (entry->key == NULL) {
+            return NULL;
+        }
+        else if (entry->key->length == length &&
+            entry->key->hash == hash &&
+            memcmp(entry->key->chars, chars, length) == 0) {
+            // We found it.
+            return entry->key;
+        }
 
-		index = (index + 1) & (table->capacity - 1);
-	}
+        index = (index + 1) & (table->capacity - 1);
+    }
+}
+
+ObjString* tableFindConcatString(StringTable* table, C_STR charsA, uint32_t lengthA, C_STR charsB, uint32_t lengthB, uint64_t hash)
+{
+    if (table->count == 0) return NULL;
+
+    const uint32_t length = lengthA + lengthB;
+    uint32_t index = hash & (table->capacity - 1);
+
+    while (true) {
+        StringEntry* entry = &table->entries[index];
+        if (entry->key == NULL) {
+            return NULL;
+        }
+        else if (entry->key->length == length &&
+            entry->key->hash == hash &&
+            memcmp(entry->key->chars, charsA, lengthA) == 0 &&
+            memcmp(entry->key->chars + lengthA, charsB, lengthB) == 0) {
+            // We found it.
+            return entry->key;
+        }
+
+        index = (index + 1) & (table->capacity - 1);
+    }
 }
