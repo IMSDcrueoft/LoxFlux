@@ -8,6 +8,7 @@
 #include "gc.h"
 #include "file.h"
 #include "allocator.h"
+#include <assert.h>
 
 #if DEBUG_TRACE_EXECUTION
 #include "debug.h"
@@ -33,6 +34,8 @@ static void stack_reset()
 	vm.stackTop = vm.stack;
 
 	//set all to nil
+	//the commit watermark only grows within one vm lifetime, so clearing up to
+	//it covers every slot ever written; slots above it were never touched
 	for (Value* ptr = vm.stack; ptr < vm.stackBoundary; ++ptr) {
 		*ptr = NIL_VAL;
 	}
@@ -147,35 +150,43 @@ void stack_push(Value value)
 	*vm.stackTop = value;
 
 	if (++vm.stackTop == vm.stackBoundary) {
-		ptrdiff_t oldCapacity = vm.stackBoundary - vm.stack;
-		uint32_t capacity = (uint32_t)GROW_CAPACITY(oldCapacity);
+		//the old movable stack had to GROW_ARRAY (realloc) here and then re-fix
+		//every frame->slots and open upvalue->location (via slotsOffset /
+		//location_offset bookkeeping); the arena stack reserves fixed VA up
+		//front instead, so "growing" is only a lazy page commit and neither
+		//the re-fix passes nor the offset fields exist anymore
+		//
+		//if (oldStack != vm.stack) {
+		//	// update all stack frames so it is safe now
+		//	for (int32_t i = vm.frameCount - 1; i >= 0; i--) {
+		//		CallFrame* frame = &vm.frames[i];
+		//		frame->slots = vm.stack + frame->slotsOffset;
+		//	}
+		//
+		//	// update all upvalues if needed
+		//	for (ObjUpvalue* upvalue = vm.openUpvalues;upvalue != NULL;upvalue = upvalue->next) {
+		//		if (upvalue->location_offset != CLOSED_OBJ_UPVALUE_LOCATION) {
+		//			upvalue->location = vm.stack + upvalue->location_offset;
+		//		}
+		//	}
+		//}
 
-		if (capacity > STACK_MAX_SIZE) {
+		//VA reservation exhausted: the last slot was written, the stack is full
+		size_t used = (size_t)((vm.stackTop - vm.stack) * sizeof(Value));
+		if (used >= vm.stackArena.capacity) {
 			runtimeError("Stack overflow.");
 			return;
 		}
 
-		// remind that we realloc the ptr, so we need to update all ptrRef unless we use index to record
-		Value* oldStack = vm.stack;
-		vm.stack = GROW_ARRAY_NO_GC(Value, vm.stack, oldCapacity, capacity);
-		vm.stackBoundary = vm.stack + capacity;		//need fresh
-		vm.stackTop = vm.stack + oldCapacity;		//need fresh
-
-		// since stack grow, we need to update all ptrRef to the stack, otherwise they will point to the old stack and cause errors
-		if (oldStack != vm.stack) {
-			// update all stack frames so it is safe now
-			for (int32_t i = vm.frameCount - 1; i >= 0; i--) {
-				CallFrame* frame = &vm.frames[i];
-				frame->slots = vm.stack + frame->slotsOffset;
-			}
-
-			// update all upvalues if needed
-			for (ObjUpvalue* upvalue = vm.openUpvalues;upvalue != NULL;upvalue = upvalue->next) {
-				if (upvalue->location_offset != CLOSED_OBJ_UPVALUE_LOCATION) {
-					upvalue->location = vm.stack + upvalue->location_offset;
-				}
-			}
+		//commit the next chunk lazily (must advance past stackTop, hence the
+		//extra chunk); failure means the stack cannot grow -> overflow
+		if (!arenaBump_ensureCommitted(&vm.stackArena, used + vm.stackArena.commitChunkSize)) {
+			runtimeError("Stack overflow.");
+			return;
 		}
+
+		//commitTop is a page-aligned byte offset; a page is a multiple of sizeof(Value)
+		vm.stackBoundary = (Value*)((char*)vm.stackArena.base + vm.stackArena.commitTop);
 	}
 }
 
@@ -336,8 +347,10 @@ COLD_FUNCTION
 void vm_init()
 {
 	//zero the accounting books BEFORE any allocation: everything vm_init
-	//allocates from here on (the stack included) must be counted, so the
-	//matching vm_free frees net the counters back to exactly zero
+	//allocates from here on must be counted, so the matching vm_free frees net
+	//the counters back to exactly zero
+	//(the vm stack is NOT counted anymore: it lives in a fixed OS VA arena
+	//outside the allocator, like the grayStack)
 	vm.bytesAllocated = 0;
 	vm.bytesAllocated_no_gc = 0;
 
@@ -349,8 +362,23 @@ void vm_init()
 	valueArray_init(&vm.constants);
 	valueHoles_init(&vm.constantHoles);
 
-	vm.stack = ALLOCATE_NO_GC(Value, STACK_INITIAL_SIZE);
-	vm.stackBoundary = vm.stack + STACK_INITIAL_SIZE;
+	//stack arena: reserve the full STACK_ARENA_SIZE of VA once (never moves)
+	//and commit the first chunk eagerly; the old heap stack (ALLOCATE_NO_GC of
+	//STACK_INITIAL_SIZE Values) is gone, growth is a lazy page commit now
+	//a non-NULL base here means the previous vm_free was skipped -> leaked bump segment
+	assert(vm.stackArena.base == NULL);
+	if (!arenaBump_init(&vm.stackArena, STACK_ARENA_SIZE, false, 0, 0)) {
+		fprintf(stderr, "Failed to reserve the vm stack arena.\n");
+		exit(1);
+	}
+
+	if (!arenaBump_ensureCommitted(&vm.stackArena, vm.stackArena.commitChunkSize)) {
+		fprintf(stderr, "Failed to commit the vm stack arena.\n");
+		exit(1);
+	}
+
+	vm.stack = (Value*)vm.stackArena.base;
+	vm.stackBoundary = (Value*)((char*)vm.stackArena.base + vm.stackArena.commitTop);
 
 	stack_reset();
 
@@ -438,9 +466,10 @@ void vm_free()
 	}
 	freeObjects();
 
-	//realease the stack
-	ptrdiff_t capacity = vm.stackBoundary - vm.stack;
-	FREE_ARRAY_NO_GC(Value, vm.stack, capacity);
+	//release the stack arena (VA reservation + committed pages)
+	arenaBump_destroy(&vm.stackArena);
+	//any surviving bump reservation is a leak (e.g. an init without a matching destroy)
+	assert(arenaBump_liveSegments() == 0);
 	vm.stack = NULL;
 	vm.stackTop = NULL;
 	vm.stackBoundary = NULL;
@@ -452,10 +481,10 @@ void vm_free()
 
 #if DEBUG_MODE
 	//leak accounting: every allocate/free pair runs through reallocate/reallocate_no_gc,
-	//so after the FULL teardown (objects, stack, builtin tables, defaultClass) both
+	//so after the FULL teardown (objects, builtin tables, defaultClass) both
 	//counters must net to exactly zero
-	//(direct mem_alloc/mem_free users: grayStack, readFile buffers, REPL line buffer, are
-	//uncounted on BOTH sides and therefore never show up here)
+	//(direct mem_alloc/mem_free users: grayStack, readFile buffers, REPL line buffer,
+	//the stack arena, are uncounted on BOTH sides and therefore never show up here)
 	if (vm.bytesAllocated != 0 || vm.bytesAllocated_no_gc != 0) {
 		fprintf(stderr, "[mem] LEAK: bytesAllocated=%llu bytesAllocated_no_gc=%llu (both must be 0)\n",
 			(unsigned long long)vm.bytesAllocated, (unsigned long long)vm.bytesAllocated_no_gc);
@@ -466,6 +495,12 @@ void vm_free()
 uint32_t getConstantSize()
 {
 	return vm.constants.count;
+}
+
+COLD_FUNCTION
+uint64_t stackCommittedBytes()
+{
+	return (uint64_t)arenaBump_committed(&vm.stackArena);
 }
 
 //return the constant index
@@ -577,7 +612,7 @@ static bool call(ObjClosure* closure, int argCount) {
 	frame->ip = closure->function->chunk.code;
 	//-1 is for function itself
 	frame->slots = vm.stackTop - argCount - 1;
-	frame->slotsOffset = (ptrdiff_t)(frame->slots - vm.stack);
+	//frame->slotsOffset = (ptrdiff_t)(frame->slots - vm.stack); //unused since the arena stack (fixed base)
 	frame->caches = closure->function->caches;
 
 	// clear extra args
@@ -699,7 +734,8 @@ static ObjUpvalue* captureUpvalue(Value* local) {
 		return upvalue;
 	}
 
-	ObjUpvalue* createdUpvalue = newUpvalue(local, (ptrdiff_t)(local - vm.stack));
+	//ObjUpvalue* createdUpvalue = newUpvalue(local, (ptrdiff_t)(local - vm.stack)); //offset unused since the arena stack
+	ObjUpvalue* createdUpvalue = newUpvalue(local);
 
 	//insert it
 	createdUpvalue->next = upvalue;
@@ -721,7 +757,7 @@ static void closeUpvalues(Value* last) {
 		//if one upValue closed,it's location is it's closed's pointer
 		upvalue->closed = *upvalue->location;
 		upvalue->location = &upvalue->closed;
-		upvalue->location_offset = CLOSED_OBJ_UPVALUE_LOCATION;
+		//upvalue->location_offset = CLOSED_OBJ_UPVALUE_LOCATION; //unused since the arena stack
 		vm.openUpvalues = upvalue->next;
 	}
 }

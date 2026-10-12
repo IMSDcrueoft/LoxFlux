@@ -397,11 +397,11 @@ loxFlux [--print-bytecode] [--no-optimize] [script]
   - `/exit` : Exit the REPL.
   - `/clear`: Clean the console.
   - `/eval` : Load file and Run.
-  - `/mem`  : Print memory information (using mimalloc).
+  - `/mem`  : Print memory information (mimalloc stats, plus a vm stack arena line showing its committed/peak/reserved bytes).
   - `/reset`: Reset VM state (globals, functions, pools are cleared) and print the reclaimed bytes.
 
 ## Licenses
-The project **loxFlux** is based on `MIT` and uses two third-party projects.
+The project **loxFlux** is based on `MIT` and uses three third-party projects.
   - Copyright (c) 2025-2026 IMSDCrueoft
   - License: `MIT`
 
@@ -412,6 +412,10 @@ The project **loxFlux** is based on `MIT` and uses two third-party projects.
 2. **xxHash**
    - Copyright (c) 2012-2021 Yann Collet
    - License: `BSD 2-Clause`
+
+3. **memAllocator** (`palloc_os` / `arena_bump` / `bits`)
+   - Copyright (c) 2025-2026 IMSDcrueoft
+   - License: `MIT`
 
 ## Other expectations
 1. try catch syntax.

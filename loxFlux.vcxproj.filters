@@ -18,6 +18,12 @@
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
+    <Filter Include="third-party\source">
+      <UniqueIdentifier>{2b6f0a51-8c34-4f2e-9d17-53e1c0a8b9d4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="third-party\header">
+      <UniqueIdentifier>{9d84c2e7-51ab-4f36-b8e0-7c2f19a6d3b8}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.c">
@@ -101,6 +107,15 @@
     <ClCompile Include="src\hash.c">
       <Filter>loxFlux\source</Filter>
     </ClCompile>
+    <ClCompile Include="third-party\memAllocator\arena_bump.c">
+      <Filter>third-party\source</Filter>
+    </ClCompile>
+    <ClCompile Include="third-party\memAllocator\palloc_os.c">
+      <Filter>third-party\source</Filter>
+    </ClCompile>
+    <ClCompile Include="third-party\memAllocator\bits.c">
+      <Filter>third-party\source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\chunk.h">
@@ -168,6 +183,15 @@
     </ClInclude>
     <ClInclude Include="src\xoshiro256.h">
       <Filter>loxFlux\header</Filter>
+    </ClInclude>
+    <ClInclude Include="third-party\memAllocator\arena_bump.h">
+      <Filter>third-party\header</Filter>
+    </ClInclude>
+    <ClInclude Include="third-party\memAllocator\palloc_os.h">
+      <Filter>third-party\header</Filter>
+    </ClInclude>
+    <ClInclude Include="third-party\memAllocator\bits.h">
+      <Filter>third-party\header</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

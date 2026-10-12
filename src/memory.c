@@ -237,7 +237,43 @@ void freeObjects()
 	}
 }
 
+//format bytes with an auto-scaled unit, mimalloc table style ("64.0 KiB")
+COLD_FUNCTION
+static void formatMemSize(char* buffer, size_t bufferSize, uint64_t bytes)
+{
+	double value = (double)bytes;
+	const char* unit = "B";
+
+	if (bytes >= 1024ull * 1024 * 1024) {
+		value /= 1024.0 * 1024 * 1024;
+		unit = "GiB";
+	}
+	else if (bytes >= 1024 * 1024) {
+		value /= 1024.0 * 1024;
+		unit = "MiB";
+	}
+	else if (bytes >= 1024) {
+		value /= 1024.0;
+		unit = "KiB";
+	}
+
+	snprintf(buffer, bufferSize, "%.1f %s", value, unit);
+}
+
+COLD_FUNCTION
 void log_malloc_info()
 {
+	//the vm stack lives in an OS VA arena outside the allocator, so its bytes
+	//never show up in mem_print_stats: report it in the same table style
+	char committed[32];
+	char reserved[32];
+	formatMemSize(committed, sizeof(committed), stackCommittedBytes());
+	formatMemSize(reserved, sizeof(reserved), arenaBump_capacity(&vm.stackArena));
+
+	printf(" vm stack           current\n");
+	printf("  committed   : %12s\n", committed);
+	printf("  reserved    : %12s\n", reserved);
+	printf("\n");
+
 	mem_print_stats(NULL);
 }

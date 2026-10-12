@@ -72,11 +72,11 @@ static Obj* allocateObject(uint64_t size, ObjType type) {
 }
 
 HOT_FUNCTION
-ObjUpvalue* newUpvalue(Value* slot, ptrdiff_t offset)
+ObjUpvalue* newUpvalue(Value* slot)
 {
 	ObjUpvalue* upvalue = ALLOCATE_OBJ(ObjUpvalue, OBJ_UPVALUE);
 	upvalue->location = slot;
-	upvalue->location_offset = offset;
+	//upvalue->location_offset = offset; //unused since the arena stack (fixed base, never re-fixed)
 	upvalue->closed = NIL_VAL;
 	upvalue->next = NULL;
 	return upvalue;
