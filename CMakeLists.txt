@@ -26,8 +26,9 @@ if(MSVC)
   # C and C++ are handled separately so no conflicting /EH flags remain.
   add_compile_options($<$<COMPILE_LANGUAGE:C>:/EHs-c->)
   add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/EH->)
-  # AdvancedVectorExtensions2 == SSE4.2
-  add_compile_options(/arch:SSE4.2)
+  # AdvancedVectorExtensions2 == /arch:AVX2 (matches loxFlux.vcxproj; MSVC
+  # does not know an /arch:SSE4.2 value - it was silently ignored with D9002)
+  add_compile_options(/arch:AVX2)
 else()
   add_compile_options(-fno-exceptions)
 endif()
