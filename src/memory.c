@@ -9,7 +9,7 @@
 #include "allocator.h"
 #include "gc.h"
 
-void* reallocate_no_gc(void* pointer, uint64_t oldSize, uint64_t newSize)
+void* reallocate_no_gc(void* pointer, size_t oldSize, size_t newSize)
 {
 	vm.bytesAllocated_no_gc += newSize - oldSize;
 
@@ -38,7 +38,7 @@ void* reallocate_no_gc(void* pointer, uint64_t oldSize, uint64_t newSize)
 	return result;
 }
 
-void* reallocate(void* pointer, uint64_t oldSize, uint64_t newSize)
+void* reallocate(void* pointer, size_t oldSize, size_t newSize)
 {
 	vm.bytesAllocated += newSize - oldSize;
 
@@ -157,7 +157,7 @@ void freeObject(Obj* object) {
 		ObjArray* array = (ObjArray*)object;
 		FREE_ARRAY(Value, array->payload, array->capacity);
 #if DEBUG_LOG_GC
-		printf("[gc] %p free buffer : %llu\n", (void*)array->payload, (uint64_t)array->capacity * sizeof(Value));
+		printf("[gc] %p free buffer : %zu\n", (void*)array->payload, array->capacity * sizeof(Value));
 #endif
 		FREE(ObjArray, object);
 		break;
@@ -167,7 +167,7 @@ void freeObject(Obj* object) {
 		ObjArray* array = (ObjArray*)object;
 		FREE_ARRAY(double, array->payload, array->capacity); //size 8 byte
 #if DEBUG_LOG_GC
-		printf("[gc] %p free buffer : %llu\n", (void*)array->payload, (uint64_t)array->capacity * 8);
+		printf("[gc] %p free buffer : %zu\n", (void*)array->payload, array->capacity * sizeof(double));
 #endif
 		FREE(ObjArray, object);
 		break;
@@ -179,7 +179,7 @@ void freeObject(Obj* object) {
 		ObjArray* array = (ObjArray*)object;
 		FREE_ARRAY(uint32_t, array->payload, array->capacity); //size 4 byte
 #if DEBUG_LOG_GC
-		printf("[gc] %p free buffer : %llu\n", (void*)array->payload, (uint64_t)array->capacity * 4);
+		printf("[gc] %p free buffer : %zu\n", (void*)array->payload, array->capacity * sizeof(uint32_t));
 #endif
 		FREE(ObjArray, object);
 		break;
@@ -190,7 +190,7 @@ void freeObject(Obj* object) {
 		ObjArray* array = (ObjArray*)object;
 		FREE_ARRAY(uint16_t, array->payload, array->capacity); //size 2 byte
 #if DEBUG_LOG_GC
-		printf("[gc] %p free buffer : %llu\n", (void*)array->payload, (uint64_t)array->capacity * 2);
+		printf("[gc] %p free buffer : %zu\n", (void*)array->payload, array->capacity * sizeof(uint16_t));
 #endif
 		FREE(ObjArray, object);
 		break;
@@ -202,7 +202,7 @@ void freeObject(Obj* object) {
 		ObjArray* array = (ObjArray*)object;
 		FREE_ARRAY(uint8_t, array->payload, array->capacity); //size 1 byte
 #if DEBUG_LOG_GC
-		printf("[gc] %p free buffer : %llu\n", (void*)array->payload, (uint64_t)array->capacity);
+		printf("[gc] %p free buffer : %zu\n", (void*)array->payload, (size_t)array->capacity);
 #endif
 		FREE(ObjArray, object);
 		break;
@@ -222,10 +222,6 @@ void freeObjects()
 		object = next;
 	}
 
-	if (vm.grayStack != NULL) {
-		mem_free(vm.grayStack);
-	}
-
 #if DEBUG_LOG_GC
 	printf("-- free static objects\n");
 #endif
@@ -239,7 +235,7 @@ void freeObjects()
 
 //format bytes with an auto-scaled unit, mimalloc table style ("64.0 KiB")
 COLD_FUNCTION
-static void formatMemSize(char* buffer, size_t bufferSize, uint64_t bytes)
+static void formatMemSize(char* buffer, size_t bufferSize, size_t bytes)
 {
 	double value = (double)bytes;
 	const char* unit = "B";
@@ -263,22 +259,31 @@ static void formatMemSize(char* buffer, size_t bufferSize, uint64_t bytes)
 COLD_FUNCTION
 void log_malloc_info()
 {
-	//the vm stack and the interned strings live in OS VA arenas outside the
-	//allocator, so their bytes never show up in mem_print_stats: report them
-	//in the same table style
+	//the vm stack, the interned strings and the gc gray worklist live in OS VA
+	//arenas outside the allocator, so their bytes never show up in
+	//mem_print_stats: report them in the same table style
 	char committed[32];
 	char reserved[32];
-	formatMemSize(committed, sizeof(committed), stackCommittedBytes());
+	formatMemSize(committed, sizeof(committed), arenaBump_committed(&vm.stackArena));
 	formatMemSize(reserved, sizeof(reserved), arenaBump_capacity(&vm.stackArena));
 
 	char strCommitted[32];
 	char strReserved[32];
-	formatMemSize(strCommitted, sizeof(strCommitted), stringCommittedBytes());
+	formatMemSize(strCommitted, sizeof(strCommitted), vm.stringArena.commitTop);
 	formatMemSize(strReserved, sizeof(strReserved), arenaBump_capacity(&vm.stringArena));
+
+	char grayCommitted[32];
+	char grayReserved[32];
+	formatMemSize(grayCommitted, sizeof(grayCommitted), arenaBump_committed(&vm.grayArena));
+	formatMemSize(grayReserved, sizeof(grayReserved), arenaBump_capacity(&vm.grayArena));
 
 	printf(" vm stack           current\n");
 	printf("  committed   : %12s\n", committed);
 	printf("  reserved    : %12s\n", reserved);
+	printf("\n");
+	printf(" gc gray             current\n");
+	printf("  committed   : %12s\n", grayCommitted);
+	printf("  reserved    : %12s\n", grayReserved);
 	printf("\n");
 	printf(" vm strings          current\n");
 	printf("  committed   : %12s\n", strCommitted);

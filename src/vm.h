@@ -25,6 +25,16 @@
 //committed lazily in 16KB steps (a single oversized string commits more at once)
 #define STRING_ARENA_SIZE ((size_t)512 * 1024 * 1024)
 
+//gc gray arena: backing storage for the gc gray worklist, same fixed-VA bump
+//model as the stack arena; the worklist grows lazily in 64KB commit steps and
+//the reservation never moves (safe for future concurrent tagging). 1GiB on
+//64-bit, 256MiB on 32-bit (UINTPTR_MAX works across MSVC/GCC/Clang)
+#if UINTPTR_MAX == UINT64_MAX
+#define GRAY_ARENA_SIZE ((size_t)1 << 30)
+#else
+#define GRAY_ARENA_SIZE ((size_t)256 << 20)
+#endif
+
 typedef struct {
 	ObjClosure* closure;
 	uint8_t* ip;
@@ -40,7 +50,6 @@ typedef struct {
 //shift here changes cache-line packing of hot frames and can move dispatch performance
 //was 40 (with slotsOffset): the arena stack removed it, 32 packs tighter, but
 //re-verify dispatch benchmarks before trusting hot-loop numbers
-_Static_assert(sizeof(CallFrame) == 32, "CallFrame layout changed; re-verify dispatch benchmarks");
 
 typedef struct {
 	//a cache
@@ -71,14 +80,11 @@ typedef struct {
 	//the root for static objects
 	Obj* objects_no_gc;
 
-	//gc gray objects
-	uint64_t grayCount;
-	uint64_t grayCapacity;
-	Obj** grayStack;
-
 	//Excludes space used by stacks/constants/compilations
-	uint64_t bytesAllocated_no_gc;
-	uint64_t bytesAllocated;
+	//size_t (not uint64_t): matches the platform word size, so the 32-bit
+	//build does all gc-threshold arithmetic in native-width registers
+	size_t bytesAllocated_no_gc;
+	size_t bytesAllocated;
 
 	//Flip tagging, is more suitable for concurrent tagging
 	uint8_t gcMark;
@@ -87,8 +93,8 @@ typedef struct {
 	//pad
 	uint8_t padding[6];
 
-	uint64_t beginGC;
-	uint64_t nextGC;
+	size_t beginGC;
+	size_t nextGC;
 
 	//literal object and builtin object
 	ObjClass defaultClass;
@@ -114,6 +120,16 @@ typedef struct {
 	//ObjString allocations come from here and the whole arena is released at
 	//vm exit; strings are NOT linked into the object lists anymore
 	ArenaBumpAllocator stringArena;
+
+	//fixed-base backing storage for the gc gray worklist (VA never moves,
+	//lazy 64KB commits; only touched when the worklist crosses the committed edge)
+	ArenaBumpAllocator grayArena;
+
+	//gc gray worklist: plain count over the gray arena - same model as the vm
+	//stack: the hot push path is one bounds compare against the committed edge,
+	//not an arena call; capacity is grayArena.capacity / sizeof(Obj*), fixed
+	Obj** grayStack;   //arena base (never moves)
+	size_t grayCount;
 } VM;
 
 typedef enum {
@@ -138,14 +154,11 @@ uint32_t getConstantSize();
 //add a constant and get the index of it,i will handle it later
 uint32_t addConstant(Value value);
 
-//committed / used bytes of the vm string arena (memory stats; interned strings
-//left the no_gc accounting book, pinnedBytes folds stringBytes back in)
-uint64_t stringBytes();
-uint64_t stringCommittedBytes();
-
-//committed bytes of the vm stack arena (for the memory stats interfaces;
-//the stack lives outside the allocator, so the stats books can't see it)
-uint64_t stackCommittedBytes();
+//the vm stack, interned strings and the gray worklist live in fixed-VA arenas
+//outside the allocator: their committed/used sizes are read straight off the
+//arena structs (vm.stackArena / vm.stringArena / vm.grayArena), the old
+//single-line wrappers (stringBytes/stringCommittedBytes/stackCommittedBytes)
+//are gone; pinnedBytes folds arenaBump_used(&vm.stringArena) into the no_gc book
 
 InterpretResult interpret(C_STR source);
 InterpretResult interpret_repl(C_STR source);

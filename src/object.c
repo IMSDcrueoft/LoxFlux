@@ -41,7 +41,7 @@ const C_STR objTypeInfo[] = {
     (type*)allocateObject(byteSize, objectType)
 
 HOT_FUNCTION
-static Obj* allocateObject(uint64_t size, ObjType type) {
+static Obj* allocateObject(size_t size, ObjType type) {
 	Obj* object = NULL;
 
 	//link the objects

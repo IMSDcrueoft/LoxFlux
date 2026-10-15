@@ -15,7 +15,9 @@
 //past this point would wrap to 0 and free the backing storage
 #define GROW_CAPACITY_MAX 0x40000000u
 
-void* reallocate(void* pointer, uint64_t oldSize, uint64_t newSize);
+//size_t (not uint64_t): all call sites pass sizeof products, keep the
+//bookkeeping arithmetic native-width on 32-bit
+void* reallocate(void* pointer, size_t oldSize, size_t newSize);
 
 #define GROW_ARRAY(type, pointer, oldCount, newCount) \
 	((type*)reallocate(pointer, sizeof(type) * (oldCount), sizeof(type) * (newCount)))
@@ -31,7 +33,7 @@ void* reallocate(void* pointer, uint64_t oldSize, uint64_t newSize);
 //used to free flex object
 #define FREE_FLEX(type,pointer,flexType,count) reallocate(pointer, sizeof(type) + sizeof(flexType) * count, 0)
 
-void* reallocate_no_gc(void* pointer, uint64_t oldSize, uint64_t newSize);
+void* reallocate_no_gc(void* pointer, size_t oldSize, size_t newSize);
 
 #define GROW_ARRAY_NO_GC(type, pointer, oldCount, newCount) \
 	((type*)reallocate_no_gc(pointer, sizeof(type) * (oldCount), sizeof(type) * (newCount)))

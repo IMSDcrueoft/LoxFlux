@@ -13,5 +13,6 @@
 void markObject(Obj* object);
 void markValue(Value value);
 void garbageCollect();
-void changeNextGC(uint64_t newSize);
-void changeBeginGC(uint64_t newSize);
+//callers clamp the native fn argument to [16KiB, 1GiB], so size_t is safe
+void changeNextGC(size_t newSize);
+void changeBeginGC(size_t newSize);

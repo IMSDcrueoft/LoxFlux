@@ -147,7 +147,7 @@ void repl() {
 					continue;
 				}
 				else if (match_string(line, "/reset")) {
-					uint64_t reclaimed = vm.bytesAllocated + vm.bytesAllocated_no_gc;
+					size_t reclaimed = vm.bytesAllocated + vm.bytesAllocated_no_gc;
 					//full teardown + fresh state: used by the REPL /reset command
 					//vm_free runs the DEBUG leak-accounting check, so every /reset doubles as a health check
 					vm_free();

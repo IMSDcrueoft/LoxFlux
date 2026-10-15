@@ -84,7 +84,7 @@ static bool throwError(Value error, C_STR format, ...) {
 		CallFrame* frame = &vm.frames[i];
 
 		ObjFunction* function = frame->closure->function;
-		uint64_t instruction = frame->ip - function->chunk.code - 1;
+		size_t instruction = frame->ip - function->chunk.code - 1;
 
 		uint32_t line = getLine(&function->chunk.lines, (uint32_t)instruction);
 
@@ -123,7 +123,7 @@ static void runtimeError(C_STR format, ...) {
 	for (int32_t i = vm.frameCount - 1; i >= 0; i--) {
 		CallFrame* frame = &vm.frames[i];
 		ObjFunction* function = frame->closure->function;
-		uint64_t instruction = frame->ip - function->chunk.code - 1;
+		size_t instruction = frame->ip - function->chunk.code - 1;
 
 		uint32_t line = getLine(&function->chunk.lines, (uint32_t)instruction);
 
@@ -389,6 +389,19 @@ void vm_init()
 		exit(1);
 	}
 
+	//gray arena: reserve VA once, no eager commit - the first gray push
+	//crosses the committed edge (commitTop == 0) and commits the first 64KB
+	//chunk lazily, same lazy-growth model as the vm stack
+	assert(vm.grayArena.base == NULL);
+	if (!arenaBump_init(&vm.grayArena, GRAY_ARENA_SIZE, false, 0, 0)) {
+		fprintf(stderr, "Failed to reserve the vm gray arena.\n");
+		exit(1);
+	}
+
+	//init gray stack (fixed base over the gray arena)
+	vm.grayStack = (Obj**)vm.grayArena.base;
+	vm.grayCount = 0;
+
 	stack_reset();
 
 	// init global 
@@ -405,11 +418,6 @@ void vm_init()
 
 	vm.objects = NULL;
 	vm.objects_no_gc = NULL;
-
-	//init gray stack
-	vm.grayCount = 0;
-	vm.grayCapacity = 0;
-	vm.grayStack = NULL;
 
 	vm.functionID = 0;
 	//set
@@ -474,14 +482,17 @@ void vm_free()
 	}
 	freeObjects();
 
-	//release the stack + string arenas (VA reservations + committed pages)
+	//release the stack + string + gray arenas (VA reservations + committed pages)
 	arenaBump_destroy(&vm.stackArena);
 	arenaBump_destroy(&vm.stringArena);
+	arenaBump_destroy(&vm.grayArena);
 	//any surviving bump reservation is a leak (e.g. an init without a matching destroy)
 	assert(arenaBump_liveSegments() == 0);
 	vm.stack = NULL;
 	vm.stackTop = NULL;
 	vm.stackBoundary = NULL;
+	vm.grayStack = NULL;
+	vm.grayCount = 0;
 
 	vm.initString = NULL;
 	removeBuiltins();
@@ -492,11 +503,12 @@ void vm_free()
 	//leak accounting: every allocate/free pair runs through reallocate/reallocate_no_gc,
 	//so after the FULL teardown (objects, builtin tables, defaultClass) both
 	//counters must net to exactly zero
-	//(direct mem_alloc/mem_free users: grayStack, readFile buffers, REPL line buffer,
-	//the stack and string arenas, are uncounted on BOTH sides and therefore never show up here)
+	//(direct mem_alloc/mem_free users: readFile buffers, REPL line buffer,
+	//the stack, string and gray arenas, are uncounted on BOTH sides and
+	//therefore never show up here)
 	if (vm.bytesAllocated != 0 || vm.bytesAllocated_no_gc != 0) {
-		fprintf(stderr, "[mem] LEAK: bytesAllocated=%llu bytesAllocated_no_gc=%llu (both must be 0)\n",
-			(unsigned long long)vm.bytesAllocated, (unsigned long long)vm.bytesAllocated_no_gc);
+		fprintf(stderr, "[mem] LEAK: bytesAllocated=%zu bytesAllocated_no_gc=%zu (both must be 0)\n",
+			vm.bytesAllocated, vm.bytesAllocated_no_gc);
 	}
 #endif
 }
@@ -504,26 +516,6 @@ void vm_free()
 uint32_t getConstantSize()
 {
 	return vm.constants.count;
-}
-
-COLD_FUNCTION
-uint64_t stackCommittedBytes()
-{
-	return (uint64_t)arenaBump_committed(&vm.stackArena);
-}
-
-COLD_FUNCTION
-uint64_t stringBytes()
-{
-	//append-only arena: the bump cursor IS the exact interned-string size
-	//(allocation sizes + alignment padding)
-	return (uint64_t)arenaBump_used(&vm.stringArena);
-}
-
-COLD_FUNCTION
-uint64_t stringCommittedBytes()
-{
-	return (uint64_t)vm.stringArena.commitTop;
 }
 
 //return the constant index
