@@ -2,10 +2,12 @@
 #
 # Find the mimalloc allocator library.
 #
-# The project ships a prebuilt static library on Windows under
+# The project ships a prebuilt static library on Windows (x64 only!) under
 #   third-party/mimalloc/mimalloc-static.lib      (Release)
 #   third-party/mimalloc/mimalloc-static-debug.lib (Debug)
-# and headers under third-party/mimalloc/include.
+# and headers under third-party/mimalloc/include. 32-bit Windows targets
+# cannot link that .lib (machine-type mismatch), so they fall back to a
+# system-installed mimalloc and then to the standard library allocator.
 # On other platforms we first look for a system-installed mimalloc, and if not
 # found the target stays unset so that the caller can fall back to the
 # standard library allocator.
@@ -51,26 +53,33 @@ set(_mimalloc_lib_win_release "mimalloc-static")
 set(_mimalloc_lib_win_debug   "mimalloc-static-debug")
 
 if(WIN32)
-  # Prefer the prebuilt static libraries next to the headers, per build type.
-  find_library(mimalloc_LIBRARY_DEBUG
-    NAMES ${_mimalloc_lib_win_debug}
-    PATHS ${_mimalloc_search_paths} NO_DEFAULT_PATH)
-  find_library(mimalloc_LIBRARY_RELEASE
-    NAMES ${_mimalloc_lib_win_release}
-    PATHS ${_mimalloc_search_paths} NO_DEFAULT_PATH)
-
-  if(mimalloc_LIBRARY_RELEASE)
-    set(_mimalloc_release_found TRUE)
-  endif()
-  if(mimalloc_LIBRARY_DEBUG)
-    set(_mimalloc_debug_found TRUE)
+  if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    # 64-bit: prefer the prebuilt static libraries next to the headers, per build type.
+    find_library(mimalloc_LIBRARY_DEBUG
+      NAMES ${_mimalloc_lib_win_debug}
+      PATHS ${_mimalloc_search_paths} NO_DEFAULT_PATH)
+    find_library(mimalloc_LIBRARY_RELEASE
+      NAMES ${_mimalloc_lib_win_release}
+      PATHS ${_mimalloc_search_paths} NO_DEFAULT_PATH)
+  else()
+    # 32-bit: the shipped prebuilt .lib is x64-only (linking it into an x86
+    # target fails with unresolved _mi_* symbols); fall back to a
+    # system-installed mimalloc, else the caller uses the stdlib allocator
+    find_library(mimalloc_LIBRARY NAMES mimalloc)
   endif()
 else()
   find_library(mimalloc_LIBRARY NAMES mimalloc)
 endif()
 
+if(mimalloc_LIBRARY_RELEASE)
+  set(_mimalloc_release_found TRUE)
+endif()
+if(mimalloc_LIBRARY_DEBUG)
+  set(_mimalloc_debug_found TRUE)
+endif()
+
 include(FindPackageHandleStandardArgs)
-if(WIN32)
+if(WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8)
   find_package_handle_standard_args(mimalloc
     REQUIRED_VARS mimalloc_INCLUDE_DIR _mimalloc_release_found _mimalloc_debug_found)
 else()
