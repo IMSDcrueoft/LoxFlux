@@ -86,6 +86,12 @@ typedef struct {
 	size_t bytesAllocated_no_gc;
 	size_t bytesAllocated;
 
+	//gc gray worklist: plain count over the gray arena - same model as the vm
+	//stack: the hot push path is one bounds compare against the committed edge,
+	//not an arena call; capacity is grayArena.capacity / sizeof(Obj*), fixed
+	Obj** grayStack;   //arena base (never moves)
+	size_t grayCount;
+
 	//Flip tagging, is more suitable for concurrent tagging
 	uint8_t gcMark;
 	//mark if the gc is running
@@ -124,12 +130,6 @@ typedef struct {
 	//fixed-base backing storage for the gc gray worklist (VA never moves,
 	//lazy 64KB commits; only touched when the worklist crosses the committed edge)
 	ArenaBumpAllocator grayArena;
-
-	//gc gray worklist: plain count over the gray arena - same model as the vm
-	//stack: the hot push path is one bounds compare against the committed edge,
-	//not an arena call; capacity is grayArena.capacity / sizeof(Obj*), fixed
-	Obj** grayStack;   //arena base (never moves)
-	size_t grayCount;
 } VM;
 
 typedef enum {
