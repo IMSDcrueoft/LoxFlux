@@ -449,8 +449,7 @@ static uint32_t makeNumberConstant(Value value) {
 		}
 
 		ValueArray* constants = &current->constants;
-		valueArray_write(constants, value);
-		entry->index = constants->count - 1;//set value and return
+		entry->index = valueArray_write(constants, value);//set value and return
 	}
 
 	return entry->index;

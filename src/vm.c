@@ -360,7 +360,6 @@ void vm_init()
 
 	//init global
 	valueArray_init(&vm.constants);
-	valueHoles_init(&vm.constantHoles);
 
 	//stack arena: reserve the full STACK_ARENA_SIZE of VA once (never moves)
 	//and commit the first chunk eagerly; the old heap stack (ALLOCATE_NO_GC of
@@ -464,7 +463,6 @@ void vm_free()
 	vm.icFuncCapacity = 0;
 
 	valueArray_free(&vm.constants);
-	valueHoles_free(&vm.constantHoles);
 
 	table_free(&vm.globals.fields);
 	stringTable_free(&vm.scripts);
@@ -531,17 +529,10 @@ uint64_t stringCommittedBytes()
 //return the constant index
 uint32_t addConstant(Value value)
 {
-	uint32_t index = valueHoles_get(&vm.constantHoles);
-	if (index == VALUEHOLES_EMPTY) {
-		stack_push(value);//prevent GC errors
-		valueArray_write(&vm.constants, value);
-		stack_pop();
-		return vm.constants.count - 1;
-	}
-	else {
-		valueArray_writeAt(&vm.constants, value, index);
-		return index;
-	}
+	stack_push(value);//prevent GC errors
+	uint32_t index = valueArray_write(&vm.constants, value);
+	stack_pop();
+	return index;
 }
 
 static void getTypeof() {

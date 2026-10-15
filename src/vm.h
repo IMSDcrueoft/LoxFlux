@@ -51,10 +51,8 @@ typedef struct {
 	Value* stackBoundary;
 
 	// deduplicated global constant table
+	// erased slots become holes, silently reused by the next valueArray_write
 	ValueArray constants;
-	// In order to repurpose the voids caused by GC
-	// create a constant void table to record and reuse
-	ValueHoles constantHoles;
 
 	//scripts
 	StringTable scripts;
