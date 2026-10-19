@@ -8,6 +8,53 @@
 #include "vm.h"
 #include "file.h"
 #include "allocator.h"
+#include "compiler.h"
+
+static void print_usage(FILE* stream) {
+	fprintf(stream, "Usage: loxFlux [--print-bytecode] [--no-optimize] [script]\n");
+	fprintf(stream, "  --print-bytecode  dump the compiled bytecode of every function to stderr\n");
+	fprintf(stream, "  --no-optimize     disable all compile-time optimizations (peephole fusion,\n");
+	fprintf(stream, "                    constant folding, branch-jump fusion)\n");
+	fprintf(stream, "  (with no script, the REPL starts; flags apply to /eval too)\n");
+}
+
+int loxFluxMain(int argc, C_STR argv[]) {
+	C_STR script = NULL;
+
+	for (int i = 1; i < argc; i++) {
+		if (strcmp(argv[i], "--print-bytecode") == 0) {
+			vm_printBytecode = true;
+		}
+		else if (strcmp(argv[i], "--no-optimize") == 0) {
+			vm_optimizationEnabled = false;
+		}
+		else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+			print_usage(stdout);
+			return 0;
+		}
+		else if (argv[i][0] == '-' && argv[i][1] != '\0') {
+			fprintf(stderr, "Unknown option \"%s\".\n", argv[i]);
+			print_usage(stderr);
+			exit(64);
+		}
+		else if (script == NULL) {
+			script = argv[i];
+		}
+		else {
+			fprintf(stderr, "Unexpected extra argument \"%s\".\n", argv[i]);
+			print_usage(stderr);
+			exit(64);
+		}
+	}
+
+	if (script == NULL) {
+		repl();
+	}
+	else {
+		runFile(script);
+	}
+	return 0;
+}
 
 static void print_help() {
 	printf("Commands:\n");
@@ -147,7 +194,7 @@ void repl() {
 					continue;
 				}
 				else if (match_string(line, "/reset")) {
-					uint64_t reclaimed = vm.bytesAllocated + vm.bytesAllocated_no_gc;
+					size_t reclaimed = vm.bytesAllocated + vm.bytesAllocated_no_gc;
 					//full teardown + fresh state: used by the REPL /reset command
 					//vm_free runs the DEBUG leak-accounting check, so every /reset doubles as a health check
 					vm_free();

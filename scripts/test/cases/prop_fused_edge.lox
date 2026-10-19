@@ -1,0 +1,177 @@
+// exit: 0
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: PROP EDGE OK
+// fused local property ops (OP_GET_PROP_LOCAL / OP_SET_PROP_LOCAL[_POP]):
+// receivers compiled to OP_GET_LOCAL (this/locals/params) fuse into one
+// instruction; globals/upvalues/complex receivers fall back. Receivers must
+// live in FUNCTIONS: top-level vars are globals and take the generic path.
+
+class P {
+	init(v) { this.v = v; }
+	getV() { return this.v; }
+}
+
+// 1: this.x read in method -> fused GET (slot 0)
+fun t1() { var obj = P(1); return obj.getV() == 1; }
+
+// 2: this.x = v statement -> fused SET patched to _POP
+fun t2() { var obj = P(1); obj.v = 2; return obj.v == 2; }
+
+// 3: assignment-as-expression value retained -> fused SET, no POP patch
+fun t3() { var obj = P(1); var r = (obj.v = 3); return r == 3 and obj.v == 3; }
+
+// 4: global receiver -> NOT fused
+fun t4() { g.v = 5; return g.v == 5; }
+
+// 5: chained obj.m() + obj.x = ... -> only the local-receiver SET fuses
+fun t5() { var inner = P(5); var outer = P(0); outer.v = inner.getV(); return outer.v == 5; }
+
+// 6: upvalue receiver -> NOT fused
+fun t6() { var up = P(6); fun grab() { return up.v; } return grab() == 6; }
+
+// 7: parameter receiver -> fused
+fun t7(p) { p.v = 7; return p.v == 7; }
+
+// 8: fused GET as LEFT operand of the const-fold fusion (7-byte instr sizing)
+fun t8() { var obj = P(1); return obj.v + 1 == 2; }
+
+// 9: fused GET as RIGHT operand of a plain binary op
+fun t9() { var obj = P(1); return 1 + obj.v == 2; }
+
+// 10: chained assignment -> inner retains value, outer patched to _POP
+fun t10() { var obj = P(1); obj.v = obj.v = 10; return obj.v == 10; }
+
+// 11: loop: fused GET + ADD_LOCAL + fused SET_POP interplay
+fun t11() {
+	var obj = P(0);
+	var i = 0;
+	while (i < 3) {
+		obj.v = obj.v + i;
+		i = i + 1;
+	}
+	return obj.v == 3;
+}
+
+// 12: if (obj.v) -> fused GET must NOT enter the JIF fuser
+fun t12() { var obj = P(1); if (obj.v) { return true; } return false; }
+
+// 13: method call -> OP_INVOKE untouched
+fun t13() { var obj = P(13); return obj.getV() == 13; }
+
+// 14: bare statement obj.v; -> fused GET + POP
+fun t14() { var obj = P(1); obj.v; return obj.v == 1; }
+
+// 15: parenthesized receiver (obj).v -> grouping keeps slot tracking
+fun t15() { var obj = P(1); return (obj).v == 1; }
+
+// 16: parenthesized assignment (obj).v = 16 -> fused SET via grouping
+fun t16() { var obj = P(1); (obj).v = 16; return obj.v == 16; }
+
+// 17: comparison obj.v == n in condition
+fun t17() { var obj = P(1); if (obj.v == 1) { return true; } return false; }
+
+// 18: while (obj.v < n) with fused SET in body
+fun t18() {
+	var obj = P(0);
+	while (obj.v < 2) {
+		obj.v = obj.v + 1;
+	}
+	return obj.v == 2;
+}
+
+// 19: MISSING field read on a fused GET (bindMethod nil path) — the receiver
+// never occupies the stack top here, so the shared slow path must not consume it
+fun t19() { var obj = P(1); return obj.neverSet == nil; }
+
+// 20: method-name property read via fused GET (bindMethod bound-method path)
+fun t20() { var obj = P(1); var f = obj.getV; return f() == 1; }
+
+// 21: frozen instance + fused SET_POP: hot the inline cache with direct writes,
+// then freeze mid-loop — later writes must be rejected (value stays pre-freeze)
+fun t21() {
+	var obj = P(1);
+	var i = 0;
+	while (i < 4) {
+		obj.v = i;
+		if (i == 1) { @object.freeze(obj); }
+		i = i + 1;
+	}
+	return obj.v == 1;
+}
+
+// 22: frozen instance + fused GET fast path (freeze must not block reads)
+fun t22() { var obj = P(5); @object.freeze(obj); return obj.v == 5; }
+
+// 23: frozen instance + fused SET (value-retained form): write ignored but the
+// assignment expression still yields the assigned value
+fun t23() {
+	var obj = P(1);
+	@object.freeze(obj);
+	var r = (obj.v = 99);
+	return r == 99 and obj.v == 1;
+}
+
+// 24: frozen instance + fused SET_POP nil-assign: delete attempt rejected
+fun t24() {
+	var obj = P(1);
+	obj.w = 7;
+	@object.freeze(obj);
+	obj.w = nil;
+	return @object.hasOwn(obj, "w") and obj.w == 7;
+}
+
+// 25: frozen instance + fused GET of a missing field (bindMethod nil path)
+fun t25() { var obj = P(1); @object.freeze(obj); return obj.neverSet == nil; }
+
+var g = P(4);
+
+print(t1());
+print(t2());
+print(t3());
+print(t4());
+print(t5());
+print(t6());
+print(t7(P(0)));
+print(t8());
+print(t9());
+print(t10());
+print(t11());
+print(t12());
+print(t13());
+print(t14());
+print(t15());
+print(t16());
+print(t17());
+print(t18());
+print(t19());
+print(t20());
+print(t21());
+print(t22());
+print(t23());
+print(t24());
+print(t25());
+print("PROP EDGE OK");

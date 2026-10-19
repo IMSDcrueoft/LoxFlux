@@ -239,6 +239,18 @@ static uint32_t cachedPropertyInstruction(C_STR name, Chunk* chunk, uint32_t off
 	return offset + 5;
 }
 
+//fused local property instruction: [op][local u16][name u24][cache slot u8]
+COLD_FUNCTION
+static uint32_t localPropertyInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
+	uint32_t local = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8);
+	uint32_t constant = ((uint32_t)chunk->code[offset + 3]) | ((uint32_t)chunk->code[offset + 4] << 8) | ((uint32_t)chunk->code[offset + 5] << 16);
+	uint8_t slot = chunk->code[offset + 6];
+	DIS_PRINTF("%-16s R:%4d %4d '", name, local, constant);
+	disPrintValue(vm.constants.values[constant]);
+	DIS_PRINTF("' (cache %u)\n", slot);
+	return offset + 7;
+}
+
 COLD_FUNCTION
 uint32_t disassembleInstruction(ObjFunction* function, uint32_t offset) {
 	Chunk* chunk = &function->chunk;
@@ -367,6 +379,12 @@ uint32_t disassembleInstruction(ObjFunction* function, uint32_t offset) {
 		return cachedPropertyInstruction("OP_SET_PROPERTY", chunk, offset);
 	case OP_SET_PROPERTY_POP:
 		return cachedPropertyInstruction("OP_SET_PROPERTY_POP", chunk, offset);
+	case OP_GET_PROP_LOCAL:
+		return localPropertyInstruction("OP_GET_PROP_LOCAL", chunk, offset);
+	case OP_SET_PROP_LOCAL:
+		return localPropertyInstruction("OP_SET_PROP_LOCAL", chunk, offset);
+	case OP_SET_PROP_LOCAL_POP:
+		return localPropertyInstruction("OP_SET_PROP_LOCAL_POP", chunk, offset);
 	case OP_GET_INDEX:
 		return numberConstantInstruction("OP_GET_INDEX", function, offset);
 	case OP_SET_INDEX:
@@ -545,6 +563,9 @@ void disassembleOpStack(OPStack* opStack) {
 		case OP_GET_PROPERTY:     DIS_PRINTF("OP_GET_PROPERTY\n"); break;
 		case OP_SET_PROPERTY:     DIS_PRINTF("OP_SET_PROPERTY\n"); break;
 		case OP_SET_PROPERTY_POP: DIS_PRINTF("OP_SET_PROPERTY_POP\n"); break;
+		case OP_GET_PROP_LOCAL:      DIS_PRINTF("OP_GET_PROP_LOCAL\n"); break;
+		case OP_SET_PROP_LOCAL:      DIS_PRINTF("OP_SET_PROP_LOCAL\n"); break;
+		case OP_SET_PROP_LOCAL_POP:  DIS_PRINTF("OP_SET_PROP_LOCAL_POP\n"); break;
 		case OP_INVOKE:           DIS_PRINTF("OP_INVOKE\n"); break;
 		case OP_CALL:             DIS_PRINTF("OP_CALL\n"); break;
 		case OP_JUMP:             DIS_PRINTF("OP_JUMP\n"); break;

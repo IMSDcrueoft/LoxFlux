@@ -69,7 +69,7 @@ static Value gcNextNative(int argCount, Value* args) {
 		else if (nextGC > GiB1) {
 			nextGC = GiB1;
 		}
-		changeNextGC((uint64_t)nextGC);
+		changeNextGC((size_t)nextGC);
 		return BOOL_VAL(true);
 	}
 	else {
@@ -87,7 +87,7 @@ static Value gcBeginNative(int argCount, Value* args) {
 		else if (beginGC > GiB1) {
 			beginGC = GiB1;
 		}
-		changeBeginGC((uint64_t)beginGC);
+		changeBeginGC((size_t)beginGC);
 		return BOOL_VAL(true);
 	}
 	else {
@@ -103,7 +103,7 @@ static Value pinnedBytesNative(int argCount, Value* args) {
 	//no_gc book + the interned-string arena: the old heap strings were counted
 	//in the no_gc book too, so they stay inside this number (exact consumption:
 	//the arena is append-only, liveTop = sum of string sizes + alignment slack)
-	return NUMBER_VAL((double)(vm.bytesAllocated_no_gc + stringBytes()));
+	return NUMBER_VAL((double)(vm.bytesAllocated_no_gc + arenaBump_used(&vm.stringArena)));
 }
 
 //Print all the parameters

@@ -26,8 +26,9 @@ if(MSVC)
   # C and C++ are handled separately so no conflicting /EH flags remain.
   add_compile_options($<$<COMPILE_LANGUAGE:C>:/EHs-c->)
   add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/EH->)
-  # AdvancedVectorExtensions2 == SSE4.2
-  add_compile_options(/arch:SSE4.2)
+  # AdvancedVectorExtensions2 == /arch:AVX2 (matches loxFlux.vcxproj; MSVC
+  # does not know an /arch:SSE4.2 value - it was silently ignored with D9002)
+  add_compile_options(/arch:AVX2)
 else()
   add_compile_options(-fno-exceptions)
 endif()
@@ -63,7 +64,10 @@ option(LOXFLUX_USE_MIMALLOC "Use mimalloc allocator if available" ON)
 
 find_package(mimalloc QUIET)
 
+set(LOXFLUX_ALLOC_MIMALLOC OFF)
+
 if(mimalloc_FOUND AND LOXFLUX_USE_MIMALLOC)
+  set(LOXFLUX_ALLOC_MIMALLOC ON)
   message(STATUS "mimalloc: found -> using mimalloc allocator")
 elseif(mimalloc_FOUND AND NOT LOXFLUX_USE_MIMALLOC)
   message(STATUS "mimalloc: found but disabled by LOXFLUX_USE_MIMALLOC=OFF -> using the standard library allocator")
@@ -118,9 +122,11 @@ target_link_libraries(loxFluxCore PUBLIC xxhash)
 
 # Always define LOXFLUX_USE_MIMALLOC (1/0) so allocator.h selects the same
 # allocator the build system configured, regardless of the platform default.
+# Based on LOXFLUX_ALLOC_MIMALLOC (mimalloc actually found and enabled), not
+# the user option alone, so the macro matches what gets linked.
 target_compile_definitions(loxFluxCore PUBLIC
-  LOXFLUX_USE_MIMALLOC=$<IF:$<BOOL:${LOXFLUX_USE_MIMALLOC}>,1,0>)
-if(LOXFLUX_USE_MIMALLOC)
+  LOXFLUX_USE_MIMALLOC=$<IF:$<BOOL:${LOXFLUX_ALLOC_MIMALLOC}>,1,0>)
+if(LOXFLUX_ALLOC_MIMALLOC)
   target_link_libraries(loxFluxCore PUBLIC mimalloc::mimalloc)
 endif()
 

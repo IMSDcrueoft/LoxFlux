@@ -172,9 +172,20 @@ void valueArray_init(ValueArray* array) {
 	array->values = NULL;
 	array->capacity = 0u;
 	array->count = 0u;
+	array->valueHoleIndex = VALUEHOLES_EMPTY;
 }
 
-void valueArray_write(ValueArray* array, Value value) {
+uint32_t valueArray_write(ValueArray* array, Value value) {
+	//reuse a hole when one exists: pop the freeList head, which carries the
+	//next hole index stashed as raw bytes inside the slot itself
+	if (array->valueHoleIndex != VALUEHOLES_EMPTY) {
+		uint32_t index = array->valueHoleIndex;
+		// Intrusive freeList
+		memcpy(&array->valueHoleIndex, &array->values[index], sizeof(uint32_t));
+		array->values[index] = value;
+		return index;
+	}
+
 	if (array->capacity < array->count + 1) {
 		uint32_t oldCapacity = array->capacity;
 		array->capacity = GROW_CAPACITY(oldCapacity);
@@ -183,6 +194,7 @@ void valueArray_write(ValueArray* array, Value value) {
 
 	array->values[array->count] = value;
 	array->count++;
+	return array->count - 1u;
 }
 
 void valueArray_writeAt(ValueArray* array, Value value, uint32_t index)
@@ -195,38 +207,10 @@ void valueArray_free(ValueArray* array) {
 	valueArray_init(array);
 }
 
-void valueHoles_init(ValueHoles* holes) {
-	holes->holes = NULL;
-	holes->count = 0;
-	holes->capacity = 0;
-}
-
-void valueHoles_free(ValueHoles* holes) {
-	FREE_ARRAY_NO_GC(uint32_t, holes->holes, holes->capacity);
-	holes->holes = NULL;
-	holes->count = 0;
-	holes->capacity = 0;
-}
-
-void valueHoles_push(ValueHoles* holes, uint32_t index) {
-	if (holes->count == holes->capacity) {
-		uint32_t oldCapacity = holes->capacity;
-		holes->capacity = GROW_CAPACITY(oldCapacity);
-		holes->holes = GROW_ARRAY_NO_GC(uint32_t, holes->holes, oldCapacity, holes->capacity);
-	}
-	holes->holes[holes->count++] = index;
-}
-
-void valueHoles_pop(ValueHoles* holes)
-{
-	if (holes->count > 0) {
-		holes->count--;
-	}
-}
-
-uint32_t valueHoles_get(ValueHoles* holes) {
-	if (holes->count == 0) {
-		return VALUEHOLES_EMPTY;
-	}
-	return holes->holes[--holes->count];
+void valueArray_erase(ValueArray* array, uint32_t index) {
+	//the slot becomes dead memory: clear it, then stash the previous freeList
+	//head as raw bytes (only the low 4B are read back, see valueArray_write)
+	memset(&array->values[index], 0, sizeof(Value));
+	memcpy(&array->values[index], &array->valueHoleIndex, sizeof(uint32_t));
+	array->valueHoleIndex = index;
 }

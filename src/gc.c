@@ -92,11 +92,18 @@ void markObject(Obj* object)
 #endif
 	object->isMarked = vm.gcMark;
 
-	if (vm.grayCapacity < vm.grayCount + 1) {
-		vm.grayCapacity = GROW_CAPACITY(vm.grayCapacity);
-		vm.grayStack = (Obj**)mem_realloc(vm.grayStack, sizeof(Obj*) * vm.grayCapacity);
-		//We don’t want growing the gray stack during a GC to cause the GC to recursively start a new GC
-		if (vm.grayStack == NULL) exit(1);//realloc failed
+	//fixed-VA gray stack, plain count logic (same model as the vm stack): the
+	//hot path is one compare against the committed edge; only crossing it does
+	//a lazy 64KB page commit. No realloc, no heap allocation -> cannot trigger
+	//or nest a GC. Capacity exhausted or commit failure is fatal inside a GC
+	//cycle (need is in bytes: one more pointer slot beyond grayCount)
+	size_t need = (size_t)(vm.grayCount + 1) * sizeof(Obj*);
+	if (need > vm.grayArena.commitTop) {
+		if (need > vm.grayArena.capacity ||
+			!arenaBump_ensureCommitted(&vm.grayArena, need)) {
+			fprintf(stderr, "[gc] gray stack overflow.\n");
+			exit(1);
+		}
 	}
 
 	vm.grayStack[vm.grayCount++] = object;
@@ -165,6 +172,10 @@ static void blackenObject(Obj* object) {
 }
 
 static void traceReferences() {
+	//plain LIFO drain over the gray worklist; blackenObject may push more
+	//entries, grayCount covers that naturally. Committed pages of the gray
+	//arena stay resident and are reused by the next GC cycle (same grow-only
+	//behavior as the old heap stack)
 	while (vm.grayCount > 0) {
 		Obj* object = vm.grayStack[--vm.grayCount];
 		blackenObject(object);
@@ -228,7 +239,7 @@ void garbageCollect()
 
 #if DEBUG_LOG_GC || LOG_GC_RESULT
 	uint64_t time_gc = get_nanoseconds();
-	uint64_t before = vm.bytesAllocated;
+	size_t before = vm.bytesAllocated;
 #endif
 	//mark the state
 	vm.gcWorking = 1;
@@ -259,12 +270,12 @@ void garbageCollect()
 #endif
 }
 
-void changeNextGC(uint64_t newSize)
+void changeNextGC(size_t newSize)
 {
 	vm.nextGC = newSize;
 }
 
-void changeBeginGC(uint64_t newSize)
+void changeBeginGC(size_t newSize)
 {
 	vm.beginGC = newSize;
 }

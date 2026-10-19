@@ -103,17 +103,16 @@ typedef struct {
 
 typedef struct {
 	uint32_t capacity; //limit to 4G
-	uint32_t count;    //limit to 4G
+	uint32_t count;    //limit to 4G (high-water mark, holes included)
 	Value* values;
+
+	//internal: head of the hole freeList; a hole slot stashes the next hole
+	//index as raw bytes (VALUEHOLES_EMPTY = no holes)
+	uint32_t valueHoleIndex;
 } ValueArray;
 
+_Static_assert(sizeof(Value) >= 4, "In order to accommodate the reuse holes, the Value needs to be at least 4B in size.");
 #define VALUEHOLES_EMPTY UINT32_MAX
-
-typedef struct {
-	uint32_t count;
-	uint32_t capacity;
-	uint32_t* holes;
-} ValueHoles;
 
 bool valuesEqual(Value a, Value b);
 void convert_adaptive_double(double value, char* buffer, uint32_t bufferSize);//ECMAScript type Number; buffer size 40 is enough
@@ -121,12 +120,11 @@ void convert_adaptive_double(double value, char* buffer, uint32_t bufferSize);//
 void printValue(FILE* stream, Value value, bool isExpand);
 
 void valueArray_init(ValueArray* array);
-void valueArray_write(ValueArray* array, Value value);
+//returns the index the value was written to: a reusable hole when one exists,
+//appended at the end otherwise (hole logic is fully internal)
+uint32_t valueArray_write(ValueArray* array, Value value);
 void valueArray_writeAt(ValueArray* array, Value value, uint32_t index);
 void valueArray_free(ValueArray* array);
-
-void valueHoles_init(ValueHoles* holes);
-void valueHoles_free(ValueHoles* holes);
-void valueHoles_push(ValueHoles* holes, uint32_t index);
-void valueHoles_pop(ValueHoles* holes);
-uint32_t valueHoles_get(ValueHoles* holes);
+//dig a hole: mark the slot at index as reusable; the slot is treated as raw
+//memory from here on and will be overwritten by the next write
+void valueArray_erase(ValueArray* array, uint32_t index);

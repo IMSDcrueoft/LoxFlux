@@ -5,11 +5,12 @@
 */
 #pragma once
 
-// mimalloc is cross-platform, but this project only ships a prebuilt MSVC
-// static library (third-party/mimalloc) to avoid cross-compiling one per
-// platform; no library files are provided for other toolchains/platforms,
-// so those fall back to the standard library allocator (install a system
-// mimalloc and build through CMake with LOXFLUX_USE_MIMALLOC=ON to opt in).
+// mimalloc is cross-platform, but this project only ships prebuilt MSVC
+// static libraries (third-party/mimalloc, one per architecture: mimalloc-x64
+// / mimalloc-x86, release + debug) to avoid cross-compiling one per platform;
+// no library files are provided for other toolchains/platforms, so those fall
+// back to the standard library allocator (install a system mimalloc and build
+// through CMake with LOXFLUX_USE_MIMALLOC=ON to opt in).
 // CMake always defines LOXFLUX_USE_MIMALLOC=0/1 explicitly, so the platform
 // check below only serves non-CMake builds (MSVC projects / raw command
 // lines): gate on _MSC_VER, not _WIN32 — MinGW defines _WIN32 too but cannot
