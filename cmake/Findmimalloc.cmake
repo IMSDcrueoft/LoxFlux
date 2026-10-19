@@ -2,14 +2,15 @@
 #
 # Find the mimalloc allocator library.
 #
-# The project ships a prebuilt static library on Windows (x64 only!) under
-#   third-party/mimalloc/mimalloc-static.lib      (Release)
-#   third-party/mimalloc/mimalloc-static-debug.lib (Debug)
-# and headers under third-party/mimalloc/include. 32-bit Windows targets
-# cannot link that .lib (machine-type mismatch), so they fall back to a
-# system-installed mimalloc and then to the standard library allocator.
-# On other platforms we first look for a system-installed mimalloc, and if not
-# found the target stays unset so that the caller can fall back to the
+# The project ships prebuilt static libraries on Windows under
+#   third-party/mimalloc/mimalloc-x64.lib        (Release, x64)
+#   third-party/mimalloc/mimalloc-x64-debug.lib  (Debug,   x64)
+#   third-party/mimalloc/mimalloc-x86.lib        (Release, Win32)
+#   third-party/mimalloc/mimalloc-x86-debug.lib  (Debug,   Win32)
+# and headers under third-party/mimalloc/include. The architecture is chosen
+# from CMAKE_SIZEOF_VOID_P. On other platforms (or when the prebuilt library
+# is not found) we fall back to a system-installed mimalloc; if that is not
+# found either the target stays unset so that the caller can fall back to the
 # standard library allocator.
 #
 # Imports the target `mimalloc::mimalloc` when found and sets:
@@ -48,24 +49,26 @@ find_path(mimalloc_INCLUDE_DIR mimalloc.h PATHS ${_mimalloc_inc_dirs} NO_DEFAULT
 find_path(mimalloc_INCLUDE_DIR_SYSTEM mimalloc.h)
 
 set(_mimalloc_lib_var mimalloc_LIBRARY)
-set(_mimalloc_components Release Debug)
-set(_mimalloc_lib_win_release "mimalloc-static")
-set(_mimalloc_lib_win_debug   "mimalloc-static-debug")
-
 if(WIN32)
   if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-    # 64-bit: prefer the prebuilt static libraries next to the headers, per build type.
-    find_library(mimalloc_LIBRARY_DEBUG
-      NAMES ${_mimalloc_lib_win_debug}
-      PATHS ${_mimalloc_search_paths} NO_DEFAULT_PATH)
-    find_library(mimalloc_LIBRARY_RELEASE
-      NAMES ${_mimalloc_lib_win_release}
-      PATHS ${_mimalloc_search_paths} NO_DEFAULT_PATH)
+    set(_mimalloc_lib_win_release "mimalloc-x64")
+    set(_mimalloc_lib_win_debug   "mimalloc-x64-debug")
   else()
-    # 32-bit: the shipped prebuilt .lib is x64-only (linking it into an x86
-    # target fails with unresolved _mi_* symbols); fall back to a
-    # system-installed mimalloc, else the caller uses the stdlib allocator
-    find_library(mimalloc_LIBRARY NAMES mimalloc)
+    set(_mimalloc_lib_win_release "mimalloc-x86")
+    set(_mimalloc_lib_win_debug   "mimalloc-x86-debug")
+  endif()
+
+  find_library(mimalloc_LIBRARY_DEBUG
+    NAMES ${_mimalloc_lib_win_debug}
+    PATHS ${_mimalloc_search_paths} NO_DEFAULT_PATH)
+  find_library(mimalloc_LIBRARY_RELEASE
+    NAMES ${_mimalloc_lib_win_release}
+    PATHS ${_mimalloc_search_paths} NO_DEFAULT_PATH)
+
+  # keep IMPORTED_LOCATION non-empty: single-config generators use the
+  # <CONFIG>-mapped location, but the base property must still be valid
+  if(mimalloc_LIBRARY_RELEASE)
+    set(mimalloc_LIBRARY "${mimalloc_LIBRARY_RELEASE}")
   endif()
 else()
   find_library(mimalloc_LIBRARY NAMES mimalloc)
@@ -79,9 +82,9 @@ if(mimalloc_LIBRARY_DEBUG)
 endif()
 
 include(FindPackageHandleStandardArgs)
-if(WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8)
+if(WIN32)
   find_package_handle_standard_args(mimalloc
-    REQUIRED_VARS mimalloc_INCLUDE_DIR _mimalloc_release_found _mimalloc_debug_found)
+    REQUIRED_VARS mimalloc_INCLUDE_DIR _mimalloc_release_found)
 else()
   find_package_handle_standard_args(mimalloc
     REQUIRED_VARS mimalloc_INCLUDE_DIR mimalloc_LIBRARY)
@@ -106,7 +109,6 @@ endif()
 unset(_mimalloc_search_paths)
 unset(_mimalloc_inc_dirs)
 unset(_mimalloc_lib_var)
-unset(_mimalloc_components)
 unset(_mimalloc_lib_win_release)
 unset(_mimalloc_lib_win_debug)
 unset(_mimalloc_release_found)

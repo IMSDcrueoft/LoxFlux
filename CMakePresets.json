@@ -16,6 +16,16 @@
       }
     },
     {
+      "name": "windows-msvc-win32",
+      "displayName": "Windows 32-bit (MSVC via Visual Studio)",
+      "description": "Same as windows-msvc but targets Win32 (x86).",
+      "inherits": "windows-msvc",
+      "architecture": {
+        "value": "Win32",
+        "strategy": "set"
+      }
+    },
+    {
       "name": "windows-ninja",
       "displayName": "Windows (Ninja Multi-Config)",
       "description": "Uses Ninja with MSVC, supports Debug/Release multi-config.",
@@ -49,6 +59,10 @@
     {
       "name": "windows-msvc",
       "configurePreset": "windows-msvc"
+    },
+    {
+      "name": "windows-msvc-win32",
+      "configurePreset": "windows-msvc-win32"
     },
     {
       "name": "windows-ninja",
