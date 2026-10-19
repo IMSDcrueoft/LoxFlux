@@ -140,9 +140,17 @@ typedef enum {
 	OP_JIF_EQUAL_LC,		// local == const else jump
 	OP_JIF_NOT_EQUAL_LC,	// local != const else jump
 
+	//fused local-receiver property forms: [op][local u16][name u24][cache u8]
+	//the receiver is read directly from the frame slot (no stack copy of the local)
+	OP_GET_PROP_LOCAL,
+	OP_SET_PROP_LOCAL,		// the assigned value remains on the stack
+	OP_SET_PROP_LOCAL_POP,	// pop the assigned value
+
 	// guard
-	INVALID_OP = UINT8_MAX
+	INVALID_OP
 } OpCode;
+
+_Static_assert(INVALID_OP <= UINT8_MAX, "Too many chunk operant types.");
 
 typedef enum {
 	BIT_OP_NOT,			//~

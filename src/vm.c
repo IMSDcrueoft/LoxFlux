@@ -1156,6 +1156,9 @@ static InterpretResult run()
 		[OP_GET_PROPERTY] = && label_op_get_property,
 		[OP_SET_PROPERTY] = && label_op_set_property,
 		[OP_SET_PROPERTY_POP] = && label_op_set_property_pop,
+		[OP_GET_PROP_LOCAL] = && label_op_get_prop_local,
+		[OP_SET_PROP_LOCAL] = && label_op_set_prop_local,
+		[OP_SET_PROP_LOCAL_POP] = && label_op_set_property_local_pop,
 		[OP_SET_INDEX] = && label_op_set_index,
 		[OP_GET_INDEX] = && label_op_get_index,
 		[OP_GET_SUPER] = && label_op_get_super,
@@ -1330,7 +1333,7 @@ static InterpretResult run()
 #define NEXT_INSTRUCTION continue
 #else //direct threading code
 #define NEXT_INSTRUCTION goto *label_instructions[READ_BYTE()]
-#endif
+#endif									
 
 //error inside run(): sync the top frame's ip for the stack trace, then raise.
 //error paths are cold, so this store costs nothing and keeps `ip` free of any
@@ -1529,6 +1532,106 @@ static InterpretResult run()
 			icSetPropertySlow(instance, name, vm.stackTop[-1], slot, icCache);
 			//pop value and instance
 			vm.stackTop -= 2;
+			NEXT_INSTRUCTION;
+		}
+		case OP_GET_PROP_LOCAL: {
+		label_op_get_prop_local:
+			uint32_t index = READ_SHORT();
+			Value receiver = frame->slots[index];
+			if (!IS_INSTANCE(receiver)) {
+				RUNTIME_ERROR("Only instances have properties.");
+			}
+
+			ObjInstance* instance = AS_INSTANCE(receiver);
+			Value constant = READ_CONSTANT(READ_24bits());
+			ObjString* name = AS_STRING(constant);
+			uint8_t slot = READ_BYTE();
+			//icCache derived per handler,not a run()-wide local,to keep the dispatch loop's live ranges small
+			InlineCacheSlot* icCache = frame->caches;
+
+			//inline cache: validate [capacity, entry index] against the live table
+			//slot 0 = sentinel slot {0,0}: real table capacity is never 0 → miss; idx bound check guards capacity==0 tables
+			{
+				Table* fields = &instance->fields;
+				if ((uint32_t)icCache[slot].capacity == fields->capacity) {
+					uint32_t idx = icCache[slot].index;
+					if (idx < fields->capacity && fields->entries[idx].key == name) {
+						stack_push(fields->entries[idx].value);
+						NEXT_INSTRUCTION;
+					}
+				}
+			}
+
+			//slow path: present the receiver on the stack top so the shared cold
+			//helper (stack_replace semantics / bindMethod consume the top slot)
+			//operates on a copy of it; the result (field value / bound method /
+			//nil) replaces the copy and ends on top, matching the fused push
+			stack_push(receiver);
+			icGetPropertySlow(instance, name, slot, icCache);
+			NEXT_INSTRUCTION;
+		}
+		case OP_SET_PROP_LOCAL: {
+		label_op_set_prop_local:
+			uint32_t index = READ_SHORT();
+			Value receiver = frame->slots[index];
+			if (!IS_INSTANCE(receiver)) {
+				RUNTIME_ERROR("Only instances have fields.");
+			}
+
+			ObjInstance* instance = AS_INSTANCE(receiver);
+			Value constant = READ_CONSTANT(READ_24bits());
+			ObjString* name = AS_STRING(constant);
+			uint8_t slot = READ_BYTE();
+			InlineCacheSlot* icCache = frame->caches;
+
+			//inline cache: direct write only for existing entries with non-nil value (nil means delete)
+			//frozen fields fall through to the slow path, which rejects the write
+			if (NOT_NIL(vm.stackTop[-1])) {
+				Table* fields = &instance->fields;
+				if (!fields->isFrozen && (uint32_t)icCache[slot].capacity == fields->capacity) {
+					uint32_t idx = icCache[slot].index;
+					if (idx < fields->capacity && fields->entries[idx].key == name) {
+						fields->entries[idx].value = vm.stackTop[-1];
+						//the assigned value stays on the stack (assignment-as-expression semantics)
+						NEXT_INSTRUCTION;
+					}
+				}
+			}
+
+			icSetPropertySlow(instance, name, vm.stackTop[-1], slot, icCache);
+			NEXT_INSTRUCTION;
+		}
+		case OP_SET_PROP_LOCAL_POP: {
+		label_op_set_property_local_pop:
+			uint32_t index = READ_SHORT();
+			Value receiver = frame->slots[index];
+			if (!IS_INSTANCE(receiver)) {
+				RUNTIME_ERROR("Only instances have fields.");
+			}
+
+			ObjInstance* instance = AS_INSTANCE(receiver);
+			Value constant = READ_CONSTANT(READ_24bits());
+			ObjString* name = AS_STRING(constant);
+			uint8_t slot = READ_BYTE();
+			InlineCacheSlot* icCache = frame->caches;
+
+			//inline cache: direct write only for existing entries with non-nil value (nil means delete)
+			//frozen fields fall through to the slow path, which rejects the write
+			if (NOT_NIL(vm.stackTop[-1])) {
+				Table* fields = &instance->fields;
+				if (!fields->isFrozen && (uint32_t)icCache[slot].capacity == fields->capacity) {
+					uint32_t idx = icCache[slot].index;
+					if (idx < fields->capacity && fields->entries[idx].key == name) {
+						fields->entries[idx].value = vm.stackTop[-1];
+						//pop the assigned value (the receiver never occupied a stack slot)
+						vm.stackTop -= 1;
+						NEXT_INSTRUCTION;
+					}
+				}
+			}
+
+			icSetPropertySlow(instance, name, vm.stackTop[-1], slot, icCache);
+			vm.stackTop -= 1;
 			NEXT_INSTRUCTION;
 		}
 		case OP_GET_INDEX: {

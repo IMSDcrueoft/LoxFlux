@@ -1688,17 +1688,49 @@ static void call(bool canAssign) {
 	clearOpStack();
 }
 
+//after the receiver expression, check whether it compiled to a plain local load
+//(e.g. 'this' at slot 0 or a local variable); if so, roll the [OP_GET_LOCAL slot:u16]
+//bytes back and return the slot so the property access can fuse into one instruction
+//returns -1 when the receiver is not a local load (upvalue/global/complex expression)
+static int32_t tryPopReceiverLocal() {
+	int32_t receiverLocal = -1;
+#if COMPILATION_TIME_OPTIMIZATION
+	if (!vm_optimizationEnabled) return receiverLocal;
+
+	OPStack* opStack = currentOpStack();
+	if (opStack_peek(opStack, 0) == OP_GET_LOCAL) {
+		Chunk* chunk = currentChunk();
+		uint32_t slot = (uint32_t)chunk->code[chunk->count - 2] | ((uint32_t)chunk->code[chunk->count - 1] << 8);
+		chunk_fallback(chunk, 3);		//[OP_GET_LOCAL lo hi]
+		opStack_fallback(opStack, 1);	//the opcode entry
+		receiverLocal = (int32_t)slot;
+	}
+#endif
+	return receiverLocal;
+}
+
 static void dot(bool canAssign) {
 	consume(TOKEN_IDENTIFIER, "Expect property name after '.'.");
 	uint32_t name = identifierConstant(&parser.previous);
 
 	if (canAssign && match(TOKEN_EQUAL)) {
+		int32_t receiverLocal = tryPopReceiverLocal();
+
 		expression();
-		emitConstantCommond(OP_SET_PROPERTY, name);
-		emitByte(emitCacheSlot());
+		uint8_t cacheSlot = emitCacheSlot();
+
+		if (receiverLocal >= 0) {
+			//[op][local u16][name u24][cache u8], the assigned value remains on the stack
+			emitBytes(7, OP_SET_PROP_LOCAL, (uint8_t)receiverLocal, (uint8_t)((uint32_t)receiverLocal >> 8),
+				(uint8_t)name, (uint8_t)(name >> 8), (uint8_t)(name >> 16), cacheSlot);
+		}
+		else {
+			emitConstantCommond(OP_SET_PROPERTY, name);
+			emitByte(cacheSlot);
+		}
 		//clear expression ops,keep SET_PROPERTY for POP merge
 		clearOpStack();
-		emitOpStack(OP_SET_PROPERTY, false);
+		emitOpStack(receiverLocal >= 0 ? OP_SET_PROP_LOCAL : OP_SET_PROPERTY, false);
 	}
 	else if (match(TOKEN_LEFT_PAREN)) {
 		uint8_t argCount = argumentList();
@@ -1708,10 +1740,21 @@ static void dot(bool canAssign) {
 		clearOpStack();
 	}
 	else {
-		emitConstantCommond(OP_GET_PROPERTY, name);
-		emitByte(emitCacheSlot());
-		if (!foldBuiltinNumber()) {
+		int32_t receiverLocal = tryPopReceiverLocal();
+
+		if (receiverLocal >= 0) {
+			//[op][local u16][name u24][cache u8], no module-builtin fold applies to local receivers
+			uint8_t cacheSlot = emitCacheSlot();
+			emitBytes(7, OP_GET_PROP_LOCAL, (uint8_t)receiverLocal, (uint8_t)((uint32_t)receiverLocal >> 8),
+				(uint8_t)name, (uint8_t)(name >> 8), (uint8_t)(name >> 16), cacheSlot);
 			clearOpStack();
+		}
+		else {
+			emitConstantCommond(OP_GET_PROPERTY, name);
+			emitByte(emitCacheSlot());
+			if (!foldBuiltinNumber()) {
+				clearOpStack();
+			}
 		}
 	}
 }
@@ -2740,6 +2783,13 @@ static void instructionOptimize() {
 			//set property is now [op][name u24][slot u8] = 5 bytes, op sits at count-5
 			chunk_fallback(chunk, 1);//pop
 			CHUNK_PEEK(4) = OP_SET_PROPERTY_POP; //convert command
+			clearOpStack();
+		}
+		else if (prevRight == OP_SET_PROP_LOCAL) {
+			//fused local set property + pop -> pop the assigned value only
+			//instruction is [op][local u16][name u24][slot u8] = 7 bytes, op sits at count-7
+			chunk_fallback(chunk, 1);//pop
+			CHUNK_PEEK(6) = OP_SET_PROP_LOCAL_POP; //convert command
 			clearOpStack();
 		}
 		else if (prevRight == OP_GET_LOCAL) {
