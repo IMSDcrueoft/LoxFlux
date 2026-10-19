@@ -23,13 +23,17 @@
 
 //vm stack arena: same fixed-VA model as the stack arena; 512MiB reservation,
 //committed lazily in 16KB steps (a single oversized string commits more at once)
-#define STRING_ARENA_SIZE ((size_t)512 * 1024 * 1024)
+#if LOXFLUX_BUILD_64BIT
+#define STRING_ARENA_SIZE ((size_t)512 << 20)
+#else
+#define STRING_ARENA_SIZE ((size_t)128 << 20)
+#endif
 
 //gc gray arena: backing storage for the gc gray worklist, same fixed-VA bump
 //model as the stack arena; the worklist grows lazily in 64KB commit steps and
 //the reservation never moves (safe for future concurrent tagging). 1GiB on
 //64-bit, 256MiB on 32-bit (UINTPTR_MAX works across MSVC/GCC/Clang)
-#if UINTPTR_MAX == UINT64_MAX
+#if LOXFLUX_BUILD_64BIT
 #define GRAY_ARENA_SIZE ((size_t)1 << 30)
 #else
 #define GRAY_ARENA_SIZE ((size_t)256 << 20)

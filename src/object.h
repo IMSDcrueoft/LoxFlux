@@ -11,6 +11,10 @@
 
 //compress the ptr to 48bits
 #define COMPRESS_OBJ_HEADER 1
+// no need to compress under 32bits
+#if !LOXFLUX_BUILD_64BIT
+#define COMPRESS_OBJ_HEADER 0
+#endif
 
 typedef enum {
 	//objects that don't gc

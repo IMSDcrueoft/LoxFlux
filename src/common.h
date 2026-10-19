@@ -14,6 +14,12 @@
 #include <stdarg.h>
 #include <float.h>
 
+#if UINTPTR_MAX == UINT64_MAX
+#define LOXFLUX_BUILD_64BIT 1
+#else
+#define LOXFLUX_BUILD_64BIT 0
+#endif
+
 _Static_assert(sizeof(void*) == 8, "This platform does not have 8-byte pointers. The program requires a 64-bit environment.");
 
 #include "options.h"
