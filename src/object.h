@@ -13,7 +13,7 @@
 #define COMPRESS_OBJ_HEADER 1
 // no need to compress under 32bits
 #if !LOXFLUX_BUILD_64BIT
-#define COMPRESS_OBJ_HEADER 0
+#undef COMPRESS_OBJ_HEADER
 #endif
 
 typedef enum {

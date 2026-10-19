@@ -20,14 +20,6 @@
 #define LOXFLUX_BUILD_64BIT 0
 #endif
 
-_Static_assert(sizeof(void*) == 8, "This platform does not have 8-byte pointers. The program requires a 64-bit environment.");
-
-#include "options.h"
-#include "optimize.h"
-
-typedef char* STR;
-typedef const char* C_STR;
-
 #define UINT8_COUNT 0x100
 #define UINT24_MAX 0xffffff
 #define UINT24_COUNT 0x1000000
@@ -39,3 +31,9 @@ typedef const char* C_STR;
 #ifndef min
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 #endif
+
+typedef char* STR;
+typedef const char* C_STR;
+
+#include "options.h"
+#include "optimize.h"
