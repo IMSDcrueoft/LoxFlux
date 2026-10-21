@@ -306,7 +306,7 @@ These functions are particularly useful for runtime type validation and debuggin
 The `@string` module provides advanced string manipulation capabilities, supporting both basic operations and high-performance string building. It handles ASCII and UTF-8 encodings with memory-efficient strategies, ideal for text processing tasks.
 
 - **String Methods**:
-  - `length`: Returns the byte length of a string.  
+  - `byteLen`: Returns the byte length of a string.  
   - `utf8Len`: Returns the character count for UTF-8 strings (ignoring byte-level details). e.g.,`@string.utf8Len("αβγ")` → `3`
   - `charAt`: Retrieves an ASCII character by byte position.  
   - `utf8At`: Retrieves a UTF-8 character by logical character position. e.g.,`@string.utf8At("αβγ", 1)` → `"β"`

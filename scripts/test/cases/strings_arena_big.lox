@@ -12,7 +12,7 @@ while (i < 20000) {
 	i = i + 1;
 }
 var s = @string.intern(b);
-print @string.length(s);
+print @string.byteLen(s);
 print @string.charAt(s, 0);
 print @string.charAt(s, 19999);
 print s == @string.intern(b);

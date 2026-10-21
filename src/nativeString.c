@@ -432,7 +432,7 @@ static Value sliceNative(int argCount, Value* args) {
 
 COLD_FUNCTION
 void importNative_string() {
-	defineNative_string("length", lengthNative);
+	defineNative_string("byteLen", lengthNative);
 	defineNative_string("charAt", charAtNative);
 	defineNative_string("utf8Len", UTF8LenNative);
 	defineNative_string("utf8At", utf8AtNative);
