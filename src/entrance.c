@@ -229,7 +229,7 @@ void repl() {
 
 		if (!isContinued) {
 #if DEBUG_MODE
-			printf("CODE TEXT:\n%s\n", fullLine);
+			fprintf(stderr, "CODE TEXT:\n%s\n", fullLine);
 #endif
 
 			interpret_repl(fullLine);

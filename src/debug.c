@@ -8,9 +8,9 @@
 #include "vm.h"
 #include <assert.h>
 
-//output stream for all disassembly printing; NULL falls back to stdout.
-//the --print-bytecode runtime flag redirects this to stderr so the
-//script's own stdout stays clean
+//output stream for all disassembly printing; NULL falls back to stderr.
+//disassembly is a diagnostic dump, so it must never pollute the script's
+//own stdout (--print-bytecode additionally pins it to stderr explicitly)
 static FILE* disasmStream = NULL;
 
 void debug_setDisasmStream(FILE* stream) {
@@ -18,10 +18,10 @@ void debug_setDisasmStream(FILE* stream) {
 }
 
 static void disPrintValue(Value value) {
-	printValue((disasmStream != NULL) ? disasmStream : stdout, value, false);
+	printValue((disasmStream != NULL) ? disasmStream : stderr, value, false);
 }
 
-#define DIS_PRINTF(...) fprintf((disasmStream != NULL) ? disasmStream : stdout, __VA_ARGS__)
+#define DIS_PRINTF(...) fprintf((disasmStream != NULL) ? disasmStream : stderr, __VA_ARGS__)
 
 COLD_FUNCTION
 static uint32_t simpleInstruction(C_STR name, uint32_t offset) {

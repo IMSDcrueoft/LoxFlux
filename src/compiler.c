@@ -657,7 +657,7 @@ static ObjFunction* endCompiler() {
 		debug_setDisasmStream(stderr);
 		disassembleChunk(function, (function->name != NULL)
 			? ((function->name->length != 0) ? function->name->chars : "<lambda>") : "<script>", function->id);
-		debug_setDisasmStream(stdout);
+		debug_setDisasmStream(NULL);
 	}
 #endif
 	current = current->enclosing;

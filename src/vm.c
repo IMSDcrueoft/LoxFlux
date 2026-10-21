@@ -102,9 +102,9 @@ static bool throwError(Value error, C_STR format, ...) {
 		}
 	}
 
-	printf("[ErrorInfo] ");
-	printValue(stdout, error, false);
-	printf("\n");
+	fprintf(stderr, "[ErrorInfo] ");
+	printValue(stderr, error, false);
+	fprintf(stderr, "\n");
 
 	stack_reset();
 	return false;
@@ -1096,6 +1096,21 @@ static bool icInvokeSlow(ObjInstance* instance, ObjString* method, uint8_t argCo
 	return call(AS_CLOSURE(methodValue), argCount);
 }
 
+#if DEBUG_TRACE_EXECUTION //print in debug mode
+//only dump the active frame's slots (locals + temporaries) to stderr;
+//outer frames' slots are skipped to keep the trace readable
+COLD_FUNCTION
+static void traceFrameStack(FILE* stream, CallFrame* frame) {
+	fprintf(stream, "          ");
+	for (Value* slot = frame->slots; slot < vm.stackTop; slot++) {
+		fprintf(stream, "[ ");
+		printValue(stream, *slot, false);
+		fprintf(stream, " ]");
+	}
+	fprintf(stream, "\n");
+}
+#endif
+
 //to run code in vm
 HOT_FUNCTION
 static InterpretResult run()
@@ -1348,13 +1363,7 @@ static InterpretResult run()
 	while (true) //let it loop
 	{
 #if DEBUG_TRACE_EXECUTION //print in debug mode
-		printf("          ");
-		for (Value* slot = vm.stack; slot < vm.stackTop; slot++) {
-			printf("[ ");
-			printValue(stdout, *slot, false);
-			printf(" ]");
-		}
-		printf("\n");
+		traceFrameStack(stderr, frame);
 
 		//current ptr - begin ptr = offset value
 		disassembleInstruction(frame->closure->function, (uint32_t)(ip - frame->closure->function->chunk.code));
@@ -2690,7 +2699,7 @@ InterpretResult interpret(C_STR source)
 
 #if LOG_COMPILE_TIMING
 	double time_compile_f = (get_milliseconds() - time_compile);
-	printf("[Log] Finished compiling in %g ms.\n", time_compile_f);
+	fprintf(stderr, "[Log] Finished compiling in %g ms.\n", time_compile_f);
 #endif
 
 	//stack_push(OBJ_VAL(function));
@@ -2707,7 +2716,7 @@ InterpretResult interpret(C_STR source)
 
 #if LOG_EXECUTE_TIMING
 	double time_run_f = (get_milliseconds() - time_run);
-	printf("[Log] Finished executing in %g ms.\n", time_run_f);
+	fprintf(stderr, "[Log] Finished executing in %g ms.\n", time_run_f);
 #endif
 
 	return result;

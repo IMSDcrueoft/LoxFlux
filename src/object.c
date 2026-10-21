@@ -80,7 +80,7 @@ static Obj* allocateObject(size_t size, ObjType type) {
 	}
 
 #if DEBUG_LOG_GC
-	printf("[gc] %p allocate %zu for (%s)\n", (void*)object, size, objTypeInfo[type]);
+	fprintf(stderr, "[gc] %p allocate %zu for (%s)\n", (void*)object, size, objTypeInfo[type]);
 #endif
 
 	return object;
