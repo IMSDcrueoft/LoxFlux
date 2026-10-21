@@ -158,13 +158,6 @@ void repl() {
 			break;
 		}
 
-		//strip a leading UTF-8 BOM if present: PowerShell pipes prepend EF BB BF to the
-		//first line, which would otherwise be compiled as garbage source instead of
-		//matching a command (e.g. '/eval' would never be recognized)
-		if ((uint8_t)line[0] == 0xEF && (uint8_t)line[1] == 0xBB && (uint8_t)line[2] == 0xBF) {
-			memmove(line, line + 3, strlen(line + 3) + 1);
-		}
-
 		lineLen = (uint32_t)strlen(line);
 		if (lineLen > 1 && line[lineLen - 2] == '\\') {
 			line[lineLen - 2] = '\n';
