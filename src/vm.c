@@ -27,9 +27,17 @@
 //the global shared vm
 VM vm;
 
+static void closeUpvalues(Value* last);
+
 COLD_FUNCTION
 static void stack_reset()
 {
+	//close open upvalues before clearing the stack: discarded/cended executions
+	//must not leave escaped closures pointing into reset stack slots
+	if (vm.openUpvalues != NULL) {
+		closeUpvalues(vm.stack);
+	}
+
 	//reset the pointer
 	vm.stackTop = vm.stack;
 
@@ -448,6 +456,16 @@ void vm_init()
 	vm.initString = NULL;
 	vm.initString = copyString("init", (uint32_t)strlen("init"), false);
 	initTypeStrings();
+
+	vm.ceding = 0;
+}
+
+COLD_FUNCTION
+bool vm_isCeding() {
+	if (!vm.ceding) return false;
+	if (vm.stack == NULL) return false;
+	if (vm.grayStack == NULL) return false;
+	return vm.frameCount > 0;
 }
 
 COLD_FUNCTION
@@ -480,6 +498,8 @@ void vm_free()
 	for (uint32_t i = 0; i < TYPE_STRING_COUNT; ++i) {
 		vm.typeStrings[i] = NULL;
 	}
+	//the list is about to dangle: a following vm_init -> stack_reset must not walk it
+	vm.openUpvalues = NULL;
 	freeObjects();
 
 	//release the stack + string + gray arenas (VA reservations + committed pages)
@@ -499,6 +519,8 @@ void vm_free()
 
 	table_free(&vm.defaultClass.methods);
 
+	vm.ceding = 0;
+	vm.frameCount = 0;
 #if DEBUG_MODE
 	//leak accounting: every allocate/free pair runs through reallocate/reallocate_no_gc,
 	//so after the FULL teardown (objects, builtin tables, defaultClass) both
@@ -1235,6 +1257,7 @@ static InterpretResult run()
 		[OP_JIF_NOT_EQUAL_LC_NUMBER] = && label_op_jif_not_equal_lc_number,
 		[OP_JIF_EQUAL_LC] = && label_op_jif_equal_lc,
 		[OP_JIF_NOT_EQUAL_LC] = && label_op_jif_not_equal_lc,
+		[OP_CEDE] = && label_op_cede,
 	};
 #endif
 
@@ -2317,7 +2340,7 @@ static InterpretResult run()
 				}
 			}
 
-			//same as interpret()
+			//same as interpret_compile: create the module closure on top of the stack
 			ObjClosure* closure = newClosure(function);
 			stack_replace(OBJ_VAL(closure));
 
@@ -2659,6 +2682,12 @@ static InterpretResult run()
 				RUNTIME_ERROR("Operand must be a number.");
 			}
 		}
+		case OP_CEDE: {
+		label_op_cede:
+			//hand execution control back to the host; the frame/stack stay live
+			frame->ip = ip;
+			return INTERPRET_CEDE;
+		}
 		}
 	}
 
@@ -2678,25 +2707,41 @@ static InterpretResult run()
 #undef RUNTIME_ERROR
 }
 
-InterpretResult interpret(C_STR source)
+bool interpret_compile(C_STR source)
 {
+	if (vm.frameCount != 0 || vm.ceding) return false;
+
 #if LOG_COMPILE_TIMING
 	uint64_t time_compile = get_milliseconds();
 #endif
 
 	ObjFunction* function = compile(source, TYPE_SCRIPT);
-	if (function == NULL) return INTERPRET_COMPILE_ERROR;
+	if (function == NULL) return false;
 
 #if LOG_COMPILE_TIMING
 	double time_compile_f = (get_milliseconds() - time_compile);
 	fprintf(stderr, "[Log] Finished compiling in %g ms.\n", time_compile_f);
 #endif
 
-	//stack_push(OBJ_VAL(function));
 	ObjClosure* closure = newClosure(function);
-	//stack_replace(OBJ_VAL(closure));
 	stack_push(OBJ_VAL(closure));
-	call(closure, 0);
+
+	if (!call(closure, 0)) {
+		stack_reset();
+		vm.ceding = 0;
+		return false;
+	}
+
+	//now the frame/stack are live, so the VM can be ceded/resumed
+	vm.ceding = 1;
+	return true;
+}
+
+InterpretResult interpret_execute(void)
+{
+	if (!vm_isCeding() || vm.frameCount == 0) return INTERPRET_RUNTIME_ERROR;
+
+	vm.ceding = 0;
 
 #if LOG_EXECUTE_TIMING
 	uint64_t time_run = get_milliseconds();
@@ -2709,11 +2754,35 @@ InterpretResult interpret(C_STR source)
 	fprintf(stderr, "[Log] Finished executing in %g ms.\n", time_run_f);
 #endif
 
+	//CEDE keeps the paused execution resumable; everything else is idle again
+	if (result == INTERPRET_CEDE) {
+		vm.ceding = 1;
+	}
+	else {
+		//an imported module failing to compile aborts without runtimeError()
+		if (vm.frameCount != 0) stack_reset();
+		vm.ceding = 0;
+	}
 	return result;
 }
 
 InterpretResult interpret_repl(C_STR source) {
-	InterpretResult res = interpret(source);
-	stack_reset();//clean stack after use
+	if (!interpret_compile(source)) {
+		stack_reset();
+		vm.ceding = 0;
+		return INTERPRET_COMPILE_ERROR;
+	}
+
+	InterpretResult res = interpret_execute();
+
+	if (res == INTERPRET_CEDE) {
+		//the REPL has no host to resume from: drop the paused execution
+		stack_reset();
+		vm.ceding = 0;
+		res = INTERPRET_RUNTIME_ERROR;
+	}
+	else {
+		stack_reset();//clean stack after use
+	}
 	return res;
 }

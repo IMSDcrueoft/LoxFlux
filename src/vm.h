@@ -90,6 +90,9 @@ typedef struct {
 	size_t bytesAllocated_no_gc;
 	size_t bytesAllocated;
 
+	size_t beginGC;
+	size_t nextGC;
+
 	//gc gray worklist: plain count over the gray arena - same model as the vm
 	//stack: the hot push path is one bounds compare against the committed edge,
 	//not an arena call; capacity is grayArena.capacity / sizeof(Obj*), fixed
@@ -100,11 +103,11 @@ typedef struct {
 	uint8_t gcMark;
 	//mark if the gc is running
 	uint8_t gcWorking;
-	//pad
-	uint8_t padding[6];
 
-	size_t beginGC;
-	size_t nextGC;
+	// 1 = execution control has been ceded to the host
+	uint8_t ceding;
+	//pad
+	uint8_t padding[5];
 
 	//literal object and builtin object
 	ObjClass defaultClass;
@@ -138,6 +141,7 @@ typedef struct {
 
 typedef enum {
 	INTERPRET_OK,
+	INTERPRET_CEDE, // execution control returned to the host
 	INTERPRET_COMPILE_ERROR,
 	INTERPRET_RUNTIME_ERROR
 } InterpretResult;
@@ -147,6 +151,7 @@ extern VM vm;
 
 void vm_init();
 void vm_free();
+bool vm_isCeding();
 void vm_register_ic_function(ObjFunction* function);
 
 void stack_push(Value value);
@@ -164,7 +169,11 @@ uint32_t addConstant(Value value);
 //single-line wrappers (stringBytes/stringCommittedBytes/stackCommittedBytes)
 //are gone; pinnedBytes folds arenaBump_used(&vm.stringArena) into the no_gc book
 
-InterpretResult interpret(C_STR source);
+//compile + prepare the top-level frame; on success the VM is ceding and the
+//caller may release the source buffer before calling interpret_execute
+bool interpret_compile(C_STR source);
+//run the prepared frame, or continue after INTERPRET_CEDE
+InterpretResult interpret_execute(void);
 InterpretResult interpret_repl(C_STR source);
 
 //for builtin

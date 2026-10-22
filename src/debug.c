@@ -470,6 +470,8 @@ uint32_t disassembleInstruction(ObjFunction* function, uint32_t offset) {
 		return shortInstruction("OP_NOT_LOCAL", chunk, offset);
 	case OP_NEGATE_LOCAL:
 		return shortInstruction("OP_NEGATE_LOCAL", chunk, offset);
+	case OP_CEDE:
+		return simpleInstruction("OP_CEDE", offset);
 
 	case OP_EQUAL_LOCAL:
 		return shortInstruction("OP_EQUAL_LOCAL", chunk, offset);
@@ -619,6 +621,7 @@ void disassembleOpStack(OPStack* opStack) {
 		case OP_CLOSURE:          DIS_PRINTF("OP_CLOSURE\n"); break;
 		case OP_RETURN:           DIS_PRINTF("OP_RETURN\n"); break;
 		case OP_PRINT:            DIS_PRINTF("OP_PRINT\n"); break;
+		case OP_CEDE:             DIS_PRINTF("OP_CEDE\n"); break;
 		case OP_SET_SUBSCRIPT:    DIS_PRINTF("OP_SET_SUBSCRIPT\n"); break;
 		case OP_GET_SUBSCRIPT:    DIS_PRINTF("OP_GET_SUBSCRIPT\n"); break;
 		case OP_GET_UPVALUE:      DIS_PRINTF("OP_GET_UPVALUE\n"); break;

@@ -146,6 +146,9 @@ typedef enum {
 	OP_SET_PROP_LOCAL,		// the assigned value remains on the stack
 	OP_SET_PROP_LOCAL_POP,	// pop the assigned value
 
+	// hand execution control back to the host
+	OP_CEDE,
+
 	// guard
 	INVALID_OP
 } OpCode;

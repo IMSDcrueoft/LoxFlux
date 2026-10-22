@@ -261,11 +261,22 @@ void runFile(C_STR path) {
 	vm_init();
 
 	STR source = readFile(path);
-	InterpretResult result = interpret(source);
+	bool ok = interpret_compile(source);
 	mem_free(source);
 
-	if (result == INTERPRET_COMPILE_ERROR) exit(65);
-	if (result == INTERPRET_RUNTIME_ERROR) exit(70);
+	if (!ok) exit(65);
+
+	InterpretResult result = interpret_execute();
+
+	if (result == INTERPRET_CEDE) {
+		fprintf(stderr, "[Cede] execution paused; no resumer available.\n");
+	}
+	else if (result == INTERPRET_COMPILE_ERROR) {
+		exit(65);
+	}
+	else if (result == INTERPRET_RUNTIME_ERROR) {
+		exit(70);
+	}
 
 	vm_free();
 
