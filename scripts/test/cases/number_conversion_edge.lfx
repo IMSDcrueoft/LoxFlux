@@ -1,0 +1,52 @@
+// typed array stores, slice bounds and math.seed must convert NaN/Inf/huge doubles safely
+// exit: 0
+// out: 0 0 1
+// out: 0 0 1
+// out: 0 0 1
+// out: 0 0 1
+// out: Infinity -Infinity NaN
+// out: true
+// out: 0 1 2 3 4 5
+// out: 5
+// out: abcdef
+// out: abcdef
+// out: nil
+var u = @ctor.U32Array(3);
+u[0] = @math.NaN;
+u[1] = @math.Infinity;
+u[2] = 4294967297;
+print u[0], u[1], u[2];
+
+var s = @ctor.I32Array(3);
+s[0] = @math.NaN;
+s[1] = @math.Infinity;
+s[2] = 4294967297;
+print s[0], s[1], s[2];
+
+var b = @ctor.U8Array(3);
+b[0] = @math.NaN;
+b[1] = @math.Infinity;
+b[2] = 257;
+print b[0], b[1], b[2];
+
+var p8 = @ctor.U8Array(0);
+@array.push(p8, @math.NaN, @math.Infinity, 257);
+print p8[0], p8[1], p8[2];
+
+var f = @ctor.F32Array(3);
+f[0] = 1e300;
+f[1] = -1e300;
+f[2] = @math.NaN;
+print f[0], f[1], f[2];
+
+print @math.seed(@math.NaN);
+
+var a = @ctor.Array();
+@array.push(a, 0, 1, 2, 3, 4);
+var sl = @array.slice(a, @math.NaN, @math.Infinity);
+print sl[0], sl[1], sl[2], sl[3], sl[4], @array.length(sl);
+print @array.length(@array.slice(a, -1e300, 1e300));
+
+print @string.slice("abcdef", @math.NaN, @math.Infinity);
+print @string.slice("abcdef", -1e300, 1e300);
+print @string.charAt("abc", @math.NaN);

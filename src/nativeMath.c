@@ -51,7 +51,7 @@ static Value randomNative(int argCount, Value* args) {
 //seed it
 static Value seedNative(int argCount, Value* args) {
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
-		uint32_t seed = (uint32_t)AS_NUMBER(args[0]);
+		uint32_t seed = double_to_u32(AS_NUMBER(args[0]));
 		xoshiro256starstar_init(&rng, seed);
 		return BOOL_VAL(true);
 	}

@@ -791,8 +791,10 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
     do {																							\
 		/* Pop the top two values from the stack */													\
 		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {								\
+			double left = AS_NUMBER(vm.stackTop[-2]);												\
+			double right = AS_NUMBER(vm.stackTop[-1]);												\
 			/* Perform the operation and push the result back */									\
-			vm.stackTop[-2] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-2]) op (int32_t)AS_NUMBER(vm.stackTop[-1]));	\
+			vm.stackTop[-2] = NUMBER_VAL(double_to_i32(left) op double_to_i32(right));				\
 			vm.stackTop--;																			\
 			return ip;																				\
 		}																							\
@@ -803,8 +805,9 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
 		/* Pop the top two values from the stack */											\
 		if (IS_NUMBER(vm.stackTop[-1])) {													\
 			int32_t constant = READ_WORD();													\
+			double left = AS_NUMBER(vm.stackTop[-1]);										\
 			/* Perform the operation and push the result back */							\
-			vm.stackTop[-1] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-1]) op constant);	\
+			vm.stackTop[-1] = NUMBER_VAL(double_to_i32(left) op constant);					\
 			return ip;																		\
 		}																					\
 	} while (false)
@@ -835,7 +838,8 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
 	case BIT_OP_NOT: {
 	label_bit_not:
 		if (IS_NUMBER(vm.stackTop[-1])) {
-			vm.stackTop[-1] = NUMBER_VAL(~(int32_t)AS_NUMBER(vm.stackTop[-1]));
+			double operand = AS_NUMBER(vm.stackTop[-1]);
+			vm.stackTop[-1] = NUMBER_VAL(~double_to_i32(operand));
 			return ip;
 		}
 		break;
@@ -859,16 +863,12 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
 	case BIT_OP_SHL: {
 	label_bit_shl:
 		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
-			int32_t shiftBits = (int32_t)AS_NUMBER(vm.stackTop[-1]);
-
-			if (shiftBits >= 0) {
-				vm.stackTop[-2] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-2]) << (shiftBits & 31));
-				vm.stackTop--;
-			}
-			else {
-				vm.stackTop[-2] = NUMBER_VAL(0);
-				vm.stackTop--;
-			}
+			double left = AS_NUMBER(vm.stackTop[-2]);
+			double shift = AS_NUMBER(vm.stackTop[-1]);
+			//JS semantics: ToInt32(left) << (ToUint32(shift) & 31), result read as int32
+			uint32_t result = (uint32_t)double_to_i32(left) << double_to_shift32(shift);
+			vm.stackTop[-2] = NUMBER_VAL((int32_t)result);
+			vm.stackTop--;
 			return ip;
 		}
 		break;
@@ -876,10 +876,12 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
 	case BIT_OP_SAR: {
 	label_bit_sar:
 		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
-			int32_t shiftBits = (int32_t)AS_NUMBER(vm.stackTop[-1]);
+			double left = AS_NUMBER(vm.stackTop[-2]);
+			double shift = AS_NUMBER(vm.stackTop[-1]);
 
-			if (shiftBits >= 0) {
-				vm.stackTop[-2] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-2]) >> (shiftBits & 31));
+			//NaN is not negative: it takes the shift-0 path, matching the constant path
+			if (!(shift < 0.0)) {
+				vm.stackTop[-2] = NUMBER_VAL(double_to_i32(left) >> double_to_shift32(shift));
 				vm.stackTop--;
 			}
 			else {
@@ -893,10 +895,12 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
 	case BIT_OP_SHR: {
 	label_bit_shr:
 		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
-			int32_t shiftBits = (int32_t)AS_NUMBER(vm.stackTop[-1]);
+			double left = AS_NUMBER(vm.stackTop[-2]);
+			double shift = AS_NUMBER(vm.stackTop[-1]);
 
-			if (shiftBits >= 0) {
-				vm.stackTop[-2] = NUMBER_VAL((uint32_t)AS_NUMBER(vm.stackTop[-2]) >> (shiftBits & 31));
+			//NaN is not negative: it takes the shift-0 path, matching the constant path
+			if (!(shift < 0.0)) {
+				vm.stackTop[-2] = NUMBER_VAL(double_to_u32(left) >> double_to_shift32(shift));
 				vm.stackTop--;
 			}
 			else {
@@ -926,13 +930,9 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
 	label_bit_shli:
 		if (IS_NUMBER(vm.stackTop[-1])) {
 			int32_t shiftBits = READ_BYTE();
-
-			if (shiftBits >= 0) {
-				vm.stackTop[-1] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-1]) << shiftBits);
-			}
-			else {
-				vm.stackTop[-1] = NUMBER_VAL(0);
-			}
+			double left = AS_NUMBER(vm.stackTop[-1]);
+			uint32_t result = (uint32_t)double_to_i32(left) << shiftBits;
+			vm.stackTop[-1] = NUMBER_VAL((int32_t)result);
 			return ip;
 		}
 		break;
@@ -941,13 +941,8 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
 	label_bit_sari:
 		if (IS_NUMBER(vm.stackTop[-1])) {
 			int32_t shiftBits = READ_BYTE();
-
-			if (shiftBits >= 0) {
-				vm.stackTop[-1] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-1]) >> shiftBits);
-			}
-			else {
-				vm.stackTop[-1] = NUMBER_VAL(0);
-			}
+			double left = AS_NUMBER(vm.stackTop[-1]);
+			vm.stackTop[-1] = NUMBER_VAL(double_to_i32(left) >> shiftBits);
 			return ip;
 		}
 		break;
@@ -956,13 +951,8 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
 	label_bit_shri:
 		if (IS_NUMBER(vm.stackTop[-1])) {
 			int32_t shiftBits = READ_BYTE();
-
-			if (shiftBits >= 0) {
-				vm.stackTop[-1] = NUMBER_VAL((uint32_t)AS_NUMBER(vm.stackTop[-1]) >> shiftBits);
-			}
-			else {
-				vm.stackTop[-1] = NUMBER_VAL(0);
-			}
+			double left = AS_NUMBER(vm.stackTop[-1]);
+			vm.stackTop[-1] = NUMBER_VAL(double_to_u32(left) >> shiftBits);
 			return ip;
 		}
 		break;

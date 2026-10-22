@@ -282,30 +282,31 @@ HOT_FUNCTION
 void setTypedArrayElement(ObjArray* array, uint32_t index, Value val)
 {
 	val = IS_NUMBER(val) ? val : NUMBER_VAL(0);
+	double num = AS_NUMBER(val);
 	switch (OBJ_GET_TYPE(array->obj)) {
 	case OBJ_ARRAY_F64:
-		ARRAY_ELEMENT(array, double, index) = AS_NUMBER(val);
+		ARRAY_ELEMENT(array, double, index) = num;
 		break;
 	case OBJ_ARRAY_F32:
-		ARRAY_ELEMENT(array, float, index) = (float)AS_NUMBER(val);
+		ARRAY_ELEMENT(array, float, index) = double_to_f32(num);
 		break;
 	case OBJ_ARRAY_U32:
-		ARRAY_ELEMENT(array, uint32_t, index) = (uint32_t)AS_NUMBER(val);
+		ARRAY_ELEMENT(array, uint32_t, index) = double_to_u32(num);
 		break;
 	case OBJ_ARRAY_I32:
-		ARRAY_ELEMENT(array, int32_t, index) = (int32_t)AS_NUMBER(val);
+		ARRAY_ELEMENT(array, int32_t, index) = double_to_i32(num);
 		break;
 	case OBJ_ARRAY_U16:
-		ARRAY_ELEMENT(array, uint16_t, index) = (uint16_t)AS_NUMBER(val);
+		ARRAY_ELEMENT(array, uint16_t, index) = (uint16_t)double_to_u32(num);
 		break;
 	case OBJ_ARRAY_I16:
-		ARRAY_ELEMENT(array, int16_t, index) = (int16_t)AS_NUMBER(val);
+		ARRAY_ELEMENT(array, int16_t, index) = (int16_t)double_to_i32(num);
 		break;
 	case OBJ_ARRAY_U8:
-		ARRAY_ELEMENT(array, uint8_t, index) = (uint8_t)AS_NUMBER(val);
+		ARRAY_ELEMENT(array, uint8_t, index) = (uint8_t)double_to_u32(num);
 		break;
 	case OBJ_ARRAY_I8:
-		ARRAY_ELEMENT(array, int8_t, index) = (int8_t)AS_NUMBER(val);
+		ARRAY_ELEMENT(array, int8_t, index) = (int8_t)double_to_i32(num);
 		break;
 	}
 }

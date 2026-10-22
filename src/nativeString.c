@@ -94,7 +94,7 @@ static Value charAtNative(int argCount, Value* args) {
 
 		if (stringPtr != NULL) {
 			double indexf = AS_NUMBER(args[1]);
-			if (indexf < 0 || indexf >= length) return NIL_VAL;//out of range
+			if (!(indexf >= 0 && indexf < length)) return NIL_VAL;//out of range (NaN included)
 			uint32_t index = (uint32_t)indexf;
 
 			return OBJ_VAL(copyString(stringPtr + index, 1, false));
@@ -126,7 +126,7 @@ static Value utf8AtNative(int argCount, Value* args) {
 
 		if (stringPtr != NULL) {
 			double indexf = AS_NUMBER(args[1]);
-			if (indexf < 0 || indexf >= length) return NIL_VAL;//out of range
+			if (!(indexf >= 0 && indexf < length)) return NIL_VAL;//out of range (NaN included)
 			uint32_t index = (uint32_t)indexf;
 
 			for (uint32_t i = 0, char_count = 0, start; i < length; char_count++) {
@@ -397,19 +397,11 @@ static Value sliceNative(int argCount, Value* args) {
 	}
 
 	// neg index
-	int64_t beginIndex = (int64_t)beginIndexf;
-	if (beginIndex < 0) {
-		beginIndex = length + beginIndex;
-	}
-
-	int64_t endIndex = (int64_t)endIndexf;
-	if (endIndex < 0) {
-		endIndex = length + endIndex;
-	}
+	int64_t beginIndex = double_to_slice_index(beginIndexf, length);
+	int64_t endIndex = double_to_slice_index(endIndexf, length);
 
 	// check range
-	beginIndex = (beginIndex < 0) ? 0 : (beginIndex > length ? length : beginIndex);
-	endIndex = (endIndex < beginIndex) ? beginIndex : (endIndex > length ? length : endIndex);
+	endIndex = (endIndex < beginIndex) ? beginIndex : endIndex;
 
 	// calc slice length
 	uint32_t sliceLength = (uint32_t)(endIndex - beginIndex);

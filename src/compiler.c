@@ -2697,61 +2697,58 @@ static void instructionOptimize() {
 
 			double rightNum = AS_NUMBER(right);
 
-			if (isnan(rightNum) || isinf(rightNum)) {
-				error("Operand of bitwise must be a finite number.");
-				break;
-			}
-
-			// convert to int
-			uint32_t rightIMM = (uint32_t)AS_NUMBER(right);
-
 			switch (bitOp)
 			{
-			case BIT_OP_AND:
+			case BIT_OP_AND: {
+				uint32_t rightIMM = double_to_u32(rightNum);
 				chunk_fallback(chunk, 2 + 3);//op + const
 				emitBytes(6, OP_BITWISE, BIT_OP_ANDI, (uint8_t)rightIMM, (uint8_t)(rightIMM >> 8), (uint8_t)(rightIMM >> 16), (uint8_t)(rightIMM >> 24));
 				clearOpStack();
 				break;
-			case BIT_OP_OR:
+			}
+			case BIT_OP_OR: {
+				uint32_t rightIMM = double_to_u32(rightNum);
 				chunk_fallback(chunk, 2 + 3);//op + const
 				emitBytes(6, OP_BITWISE, BIT_OP_ORI, (uint8_t)rightIMM, (uint8_t)(rightIMM >> 8), (uint8_t)(rightIMM >> 16), (uint8_t)(rightIMM >> 24));
 				clearOpStack();
 				break;
-			case BIT_OP_XOR:
+			}
+			case BIT_OP_XOR: {
+				uint32_t rightIMM = double_to_u32(rightNum);
 				chunk_fallback(chunk, 2 + 3);//op + const
 				emitBytes(6, OP_BITWISE, BIT_OP_XORI, (uint8_t)rightIMM, (uint8_t)(rightIMM >> 8), (uint8_t)(rightIMM >> 16), (uint8_t)(rightIMM >> 24));
 				clearOpStack();
 				break;
-			case BIT_OP_SHL:
+			}
+			case BIT_OP_SHL: {
+				uint32_t shiftIMM = double_to_shift32(rightNum);
+				chunk_fallback(chunk, 2 + 3);//op + const
+				emitBytes(3, OP_BITWISE, BIT_OP_SHLI, (uint8_t)shiftIMM);
+				clearOpStack();
+				break;
+			}
+			case BIT_OP_SHR: {
 				if (rightNum < 0) {
 					error("Operand of bitwise must be a positive.");
 					break;
 				}
-				rightIMM &= 31;
+				uint32_t shiftIMM = double_to_shift32(rightNum);
 				chunk_fallback(chunk, 2 + 3);//op + const
-				emitBytes(3, OP_BITWISE, BIT_OP_SHLI, (uint8_t)rightIMM);
+				emitBytes(3, OP_BITWISE, BIT_OP_SHRI, (uint8_t)shiftIMM);
 				clearOpStack();
 				break;
-			case BIT_OP_SHR:
+			}
+			case BIT_OP_SAR: {
 				if (rightNum < 0) {
 					error("Operand of bitwise must be a positive.");
 					break;
 				}
-				rightIMM &= 31;
+				uint32_t shiftIMM = double_to_shift32(rightNum);
 				chunk_fallback(chunk, 2 + 3);//op + const
-				emitBytes(3, OP_BITWISE, BIT_OP_SHRI, (uint8_t)rightIMM);
+				emitBytes(3, OP_BITWISE, BIT_OP_SARI, (uint8_t)shiftIMM);
 				clearOpStack();
 				break;
-			case BIT_OP_SAR:
-				if (rightNum < 0) {
-					error("Operand of bitwise must be a positive.");
-					break;
-				}
-				rightIMM &= 31;
-				chunk_fallback(chunk, 2 + 3);//op + const
-				emitBytes(3, OP_BITWISE, BIT_OP_SARI, (uint8_t)rightIMM);
-				clearOpStack();
-				break;
+			}
 			default:
 				fprintf(stderr, "Unexpected Bitwise(%u)\n", bitOp);
 				break;
