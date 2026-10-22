@@ -514,7 +514,6 @@ void vm_free()
 	vm.grayStack = NULL;
 	vm.grayCount = 0;
 
-	vm.initString = NULL;
 	removeBuiltins();
 
 	table_free(&vm.defaultClass.methods);
