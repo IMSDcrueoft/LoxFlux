@@ -15,7 +15,12 @@ static void print_usage(FILE* stream) {
 	fprintf(stream, "  --print-bytecode  dump the compiled bytecode of every function to stderr\n");
 	fprintf(stream, "  --no-optimize     disable all compile-time optimizations (peephole fusion,\n");
 	fprintf(stream, "                    constant folding, branch-jump fusion)\n");
+	fprintf(stream, "  --version         print the interpreter version and exit\n");
 	fprintf(stream, "  (with no script, the REPL starts; flags apply to /eval too)\n");
+}
+
+static void print_version() {
+	printf("%s %s\n", INTERPRETER_NAME, INTERPRETER_VERSION);
 }
 
 int loxFluxMain(int argc, C_STR argv[]) {
@@ -30,6 +35,10 @@ int loxFluxMain(int argc, C_STR argv[]) {
 		}
 		else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
 			print_usage(stdout);
+			return 0;
+		}
+		else if (strcmp(argv[i], "--version") == 0 || strcmp(argv[i], "-v") == 0) {
+			print_version();
 			return 0;
 		}
 		else if (argv[i][0] == '-' && argv[i][1] != '\0') {
