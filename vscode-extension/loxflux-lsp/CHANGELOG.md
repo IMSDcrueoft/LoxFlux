@@ -2,6 +2,10 @@
 
 All notable changes to the LoxFlux Language Server extension will be documented in this file.
 
+## [0.1.3]
+
+- Update the `@string` builtin member name from `length` to `byteLen`.
+
 ## [0.1.2]
 
 - Top-level `const` now reports a warning instead of an error, since module files (imported) legally run in local scope where `const` is allowed.

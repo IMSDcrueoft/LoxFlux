@@ -109,7 +109,7 @@ export const BUILTIN_MODULES: Record<string, BuiltinModule> = {
 		name: '@string',
 		doc: 'String manipulation and high-performance string building (ASCII + UTF-8).',
 		members: [
-			fn('length', 's', 'Returns the byte length of a string.'),
+			fn('byteLen', 's', 'Returns the byte length of a string.'),
 			fn('utf8Len', 's', 'Returns the character count for UTF-8 strings (ignoring byte-level details). e.g. `@string.utf8Len("αβγ")` → `3`'),
 			fn('charAt', 's, i', 'Retrieves an ASCII character by byte position.'),
 			fn('utf8At', 's, i', 'Retrieves a UTF-8 character by logical character position. e.g. `@string.utf8At("αβγ", 1)` → `"β"`'),
