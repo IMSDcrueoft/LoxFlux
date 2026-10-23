@@ -83,6 +83,9 @@ typedef enum {
 	OP_THROW,			// throw
 	OP_IMPORT,			// import module
 
+	// hand execution control back to the host
+	OP_CEDE,
+
 	//super commond
 	//OP_*_CONST : 1 + 2 byte, 16bits index into function's own constants (number only)
 	OP_ADD_CONST,

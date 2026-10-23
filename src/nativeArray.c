@@ -59,31 +59,32 @@ static Value pushNative(int argCount, Value* args) {
 		else {//typed array
 			for (int32_t i = 1; i < argCount; ++i) {
 				Value val = IS_NUMBER(args[i]) ? args[i] : NUMBER_VAL(0);
+				double num = AS_NUMBER(val);
 
 				switch (OBJ_GET_TYPE(array->obj)) {
 				case OBJ_ARRAY_F64:
-					ARRAY_ELEMENT(array, double, array->length) = AS_NUMBER(val);
+					ARRAY_ELEMENT(array, double, array->length) = num;
 					break;
 				case OBJ_ARRAY_F32:
-					ARRAY_ELEMENT(array, float, array->length) = (float)AS_NUMBER(val);
+					ARRAY_ELEMENT(array, float, array->length) = double_to_f32(num);
 					break;
 				case OBJ_ARRAY_U32:
-					ARRAY_ELEMENT(array, uint32_t, array->length) = (uint32_t)AS_NUMBER(val);
+					ARRAY_ELEMENT(array, uint32_t, array->length) = double_to_u32(num);
 					break;
 				case OBJ_ARRAY_I32:
-					ARRAY_ELEMENT(array, int32_t, array->length) = (int32_t)AS_NUMBER(val);
+					ARRAY_ELEMENT(array, int32_t, array->length) = double_to_i32(num);
 					break;
 				case OBJ_ARRAY_U16:
-					ARRAY_ELEMENT(array, uint16_t, array->length) = (uint16_t)AS_NUMBER(val);
+					ARRAY_ELEMENT(array, uint16_t, array->length) = (uint16_t)double_to_u32(num);
 					break;
 				case OBJ_ARRAY_I16:
-					ARRAY_ELEMENT(array, int16_t, array->length) = (int16_t)AS_NUMBER(val);
+					ARRAY_ELEMENT(array, int16_t, array->length) = (int16_t)double_to_i32(num);
 					break;
 				case OBJ_ARRAY_U8:
-					ARRAY_ELEMENT(array, uint8_t, array->length) = (uint8_t)AS_NUMBER(val);
+					ARRAY_ELEMENT(array, uint8_t, array->length) = (uint8_t)double_to_u32(num);
 					break;
 				case OBJ_ARRAY_I8:
-					ARRAY_ELEMENT(array, int8_t, array->length) = (int8_t)AS_NUMBER(val);
+					ARRAY_ELEMENT(array, int8_t, array->length) = (int8_t)double_to_i32(num);
 					break;
 				}
 
@@ -203,29 +204,11 @@ static Value sliceNative(int argCount, Value* args) {
 	int64_t end = length;
 
 	if (argCount >= 2 && IS_NUMBER(args[1])) {
-		start = (int64_t)AS_NUMBER(args[1]);
-
-		// neg index
-		if (start < 0) {
-			start = length + start;
-		}
-
-		// range check
-		if (start < 0) start = 0;
-		if (start > length) start = length;
+		start = double_to_slice_index(AS_NUMBER(args[1]), length);
 	}
 
 	if (argCount >= 3 && IS_NUMBER(args[2])) {
-		end = (int64_t)AS_NUMBER(args[2]);
-
-		// neg index 
-		if (end < 0) {
-			end = length + end;
-		}
-
-		// range check
-		if (end < 0) end = 0;
-		if (end > length) end = length;
+		end = double_to_slice_index(AS_NUMBER(args[2]), length);
 	}
 
 	if (start > end) start = end;

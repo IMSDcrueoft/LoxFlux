@@ -1,5 +1,5 @@
 var Builder = @ctor.StringBuilder;
-var strLen = @string.length;
+var strLen = @string.byteLen;
 var utf8Len = @string.utf8Len;
 var charAt = @string.charAt;
 var utf8At = @string.utf8At;

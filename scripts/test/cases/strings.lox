@@ -20,7 +20,7 @@ print "tab\there";
 print "line1\nline2";
 print "quote\"inside";
 print "back\\slash";
-print @string.length("hello");
+print @string.byteLen("hello");
 print @string.charAt("hello", 1);
 print @string.parseInt("42");
 print @string.parseFloat("3.14");

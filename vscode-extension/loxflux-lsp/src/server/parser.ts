@@ -155,6 +155,8 @@ export class Parser {
 				case TokenType.Print:
 				case TokenType.Return:
 				case TokenType.Throw:
+				case TokenType.Export:
+				case TokenType.Cede:
 					return;
 				default:
 					this.advance();
@@ -394,6 +396,9 @@ export class Parser {
 		if (this.match(TokenType.Export)) {
 			return this.exportStatement();
 		}
+		if (this.match(TokenType.Cede)) {
+			return this.cedeStatement();
+		}
 		return this.expressionStatement();
 	}
 
@@ -429,6 +434,12 @@ export class Parser {
 			this.consume(TokenType.Semicolon, "Expect ';' after export value.");
 		}
 		return { kind: 'Export', start: exportToken.start, end: this.previous.end, exportToken, value };
+	}
+
+	private cedeStatement(): Stmt {
+		const cedeToken = this.previous;
+		this.consume(TokenType.Semicolon, "Expect ';' after 'cede'.");
+		return { kind: 'Cede', start: cedeToken.start, end: this.previous.end, cedeToken };
 	}
 
 	private ifStatement(): Stmt {

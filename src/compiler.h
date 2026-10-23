@@ -9,19 +9,19 @@
 #include "object.h"
 
 //do optimize
+#ifndef COMPILATION_TIME_OPTIMIZATION
 #define COMPILATION_TIME_OPTIMIZATION 1
+#endif
 
-#define LOCAL_INIT 64
-//local var
-#define LOCAL_MAX 1024
-//array literal
-#define ARRAY_MAX 1024
-//object literal
-#define OBJECT_MAX_NESTING 12
-//function nesting
-#define FUNCTION_MAX_NESTING 8
-//max parser recursion depth (expressions/statements),guard against C stack overflow
-#define MAX_PARSE_DEPTH 512
+typedef enum {
+	LOCAL_INIT = 64,
+	LOCAL_MAX = 1024,
+	ARRAY_MAX = 1024,
+	OBJECT_MAX_NESTING = 12,
+	FUNCTION_MAX_NESTING = 8,
+	//max parser recursion depth (expressions/statements),guard against C stack overflow
+	MAX_PARSE_DEPTH = 512
+} CompilerConfig;
 
 typedef struct {
 	Token current;

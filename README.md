@@ -1,5 +1,5 @@
 # LoxFlux
-![Version](https://img.shields.io/badge/version-0.11.6-blue)
+![Version](https://img.shields.io/badge/version-0.11.7-blue)
 
 LoxFlux is an independent reimplementation of the cLox interpreter described in "Crafting Interpreters"—a stack-based bytecode virtual machine. All code is written from scratch, following the book’s design principles. This project is still actively being developed and improved.
 
@@ -95,6 +95,17 @@ _(AMD Ryzen7-5800X, Windows 11, Use ClangCL/LLVM 22.1.3 for loxflux & clox (loop
 
 - **do-while**: Supported `while`,`for` and `do-while` loop.
 - **`break` and `continue` keywords**: Supported within loops.
+
+---
+
+### Cede
+
+- **`cede` keyword**: Hands execution control back to the host while keeping the VM frame stack live. Execution resumes from the next statement when the host resumes the VM. The standalone CLI has no resumer, so `cede` stops execution there.
+```lox
+print "before";
+cede;
+print "after"; // runs only after the host resumes execution
+```
 
 ---
 
@@ -306,7 +317,7 @@ These functions are particularly useful for runtime type validation and debuggin
 The `@string` module provides advanced string manipulation capabilities, supporting both basic operations and high-performance string building. It handles ASCII and UTF-8 encodings with memory-efficient strategies, ideal for text processing tasks.
 
 - **String Methods**:
-  - `length`: Returns the byte length of a string.  
+  - `byteLen`: Returns the byte length of a string.  
   - `utf8Len`: Returns the character count for UTF-8 strings (ignoring byte-level details). e.g.,`@string.utf8Len("αβγ")` → `3`
   - `charAt`: Retrieves an ASCII character by byte position.  
   - `utf8At`: Retrieves a UTF-8 character by logical character position. e.g.,`@string.utf8At("αβγ", 1)` → `"β"`

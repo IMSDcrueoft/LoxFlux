@@ -15,7 +15,12 @@ static void print_usage(FILE* stream) {
 	fprintf(stream, "  --print-bytecode  dump the compiled bytecode of every function to stderr\n");
 	fprintf(stream, "  --no-optimize     disable all compile-time optimizations (peephole fusion,\n");
 	fprintf(stream, "                    constant folding, branch-jump fusion)\n");
+	fprintf(stream, "  --version         print the interpreter version and exit\n");
 	fprintf(stream, "  (with no script, the REPL starts; flags apply to /eval too)\n");
+}
+
+static void print_version() {
+	printf("%s %s\n", INTERPRETER_NAME, INTERPRETER_VERSION);
 }
 
 int loxFluxMain(int argc, C_STR argv[]) {
@@ -30,6 +35,10 @@ int loxFluxMain(int argc, C_STR argv[]) {
 		}
 		else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
 			print_usage(stdout);
+			return 0;
+		}
+		else if (strcmp(argv[i], "--version") == 0 || strcmp(argv[i], "-v") == 0) {
+			print_version();
 			return 0;
 		}
 		else if (argv[i][0] == '-' && argv[i][1] != '\0') {
@@ -158,13 +167,6 @@ void repl() {
 			break;
 		}
 
-		//strip a leading UTF-8 BOM if present: PowerShell pipes prepend EF BB BF to the
-		//first line, which would otherwise be compiled as garbage source instead of
-		//matching a command (e.g. '/eval' would never be recognized)
-		if ((uint8_t)line[0] == 0xEF && (uint8_t)line[1] == 0xBB && (uint8_t)line[2] == 0xBF) {
-			memmove(line, line + 3, strlen(line + 3) + 1);
-		}
-
 		lineLen = (uint32_t)strlen(line);
 		if (lineLen > 1 && line[lineLen - 2] == '\\') {
 			line[lineLen - 2] = '\n';
@@ -236,7 +238,7 @@ void repl() {
 
 		if (!isContinued) {
 #if DEBUG_MODE
-			printf("CODE TEXT:\n%s\n", fullLine);
+			fprintf(stderr, "CODE TEXT:\n%s\n", fullLine);
 #endif
 
 			interpret_repl(fullLine);
@@ -250,6 +252,9 @@ void repl() {
 	vm_free();
 
 #if LOG_MALLOC_INFO
+	//final stats only: release delayed-free blocks so mimalloc's "current"
+	//counters do not look like a leak after a complete teardown
+	mem_collect(true);
 	log_malloc_info();
 #endif
 #undef match_string
@@ -259,15 +264,29 @@ void runFile(C_STR path) {
 	vm_init();
 
 	STR source = readFile(path);
-	InterpretResult result = interpret(source);
+	bool ok = interpret_compile(source);
 	mem_free(source);
 
-	if (result == INTERPRET_COMPILE_ERROR) exit(65);
-	if (result == INTERPRET_RUNTIME_ERROR) exit(70);
+	if (!ok) exit(65);
+
+	InterpretResult result = interpret_execute();
+
+	if (result == INTERPRET_CEDE) {
+		fprintf(stderr, "[Cede] execution ceded; no resumer available.\n");
+	}
+	else if (result == INTERPRET_COMPILE_ERROR) {
+		exit(65);
+	}
+	else if (result == INTERPRET_RUNTIME_ERROR) {
+		exit(70);
+	}
 
 	vm_free();
 
 #if LOG_MALLOC_INFO
+	//final stats only: release delayed-free blocks so mimalloc's "current"
+	//counters do not look like a leak after a complete teardown
+	mem_collect(true);
 	log_malloc_info();
 #endif
 }

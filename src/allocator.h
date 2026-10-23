@@ -30,6 +30,7 @@
 #define mem_realloc mi_realloc
 #define mem_free mi_free
 #define mem_print_stats mi_stats_print
+#define mem_collect(force) mi_collect(force)
 
 #else
 #include <stdlib.h>
@@ -38,6 +39,7 @@
 #define mem_realloc realloc
 #define mem_free free
 #define mem_print_stats
+#define mem_collect(force) ((void)(force))
 #endif
 
 #undef LOXFLUX_USE_MIMALLOC

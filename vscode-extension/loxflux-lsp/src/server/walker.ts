@@ -113,6 +113,8 @@ function walkStmt(stmt: Stmt, ctx: WalkContext, handlers: WalkHandlers): void {
 				walkExpr(stmt.value, ctx, handlers);
 			}
 			break;
+		case 'Cede':
+			break;
 		case 'Break':
 		case 'Continue':
 			break;

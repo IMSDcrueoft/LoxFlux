@@ -59,7 +59,7 @@
 				},
 				{
 					"name": "keyword.control.flow.loxflux",
-					"match": "\\b(return|break|continue|throw)\\b"
+					"match": "\\b(return|break|continue|throw|cede)\\b"
 				},
 				{
 					"name": "meta.function.definition.loxflux",

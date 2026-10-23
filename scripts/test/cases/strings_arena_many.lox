@@ -15,6 +15,6 @@ while (i < 5000) {
 	i = i + 1;
 }
 print first;
-print @string.length(@string.intern(b));
+print @string.byteLen(@string.intern(b));
 print first;
 

@@ -20,8 +20,6 @@ typedef enum {
 	MODULE_COUNT,//as the size
 } BuiltinMouduleType;
 
-#define BUILTIN_MODULE_COUNT MODULE_COUNT
-
 void importNative_math();
 void importNative_array();
 void importNative_object();

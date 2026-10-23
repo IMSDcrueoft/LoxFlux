@@ -1,0 +1,55 @@
+// bitwise operands follow JS ToInt32/ToUint32 conversion; NaN/Inf/huge values are defined
+// exit: 0
+// out: 0
+// out: -1
+// out: 5
+// out: 7
+// out: 0
+// out: 5
+// out: 5
+// out: 1
+// out: 0
+// out: 1
+// out: 1
+// out: 3
+// out: -2147483648
+// out: -2147483648
+// out: 1
+// out: 1
+// out: 1
+// out: 0
+// out: 5
+// out: 5
+// out: 5
+// out: 5
+// out: 5
+// out: 5
+var n = @math.NaN;
+var inf = @math.Infinity;
+var big = 1e308;
+var neg = -1;
+
+print n & 3;
+print ~n;
+print 5 << n;
+print inf | 7;
+print inf >>> 1;
+print 5 >> inf;
+print 5 >>> inf;
+print 1 << big;
+print big & 1;
+print 5 & 4294967297;
+print 1 << 4294967296;
+print 3 & -1;
+print 5 << neg;
+print 1 << 31;
+print 1 << 1e308;
+print 1 << @math.Infinity;
+print 1 << @math.NaN;
+print 5 & @math.NaN;
+print 5 | @math.Infinity;
+print 5 ^ @math.NaN;
+print 5 >> @math.NaN;
+print 5 >>> @math.Infinity;
+print 5 >> n;
+print 5 >>> n;

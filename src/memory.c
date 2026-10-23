@@ -16,7 +16,7 @@ void* reallocate_no_gc(void* pointer, size_t oldSize, size_t newSize)
 	if (newSize == 0) {
 		if (pointer != NULL) {
 #if LOG_EACH_MALLOC_INFO
-			printf("[mem] free %p\n", pointer);
+			fprintf(stderr, "[mem] free %p\n", pointer);
 #endif
 			mem_free(pointer);
 		}
@@ -27,7 +27,7 @@ void* reallocate_no_gc(void* pointer, size_t oldSize, size_t newSize)
 	void* result = mem_realloc(pointer, newSize);
 
 #if LOG_EACH_MALLOC_INFO
-	printf("[mem] realloc %p -> %p, %zu\n", pointer, result, newSize);
+	fprintf(stderr, "[mem] realloc %p -> %p, %zu\n", pointer, result, newSize);
 #endif
 
 	if (result == NULL) {
@@ -54,7 +54,7 @@ void* reallocate(void* pointer, size_t oldSize, size_t newSize)
 	if (newSize == 0) {
 		if (pointer != NULL) {
 #if LOG_EACH_MALLOC_INFO
-			printf("[mem] free %p\n", pointer);
+			fprintf(stderr, "[mem] free %p\n", pointer);
 #endif
 			mem_free(pointer);
 		}
@@ -65,7 +65,7 @@ void* reallocate(void* pointer, size_t oldSize, size_t newSize)
 	void* result = mem_realloc(pointer, newSize);
 
 #if LOG_EACH_MALLOC_INFO
-	printf("[mem] realloc %p -> %p, %zu\n", pointer, result, newSize);
+	fprintf(stderr, "[mem] realloc %p -> %p, %zu\n", pointer, result, newSize);
 #endif
 
 	if (result == NULL) {
@@ -102,7 +102,7 @@ void unlinkObj_no_gc(Obj* object) {
 
 void freeObject(Obj* object) {
 #if DEBUG_LOG_GC
-	printf("[gc] %p free (%s)\n", (void*)object, objTypeInfo[object->type]);
+	fprintf(stderr, "[gc] %p free (%s)\n", (void*)object, objTypeInfo[object->type]);
 #endif
 
 	switch (object->type) {
@@ -157,7 +157,7 @@ void freeObject(Obj* object) {
 		ObjArray* array = (ObjArray*)object;
 		FREE_ARRAY(Value, array->payload, array->capacity);
 #if DEBUG_LOG_GC
-		printf("[gc] %p free buffer : %zu\n", (void*)array->payload, array->capacity * sizeof(Value));
+		fprintf(stderr, "[gc] %p free buffer : %zu\n", (void*)array->payload, array->capacity * sizeof(Value));
 #endif
 		FREE(ObjArray, object);
 		break;
@@ -167,7 +167,7 @@ void freeObject(Obj* object) {
 		ObjArray* array = (ObjArray*)object;
 		FREE_ARRAY(double, array->payload, array->capacity); //size 8 byte
 #if DEBUG_LOG_GC
-		printf("[gc] %p free buffer : %zu\n", (void*)array->payload, array->capacity * sizeof(double));
+		fprintf(stderr, "[gc] %p free buffer : %zu\n", (void*)array->payload, array->capacity * sizeof(double));
 #endif
 		FREE(ObjArray, object);
 		break;
@@ -179,7 +179,7 @@ void freeObject(Obj* object) {
 		ObjArray* array = (ObjArray*)object;
 		FREE_ARRAY(uint32_t, array->payload, array->capacity); //size 4 byte
 #if DEBUG_LOG_GC
-		printf("[gc] %p free buffer : %zu\n", (void*)array->payload, array->capacity * sizeof(uint32_t));
+		fprintf(stderr, "[gc] %p free buffer : %zu\n", (void*)array->payload, array->capacity * sizeof(uint32_t));
 #endif
 		FREE(ObjArray, object);
 		break;
@@ -190,7 +190,7 @@ void freeObject(Obj* object) {
 		ObjArray* array = (ObjArray*)object;
 		FREE_ARRAY(uint16_t, array->payload, array->capacity); //size 2 byte
 #if DEBUG_LOG_GC
-		printf("[gc] %p free buffer : %zu\n", (void*)array->payload, array->capacity * sizeof(uint16_t));
+		fprintf(stderr, "[gc] %p free buffer : %zu\n", (void*)array->payload, array->capacity * sizeof(uint16_t));
 #endif
 		FREE(ObjArray, object);
 		break;
@@ -202,7 +202,7 @@ void freeObject(Obj* object) {
 		ObjArray* array = (ObjArray*)object;
 		FREE_ARRAY(uint8_t, array->payload, array->capacity); //size 1 byte
 #if DEBUG_LOG_GC
-		printf("[gc] %p free buffer : %zu\n", (void*)array->payload, (size_t)array->capacity);
+		fprintf(stderr, "[gc] %p free buffer : %zu\n", (void*)array->payload, (size_t)array->capacity);
 #endif
 		FREE(ObjArray, object);
 		break;
@@ -213,7 +213,7 @@ void freeObject(Obj* object) {
 void freeObjects()
 {
 #if DEBUG_LOG_GC
-	printf("-- free dynamic objects\n");
+	fprintf(stderr, "-- free dynamic objects\n");
 #endif
 	Obj* object = vm.objects;
 	while (object != NULL) {
@@ -223,7 +223,7 @@ void freeObjects()
 	}
 
 #if DEBUG_LOG_GC
-	printf("-- free static objects\n");
+	fprintf(stderr, "-- free static objects\n");
 #endif
 	Obj* object_no_gc = vm.objects_no_gc;
 	while (object_no_gc != NULL) {
@@ -277,18 +277,18 @@ void log_malloc_info()
 	formatMemSize(grayCommitted, sizeof(grayCommitted), arenaBump_committed(&vm.grayArena));
 	formatMemSize(grayReserved, sizeof(grayReserved), arenaBump_capacity(&vm.grayArena));
 
-	printf(" vm stack           current\n");
-	printf("  committed   : %12s\n", committed);
-	printf("  reserved    : %12s\n", reserved);
-	printf("\n");
-	printf(" gc gray             current\n");
-	printf("  committed   : %12s\n", grayCommitted);
-	printf("  reserved    : %12s\n", grayReserved);
-	printf("\n");
-	printf(" vm strings          current\n");
-	printf("  committed   : %12s\n", strCommitted);
-	printf("  reserved    : %12s\n", strReserved);
-	printf("\n");
+	fprintf(stderr, " vm stack           current\n");
+	fprintf(stderr, "  committed   : %12s\n", committed);
+	fprintf(stderr, "  reserved    : %12s\n", reserved);
+	fprintf(stderr, "\n");
+	fprintf(stderr, " gc gray             current\n");
+	fprintf(stderr, "  committed   : %12s\n", grayCommitted);
+	fprintf(stderr, "  reserved    : %12s\n", grayReserved);
+	fprintf(stderr, "\n");
+	fprintf(stderr, " vm strings          current\n");
+	fprintf(stderr, "  committed   : %12s\n", strCommitted);
+	fprintf(stderr, "  reserved    : %12s\n", strReserved);
+	fprintf(stderr, "\n");
 
-	mem_print_stats(NULL);
+	mem_print_stats(stderr);
 }

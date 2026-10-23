@@ -8,9 +8,9 @@
 #include "vm.h"
 #include <assert.h>
 
-//output stream for all disassembly printing; NULL falls back to stdout.
-//the --print-bytecode runtime flag redirects this to stderr so the
-//script's own stdout stays clean
+//output stream for all disassembly printing; NULL falls back to stderr.
+//disassembly is a diagnostic dump, so it must never pollute the script's
+//own stdout (--print-bytecode additionally pins it to stderr explicitly)
 static FILE* disasmStream = NULL;
 
 void debug_setDisasmStream(FILE* stream) {
@@ -18,10 +18,10 @@ void debug_setDisasmStream(FILE* stream) {
 }
 
 static void disPrintValue(Value value) {
-	printValue((disasmStream != NULL) ? disasmStream : stdout, value, false);
+	printValue((disasmStream != NULL) ? disasmStream : stderr, value, false);
 }
 
-#define DIS_PRINTF(...) fprintf((disasmStream != NULL) ? disasmStream : stdout, __VA_ARGS__)
+#define DIS_PRINTF(...) fprintf((disasmStream != NULL) ? disasmStream : stderr, __VA_ARGS__)
 
 COLD_FUNCTION
 static uint32_t simpleInstruction(C_STR name, uint32_t offset) {
@@ -470,6 +470,8 @@ uint32_t disassembleInstruction(ObjFunction* function, uint32_t offset) {
 		return shortInstruction("OP_NOT_LOCAL", chunk, offset);
 	case OP_NEGATE_LOCAL:
 		return shortInstruction("OP_NEGATE_LOCAL", chunk, offset);
+	case OP_CEDE:
+		return simpleInstruction("OP_CEDE", offset);
 
 	case OP_EQUAL_LOCAL:
 		return shortInstruction("OP_EQUAL_LOCAL", chunk, offset);
@@ -619,6 +621,7 @@ void disassembleOpStack(OPStack* opStack) {
 		case OP_CLOSURE:          DIS_PRINTF("OP_CLOSURE\n"); break;
 		case OP_RETURN:           DIS_PRINTF("OP_RETURN\n"); break;
 		case OP_PRINT:            DIS_PRINTF("OP_PRINT\n"); break;
+		case OP_CEDE:             DIS_PRINTF("OP_CEDE\n"); break;
 		case OP_SET_SUBSCRIPT:    DIS_PRINTF("OP_SET_SUBSCRIPT\n"); break;
 		case OP_GET_SUBSCRIPT:    DIS_PRINTF("OP_GET_SUBSCRIPT\n"); break;
 		case OP_GET_UPVALUE:      DIS_PRINTF("OP_GET_UPVALUE\n"); break;

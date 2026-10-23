@@ -364,7 +364,7 @@ static Value writeFileNative(int argCount, Value* args) {
 		}
 
 		double offset = AS_NUMBER(args[2]);
-		if (offset < 0 || offset > (double)ARRAYLIKE_MAX) {
+		if (!(offset >= 0 && offset <= (double)ARRAYLIKE_MAX)) {
 			fprintf(stderr, "writeFile offset out of range.\n");
 			return NIL_VAL;
 		}

@@ -27,9 +27,17 @@
 //the global shared vm
 VM vm;
 
+static void closeUpvalues(Value* last);
+
 COLD_FUNCTION
 static void stack_reset()
 {
+	//close open upvalues before clearing the stack: discarded/cended executions
+	//must not leave escaped closures pointing into reset stack slots
+	if (vm.openUpvalues != NULL) {
+		closeUpvalues(vm.stack);
+	}
+
 	//reset the pointer
 	vm.stackTop = vm.stack;
 
@@ -102,9 +110,9 @@ static bool throwError(Value error, C_STR format, ...) {
 		}
 	}
 
-	printf("[ErrorInfo] ");
-	printValue(stdout, error, false);
-	printf("\n");
+	fprintf(stderr, "[ErrorInfo] ");
+	printValue(stderr, error, false);
+	fprintf(stderr, "\n");
 
 	stack_reset();
 	return false;
@@ -284,7 +292,7 @@ void defineNative_global(C_STR name, NativeFn function) {
 
 COLD_FUNCTION
 static void importBuiltins() {
-	for (uint32_t i = 0; i < BUILTIN_MODULE_COUNT; ++i) {
+	for (uint32_t i = 0; i < MODULE_COUNT; ++i) {
 		vm.builtins[i] = (ObjInstance){
 		.obj = stateLess_obj_header(OBJ_INSTANCE),
 		.klass = &vm.defaultClass,
@@ -312,7 +320,7 @@ static void importBuiltins() {
 
 COLD_FUNCTION
 static void removeBuiltins() {
-	for (uint32_t i = 0; i < BUILTIN_MODULE_COUNT; ++i) {
+	for (uint32_t i = 0; i < MODULE_COUNT; ++i) {
 		table_free(&vm.builtins[i].fields);
 	}
 }
@@ -354,6 +362,12 @@ void vm_init()
 	vm.bytesAllocated = 0;
 	vm.bytesAllocated_no_gc = 0;
 
+	//call frames live in a no-GC heap array: start at FRAMES_INIT and grow
+	//geometrically in call() up to FRAMES_MAX
+	vm.frames = ALLOCATE_NO_GC(CallFrame, FRAMES_INIT);
+	vm.frameCapacity = FRAMES_INIT;
+	vm.frameCount = 0;
+
 	vm.stack = NULL;
 	vm.stackTop = NULL;
 	vm.stackBoundary = NULL;
@@ -366,7 +380,7 @@ void vm_init()
 	//STACK_INITIAL_SIZE Values) is gone, growth is a lazy page commit now
 	//a non-NULL base here means the previous vm_free was skipped -> leaked bump segment
 	assert(vm.stackArena.base == NULL);
-	if (!arenaBump_init(&vm.stackArena, STACK_ARENA_SIZE, false, 0, 0)) {
+	if (!arenaBump_init(&vm.stackArena, STACK_ARENA_SIZE, false, 0, 16 << 10)) {
 		fprintf(stderr, "Failed to reserve the vm stack arena.\n");
 		exit(1);
 	}
@@ -384,7 +398,7 @@ void vm_init()
 	//are NOT counted in the accounting books anymore (same class as the stack
 	//arena and the grayStack)
 	assert(vm.stringArena.base == NULL);
-	if (!arenaBump_init(&vm.stringArena, STRING_ARENA_SIZE, false, 8, 16 * 1024)) {
+	if (!arenaBump_init(&vm.stringArena, STRING_ARENA_SIZE, false, 8, 16 << 10)) {
 		fprintf(stderr, "Failed to reserve the vm string arena.\n");
 		exit(1);
 	}
@@ -448,6 +462,16 @@ void vm_init()
 	vm.initString = NULL;
 	vm.initString = copyString("init", (uint32_t)strlen("init"), false);
 	initTypeStrings();
+
+	vm.ceding = 0;
+}
+
+COLD_FUNCTION
+bool vm_isCeding() {
+	if (!vm.ceding) return false;
+	if (vm.stack == NULL) return false;
+	if (vm.grayStack == NULL) return false;
+	return vm.frameCount > 0;
 }
 
 COLD_FUNCTION
@@ -470,6 +494,11 @@ void vm_free()
 	vm.icFuncCount = 0;
 	vm.icFuncCapacity = 0;
 
+	FREE_ARRAY_NO_GC(CallFrame, vm.frames, vm.frameCapacity);
+	vm.frames = NULL;
+	vm.frameCount = 0;
+	vm.frameCapacity = 0;
+
 	valueArray_free(&vm.constants);
 
 	table_free(&vm.globals.fields);
@@ -480,6 +509,8 @@ void vm_free()
 	for (uint32_t i = 0; i < TYPE_STRING_COUNT; ++i) {
 		vm.typeStrings[i] = NULL;
 	}
+	//the list is about to dangle: a following vm_init -> stack_reset must not walk it
+	vm.openUpvalues = NULL;
 	freeObjects();
 
 	//release the stack + string + gray arenas (VA reservations + committed pages)
@@ -494,11 +525,12 @@ void vm_free()
 	vm.grayStack = NULL;
 	vm.grayCount = 0;
 
-	vm.initString = NULL;
 	removeBuiltins();
 
 	table_free(&vm.defaultClass.methods);
 
+	vm.ceding = 0;
+	vm.frameCount = 0;
 #if DEBUG_MODE
 	//leak accounting: every allocate/free pair runs through reallocate/reallocate_no_gc,
 	//so after the FULL teardown (objects, builtin tables, defaultClass) both
@@ -604,9 +636,21 @@ static bool call(ObjClosure* closure, int argCount) {
 	//	return false;
 	//}
 
-	if (vm.frameCount == FRAMES_MAX) {
-		runtimeError("Stack overflow.");
-		return false;
+	// check stack
+	if (vm.frameCount == vm.frameCapacity) {
+		if (vm.frameCapacity >= FRAMES_MAX) {
+			runtimeError("Stack overflow.");
+			return false;
+		}
+
+		//FRAMES_INIT / FRAMES_MAX are powers of two, so GROW_CAPACITY grows
+		//64 -> 128 -> 256 -> 512 -> 1024 and stops exactly at FRAMES_MAX
+		uint32_t newCapacity = vm.frameCapacity * 2;
+		assert((newCapacity <= FRAMES_MAX) && "Unexpected frame size overflow.");
+
+		//no-GC accounting: frames are VM bookkeeping, not collectible values
+		vm.frames = GROW_ARRAY_NO_GC(CallFrame, vm.frames, vm.frameCapacity, newCapacity);
+		vm.frameCapacity = newCapacity;
 	}
 
 	// append missing args
@@ -791,8 +835,10 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
     do {																							\
 		/* Pop the top two values from the stack */													\
 		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {								\
+			double left = AS_NUMBER(vm.stackTop[-2]);												\
+			double right = AS_NUMBER(vm.stackTop[-1]);												\
 			/* Perform the operation and push the result back */									\
-			vm.stackTop[-2] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-2]) op (int32_t)AS_NUMBER(vm.stackTop[-1]));	\
+			vm.stackTop[-2] = NUMBER_VAL(double_to_i32(left) op double_to_i32(right));				\
 			vm.stackTop--;																			\
 			return ip;																				\
 		}																							\
@@ -803,8 +849,9 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
 		/* Pop the top two values from the stack */											\
 		if (IS_NUMBER(vm.stackTop[-1])) {													\
 			int32_t constant = READ_WORD();													\
+			double left = AS_NUMBER(vm.stackTop[-1]);										\
 			/* Perform the operation and push the result back */							\
-			vm.stackTop[-1] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-1]) op constant);	\
+			vm.stackTop[-1] = NUMBER_VAL(double_to_i32(left) op constant);					\
 			return ip;																		\
 		}																					\
 	} while (false)
@@ -835,7 +882,8 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
 	case BIT_OP_NOT: {
 	label_bit_not:
 		if (IS_NUMBER(vm.stackTop[-1])) {
-			vm.stackTop[-1] = NUMBER_VAL(~(int32_t)AS_NUMBER(vm.stackTop[-1]));
+			double operand = AS_NUMBER(vm.stackTop[-1]);
+			vm.stackTop[-1] = NUMBER_VAL(~double_to_i32(operand));
 			return ip;
 		}
 		break;
@@ -859,16 +907,12 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
 	case BIT_OP_SHL: {
 	label_bit_shl:
 		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
-			int32_t shiftBits = (int32_t)AS_NUMBER(vm.stackTop[-1]);
-
-			if (shiftBits >= 0) {
-				vm.stackTop[-2] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-2]) << (shiftBits & 31));
-				vm.stackTop--;
-			}
-			else {
-				vm.stackTop[-2] = NUMBER_VAL(0);
-				vm.stackTop--;
-			}
+			double left = AS_NUMBER(vm.stackTop[-2]);
+			double shift = AS_NUMBER(vm.stackTop[-1]);
+			//JS semantics: ToInt32(left) << (ToUint32(shift) & 31), result read as int32
+			uint32_t result = (uint32_t)double_to_i32(left) << double_to_shift32(shift);
+			vm.stackTop[-2] = NUMBER_VAL((int32_t)result);
+			vm.stackTop--;
 			return ip;
 		}
 		break;
@@ -876,10 +920,12 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
 	case BIT_OP_SAR: {
 	label_bit_sar:
 		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
-			int32_t shiftBits = (int32_t)AS_NUMBER(vm.stackTop[-1]);
+			double left = AS_NUMBER(vm.stackTop[-2]);
+			double shift = AS_NUMBER(vm.stackTop[-1]);
 
-			if (shiftBits >= 0) {
-				vm.stackTop[-2] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-2]) >> (shiftBits & 31));
+			//NaN is not negative: it takes the shift-0 path, matching the constant path
+			if (!(shift < 0.0)) {
+				vm.stackTop[-2] = NUMBER_VAL(double_to_i32(left) >> double_to_shift32(shift));
 				vm.stackTop--;
 			}
 			else {
@@ -893,10 +939,12 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
 	case BIT_OP_SHR: {
 	label_bit_shr:
 		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
-			int32_t shiftBits = (int32_t)AS_NUMBER(vm.stackTop[-1]);
+			double left = AS_NUMBER(vm.stackTop[-2]);
+			double shift = AS_NUMBER(vm.stackTop[-1]);
 
-			if (shiftBits >= 0) {
-				vm.stackTop[-2] = NUMBER_VAL((uint32_t)AS_NUMBER(vm.stackTop[-2]) >> (shiftBits & 31));
+			//NaN is not negative: it takes the shift-0 path, matching the constant path
+			if (!(shift < 0.0)) {
+				vm.stackTop[-2] = NUMBER_VAL(double_to_u32(left) >> double_to_shift32(shift));
 				vm.stackTop--;
 			}
 			else {
@@ -926,13 +974,9 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
 	label_bit_shli:
 		if (IS_NUMBER(vm.stackTop[-1])) {
 			int32_t shiftBits = READ_BYTE();
-
-			if (shiftBits >= 0) {
-				vm.stackTop[-1] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-1]) << shiftBits);
-			}
-			else {
-				vm.stackTop[-1] = NUMBER_VAL(0);
-			}
+			double left = AS_NUMBER(vm.stackTop[-1]);
+			uint32_t result = (uint32_t)double_to_i32(left) << shiftBits;
+			vm.stackTop[-1] = NUMBER_VAL((int32_t)result);
 			return ip;
 		}
 		break;
@@ -941,13 +985,8 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
 	label_bit_sari:
 		if (IS_NUMBER(vm.stackTop[-1])) {
 			int32_t shiftBits = READ_BYTE();
-
-			if (shiftBits >= 0) {
-				vm.stackTop[-1] = NUMBER_VAL((int32_t)AS_NUMBER(vm.stackTop[-1]) >> shiftBits);
-			}
-			else {
-				vm.stackTop[-1] = NUMBER_VAL(0);
-			}
+			double left = AS_NUMBER(vm.stackTop[-1]);
+			vm.stackTop[-1] = NUMBER_VAL(double_to_i32(left) >> shiftBits);
 			return ip;
 		}
 		break;
@@ -956,13 +995,8 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
 	label_bit_shri:
 		if (IS_NUMBER(vm.stackTop[-1])) {
 			int32_t shiftBits = READ_BYTE();
-
-			if (shiftBits >= 0) {
-				vm.stackTop[-1] = NUMBER_VAL((uint32_t)AS_NUMBER(vm.stackTop[-1]) >> shiftBits);
-			}
-			else {
-				vm.stackTop[-1] = NUMBER_VAL(0);
-			}
+			double left = AS_NUMBER(vm.stackTop[-1]);
+			vm.stackTop[-1] = NUMBER_VAL(double_to_u32(left) >> shiftBits);
 			return ip;
 		}
 		break;
@@ -1095,6 +1129,21 @@ static bool icInvokeSlow(ObjInstance* instance, ObjString* method, uint8_t argCo
 	}
 	return call(AS_CLOSURE(methodValue), argCount);
 }
+
+#if DEBUG_TRACE_EXECUTION //print in debug mode
+//only dump the active frame's slots (locals + temporaries) to stderr;
+//outer frames' slots are skipped to keep the trace readable
+COLD_FUNCTION
+static void traceFrameStack(FILE* stream, CallFrame* frame) {
+	fprintf(stream, "          ");
+	for (Value* slot = frame->slots; slot < vm.stackTop; slot++) {
+		fprintf(stream, "[ ");
+		printValue(stream, *slot, false);
+		fprintf(stream, " ]");
+	}
+	fprintf(stream, "\n");
+}
+#endif
 
 //to run code in vm
 HOT_FUNCTION
@@ -1230,6 +1279,7 @@ static InterpretResult run()
 		[OP_JIF_NOT_EQUAL_LC_NUMBER] = && label_op_jif_not_equal_lc_number,
 		[OP_JIF_EQUAL_LC] = && label_op_jif_equal_lc,
 		[OP_JIF_NOT_EQUAL_LC] = && label_op_jif_not_equal_lc,
+		[OP_CEDE] = && label_op_cede,
 	};
 #endif
 
@@ -1348,13 +1398,7 @@ static InterpretResult run()
 	while (true) //let it loop
 	{
 #if DEBUG_TRACE_EXECUTION //print in debug mode
-		printf("          ");
-		for (Value* slot = vm.stack; slot < vm.stackTop; slot++) {
-			printf("[ ");
-			printValue(stdout, *slot, false);
-			printf(" ]");
-		}
-		printf("\n");
+		traceFrameStack(stderr, frame);
 
 		//current ptr - begin ptr = offset value
 		disassembleInstruction(frame->closure->function, (uint32_t)(ip - frame->closure->function->chunk.code));
@@ -2318,14 +2362,16 @@ static InterpretResult run()
 				}
 			}
 
-			//same as interpret()
+			//same as interpret_compile: create the module closure on top of the stack
 			ObjClosure* closure = newClosure(function);
 			stack_replace(OBJ_VAL(closure));
 
 			//call the module
 			frame->ip = ip;//change before call
 
-			call(closure, 0);
+			if (!call(closure, 0)) {
+				return INTERPRET_RUNTIME_ERROR;
+			}
 
 			//we entered the function
 			UPDATE_FRAME();
@@ -2660,6 +2706,13 @@ static InterpretResult run()
 				RUNTIME_ERROR("Operand must be a number.");
 			}
 		}
+		case OP_CEDE: {
+		label_op_cede:
+			//hand execution control back to the host; the frame/stack stay live
+			frame->ip = ip;
+			vm.ceding = 1;
+			return INTERPRET_CEDE;
+		}
 		}
 	}
 
@@ -2679,25 +2732,41 @@ static InterpretResult run()
 #undef RUNTIME_ERROR
 }
 
-InterpretResult interpret(C_STR source)
+bool interpret_compile(C_STR source)
 {
+	if (vm.frameCount != 0 || vm.ceding) return false;
+
 #if LOG_COMPILE_TIMING
 	uint64_t time_compile = get_milliseconds();
 #endif
 
 	ObjFunction* function = compile(source, TYPE_SCRIPT);
-	if (function == NULL) return INTERPRET_COMPILE_ERROR;
+	if (function == NULL) return false;
 
 #if LOG_COMPILE_TIMING
 	double time_compile_f = (get_milliseconds() - time_compile);
-	printf("[Log] Finished compiling in %g ms.\n", time_compile_f);
+	fprintf(stderr, "[Log] Finished compiling in %g ms.\n", time_compile_f);
 #endif
 
-	//stack_push(OBJ_VAL(function));
 	ObjClosure* closure = newClosure(function);
-	//stack_replace(OBJ_VAL(closure));
 	stack_push(OBJ_VAL(closure));
-	call(closure, 0);
+
+	if (!call(closure, 0)) {
+		stack_reset();
+		vm.ceding = 0;
+		return false;
+	}
+
+	//now the frame/stack are live, so the VM can be ceded/resumed
+	vm.ceding = 1;
+	return true;
+}
+
+InterpretResult interpret_execute(void)
+{
+	if (!vm_isCeding() || vm.frameCount == 0) return INTERPRET_RUNTIME_ERROR;
+
+	vm.ceding = 0;
 
 #if LOG_EXECUTE_TIMING
 	uint64_t time_run = get_milliseconds();
@@ -2707,14 +2776,38 @@ InterpretResult interpret(C_STR source)
 
 #if LOG_EXECUTE_TIMING
 	double time_run_f = (get_milliseconds() - time_run);
-	printf("[Log] Finished executing in %g ms.\n", time_run_f);
+	fprintf(stderr, "[Log] Finished executing in %g ms.\n", time_run_f);
 #endif
 
+	//CEDE keeps the ceded execution resumable; everything else is idle again
+	if (result == INTERPRET_CEDE) {
+		vm.ceding = 1;
+	}
+	else {
+		//an imported module failing to compile aborts without runtimeError()
+		if (vm.frameCount != 0) stack_reset();
+		vm.ceding = 0;
+	}
 	return result;
 }
 
 InterpretResult interpret_repl(C_STR source) {
-	InterpretResult res = interpret(source);
-	stack_reset();//clean stack after use
+	if (!interpret_compile(source)) {
+		stack_reset();
+		vm.ceding = 0;
+		return INTERPRET_COMPILE_ERROR;
+	}
+
+	InterpretResult res = interpret_execute();
+
+	if (res == INTERPRET_CEDE) {
+		//the REPL has no host to resume from: drop the ceded execution
+		stack_reset();
+		vm.ceding = 0;
+		res = INTERPRET_RUNTIME_ERROR;
+	}
+	else {
+		stack_reset();//clean stack after use
+	}
 	return res;
 }

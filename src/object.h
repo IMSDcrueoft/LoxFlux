@@ -10,7 +10,10 @@
 #include "chunk.h"
 
 //compress the ptr to 48bits
+#ifndef COMPRESS_OBJ_HEADER
 #define COMPRESS_OBJ_HEADER 1
+#endif // !COMPRESS_OBJ_HEADER
+
 // no need to compress under 32bits
 #if !LOXFLUX_BUILD_64BIT
 #undef COMPRESS_OBJ_HEADER

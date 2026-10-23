@@ -86,9 +86,9 @@ void markObject(Obj* object)
 	}
 
 #if DEBUG_LOG_GC
-	printf("[gc] %p mark ", (void*)object);
-	printValue(stdout, OBJ_VAL(object), false);
-	printf("\n");
+	fprintf(stderr, "[gc] %p mark ", (void*)object);
+	printValue(stderr, OBJ_VAL(object), false);
+	fprintf(stderr, "\n");
 #endif
 	object->isMarked = vm.gcMark;
 
@@ -111,9 +111,9 @@ void markObject(Obj* object)
 
 static void blackenObject(Obj* object) {
 #if DEBUG_LOG_GC
-	printf("[gc] %p blacken ", (void*)object);
-	printValue(stdout, OBJ_VAL(object), false);
-	printf("\n");
+	fprintf(stderr, "[gc] %p blacken ", (void*)object);
+	printValue(stderr, OBJ_VAL(object), false);
+	fprintf(stderr, "\n");
 #endif
 
 	switch (object->type) {
@@ -234,7 +234,7 @@ static void gc_clear_dead_ic_slots() {
 void garbageCollect()
 {
 #if DEBUG_LOG_GC
-	printf("-- gc begin\n");
+	fprintf(stderr, "-- gc begin\n");
 #endif
 
 #if DEBUG_LOG_GC || LOG_GC_RESULT
@@ -260,12 +260,12 @@ void garbageCollect()
 	vm.gcWorking = 0;
 
 #if DEBUG_LOG_GC
-	printf("-- gc end\n");
+	fprintf(stderr, "-- gc end\n");
 #endif
 
 #if DEBUG_LOG_GC || LOG_GC_RESULT
 	double time_ms = (get_nanoseconds() - time_gc) * 1e-6;
-	printf("[gc] collected %zu bytes (from %zu to %zu) next at %zu, in %g ms\n",
+	fprintf(stderr, "[gc] collected %zu bytes (from %zu to %zu) next at %zu, in %g ms\n",
 		before - vm.bytesAllocated, before, vm.bytesAllocated, vm.nextGC, time_ms);
 #endif
 }
