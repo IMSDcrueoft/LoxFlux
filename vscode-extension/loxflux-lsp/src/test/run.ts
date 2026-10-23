@@ -37,10 +37,10 @@ function analyzeOf(source: string) {
 console.log('lexer:');
 
 test('tokenizes identifiers and keywords', () => {
-	const { tokens } = lex('var fun class branch instanceof typeof');
-	assert.deepStrictEqual(tokens.slice(0, 6).map((t) => t.type), [
+	const { tokens } = lex('var fun class branch instanceof typeof cede');
+	assert.deepStrictEqual(tokens.slice(0, 7).map((t) => t.type), [
 		TokenType.Var, TokenType.Fun, TokenType.Class, TokenType.Branch,
-		TokenType.InstanceOf, TokenType.TypeOf,
+		TokenType.InstanceOf, TokenType.TypeOf, TokenType.Cede,
 	]);
 });
 
@@ -132,6 +132,12 @@ test('parses import expression and export statement', () => {
 	assert.strictEqual(exp.script.errors.length, 0);
 });
 
+test('parses cede statement', () => {
+	const { script } = analyzeOf('cede;');
+	assert.strictEqual(script.errors.length, 0);
+	assert.strictEqual(script.statements[0].kind, 'Cede');
+});
+
 test('parses bitwise operations', () => {
 	const { script } = analyzeOf('var x = 0b1010 & 0b1100 | 0x1 ^ 5 << 2 >> 1 >>> 3;');
 	assert.strictEqual(script.errors.length, 0);
@@ -208,6 +214,12 @@ test('detects unreachable code', () => {
 	const { analysis } = analyzeOf('fun f() { return 1; print 2; }');
 	const unreachable = analysis.diagnostics.filter((d) => d.code === 'unreachable');
 	assert.strictEqual(unreachable.length, 1);
+});
+
+test('does not treat code after cede as unreachable', () => {
+	const { analysis } = analyzeOf('cede;\nprint 1;');
+	const unreachable = analysis.diagnostics.filter((d) => d.code === 'unreachable');
+	assert.strictEqual(unreachable.length, 0);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

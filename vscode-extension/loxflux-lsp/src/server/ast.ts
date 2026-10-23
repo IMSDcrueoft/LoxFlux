@@ -156,6 +156,7 @@ export type Stmt =
 	| ReturnStmt
 	| ThrowStmt
 	| ExportStmt
+	| CedeStmt
 	| BreakStmt
 	| ContinueStmt
 	| BlockStmt;
@@ -261,6 +262,11 @@ export interface ExportStmt extends Node {
 	kind: 'Export';
 	exportToken: Token;
 	value: Expr | undefined;
+}
+
+export interface CedeStmt extends Node {
+	kind: 'Cede';
+	cedeToken: Token;
 }
 
 export interface BreakStmt extends Node {

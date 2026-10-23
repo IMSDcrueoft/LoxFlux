@@ -195,6 +195,7 @@ export const KEYWORD_DOCS: KeywordDoc[] = [
 	{ keyword: 'continue', doc: 'Jumps to the next iteration of the enclosing loop.' },
 	{ keyword: 'return', doc: 'Returns a value from the enclosing function.', snippet: 'return ${1:value};' },
 	{ keyword: 'throw', doc: 'Throws an error value.', snippet: 'throw ${1:value};' },
+	{ keyword: 'cede', doc: 'Hands execution control back to the host while keeping the VM state live. Execution resumes from the next statement when the host resumes the VM.', snippet: 'cede;' },
 	{ keyword: 'lambda', doc: 'Declares an anonymous function inline. Supports block form `lambda (a, b) { ... }` and arrow form `lambda (a) => a * 2`.', snippet: 'lambda (${1:params}) => ${2:expr}' },
 	{ keyword: 'import', doc: 'Loads, compiles and executes a script file, returning whatever the module exports.\n\n```\nvar thing = import "./module.lfx";\n```', snippet: 'import "./${1:module}.lfx";' },
 	{ keyword: 'export', doc: 'Used within a module file to specify what value is returned to the importing file.\n\n```\nexport { "pi": PI };\n```', snippet: 'export ${1:value};' },

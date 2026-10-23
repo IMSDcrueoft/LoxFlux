@@ -30,7 +30,7 @@ export enum TokenType {
 	True, Var, While, Do, Const,
 	Break, Continue, Throw, Lambda, RightArrow,
 	Branch, None, InstanceOf, TypeOf,
-	Import, Export,
+	Import, Export, Cede,
 
 	Error, EOF,
 }
@@ -69,6 +69,7 @@ const KEYWORDS: Record<string, TokenType> = {
 	'and': TokenType.And,
 	'break': TokenType.Break,
 	'branch': TokenType.Branch,
+	'cede': TokenType.Cede,
 	'class': TokenType.Class,
 	'const': TokenType.Const,
 	'continue': TokenType.Continue,

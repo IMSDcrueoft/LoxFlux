@@ -10,7 +10,7 @@ import { Positions } from './positions';
 
 const STMT_KINDS = new Set<string>([
 	'Print', 'ExprStmt', 'VarDecl', 'FunDecl', 'ClassDecl', 'If', 'While', 'DoWhile',
-	'For', 'Branch', 'Return', 'Throw', 'Export', 'Break', 'Continue', 'Block',
+	'For', 'Branch', 'Return', 'Throw', 'Export', 'Cede', 'Break', 'Continue', 'Block',
 ]);
 
 export enum DeclKind {
@@ -587,6 +587,8 @@ export class Analyzer {
 					this.collectExport(stmt.value);
 					this.walkExpr(stmt.value);
 				}
+				break;
+			case 'Cede':
 				break;
 			case 'Break':
 				if (this.loopDepth === 0) {

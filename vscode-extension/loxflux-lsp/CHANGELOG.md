@@ -2,6 +2,10 @@
 
 All notable changes to the LoxFlux Language Server extension will be documented in this file.
 
+## [Unreleased]
+
+- Add LSP support for the `cede` keyword: lexing, parsing, diagnostics, keyword hover and completion.
+
 ## [0.1.3]
 
 - Update the `@string` builtin member name from `length` to `byteLen`.
