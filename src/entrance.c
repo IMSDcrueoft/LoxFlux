@@ -252,6 +252,9 @@ void repl() {
 	vm_free();
 
 #if LOG_MALLOC_INFO
+	//final stats only: release delayed-free blocks so mimalloc's "current"
+	//counters do not look like a leak after a complete teardown
+	mem_collect(true);
 	log_malloc_info();
 #endif
 #undef match_string
@@ -281,6 +284,9 @@ void runFile(C_STR path) {
 	vm_free();
 
 #if LOG_MALLOC_INFO
+	//final stats only: release delayed-free blocks so mimalloc's "current"
+	//counters do not look like a leak after a complete teardown
+	mem_collect(true);
 	log_malloc_info();
 #endif
 }
