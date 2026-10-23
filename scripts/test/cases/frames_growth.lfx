@@ -1,0 +1,8 @@
+// frames: grow beyond the initial frame capacity
+// exit: 0
+// out: 1000
+fun count(n) {
+	if (n == 0) return 0;
+	return count(n - 1) + 1;
+}
+print count(1000);

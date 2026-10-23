@@ -362,6 +362,12 @@ void vm_init()
 	vm.bytesAllocated = 0;
 	vm.bytesAllocated_no_gc = 0;
 
+	//call frames live in a no-GC heap array: start at FRAMES_INIT and grow
+	//geometrically in call() up to FRAMES_MAX
+	vm.frames = ALLOCATE_NO_GC(CallFrame, FRAMES_INIT);
+	vm.frameCapacity = FRAMES_INIT;
+	vm.frameCount = 0;
+
 	vm.stack = NULL;
 	vm.stackTop = NULL;
 	vm.stackBoundary = NULL;
@@ -487,6 +493,11 @@ void vm_free()
 	vm.icFuncs = NULL;
 	vm.icFuncCount = 0;
 	vm.icFuncCapacity = 0;
+
+	FREE_ARRAY_NO_GC(CallFrame, vm.frames, vm.frameCapacity);
+	vm.frames = NULL;
+	vm.frameCount = 0;
+	vm.frameCapacity = 0;
 
 	valueArray_free(&vm.constants);
 
@@ -625,9 +636,21 @@ static bool call(ObjClosure* closure, int argCount) {
 	//	return false;
 	//}
 
-	if (vm.frameCount == FRAMES_MAX) {
-		runtimeError("Stack overflow.");
-		return false;
+	// check stack
+	if (vm.frameCount == vm.frameCapacity) {
+		if (vm.frameCapacity >= FRAMES_MAX) {
+			runtimeError("Stack overflow.");
+			return false;
+		}
+
+		//FRAMES_INIT / FRAMES_MAX are powers of two, so GROW_CAPACITY grows
+		//64 -> 128 -> 256 -> 512 -> 1024 and stops exactly at FRAMES_MAX
+		uint32_t newCapacity = vm.frameCapacity * 2;
+		assert((newCapacity <= FRAMES_MAX) && "Unexpected frame size overflow.");
+
+		//no-GC accounting: frames are VM bookkeeping, not collectible values
+		vm.frames = GROW_ARRAY_NO_GC(CallFrame, vm.frames, vm.frameCapacity, newCapacity);
+		vm.frameCapacity = newCapacity;
 	}
 
 	// append missing args
@@ -2346,7 +2369,9 @@ static InterpretResult run()
 			//call the module
 			frame->ip = ip;//change before call
 
-			call(closure, 0);
+			if (!call(closure, 0)) {
+				return INTERPRET_RUNTIME_ERROR;
+			}
 
 			//we entered the function
 			UPDATE_FRAME();

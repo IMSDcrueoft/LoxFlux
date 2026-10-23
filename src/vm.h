@@ -14,6 +14,10 @@
 //the depth of call frames
 #define FRAMES_INIT 64
 #define FRAMES_MAX 1024
+
+_Static_assert(FRAMES_INIT > 0 && FRAMES_INIT <= FRAMES_MAX, "Invalid frame limits.");
+_Static_assert(((FRAMES_MAX / FRAMES_INIT) & ((FRAMES_MAX / FRAMES_INIT) - 1)) == 0, "The frameMax/frameInit ratio must be power of 2.");
+
 //customed vm stack begin size
 //#define STACK_INITIAL_SIZE 4096 //unused since the arena stack: initial footprint is one 64KB commit chunk (= the old 4096 Values)
 #define STACK_MAX_SIZE (FRAMES_MAX * UINT8_COUNT) //the max stack size, if exceed this, we can be sure it's a stack overflow
@@ -51,10 +55,11 @@ typedef struct {
 	InlineCacheSlot* caches;// IC slots of frame->closure->function, resolved once per call to avoid per-op deref chains
 } CallFrame;
 
-//frames live in a static array indexed by the dispatch loop; a silent size/layout
-//shift here changes cache-line packing of hot frames and can move dispatch performance
-//was 40 (with slotsOffset): the arena stack removed it, 32 packs tighter, but
-//re-verify dispatch benchmarks before trusting hot-loop numbers
+//frames live in a no-GC heap array indexed by the dispatch loop; capacity grows
+//geometrically up to FRAMES_MAX, and the dispatch loop must refresh its frame
+//pointer after any call that may have grown the array
+//CallFrame layout still matters for cache-line packing; re-verify dispatch
+//benchmarks before trusting hot-loop numbers
 
 typedef struct {
 	//a cache
@@ -76,14 +81,20 @@ typedef struct {
 	//upvalues
 	ObjUpvalue* openUpvalues;
 
-	//global hash table
-	ObjInstance globals;
-	ObjInstance builtins[MODULE_COUNT];
-
 	//the root for dynamic objects
 	Obj* objects;
 	//the root for static objects
 	Obj* objects_no_gc;
+
+	//inline cache gc registry: functions whose invoke cache slots hold ObjClass*/ObjClosure*
+	ObjFunction** icFuncs;
+	uint32_t icFuncCount;
+	uint32_t icFuncCapacity;
+
+	CallFrame* frames;
+	//frames
+	uint32_t frameCount;
+	uint32_t frameCapacity;
 
 	//Excludes space used by stacks/constants/compilations
 	//size_t (not uint64_t): matches the platform word size, so the 32-bit
@@ -108,24 +119,20 @@ typedef struct {
 	// 1 = execution control has been ceded to the host
 	uint8_t ceding;
 	//pad
-	uint8_t padding[5];
-
-	//literal object and builtin object
-	ObjClass defaultClass;
+	uint8_t padding[1];
+	//id for compiled functions
+	uint32_t functionID;
 
 	ObjString* initString;
 	ObjString* typeStrings[TYPE_STRING_COUNT];
 
-	//inline cache gc registry: functions whose invoke cache slots hold ObjClass*/ObjClosure*
-	ObjFunction** icFuncs;
-	uint32_t icFuncCount;
-	uint32_t icFuncCapacity;
+	//literal object and builtin object
+	ObjClass defaultClass;
 
-	//id for compiled functions
-	uint32_t functionID;
-	//frames
-	uint32_t frameCount;
-	CallFrame frames[FRAMES_MAX];
+	//global hash table
+	ObjInstance globals;
+	ObjInstance builtins[MODULE_COUNT];
+
 
 	//fixed-base backing storage for the stack (VA never moves, lazy commit)
 	ArenaBumpAllocator stackArena;

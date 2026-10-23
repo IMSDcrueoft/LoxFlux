@@ -1,0 +1,7 @@
+// frames: hitting FRAMES_MAX is a runtime stack overflow
+// exit: 70
+// err: Stack overflow.
+fun loop() {
+	return loop();
+}
+loop();
