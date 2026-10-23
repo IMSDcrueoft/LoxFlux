@@ -269,7 +269,7 @@ void runFile(C_STR path) {
 	InterpretResult result = interpret_execute();
 
 	if (result == INTERPRET_CEDE) {
-		fprintf(stderr, "[Cede] execution paused; no resumer available.\n");
+		fprintf(stderr, "[Cede] execution ceded; no resumer available.\n");
 	}
 	else if (result == INTERPRET_COMPILE_ERROR) {
 		exit(65);

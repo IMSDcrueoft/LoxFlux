@@ -12,6 +12,7 @@
 #include "arena_bump.h"
 
 //the depth of call frames
+#define FRAMES_INIT 64
 #define FRAMES_MAX 1024
 //customed vm stack begin size
 //#define STACK_INITIAL_SIZE 4096 //unused since the arena stack: initial footprint is one 64KB commit chunk (= the old 4096 Values)
@@ -77,7 +78,7 @@ typedef struct {
 
 	//global hash table
 	ObjInstance globals;
-	ObjInstance builtins[BUILTIN_MODULE_COUNT];
+	ObjInstance builtins[MODULE_COUNT];
 
 	//the root for dynamic objects
 	Obj* objects;

@@ -292,7 +292,7 @@ void defineNative_global(C_STR name, NativeFn function) {
 
 COLD_FUNCTION
 static void importBuiltins() {
-	for (uint32_t i = 0; i < BUILTIN_MODULE_COUNT; ++i) {
+	for (uint32_t i = 0; i < MODULE_COUNT; ++i) {
 		vm.builtins[i] = (ObjInstance){
 		.obj = stateLess_obj_header(OBJ_INSTANCE),
 		.klass = &vm.defaultClass,
@@ -320,7 +320,7 @@ static void importBuiltins() {
 
 COLD_FUNCTION
 static void removeBuiltins() {
-	for (uint32_t i = 0; i < BUILTIN_MODULE_COUNT; ++i) {
+	for (uint32_t i = 0; i < MODULE_COUNT; ++i) {
 		table_free(&vm.builtins[i].fields);
 	}
 }
@@ -374,7 +374,7 @@ void vm_init()
 	//STACK_INITIAL_SIZE Values) is gone, growth is a lazy page commit now
 	//a non-NULL base here means the previous vm_free was skipped -> leaked bump segment
 	assert(vm.stackArena.base == NULL);
-	if (!arenaBump_init(&vm.stackArena, STACK_ARENA_SIZE, false, 0, 0)) {
+	if (!arenaBump_init(&vm.stackArena, STACK_ARENA_SIZE, false, 0, 16 << 10)) {
 		fprintf(stderr, "Failed to reserve the vm stack arena.\n");
 		exit(1);
 	}
@@ -392,7 +392,7 @@ void vm_init()
 	//are NOT counted in the accounting books anymore (same class as the stack
 	//arena and the grayStack)
 	assert(vm.stringArena.base == NULL);
-	if (!arenaBump_init(&vm.stringArena, STRING_ARENA_SIZE, false, 8, 16 * 1024)) {
+	if (!arenaBump_init(&vm.stringArena, STRING_ARENA_SIZE, false, 8, 16 << 10)) {
 		fprintf(stderr, "Failed to reserve the vm string arena.\n");
 		exit(1);
 	}
@@ -2685,6 +2685,7 @@ static InterpretResult run()
 		label_op_cede:
 			//hand execution control back to the host; the frame/stack stay live
 			frame->ip = ip;
+			vm.ceding = 1;
 			return INTERPRET_CEDE;
 		}
 		}
@@ -2753,7 +2754,7 @@ InterpretResult interpret_execute(void)
 	fprintf(stderr, "[Log] Finished executing in %g ms.\n", time_run_f);
 #endif
 
-	//CEDE keeps the paused execution resumable; everything else is idle again
+	//CEDE keeps the ceded execution resumable; everything else is idle again
 	if (result == INTERPRET_CEDE) {
 		vm.ceding = 1;
 	}
@@ -2775,7 +2776,7 @@ InterpretResult interpret_repl(C_STR source) {
 	InterpretResult res = interpret_execute();
 
 	if (res == INTERPRET_CEDE) {
-		//the REPL has no host to resume from: drop the paused execution
+		//the REPL has no host to resume from: drop the ceded execution
 		stack_reset();
 		vm.ceding = 0;
 		res = INTERPRET_RUNTIME_ERROR;

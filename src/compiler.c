@@ -1310,6 +1310,12 @@ static void returnStatement() {
 	}
 }
 
+static void cedeStatement() {
+	consume(TOKEN_SEMICOLON, "Expect ';' after 'cede'.");
+	emitByte(OP_CEDE);
+	clearOpStack();
+}
+
 //exports in module script
 static void exportsStatement() {
 	if (current->type != TYPE_MODULE) {
@@ -1493,6 +1499,7 @@ static void synchronize() {
 		case TOKEN_THROW:
 		case TOKEN_IMPORT:
 		case TOKEN_EXPORT:
+		case TOKEN_CEDE:
 			return;
 
 		default:
@@ -1541,6 +1548,9 @@ static void statementInner() {
 	}
 	else if (match(TOKEN_EXPORT)) {
 		exportsStatement();
+	}
+	else if (match(TOKEN_CEDE)) {
+		cedeStatement();
 	}
 	else {
 		expressionStatement();
@@ -2218,6 +2228,7 @@ ParseRule rules[] = {
 	[TOKEN_CONTINUE] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_IMPORT] = {import_,     NULL,   PREC_NONE},
 	[TOKEN_EXPORT] = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_CEDE] = {NULL,     NULL,   PREC_NONE},
 };
 
 static ParseRule* getRule(TokenType type) {

@@ -7,7 +7,9 @@
 #include "common.h"
 
 //use nan boxing
+#ifndef NAN_BOXING
 #define NAN_BOXING 1
+#endif // !NAN_BOXING
 
 typedef struct Obj Obj;
 typedef struct ObjString ObjString;
@@ -98,8 +100,6 @@ typedef struct {
 #endif
 
 #define NAN_VAL				NUMBER_VAL(NAN) //use this to return a NaN
-#define IS_NAN(value)		(IS_NUMBER(value) && isnan(AS_NUMBER(value))))
-#define IS_INFINITY(value)	(IS_NUMBER(value) && isinf(AS_NUMBER(value))))
 
 typedef struct {
 	uint32_t capacity; //limit to 4G

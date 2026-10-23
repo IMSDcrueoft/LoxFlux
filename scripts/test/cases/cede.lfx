@@ -1,0 +1,7 @@
+// exit: 0
+// out: before
+// err: [Cede] execution ceded; no resumer available.
+
+print "before";
+cede;
+print "after";

@@ -98,6 +98,17 @@ _(AMD Ryzen7-5800X, Windows 11, Use ClangCL/LLVM 22.1.3 for loxflux & clox (loop
 
 ---
 
+### Cede
+
+- **`cede` keyword**: Hands execution control back to the host while keeping the VM frame stack live. Execution resumes from the next statement when the host resumes the VM. The standalone CLI has no resumer, so `cede` stops execution there.
+```lox
+print "before";
+cede;
+print "after"; // runs only after the host resumes execution
+```
+
+---
+
 ### New Branch Syntactic
 
 ```ebnf
