@@ -27,7 +27,7 @@ static Value maxNative(int argCount, Value* args)
 	return NUMBER_VAL(val);
 }
 
-//max with multiple input
+//min with multiple input
 static Value minNative(int argCount, Value* args)
 {
 	double val = INFINITY;

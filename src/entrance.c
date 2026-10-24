@@ -227,11 +227,6 @@ void repl() {
 			result = NULL;
 		}
 
-		//be safe
-		if ((fullLine + fullLineLength) == NULL) {
-			exit(1);
-		}
-
 		memcpy(fullLine + fullLineLength, line, lineLen);
 		fullLineLength += (lineLen - 1);
 		fullLine[fullLineLength] = '\0';

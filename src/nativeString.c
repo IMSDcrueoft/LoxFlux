@@ -6,7 +6,7 @@
 #include "nativeBuiltin.h"
 #include "vm.h"
 
-//const string limit,will truncate
+//const string limit,will warn
 #define INTERN_STRING_WARN (1024)
 
 //String

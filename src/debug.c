@@ -311,7 +311,7 @@ uint32_t disassembleInstruction(ObjFunction* function, uint32_t offset) {
 		disPrintValue(vm.constants.values[constant]);
 		DIS_PRINTF("'\n");
 
-		//OP_CONSTANT 4
+		//OP_CLOSURE 4
 		offset += 4;
 
 		ObjFunction* function = AS_FUNCTION(vm.constants.values[constant]);
