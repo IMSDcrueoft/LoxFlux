@@ -45,16 +45,10 @@ static void markArrayAny(ObjArray* array) {
 }
 
 static void markRoots() {
-	for (Value* slot = vm.stack; slot < vm.stackTop; slot++) {
-		markValue(*slot);
-	}
-
-	for (uint32_t i = 0; i < vm.frameCount; i++) {
-		markObject((Obj*)vm.frames[i].closure);
-	}
-
-	for (ObjUpvalue* upvalue = vm.openUpvalues; upvalue != NULL; upvalue = upvalue->next) {
-		markObject((Obj*)upvalue);
+	//do not scan the VM execution cache: the current fiber owns the live
+	//stack/frames/open-upvalues, and resumer chains cover suspended callers
+	if (vm.currentFiber != NULL) {
+		markObject((Obj*)vm.currentFiber);
 	}
 
 	markTable(&vm.globals.fields);
@@ -165,6 +159,29 @@ static void blackenObject(Obj* object) {
 		markTable(&instance->fields);
 		break;
 	}
+	case OBJ_FIBER: {
+		ObjFiber* fiber = (ObjFiber*)object;
+
+		//scan only the live prefix of this fiber's stack
+		for (Value* slot = fiber->core.stack; slot < fiber->core.stackTop; slot++) {
+			markValue(*slot);
+		}
+
+		for (uint32_t i = 0; i < fiber->core.frameCount; i++) {
+			markObject((Obj*)fiber->core.frames[i].closure);
+		}
+
+		for (ObjUpvalue* upvalue = fiber->core.openUpvalues; upvalue != NULL; upvalue = upvalue->next) {
+			markObject((Obj*)upvalue);
+		}
+
+		if (fiber->resumer != NULL) {
+			markObject((Obj*)fiber->resumer);
+		}
+
+		markValue(fiber->result);
+		break;
+	}
 	case OBJ_ARRAY: //only array-any needs gc scan
 		markArrayAny((ObjArray*)object);
 		break;
@@ -243,6 +260,8 @@ void garbageCollect()
 #endif
 	//mark the state
 	vm.gcWorking = 1;
+
+	vm_storeCacheToFiber();
 
 	markRoots();
 	traceReferences();

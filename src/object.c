@@ -21,6 +21,7 @@ const C_STR objTypeInfo[] = {
 	[OBJ_STRING] = {"string"},
 	[OBJ_BOUND_METHOD] = {"boundMethod"},
 	[OBJ_INSTANCE] = {"instance"},
+	[OBJ_FIBER] = {"fiber"},
 	[OBJ_STRING_BUILDER] = {"stringBuilder"},
 	[OBJ_ARRAY] = {"array"},
 	[OBJ_ARRAY_F64] = {"arrayF64"},
@@ -190,6 +191,29 @@ ObjInstance* newInstance(ObjClass* klass) {
 	return instance;
 }
 
+ObjFiber* newFiber()
+{
+	ObjFiber* fiber = allocFiber();
+
+	//allocFiber() may return a recycled fiber, so initialize every execution
+	//field here; the stack arena itself is owned/reused by memory.c
+	fiber->core.stack = (Value*)fiber->stackArena.base;
+	fiber->core.stackTop = fiber->core.stack;
+	fiber->core.stackBoundary = (Value*)((char*)fiber->stackArena.base + fiber->stackArena.commitTop);
+
+	fiber->core.frames = ALLOCATE_NO_GC(CallFrame, FRAMES_INIT);
+	fiber->core.frameCount = 0;
+	fiber->core.frameCapacity = FRAMES_INIT;
+
+	fiber->core.openUpvalues = NULL;
+	fiber->resumer = NULL;
+	fiber->status = FIBER_PENDING;
+	fiber->isRunning = 0;
+	fiber->result = NIL_VAL;
+
+	return fiber;
+}
+
 HOT_FUNCTION
 ObjArray* newArray(ObjType type) {
 	ObjArray* array = ALLOCATE_OBJ(ObjArray, type);
@@ -311,7 +335,7 @@ void setTypedArrayElement(ObjArray* array, uint32_t index, Value val)
 	}
 }
 
-//if find deduplicate one return it else null
+//If a duplicate is found, return it; otherwise, return null.
 static inline ObjString* deduplicateString(C_STR chars, uint32_t length, uint64_t hash) {
 	return tableFindString(&vm.strings, chars, length, hash);
 }
@@ -636,7 +660,10 @@ void printObjectTo(FILE* stream, Value value, bool isExpand) {
 		fprintf(stream, "%s", AS_STRING(value)->chars);
 		break;
 	case OBJ_UPVALUE:
-		fprintf(stream, "upvalue");
+		fprintf(stream, "<upvalue>");
+		break;
+	case OBJ_FIBER:
+		fprintf(stream, "<fiber>");
 		break;
 	default: {
 		if (isIndexableArray(value)) {

@@ -53,4 +53,9 @@ void unlinkObj_no_gc(Obj* object);
 void freeObject(Obj* object);
 void freeObjects();
 
+struct ObjFiber;
+struct ObjFiber* allocFiber();
+
+void freeFiberFreeList();
+
 void log_malloc_info();

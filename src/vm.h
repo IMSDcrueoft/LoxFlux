@@ -14,6 +14,8 @@
 //the depth of call frames
 #define FRAMES_INIT 64
 #define FRAMES_MAX 1024
+// stack in fiber uses va, avoid syscall too frequently
+#define FIBER_CACHE_MAX 4
 
 _Static_assert(FRAMES_INIT > 0 && FRAMES_INIT <= FRAMES_MAX, "Invalid frame limits.");
 _Static_assert(((FRAMES_MAX / FRAMES_INIT) & ((FRAMES_MAX / FRAMES_INIT) - 1)) == 0, "The frameMax/frameInit ratio must be power of 2.");
@@ -45,29 +47,11 @@ _Static_assert(((FRAMES_MAX / FRAMES_INIT) & ((FRAMES_MAX / FRAMES_INIT) - 1)) =
 #endif
 
 typedef struct {
-	ObjClosure* closure;
-	uint8_t* ip;
-	Value* slots; //first avilable slot
-	//ptrdiff_t slotsOffset;// offset of the first slot in the vm stack, not a ptr, so that we can realloc the stack when needed
-	//kept as a comment for future use: the stack now lives at a fixed arena base
-	//(ArenaBumpAllocator) that never moves, so frame pointers never go stale and
-	//no offset bookkeeping is needed; restore this field if the stack becomes movable again
-	InlineCacheSlot* caches;// IC slots of frame->closure->function, resolved once per call to avoid per-op deref chains
-} CallFrame;
+	// runtime weak ref cache
+	FiberCore cache;
 
-//frames live in a no-GC heap array indexed by the dispatch loop; capacity grows
-//geometrically up to FRAMES_MAX, and the dispatch loop must refresh its frame
-//pointer after any call that may have grown the array
-//CallFrame layout still matters for cache-line packing; re-verify dispatch
-//benchmarks before trusting hot-loop numbers
-
-typedef struct {
-	//a cache
-	Value* stack;
-	Value* stackTop;
-	//the only push boundary: the committed edge of the stack arena; crossing it
-	//means commit more pages or (at the VA end = stackArena.capacity) overflow
-	Value* stackBoundary;
+	//currently executing fiber; owns the real frames/open-upvalue state
+	ObjFiber* currentFiber;
 
 	// deduplicated global constant table
 	// erased slots become holes, silently reused by the next valueArray_write
@@ -77,9 +61,6 @@ typedef struct {
 	StringTable scripts;
 	//pool
 	StringTable strings;
-
-	//upvalues
-	ObjUpvalue* openUpvalues;
 
 	//the root for dynamic objects
 	Obj* objects;
@@ -91,10 +72,9 @@ typedef struct {
 	uint32_t icFuncCount;
 	uint32_t icFuncCapacity;
 
-	CallFrame* frames;
-	//frames
-	uint32_t frameCount;
-	uint32_t frameCapacity;
+	//free ObjFiber cache; linked through the object header and not gc-scanned
+	ObjFiber* fiberFreeList;
+	size_t fiberFreeCount;
 
 	//Excludes space used by stacks/constants/compilations
 	//size_t (not uint64_t): matches the platform word size, so the 32-bit
@@ -133,10 +113,6 @@ typedef struct {
 	ObjInstance globals;
 	ObjInstance builtins[MODULE_COUNT];
 
-
-	//fixed-base backing storage for the stack (VA never moves, lazy commit)
-	ArenaBumpAllocator stackArena;
-
 	//fixed-base backing storage for interned strings (append-only bump): all
 	//ObjString allocations come from here and the whole arena is released at
 	//vm exit; strings are NOT linked into the object lists anymore
@@ -160,6 +136,8 @@ extern VM vm;
 void vm_init();
 void vm_free();
 bool vm_isCeding();
+// Must be called when switching fibers or performing GC
+void vm_storeCacheToFiber();
 void vm_register_ic_function(ObjFunction* function);
 
 void stack_push(Value value);
@@ -171,11 +149,10 @@ uint32_t getConstantSize();
 //add a constant and get the index of it,i will handle it later
 uint32_t addConstant(Value value);
 
-//the vm stack, interned strings and the gray worklist live in fixed-VA arenas
-//outside the allocator: their committed/used sizes are read straight off the
-//arena structs (vm.stackArena / vm.stringArena / vm.grayArena), the old
-//single-line wrappers (stringBytes/stringCommittedBytes/stackCommittedBytes)
-//are gone; pinnedBytes folds arenaBump_used(&vm.stringArena) into the no_gc book
+//the vm stack cache, interned strings and the gray worklist live in fixed-VA
+//arenas outside the allocator. The current fiber owns its stack arena; its
+//base/committed-edge are loaded into vm.cache.stack / vm.cache.stackBoundary
+//while current.
 
 //compile + prepare the top-level frame; on success the VM is ceding and the
 //caller may release the source buffer before calling interpret_execute

@@ -8,6 +8,7 @@
 #include "value.h"
 #include "table.h"
 #include "chunk.h"
+#include "arena_bump.h"
 
 //compress the ptr to 48bits
 #ifndef COMPRESS_OBJ_HEADER
@@ -31,6 +32,9 @@ typedef enum {
 	OBJ_BOUND_METHOD,
 	OBJ_CLASS,
 	OBJ_INSTANCE,
+
+	//coroutine
+	OBJ_FIBER,
 
 	//string builder and array are typed arrays
 	OBJ_STRING_BUILDER,
@@ -57,6 +61,7 @@ typedef enum {
 	TYPE_STRING_NATIVE,
 	TYPE_STRING_CLASS,
 	TYPE_STRING_OBJECT,
+	TYPE_STRING_FIBER,
 	TYPE_STRING_ARRAY,
 	TYPE_STRING_ARRAY_F64,
 	TYPE_STRING_ARRAY_F32,
@@ -177,7 +182,7 @@ typedef struct ObjClass {
 	Obj obj;
 	ObjString* name;
 	Table methods;
-	Value initializer;//inline cache
+	Value initializer;//fast path cache
 	struct ObjClass* superclass;//recorded by OP_INHERIT,walked by instanceof
 } ObjClass;
 
@@ -211,13 +216,72 @@ typedef struct {
 	void* payload;
 } ObjArray;
 
-// iterator object for foreach
+// not used now
+// opaque iterator object for foreach
 typedef struct {
 	Obj obj;
-	uint32_t index;  // current index of array or hashTable
-	uint32_t padding;
+	size_t index;  // current index of array or hashTable
 	Value target;
 } ObjIterator;
+
+//frames live in a no-GC heap array indexed by the dispatch loop; capacity grows
+//geometrically up to FRAMES_MAX, and the dispatch loop must refresh its frame
+//pointer after any call that may have grown the array
+//CallFrame layout still matters for cache-line packing; re-verify dispatch
+//benchmarks before trusting hot-loop numbers
+typedef struct {
+	ObjClosure* closure;
+	uint8_t* ip;
+	Value* slots; //first avilable slot
+	//ptrdiff_t slotsOffset;// offset of the first slot in the vm stack, not a ptr, so that we can realloc the stack when needed
+	//kept as a comment for future use: the stack now lives at a fixed arena base
+	//(ArenaBumpAllocator) that never moves, so frame pointers never go stale and
+	//no offset bookkeeping is needed; restore this field if the stack becomes movable again
+	InlineCacheSlot* caches;// IC slots of frame->closure->function, resolved once per call to avoid per-op deref chains
+} CallFrame;
+
+// status of fiber
+typedef enum {
+	FIBER_PENDING,
+	FIBER_SETTLED,
+	FIBER_FAILED,
+	FIBER_CANCELLED
+} FiberStatus;
+
+typedef struct {
+	Value* stack;
+	//saved stack top when this fiber is suspended; VM keeps its own stackTop
+	//cache while this fiber is current
+	Value* stackTop;
+	//the only push boundary: the committed edge of the stack arena; crossing it
+	//means commit more pages or (at the VA end = currentFiber->stackArena.capacity) overflow
+	Value* stackBoundary;
+
+	CallFrame* frames;
+	uint32_t frameCount;
+	uint32_t frameCapacity;
+
+	ObjUpvalue* openUpvalues;
+} FiberCore;
+
+typedef struct ObjFiber {
+	Obj obj;
+
+	FiberCore core;
+
+	// caller of ObjFiber(need gc track)
+	struct ObjFiber* resumer;
+
+	uint32_t status;
+	// is running or not (avoid loop call)
+	uint32_t isRunning;
+
+	//result of coroutine or catched error
+	Value result;
+
+	//fixed-base backing storage for the stack (VA never moves, lazy commit)
+	ArenaBumpAllocator stackArena;
+} ObjFiber;
 
 /*
 * TODO:
@@ -254,6 +318,7 @@ typedef struct {
 #define IS_BOUND_METHOD(value)		isObjType(value, OBJ_BOUND_METHOD)
 #define IS_CLASS(value)				isObjType(value, OBJ_CLASS)
 #define IS_INSTANCE(value)			isObjType(value, OBJ_INSTANCE)
+#define IS_FIBER(value)				isObjType(value, OBJ_FIBER)
 #define IS_STRING(value)			isObjType(value, OBJ_STRING)
 #define IS_STRING_BUILDER(value)	isObjType(value, OBJ_STRING_BUILDER)
 #define IS_ARRAY(value)				isObjType(value, OBJ_ARRAY)
@@ -267,6 +332,7 @@ typedef struct {
 #define AS_BOUND_METHOD(value)		((ObjBoundMethod*)AS_OBJ(value))
 #define AS_CLASS(value)				((ObjClass*)AS_OBJ(value))
 #define AS_INSTANCE(value)			((ObjInstance*)AS_OBJ(value))
+#define AS_FIBER(value)				((ObjFiber*)AS_OBJ(value))
 #define AS_NATIVE(value)			(((ObjNative*)AS_OBJ(value))->function)
 #define AS_STRING(value)			((ObjString*)AS_OBJ(value))
 #define AS_ARRAY(value)				((ObjArray*)AS_OBJ(value))
@@ -313,6 +379,7 @@ ObjBoundMethod* newBoundMethod(Value receiver, ObjClosure* method);
 ObjNative* newNative(NativeFn function);
 ObjClass* newClass(ObjString* name);
 ObjInstance* newInstance(ObjClass* klass);
+ObjFiber* newFiber();
 ObjArray* newArray(ObjType type);
 
 void reserveArray(ObjArray* array, uint64_t size);
