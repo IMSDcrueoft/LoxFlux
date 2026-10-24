@@ -411,7 +411,6 @@ static Token string() {
 
 Token scanToken()
 {
-	//we don't need this
 	switch (skipWhitespace())
 	{
 	case TOKEN_UNTERMINATED_COMMENT:

@@ -29,14 +29,12 @@ static void declaration();
 static void expression();
 static void statement();
 static void branchCaseStatement();
-//need to declare first
 static ParseRule* getRule(TokenType type);
 static void namedVariable(Token name, bool canAssign);
 static void variable(bool canAssign);
 static Token syntheticToken(C_STR text);
 
 #if COMPILATION_TIME_OPTIMIZATION
-//do optimize here
 static void instructionOptimize();
 #endif
 
@@ -474,7 +472,7 @@ static bool foldBuiltinNumber(void) {
 
 	Chunk* chunk = currentChunk();
 
-	//chech opStack first,than use this to override old codes
+	//check opStack first, then use it to override the old codes
 #define CHUNK_PEEK(offset) chunk->code[chunk->count - offset - 1]
 #define READ_24BITS_INDEX(offset)	\
 	(((uint32_t)chunk->code[chunk->count - (offset) - 1] << 16) +	\
@@ -554,7 +552,6 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 
 	compiler->localCount = 0;
 	compiler->scopeDepth = 0;
-	//init with 1024 slots
 	compiler->locals = ALLOCATE_NO_GC(Local, LOCAL_INIT);
 	compiler->localCapacity = LOCAL_INIT;
 
@@ -792,7 +789,7 @@ static void addLocal(Token name) {
 
 	Local* local = &current->locals[current->localCount++];
 	local->name = name;
-	local->depth = -1;// var a = a;??? avoid this
+	local->depth = -1;//guard: a local is not readable in its own initializer (var a = a;)
 	local->isCaptured = false;
 	local->isConst = false;
 }
@@ -1049,7 +1046,7 @@ static void classDeclaration() {
 	ClassCompiler classCompiler = { .enclosing = currentClass,.hasSuperclass = false };
 	currentClass = &classCompiler;
 
-	//check class clsnname < super {}
+	//check 'class name < super {}'
 	if (match(TOKEN_LESS)) {
 		consume(TOKEN_IDENTIFIER, "Expect superclass name.");
 		variable(false);
@@ -2248,7 +2245,6 @@ ObjFunction* compile(C_STR source, FunctionType compileType) {
 
 	advance();
 
-	//keep compiling
 	while (!match(TOKEN_EOF)) {
 		declaration();
 	}
@@ -2269,13 +2265,11 @@ void markCompilerRoots()
 }
 
 /*
-* do optimize here
 * This part uses hard-coded instruction lengths, which needs to be noted
 */
 #if COMPILATION_TIME_OPTIMIZATION
 //COLD_FUNCTION
 static void instructionOptimize() {
-	//do optimize here
 	Chunk* chunk = currentChunk();
 	OPStack* opStack = currentOpStack();
 
@@ -2293,7 +2287,6 @@ static void instructionOptimize() {
 	//literal opcodes (true/false/nil) are compile-time constants too
 	bool isLeftLiteral = (prevLeft == OP_TRUE) || (prevLeft == OP_FALSE) || (prevLeft == OP_NIL);
 	bool isRightLiteral = (prevRight == OP_TRUE) || (prevRight == OP_FALSE) || (prevRight == OP_NIL);
-	// local
 	bool isLeftLocal = (prevLeft == OP_GET_LOCAL);
 	bool isRightLocal = (prevRight == OP_GET_LOCAL);
 
@@ -2494,7 +2487,6 @@ static void instructionOptimize() {
 		break;
 	}
 	case OP_NOT: {
-		//all constants are true
 		if (isRightConstNumber) {
 			chunk_fallback(chunk, 1 + 3);//op + const
 			opStack_fallback(opStack, 2);

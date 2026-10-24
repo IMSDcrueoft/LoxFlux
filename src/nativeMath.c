@@ -223,7 +223,7 @@ void importNative_math() {
 	defineNative_math_number("EPSILON", DBL_EPSILON);
 
 	defineNative_math_number("MAX_VALUE", DBL_MAX);
-	defineNative_math_number("MIN_VALUE", DBL_TRUE_MIN);   // C11；5e-324
+	defineNative_math_number("MIN_VALUE", DBL_TRUE_MIN);   // C11, 5e-324
 	defineNative_math_number("MAX_SAFE_INTEGER", 9007199254740991.0);   // 2^53 - 1
 	defineNative_math_number("MIN_SAFE_INTEGER", -9007199254740991.0);  // -(2^53 - 1)
 

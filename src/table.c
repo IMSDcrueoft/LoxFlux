@@ -27,7 +27,6 @@ void table_free(Table* table)
 
 HOT_FUNCTION
 static Entry* findEntry(Entry* entries, uint32_t capacity, ObjString* key, bool isGlobal) {
-	//check it
 	Entry* entry = NULL;
 
 	uint32_t index = key->hash & (capacity - 1);
@@ -56,7 +55,6 @@ static Entry* findEntry(Entry* entries, uint32_t capacity, ObjString* key, bool 
 			if (isGlobal) {
 				key->symbol = index;
 			}
-			// We found the key.
 			return entry;
 		}
 

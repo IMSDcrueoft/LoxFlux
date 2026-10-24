@@ -24,7 +24,6 @@ void numberTable_free(NumberTable* table)
 }
 
 static NumberEntry* findNumberEntry(NumberEntry* entries, uint32_t capacity, uint64_t binary, uint64_t hash) {
-	//check it
 	NumberEntry* entry = NULL;
 	uint32_t index = hash & (capacity - 1);
 
@@ -35,7 +34,6 @@ static NumberEntry* findNumberEntry(NumberEntry* entries, uint32_t capacity, uin
 			return entry;
 		}
 		else if (entry->binary == binary) {
-			// We found the key.
 			return entry;
 		}
 

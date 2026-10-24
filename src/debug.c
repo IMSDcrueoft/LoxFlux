@@ -63,9 +63,9 @@ static uint32_t builtinInStruction(C_STR name, Chunk* chunk, uint32_t offset) {
 COLD_FUNCTION
 static uint32_t bitwiseInStruction(C_STR name, Chunk* chunk, uint32_t offset) {
 	uint32_t slot = chunk->code[offset + 1];
-	//24bit index
+	//1-byte operand
 	uint32_t constant1B = (uint32_t)chunk->code[offset + 2];
-	//24bit index
+	//4-byte operand
 	uint32_t constant4B = ((uint32_t)chunk->code[offset + 2]) | ((uint32_t)chunk->code[offset + 3] << 8) | ((uint32_t)chunk->code[offset + 4] << 16) | ((uint32_t)chunk->code[offset + 5] << 24);
 
 	switch (slot)

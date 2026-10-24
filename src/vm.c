@@ -32,7 +32,7 @@ static void closeUpvalues(Value* last);
 COLD_FUNCTION
 static void stack_reset()
 {
-	//close open upvalues before clearing the stack: discarded/cended executions
+	//close open upvalues before clearing the stack: discarded/ceded executions
 	//must not leave escaped closures pointing into reset stack slots
 	if (vm.cache.openUpvalues != NULL) {
 		closeUpvalues(vm.cache.stack);
@@ -61,7 +61,6 @@ static ObjFunction* getCachedScript(STR absolutePath) {
 	// only to seek with absolute path
 	ObjString* path = copyString(absolutePath, (uint32_t)strlen(absolutePath), false);
 
-	// get deduplicate script
 	StringEntry* entry = tableGetScriptEntry(&vm.scripts, path);
 	ObjFunction* function = (entry != NULL) ? AS_FUNCTION(vm.constants.values[entry->index]) : NULL;
 
@@ -71,7 +70,7 @@ static ObjFunction* getCachedScript(STR absolutePath) {
 		STR source = readFile(absolutePath);
 
 		function = compile(source, TYPE_MODULE);
-		mem_free(source);// free memory
+		mem_free(source);
 
 		if (function != NULL) {
 			// add to pool
@@ -162,12 +161,6 @@ void stack_push(Value value)
 	*vm.cache.stackTop = value;
 
 	if (++vm.cache.stackTop == vm.cache.stackBoundary) {
-		//the old movable stack had to GROW_ARRAY (realloc) here and then re-fix
-		//every frame->slots and open upvalue->location (via slotsOffset /
-		//location_offset bookkeeping); the arena stack reserves fixed VA up
-		//front instead, so "growing" is only a lazy page commit and neither
-		//the re-fix passes nor the offset fields exist anymore
-		//
 		//if (oldStack != vm.cache.stack) {
 		//	// update all stack frames so it is safe now
 		//	for (int32_t i = vm.cache.frameCount - 1; i >= 0; i--) {
@@ -419,7 +412,7 @@ void vm_init()
 	vm.globals = (ObjInstance){
 		.obj = stateLess_obj_header(OBJ_INSTANCE),
 		.klass = NULL,
-		.fields = {.isGlobal = true,.isFrozen = false,.isEternal = false,.isPoisoned = false}//remind this
+		.fields = {.isGlobal = true,.isFrozen = false,.isEternal = false,.isPoisoned = false}
 	};
 
 	table_init(&vm.globals.fields);
@@ -431,11 +424,10 @@ void vm_init()
 	vm.objects_no_gc = NULL;
 
 	vm.functionID = 0;
-	//set
 	vm.nextGC = GC_HEAP_BEGIN;
 	vm.beginGC = GC_HEAP_BEGIN;
-	vm.gcMark = true; //bool value
-	vm.gcWorking = false; //bool value
+	vm.gcMark = true;
+	vm.gcWorking = false;
 
 	//the root fiber owns the main VM stack and the live frame/open-upvalue state
 	vm.currentFiber = newFiber();
@@ -844,11 +836,11 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
 
 #define BINARAY_OP_BIT(op)																			\
     do {																							\
-		/* Pop the top two values from the stack */													\
+		/* both operands must be numbers */													\
 		if (IS_NUMBER(vm.cache.stackTop[-2]) && IS_NUMBER(vm.cache.stackTop[-1])) {								\
 			double left = AS_NUMBER(vm.cache.stackTop[-2]);												\
 			double right = AS_NUMBER(vm.cache.stackTop[-1]);												\
-			/* Perform the operation and push the result back */									\
+			/* compute the result in place */									\
 			vm.cache.stackTop[-2] = NUMBER_VAL(double_to_i32(left) op double_to_i32(right));				\
 			vm.cache.stackTop--;																			\
 			return ip;																				\
@@ -857,11 +849,11 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
 
 #define BINARAY_OP_BIT_IMM(op)																\
     do {																					\
-		/* Pop the top two values from the stack */											\
+		/* both operands must be numbers */											\
 		if (IS_NUMBER(vm.cache.stackTop[-1])) {													\
 			int32_t constant = READ_WORD();													\
 			double left = AS_NUMBER(vm.cache.stackTop[-1]);										\
-			/* Perform the operation and push the result back */							\
+			/* compute the result in place */							\
 			vm.cache.stackTop[-1] = NUMBER_VAL(double_to_i32(left) op constant);					\
 			return ip;																		\
 		}																					\
@@ -1305,9 +1297,9 @@ static InterpretResult run()
 	// push(pop() op pop())
 #define BINARY_OP(valueType,op)																		\
     do {																							\
-		/* Pop the top two values from the stack */													\
+		/* both operands must be numbers */													\
 		if (IS_NUMBER(vm.cache.stackTop[-2]) && IS_NUMBER(vm.cache.stackTop[-1])) {								\
-			/* Perform the operation and push the result back */									\
+			/* compute the result in place */									\
 			vm.cache.stackTop[-2] = valueType(AS_NUMBER(vm.cache.stackTop[-2]) op AS_NUMBER(vm.cache.stackTop[-1]));	\
 			vm.cache.stackTop--;																			\
 		} else {														                            \
@@ -1317,9 +1309,9 @@ static InterpretResult run()
 
 #define BINARY_OP_WITH_RIGHT(valueType,right,op)											\
     do {																					\
-		/* Pop the top two values from the stack */											\
+		/* both operands must be numbers */											\
 		if (IS_NUMBER(vm.cache.stackTop[-1]) && IS_NUMBER(right)) {								\
-			/* Perform the operation and push the result back */							\
+			/* compute the result in place */							\
 			vm.cache.stackTop[-1] = valueType(AS_NUMBER(vm.cache.stackTop[-1]) op AS_NUMBER(right));	\
 		} else {																			\
 			RUNTIME_ERROR("Operands must be numbers.");										\
@@ -1406,7 +1398,7 @@ static InterpretResult run()
 		return INTERPRET_RUNTIME_ERROR;			\
 	} while (false)
 
-	while (true) //let it loop
+	while (true)
 	{
 #if DEBUG_TRACE_EXECUTION //print in debug mode
 		traceFrameStack(stderr, frame);
@@ -1910,7 +1902,6 @@ static InterpretResult run()
 				Entry* entry = &vm.globals.fields.entries[name->symbol];
 
 				if (entry->key == name) {
-					// We found the key.
 					stack_push(entry->value);
 					NEXT_INSTRUCTION;
 				}
@@ -1932,7 +1923,6 @@ static InterpretResult run()
 			if ((name->symbol != INVALID_OBJ_STRING_SYMBOL)) {
 				Entry* entry = &vm.globals.fields.entries[name->symbol];
 				if (entry->key == name) {
-					// We found the key.
 					entry->value = vm.cache.stackTop[-1];
 					NEXT_INSTRUCTION;
 				}
@@ -2107,9 +2097,9 @@ static InterpretResult run()
 		}
 		case OP_MODULUS: {
 		label_op_modulus:
-			/* Pop the top two values from the stack */
+			/* both operands must be numbers */
 			if (IS_NUMBER(vm.cache.stackTop[-2]) && IS_NUMBER(vm.cache.stackTop[-1])) {
-				/* Perform the operation and push the result back */
+				/* compute the result in place */
 				vm.cache.stackTop[-2] = NUMBER_VAL(fmod(AS_NUMBER(vm.cache.stackTop[-2]), AS_NUMBER(vm.cache.stackTop[-1])));
 				vm.cache.stackTop--;
 				NEXT_INSTRUCTION;
@@ -2164,7 +2154,6 @@ static InterpretResult run()
 		}
 		case OP_THROW: {
 		label_op_throw:
-			//if solved break else error
 			//sync for the stack trace before the error printer walks the frames
 			frame->ip = ip;
 			if (throwError(stack_pop(), "An exception was thrown.")) {
@@ -2362,7 +2351,7 @@ static InterpretResult run()
 			}
 
 			ObjFunction* function = getCachedScript(absolutePath);
-			mem_free(absolutePath);// free memory
+			mem_free(absolutePath);
 			if (function == NULL) return INTERPRET_COMPILE_ERROR;
 
 			//circular import:the module is already executing somewhere on the
@@ -2421,9 +2410,9 @@ static InterpretResult run()
 		case OP_MODULUS_CONST: {
 		label_op_modulus_const:
 			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
-			/* Pop the top two values from the stack */
+			/* both operands must be numbers */
 			if (IS_NUMBER(vm.cache.stackTop[-1])) {
-				/* Perform the operation and push the result back */
+				/* compute the result in place */
 				vm.cache.stackTop[-1] = NUMBER_VAL(fmod(AS_NUMBER(vm.cache.stackTop[-1]), AS_NUMBER(constant)));
 				NEXT_INSTRUCTION;
 			}
@@ -2531,9 +2520,9 @@ static InterpretResult run()
 			uint32_t index = READ_SHORT();
 			Value local = frame->slots[index];
 
-			/* Pop the top two values from the stack */
+			/* both operands must be numbers */
 			if (IS_NUMBER(vm.cache.stackTop[-1]) && IS_NUMBER(local)) {
-				/* Perform the operation and push the result back */
+				/* compute the result in place */
 				vm.cache.stackTop[-1] = NUMBER_VAL(fmod(AS_NUMBER(vm.cache.stackTop[-1]), AS_NUMBER(local)));
 				NEXT_INSTRUCTION;
 			}

@@ -88,7 +88,7 @@ struct Obj {
 			uint8_t isMarked;
 			uint8_t padding[6]; //high 48bits for ptr low48bits
 		};
-		uintptr_t boxedNext;	//ptr: The user-space pointer's high 16 bits can be 0 directly,the high 16 bits of the pointer depends on the 47th bit
+		uintptr_t boxedNext;	//gc list next ptr, stored in the upper 48 bits (nextPtr << 16); the low 16 bits hold type + isMarked
 	};
 };
 #define OBJ_PTR_SET_NEXT(obj,nextPtr)	((obj)->boxedNext = ((obj)->boxedNext & UINT16_MAX) | ((uintptr_t)nextPtr << 16))
@@ -150,9 +150,6 @@ typedef struct ObjUpvalue {
 	Obj obj;
 	Value closed; //closed value
 	//ptrdiff_t location_offset; // store the offset, so we can update location when stack grow
-	//kept as a comment for future use: the vm stack now lives at a fixed arena base
-	//that never moves, so location pointers never go stale and no offset bookkeeping
-	//is needed; restore this field if the stack becomes movable again
 	Value* location;
 	struct ObjUpvalue* next;
 } ObjUpvalue;
@@ -203,7 +200,7 @@ struct ObjString {
 	uint32_t symbol; // used to boost global hash table
 	uint32_t length; // the real length,not include '\0'
 	uint64_t hash; // the hash
-	char chars[]; // flexible array members FAM
+	char chars[];
 };
 
 //begin at 8 and align to 8, when < 64,mul 2, then *1.5 and align 8
@@ -232,11 +229,8 @@ typedef struct {
 typedef struct {
 	ObjClosure* closure;
 	uint8_t* ip;
-	Value* slots; //first avilable slot
+	Value* slots; //first available slot
 	//ptrdiff_t slotsOffset;// offset of the first slot in the vm stack, not a ptr, so that we can realloc the stack when needed
-	//kept as a comment for future use: the stack now lives at a fixed arena base
-	//(ArenaBumpAllocator) that never moves, so frame pointers never go stale and
-	//no offset bookkeeping is needed; restore this field if the stack becomes movable again
 	InlineCacheSlot* caches;// IC slots of frame->closure->function, resolved once per call to avoid per-op deref chains
 } CallFrame;
 

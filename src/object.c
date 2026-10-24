@@ -92,7 +92,7 @@ ObjUpvalue* newUpvalue(Value* slot)
 {
 	ObjUpvalue* upvalue = ALLOCATE_OBJ(ObjUpvalue, OBJ_UPVALUE);
 	upvalue->location = slot;
-	//upvalue->location_offset = offset; //unused since the arena stack (fixed base, never re-fixed)
+	//upvalue->location_offset = offset;
 	upvalue->closed = NIL_VAL;
 	upvalue->next = NULL;
 	return upvalue;
@@ -349,8 +349,6 @@ ObjString* copyString(C_STR chars, uint32_t length, bool escapeChars)
 
 	if (!escapeChars) {
 		hash = HASH_64bits(chars, length);
-
-		//find deduplicate one
 		string = deduplicateString(chars, length, hash);
 		if (string == NULL) {
 			//create string
@@ -375,7 +373,7 @@ ObjString* copyString(C_STR chars, uint32_t length, bool escapeChars)
 		//the unescaped content is never longer than the source, so the source
 		//length bounds the scratch need; short literals stay on the stack,
 		//long ones use a transient heap buffer (always released below)
-		char stackScratch[512];// no init
+		char stackScratch[512];
 		char* scratch = NULL;
 		char* content = stackScratch;
 		if (length > (uint32_t)sizeof(stackScratch)) {
