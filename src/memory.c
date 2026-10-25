@@ -139,7 +139,7 @@ void freeObject(Obj* object) {
 			assert(vm.bytesAllocated >= sizeof(ObjFiber));
 			vm.bytesAllocated -= sizeof(ObjFiber);
 			//reuse the object header as the free-list link
-			OBJ_PTR_SET_NEXT(&fiber->obj, vm.fiberFreeList);
+			OBJ_PTR_SET_NEXT(&fiber->obj, (Obj*)vm.fiberFreeList);
 			vm.fiberFreeList = fiber;
 			vm.fiberFreeCount++;
 		}
