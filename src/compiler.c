@@ -799,11 +799,9 @@ static bool identifiersEqual(Token* a, Token* b) {
 	return memcmp(a->start, b->start, a->length) == 0;
 }
 
-static void declareVariable() {
+static void declareVariableAt(Token* name) {
 	//it is global
 	if (current->scopeDepth == 0) return;
-
-	Token* name = &parser.previous;
 
 	for (int32_t i = current->localCount - 1; i >= 0; i--) {
 		Local* local = &current->locals[i];
@@ -818,6 +816,10 @@ static void declareVariable() {
 	}
 
 	addLocal(*name);
+}
+
+static void declareVariable() {
+	declareVariableAt(&parser.previous);
 }
 
 typedef struct {
@@ -1220,14 +1222,10 @@ static void forStatement() {
 }
 
 static void foreachStatement() {
-	//locals layout: [others..., k, v, hidden iterator, locals in scope]
-	//the iterator slot is compiler-managed: an empty name keeps name resolution
-	//from ever hitting it, OP_ITERATE rewrites k/v in place every round, and
-	//'break' frees the iterator via OP_FREE_LOCAL before unwinding the rest
+	//locals layout: [others..., k, v, hidden iterator, body locals]
 	beginScope();
 
-	//var/const is mandatory: the modifier only controls whether user code may
-	//reassign k/v inside the body (OP_ITERATE itself always overwrites them)
+	//var/const only controls user assignment; OP_ITERATE always overwrites k/v
 	consume(TOKEN_LEFT_PAREN, "Expect '(' after 'foreach'.");
 	if (!match(TOKEN_VAR) && !match(TOKEN_CONST)) {
 		errorAtCurrent("Expect 'var' or 'const' after 'foreach'.");
@@ -1235,36 +1233,37 @@ static void foreachStatement() {
 	}
 	bool isConst = (parser.previous.type == TOKEN_CONST);
 
-	//two NILs pre-fill the k/v slots
 	emitBytes(2, OP_NIL, OP_NIL);
 	clearOpStack();
 
 	consume(TOKEN_IDENTIFIER, "Expect loop key variable name.");
-	declareVariable();
-	markInitialized(isConst);
+	Token keyName = parser.previous;
 
 	consume(TOKEN_COMMA, "Expect ',' between loop variables.");
 
 	consume(TOKEN_IDENTIFIER, "Expect loop value variable name.");
-	declareVariable();
-	markInitialized(isConst);
+	Token valueName = parser.previous;
 
 	consume(TOKEN_IN, "Expect 'in' after loop variables.");
 
 	expression();
 	consume(TOKEN_RIGHT_PAREN, "Expect ')' after the iterable.");
 
-	//the iterable slot becomes the opaque iterator (stack_replace at runtime)
+	//declare after the iterable: a same-named variable in it resolves to the
+	//enclosing scope, only the loop body gets the new k/v
+	declareVariableAt(&keyName);
+	markInitialized(isConst);
+	declareVariableAt(&valueName);
+	markInitialized(isConst);
+
 	emitByte(OP_NEW_ITERATOR);
 	clearOpStack();
 
-	//hidden iterator local: an empty name can never collide with a user
-	//identifier, so it stays invisible to name resolution forever
+	//empty name: never resolvable by user code
 	Token hiddenIterator = (Token){ .start = "", .length = 0, .line = parser.previous.line };
 	addLocal(hiddenIterator);
 	markInitialized(false);
 
-	//record the loop: enterParamCount covers k,v,iter, body locals start above
 	LoopContext loop = (LoopContext){
 		.start = currentChunk()->count,
 		.enclosing = current->currentLoop,
@@ -1279,19 +1278,16 @@ static void foreachStatement() {
 	loop.breakJumps = ALLOCATE_NO_GC(int32_t, loop.breakJumpCapacity);
 	current->currentLoop = &loop;
 
-	//every round starts here; the operand is the exhaustion jump, patched past
-	//the dead endScope cleanup bytes where both exits have unwound k/v/iter
+	//exhaustion jump: patched past the dead endScope cleanup below
 	int32_t exhaustJump = emitJump(OP_ITERATE);
 
 	statement();
 
 	emitLoop(loop.start);
 
-	//release the k/v/iter records; the emitted cleanup bytes are dead code
-	//(both loop exits unwind them earlier) but keep scopeDepth/localCount true
+	//dead cleanup bytes: both loop exits already unwound k/v/iter at runtime
 	endScope();
 
-	//exhaustion lands here, past the dead cleanup bytes
 	patchJump(exhaustJump);
 
 	while (loop.breakJumpCount > 0) {
@@ -1530,11 +1526,8 @@ static void breakStatement() {
 		return;
 	}
 
-	//foreach: free the opaque iterator FIRST, while its slot still holds it;
-	//OP_FREE_LOCAL drops NIL into the slot so the unwind below can never touch
-	//a dangling object. the iterator is the last of the 3 control slots
-	//(k, v, iter) = enterParamCount - 1, and closing down to enterParamCount - 3
-	//(k's index) closes/pops body locals together with k/v in one pass
+	//foreach: free the iterator (last of k/v/iter) before unwinding, then close
+	//down to k's index so body locals and k/v go in one pass
 	if (current->currentLoop->loopType == LOOP_FOREACH) {
 		emitShortCommand(OP_FREE_LOCAL, current->currentLoop->enterParamCount - 1);
 		closeLoopLocals(current->currentLoop->enterParamCount - 3);

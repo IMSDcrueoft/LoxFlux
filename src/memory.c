@@ -76,40 +76,18 @@ void* reallocate(void* pointer, size_t oldSize, size_t newSize)
 	return result;
 }
 
-//unlink one object from the immortal no-GC list
-//(prev/cur walk, works with both Obj header layouts; must run before freeObject on no-GC objects)
-void unlinkObj_no_gc(Obj* object) {
+//unlink one object from a vm object list (gc or no-gc)
+//(prev/cur walk, works with both Obj header layouts; must run before freeObject on the object)
+void unlinkObj(Obj** head, Obj* object) {
 	Obj* prev = NULL;
-	Obj* cur = vm.objects_no_gc;
+	Obj* cur = *head;
 
 	while (cur != NULL) {
 		Obj* next = OBJ_PTR_GET_NEXT(cur);
 
 		if (cur == object) {
 			if (prev == NULL) {
-				vm.objects_no_gc = next;
-			}
-			else {
-				OBJ_PTR_SET_NEXT(prev, next);
-			}
-			return;
-		}
-
-		prev = cur;
-		cur = next;
-	}
-}
-
-void unlinkObj_gc(Obj* object) {
-	Obj* prev = NULL;
-	Obj* cur = vm.objects;
-
-	while (cur != NULL) {
-		Obj* next = OBJ_PTR_GET_NEXT(cur);
-
-		if (cur == object) {
-			if (prev == NULL) {
-				vm.objects = next;
+				*head = next;
 			}
 			else {
 				OBJ_PTR_SET_NEXT(prev, next);

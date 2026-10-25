@@ -130,7 +130,7 @@ ObjFunction* newFunctionMakeFAM(ObjFunction* function, ValueArray* constants){
 	chunk_init(&function->chunk);
 	function->caches = NULL;
 	function->constantsCount = 0;
-	unlinkObj_no_gc(&function->obj);
+	unlinkObj(&vm.objects_no_gc, &function->obj);
 	freeObject(&function->obj);
 
 	return fresh;
@@ -229,7 +229,7 @@ HOT_FUNCTION
 ObjIterator* newIterator(Obj* target)
 {
 	ObjIterator* iterator = ALLOCATE_OBJ(ObjIterator, OBJ_ITERATOR);
-	iterator->type = OBJ_PTR_GET_TYPE(target);	//fast path tag, snapshot of the target kind
+	iterator->type = OBJ_PTR_GET_TYPE(target);
 	iterator->isDone = false;
 	iterator->index = 0;
 	iterator->target = target;

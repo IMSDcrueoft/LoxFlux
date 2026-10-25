@@ -2339,18 +2339,12 @@ static InterpretResult run()
 		}
 		case OP_ITERATE: {
 		label_op_iterate:
-			//stack layout: [k][v][iter] with iter on top; the operand is the
-			//exhaustion jump, patched past the loop body + dead endScope bytes
+			//stack: [k][v][iter]; operand = exhaustion jump
 			uint16_t offset = READ_SHORT();
 			ObjIterator* iter = AS_ITERATOR(vm.cache.stackTop[-1]);
 
-			//TODO: OBJ_ARRAY / typed array paths (walk payload by iter->index);
-			//kept as an if-chain on purpose: the sparse ObjType values would
-			//turn a switch into a jump table / binary search
 			if (!iter->isDone) {
 				if (iter->type >= OBJ_ARRAY) {
-					//array / typed array: walk the payload by index; k is the
-					//subscript, v the element (Value payload vs typed reader)
 					ObjArray* array = (ObjArray*)iter->target;
 					if (iter->index < array->length) {
 						uint32_t i = iter->index++;
@@ -2358,16 +2352,11 @@ static InterpretResult run()
 						GET_INDEXABLE_ELEMENT(array, i, vm.cache.stackTop[-2]);
 						NEXT_INSTRUCTION;
 					}
-					//else: exhausted, fall through to the release path below
 				}
 				else {
 					assert(iter->type == OBJ_INSTANCE && "The iterator received a non-instance input.");
 
-					//the table layer owns the whole walk: tableIterateNext skips
-					//empty slots and tombstones and re-reads the live capacity
-					//every call, so insert/delete/rehash during iteration stays
-					//best-effort safe; iter->isDone was raised by OP_NEW_ITERATOR
-					//for empty tables
+					//rehash/insert/delete during iteration is best-effort
 					Table* fields = &((ObjInstance*)iter->target)->fields;
 					Entry* entry = NULL;
 
@@ -2382,11 +2371,9 @@ static InterpretResult run()
 				}
 			}
 
-			//exhausted: close k/v upvalues first, then release the iterator
-			//(inline, same as OP_FREE_LOCAL), pop the 3 control slots and
-			//jump past the loop body
+			//exhausted: close k/v upvalues, release the iterator, pop k/v/iter
 			closeUpvalues(vm.cache.stackTop - 3);
-			unlinkObj_gc(&iter->obj);
+			unlinkObj(&vm.objects, &iter->obj);
 			freeObject(&iter->obj);
 			vm.cache.stackTop -= 3;
 			ip += offset;
@@ -2394,20 +2381,15 @@ static InterpretResult run()
 		}
 		case OP_FREE_LOCAL: {
 		label_op_free_local:
-			// This feature currently can only be used for the release of local variables that have no other references.
-			// If ordinary objects are to be released in the future, special handling will be required.
 			uint32_t index = READ_SHORT();
 			Value local = frame->slots[index];
 
-			// Currently, only non-transparent iterators generate this bytecode.
 			if (IS_ITERATOR(local)) {
 				Obj* iterator = AS_OBJ(local);
-				unlinkObj_gc(iterator);
+				unlinkObj(&vm.objects, iterator);
 				freeObject(iterator);
 			}
-			// Overwriting the slot, although no error occurs currently, 
-			// does not guarantee that future unexpected garbage collection 
-			// will not trigger access to a dangling pointer.
+
 			frame->slots[index] = NIL_VAL;
 			NEXT_INSTRUCTION;
 		}

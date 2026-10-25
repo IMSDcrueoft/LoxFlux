@@ -163,7 +163,6 @@ void tableAddAll(Table* from, Table* to)
 	}
 }
 
-// returns false if table is empty
 bool tableGetFirstEntryIndex(Table* table, uint32_t* index_out) {
 	for (uint32_t i = 0; i < table->capacity; i++) {
 		if (table->entries[i].key != NULL) {
@@ -175,12 +174,10 @@ bool tableGetFirstEntryIndex(Table* table, uint32_t* index_out) {
 	return false;
 }
 
-// returns isDone (true = exhausted); on a hit *index_inout has already been
-// advanced past the produced slot, so the caller just stores it back
+//on a hit *index_inout has been advanced past the produced slot
+HOT_FUNCTION
 bool tableIterateNext(Table* table, uint32_t* index_inout, Entry** entry_out) {
-	//scan from *index_inout, skipping empty slots AND tombstones (tableDelete
-	//stores key == NULL for both); the live capacity is re-read on every call,
-	//so insert/delete/rehash during iteration stays best-effort safe
+	//skips empty slots and tombstones; rehash during iteration is best-effort
 	while (*index_inout < table->capacity) {
 		Entry* entry = &table->entries[(*index_inout)++];
 

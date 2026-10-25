@@ -276,7 +276,6 @@ uint32_t disassembleInstruction(ObjFunction* function, uint32_t offset) {
 	case OP_RETURN:
 		return simpleInstruction("OP_RETURN", offset);
 	case OP_ITERATE:
-		// [op][offset u16]
 		return jumpInstruction("OP_ITERATE", 1, chunk, offset);
 	case OP_FREE_LOCAL:
 		return shortInstruction("OP_FREE_LOCAL", chunk, offset);

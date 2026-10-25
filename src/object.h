@@ -219,11 +219,11 @@ typedef struct {
 	void* payload;
 } ObjArray;
 
-// opaque iterator object for foreach;
+//opaque iterator object for foreach
 typedef struct {
 	Obj obj;
-	uint8_t type;		// fast path
-	uint8_t isDone;		// reject resume after done
+	uint8_t type;		// target type snapshot
+	uint8_t isDone;
 	uint16_t padding;
 
 	uint32_t index;		// current index of array or hashTable
@@ -331,11 +331,9 @@ typedef struct ObjFiber {
 #define ARRAY_ELEMENT(array, type, index)	(((type*)array->payload)[index])
 #define ARRAY_IN_RANGE(array, index)		((index >= 0) && (index < array->length))
 
-//statement macros: expand an element load/store switch right at the use site,
-//zero function call. `array`/`index`/`val` are expanded several times, so only
-//pass side-effect free lvalues (all current call sites do). `out` is a Value
-//lvalue. no default labels: consecutive cases 11..20 keep the switch a pure
-//jump table, illegal types are caught by the assert (debug) instead
+//element load/store switch inlined at the call site: array/index/val are
+//expanded per case, so pass side-effect-free lvalues; illegal types are only
+//caught by the debug assert
 #define GET_INDEXABLE_ELEMENT(array, index, out) { \
 	uint8_t t = OBJ_GET_TYPE((array)->obj); \
 	assert(t >= OBJ_STRING_BUILDER && t <= OBJ_ARRAY_I8); \
@@ -353,9 +351,7 @@ typedef struct ObjFiber {
 	} \
 }
 
-//Value-width storage always assigns the raw value; typed storage checks the
-//number inside each case and stores a plain 0 for anything that is not one,
-//so the any-array path never pays for the number normalize at all
+//Value slots store raw; typed slots store 0 for non-numbers
 #define SET_INDEXABLE_ELEMENT(array, index, val) { \
 	uint8_t t = OBJ_GET_TYPE((array)->obj); \
 	assert(t >= OBJ_STRING_BUILDER && t <= OBJ_ARRAY_I8); \
