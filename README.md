@@ -440,4 +440,7 @@ The project **loxFlux** is based on `MIT` and uses three third-party projects.
 
 ## Other expectations
 1. try catch syntax.
-2. performace improve
+2. coroutine support.
+3. iterator syntax.
+4. performace improve.
+5. gc optimization.
