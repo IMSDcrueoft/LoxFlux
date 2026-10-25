@@ -1,0 +1,94 @@
+var arr = @ctor.Array(1);
+@array.resize(arr, 10000000);
+
+{
+	var i = 0;
+	while (i < 10000000) {
+		arr[i] = 1;
+		i = i + 1;
+	}
+}
+
+var s1 = 0;
+var start = @time.milli();
+{
+	var a = arr;
+	var i = 0;
+	var s = 0;
+	while (i < 10000000) {
+		s = s + a[i];
+		i = i + 1;
+	}
+	s1 = s;
+}
+print "while 1e7";
+print @time.milli() - start;
+
+var s2 = 0;
+start = @time.milli();
+{
+	var a = arr;
+	var s = 0;
+	foreach (var i, v in a) {
+		s = s + v;
+	}
+	s2 = s;
+}
+print "foreach 1e7";
+print @time.milli() - start;
+
+if (s1 == s2 and s1 == 10000000) {
+	print "sum ok";
+}
+else {
+	print "sum mismatch";
+}
+
+var o = {
+	k0: 1, k1: 1, k2: 1, k3: 1, k4: 1, k5: 1, k6: 1, k7: 1, k8: 1, k9: 1, k10: 1, k11: 1, k12: 1, k13: 1, k14: 1, k15: 1, k16: 1, k17: 1, k18: 1, k19: 1,
+	k20: 1, k21: 1, k22: 1, k23: 1, k24: 1, k25: 1, k26: 1, k27: 1, k28: 1, k29: 1, k30: 1, k31: 1, k32: 1, k33: 1, k34: 1, k35: 1, k36: 1, k37: 1, k38: 1, k39: 1,
+	k40: 1, k41: 1, k42: 1, k43: 1, k44: 1, k45: 1, k46: 1, k47: 1, k48: 1, k49: 1, k50: 1, k51: 1, k52: 1, k53: 1, k54: 1, k55: 1, k56: 1, k57: 1, k58: 1, k59: 1,
+	k60: 1, k61: 1, k62: 1, k63: 1, k64: 1, k65: 1, k66: 1, k67: 1, k68: 1, k69: 1, k70: 1, k71: 1, k72: 1, k73: 1, k74: 1, k75: 1, k76: 1, k77: 1, k78: 1, k79: 1,
+	k80: 1, k81: 1, k82: 1, k83: 1, k84: 1, k85: 1, k86: 1, k87: 1, k88: 1, k89: 1, k90: 1, k91: 1, k92: 1, k93: 1, k94: 1, k95: 1, k96: 1, k97: 1, k98: 1, k99: 1
+};
+
+var s3 = 0;
+start = @time.milli();
+{
+	var ob = o;
+	var r = 0;
+	while (r < 50000) {
+		foreach (var k, v in ob) {
+			s3 = s3 + v;
+		}
+		r = r + 1;
+	}
+}
+print "foreach obj 5e6";
+print @time.milli() - start;
+
+var s4 = 0;
+start = @time.milli();
+{
+	var ob = o;
+	var r = 0;
+	while (r < 50000) {
+		var keys = @object.keys(ob);
+		var n = @array.length(keys);
+		var i = 0;
+		while (i < n) {
+			s4 = s4 + ob[keys[i]];
+			i = i + 1;
+		}
+		r = r + 1;
+	}
+}
+print "keys+get 5e6";
+print @time.milli() - start;
+
+if (s3 == s4 and s3 == 5000000) {
+	print "obj sum ok";
+}
+else {
+	print "obj sum mismatch";
+}

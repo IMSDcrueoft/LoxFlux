@@ -1,0 +1,20 @@
+// empty iterables run the body zero times, and both control slots are cleaned
+// up by the exhaustion path
+// exit: 0
+// out: 0
+// out: 0
+// out: end
+var ea = [];
+var n = 0;
+foreach (var i, v in ea) {
+	n = n + 1;
+}
+print n;
+
+var eo = {};
+var m = 0;
+foreach (var k, v in eo) {
+	m = m + 1;
+}
+print m;
+print "end";

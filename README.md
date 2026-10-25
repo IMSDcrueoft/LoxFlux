@@ -93,8 +93,14 @@ _(AMD Ryzen7-5800X, Windows 11, Use ClangCL/LLVM 22.1.3 for loxflux & clox (loop
 
 ### Loop
 
-- **do-while**: Supported `while`,`for` and `do-while` loop.
+- **`while`, `for` and `do-while`**: Supported `while`,`for` and `do-while` loop.
 - **`break` and `continue` keywords**: Supported within loops.
+- **`foreach`**: Iterates arrays, typed arrays and instances (fields) with a two-variable binding. The `var`/`const` modifier is mandatory and only controls whether the body may reassign the loop variables (the iterator itself always overwrites them): `k` receives the subscript (arrays) or the key (instances), `v` receives the element/value. `string`/`stringBuilder` are deliberately not iterable. Iterating an instance while inserting keys is best-effort: inserted keys may or may not be visited, removed keys (tombstones) are skipped.
+
+```ebnf
+foreachState ::= "foreach" "(" modifier IDENTIFIER "," IDENTIFIER "in" expression ")" statement
+modifier     ::= "var" | "const"
+```
 
 ---
 
@@ -441,6 +447,5 @@ The project **loxFlux** is based on `MIT` and uses three third-party projects.
 ## Other expectations
 1. try catch syntax.
 2. coroutine support.
-3. iterator syntax.
-4. performace improve.
-5. gc optimization.
+3. performace improve.
+4. gc optimization.

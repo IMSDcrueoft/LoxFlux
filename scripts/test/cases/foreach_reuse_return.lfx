@@ -1,0 +1,44 @@
+// the iterator object is freshly allocated per loop: re-iterating the same
+// iterable after a completed or broken loop builds a new one; returning from
+// inside a loop strands the iterator, which freeObjects() reclaims at exit;
+// foreach also works at script top level (the loop variables are locals of
+// the implicit script scope)
+// exit: 0
+// out: 60
+// out: 60
+// out: 20
+// out: ok
+// err!: iterator
+var arr = [10, 20, 30];
+
+var s1 = 0;
+foreach (var i, v in arr) {
+	s1 = s1 + v;
+}
+var s2 = 0;
+foreach (var i, v in arr) {
+	s2 = s2 + v;
+}
+print s1;
+print s2;
+
+fun pickFirst(cutoff) {
+	foreach (var i, v in arr) {
+		if (v > cutoff) {
+			return v;
+		}
+	}
+	return 0;
+}
+print pickFirst(15);
+
+var g = 0;
+foreach (var i, v in arr) {
+	g = g + v;
+}
+if (g == 60) {
+	print "ok";
+}
+else {
+	print "bad";
+}

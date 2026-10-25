@@ -192,6 +192,8 @@ export const KEYWORD_DOCS: KeywordDoc[] = [
 	{ keyword: 'while', doc: 'While loop: `while (cond) { ... }`', snippet: 'while (${1:condition}) {\n\t${2}\n}' },
 	{ keyword: 'do', doc: 'Do-while loop: the body runs at least once.\n\n```\ndo { ... } while (cond);\n```', snippet: 'do {\n\t${1}\n} while (${2:condition});' },
 	{ keyword: 'for', doc: 'For loop: `for (init; cond; inc) { ... }`', snippet: 'for (var ${1:i} = 0; ${1:i} < ${2:n}; ${1:i} = ${1:i} + 1) {\n\t${3}\n}' },
+	{ keyword: 'foreach', doc: 'Iterates an array, typed array or instance (fields) with a two-variable binding. The `var`/`const` modifier is mandatory and only controls reassignment inside the body:\n\n```\nforeach (var k, v in iterable) {\n\tprint k;\n\tprint v;\n}\n```\n`k` receives the subscript (arrays) or the key (instances); `v` receives the element/value.', snippet: 'foreach (${1:var} ${2:k}, ${3:v} in ${4:iterable}) {\n\t${5}\n}' },
+	{ keyword: 'in', doc: "Separator between the loop variables and the iterable in a `foreach` statement." },
 	{ keyword: 'break', doc: 'Exits the enclosing loop.' },
 	{ keyword: 'continue', doc: 'Jumps to the next iteration of the enclosing loop.' },
 	{ keyword: 'return', doc: 'Returns a value from the enclosing function.', snippet: 'return ${1:value};' },

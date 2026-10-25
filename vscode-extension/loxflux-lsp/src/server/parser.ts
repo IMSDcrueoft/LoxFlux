@@ -377,6 +377,9 @@ export class Parser {
 		if (this.match(TokenType.For)) {
 			return this.forStatement();
 		}
+		if (this.match(TokenType.ForEach)) {
+			return this.foreachStatement();
+		}
 		if (this.match(TokenType.Break)) {
 			const token = this.previous;
 			this.consume(TokenType.Semicolon, "Expect ';' after 'break'.");
@@ -461,6 +464,32 @@ export class Parser {
 			thenBranch,
 			elseBranch,
 		};
+	}
+
+	private foreachStatement(): Stmt {
+		const foreachToken = this.previous;
+		this.consume(TokenType.LParen, "Expect '(' after 'foreach'.");
+		let isConst = false;
+		if (this.match(TokenType.Var)) {
+			isConst = false;
+		}
+		else if (this.match(TokenType.Const)) {
+			isConst = true;
+		}
+		else {
+			this.errorAtCurrent("Expect 'var' or 'const' after 'foreach'.");
+		}
+		this.consume(TokenType.Identifier, "Expect loop key variable name.");
+		const keyToken = this.previous;
+		this.consume(TokenType.Comma, "Expect ',' between loop variables.");
+		this.consume(TokenType.Identifier, "Expect loop value variable name.");
+		const valueToken = this.previous;
+		this.consume(TokenType.In, "Expect 'in' after loop variables.");
+		const inToken = this.previous;
+		const iterable = this.expression();
+		this.consume(TokenType.RParen, "Expect ')' after the iterable.");
+		const body = this.statement();
+		return { kind: 'Foreach', start: foreachToken.start, end: this.previous.end, foreachToken, isConst, keyToken, valueToken, inToken, iterable, body };
 	}
 
 	private whileStatement(): Stmt {

@@ -1,0 +1,11 @@
+// a throw mid-iteration abandons the iterator without its explicit release;
+// the object stays on the GC list and is reclaimed by the sweeper / freeObjects
+// at exit - the process must terminate cleanly with the error report
+// exit: 70
+// err: exception
+var arr = [10, 20, 30];
+foreach (var i, v in arr) {
+	if (v == 20) {
+		throw "boom";
+	}
+}

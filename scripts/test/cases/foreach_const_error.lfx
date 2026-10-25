@@ -1,0 +1,8 @@
+// the var/const modifier controls whether user code may reassign k/v: with
+// const the compiler rejects the assignment at compile time
+// exit: 65
+// err: Assignment to constant variable.
+var arr = [1, 2];
+foreach (const k, v in arr) {
+	k = 5;
+}

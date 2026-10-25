@@ -1,0 +1,26 @@
+// foreach over an instance walks its fields in hash-table order; the count
+// and value aggregate are deterministic even though the visit order is not.
+// Rewriting an existing property's value mid-iteration keeps the key set
+// intact (no tombstones, no rehash surprises).
+// exit: 0
+// out: 3
+// out: 60
+// out: true
+// out: false
+// out: 3
+var obj = { a: 10, b: 20, c: 30 };
+var count = 0;
+var sum = 0;
+foreach (var k, v in obj) {
+	count = count + 1;
+	sum = sum + v;
+}
+print count;
+print sum;
+print @object.hasOwn(obj, "a");
+print @object.hasOwn(obj, "zz");
+
+foreach (var k, v in obj) {
+	obj.a = 50;
+}
+print @array.length(@object.keys(obj));

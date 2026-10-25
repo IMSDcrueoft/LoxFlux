@@ -1,0 +1,38 @@
+// mutation during iteration: inserting a new property may or may not be
+// visited (best-effort semantics over the live table), so the count is
+// normalized to the accepted range; writing array elements by index is fully
+// deterministic - same-index writes do not disturb other slots, and writing
+// an index ahead of the cursor is visible to the later round
+// exit: 0
+// out: ok
+// out: 12
+// out: 106
+var o = { a: 1, b: 2 };
+var n = 0;
+foreach (var k, v in o) {
+	n = n + 1;
+	o.zz = 9;
+}
+if (n == 2 or n == 3) {
+	print "ok";
+}
+else {
+	print "bad";
+}
+
+var arr = [1, 2, 3];
+var s = 0;
+foreach (var i, v in arr) {
+	arr[i] = v * 2;
+}
+foreach (var i, v in arr) {
+	s = s + v;
+}
+print s;
+
+var t = 0;
+foreach (var i, v in arr) {
+	arr[2] = 100;
+	t = t + v;
+}
+print t;
