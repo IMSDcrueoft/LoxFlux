@@ -25,7 +25,6 @@ void stringTable_free(StringTable* table)
 }
 
 static StringEntry* findStringEntry(StringEntry* entries, uint32_t capacity, ObjString* key) {
-	//check it
 	StringEntry* entry = NULL;
 	uint32_t index = key->hash & (capacity - 1);
 
@@ -36,7 +35,6 @@ static StringEntry* findStringEntry(StringEntry* entries, uint32_t capacity, Obj
 			return entry;
 		}
 		else if (entry->key == key) {
-			// We found the key.
 			return entry;
 		}
 
@@ -94,7 +92,6 @@ bool tableSet_string(StringTable* table, ObjString* key)
 
 StringEntry* tableGetStringEntry(StringTable* table, ObjString* key)
 {
-	//check it
 	if (table->count == 0) return NULL;//empty pool:capacity - 1 would go out of bounds
 
 	StringEntry* entry = NULL;
@@ -136,7 +133,6 @@ StringEntry* tableGetScriptEntry(StringTable* table, ObjString* key)
 {
 	if (table->count == 0) return NULL;
 
-	//check it
 	StringEntry* entry = NULL;
 	uint32_t index = key->hash & (table->capacity - 1);
 

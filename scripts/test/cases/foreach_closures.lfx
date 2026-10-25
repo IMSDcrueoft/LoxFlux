@@ -1,0 +1,97 @@
+// closures capture the shared k/v slots: every lambda created by one loop
+// reads the same slot, so calls after exhaustion see the last produced value
+// (the exhaustion path closes the upvalues before popping the slots). the
+// break path closes them through closeLoopLocals' CLOSE_UPVALUE sequence, and
+// typed-array elements reach the slots pre-boxed by the typed element reader.
+// exit: 0
+// out: 90
+// out: 10
+// out: 30
+// out: 2
+// out: 230
+// out: 20
+// out: 20
+// out: 120
+// out: 3.5
+// out: 2.5
+var arr = [10, 20, 30];
+
+var fns = [];
+foreach (var i, v in arr) {
+	@array.push(fns, lambda() { return v; });
+}
+var got = 0;
+foreach (var i, f in fns) {
+	got = got + f();
+}
+print got;
+
+var fns2 = [];
+foreach (var i, v in arr) {
+	@array.push(fns2, lambda() { return v; });
+	if (i == 0) {
+		print fns2[0]();
+	}
+}
+print fns2[1]();
+
+// capturing k alone: its closed value is the last produced subscript
+var kfns = [];
+foreach (var i, v in arr) {
+	@array.push(kfns, lambda() { return i; });
+}
+print kfns[2]();
+
+// capturing k and v together: both slots closed by the exhaustion path
+var kvfns = [];
+foreach (var i, v in arr) {
+	@array.push(kvfns, lambda() { return i * 100 + v; });
+}
+print kvfns[1]();
+
+// break closes k/v through closeLoopLocals (not the exhaustion path): the
+// closed value is the one produced by the round the break fired in
+var bfns = [];
+foreach (var i, v in arr) {
+	@array.push(bfns, lambda() { return v; });
+	if (i == 1) {
+		break;
+	}
+}
+print bfns[0]();
+print bfns[1]();
+
+// nested double capture: the inner break closes w, the outer exhaustion
+// closes v afterwards - both closures must observe their own closed value
+var outer = [];
+foreach (var i, v in arr) {
+	var inner = [];
+	foreach (var j, w in arr) {
+		@array.push(inner, lambda() { return v + w; });
+		break;
+	}
+	@array.push(outer, inner[0]);
+}
+print outer[0]() + outer[1]() + outer[2]();
+
+// typed arrays: the boxed element reaches the shared slot, so the closure
+// reads back the exact last element on exhaustion, and the break-round
+// element through the break path
+var tf = @ctor.F64Array(3);
+tf[0] = 1.5;
+tf[1] = 2.5;
+tf[2] = 3.5;
+var tfns = [];
+foreach (var i, v in tf) {
+	@array.push(tfns, lambda() { return v; });
+}
+print tfns[2]();
+
+var bf = [];
+foreach (var i, v in tf) {
+	@array.push(bf, lambda() { return v; });
+	if (i == 1) {
+		break;
+	}
+}
+print bf[0]();

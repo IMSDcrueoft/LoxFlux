@@ -1,0 +1,32 @@
+// nested foreach: inner break/continue must unwind only the inner loop's
+// control slots; array x array and array x instance mix freely
+// exit: 0
+// out: 9
+// out: 6
+// out: 3
+var arr = [1, 2, 3];
+var pairs = 0;
+foreach (var i, v in arr) {
+	foreach (var j, w in arr) {
+		pairs = pairs + 1;
+	}
+}
+print pairs;
+
+var obj = { a: 1, b: 2 };
+var mixed = 0;
+foreach (var i, v in arr) {
+	foreach (var k, w in obj) {
+		mixed = mixed + 1;
+	}
+}
+print mixed;
+
+var depth = 0;
+foreach (var i, v in arr) {
+	foreach (var j, w in arr) {
+		depth = depth + 1;
+		break;
+	}
+}
+print depth;

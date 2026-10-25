@@ -152,6 +152,7 @@ export type Stmt =
 	| WhileStmt
 	| DoWhileStmt
 	| ForStmt
+	| ForeachStmt
 	| BranchStmt
 	| ReturnStmt
 	| ThrowStmt
@@ -229,6 +230,18 @@ export interface ForStmt extends Node {
 	initializer: VarDeclStmt | ExprStmt | undefined;
 	condition: Expr | undefined;
 	increment: Expr | undefined;
+	body: Stmt;
+}
+
+export interface ForeachStmt extends Node {
+	kind: 'Foreach';
+	foreachToken: Token;
+	/** 'var' | 'const': controls reassignment of the loop variables in the body */
+	isConst: boolean;
+	keyToken: Token;
+	valueToken: Token;
+	inToken: Token;
+	iterable: Expr;
 	body: Stmt;
 }
 

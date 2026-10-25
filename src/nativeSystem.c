@@ -118,7 +118,6 @@ static Value logNative(int argCount, Value* args) {
 			printf("\n");
 		}
 	}
-	//no '\n'
 	return NIL_VAL;
 }
 
@@ -147,7 +146,7 @@ static Value inputNative(int argCount, Value* args) {
 
 	int c;
 	while ((c = getchar()) != '\n' && c != EOF) {
-		//check capcity
+		//check capacity
 		if (stringBuilder->length + 1 >= stringBuilder->capacity) {
 			uint64_t newCapacity = min(ARRAYLIKE_MAX, (stringBuilder->capacity * 3) >> 1);
 			reserveArray(stringBuilder, newCapacity);

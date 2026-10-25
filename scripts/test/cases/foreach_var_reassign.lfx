@@ -1,0 +1,26 @@
+// with var, user code may reassign k/v inside the body (the next OP_ITERATE
+// overwrites both slots again, so the array itself is untouched); declaring a
+// same-named local inside the body legally shadows the loop variable
+// exit: 0
+// out: 99
+// out: 10
+// out: 21
+var arr = [10, 20, 30];
+
+var first = true;
+foreach (var k, v in arr) {
+	if (first) {
+		k = 99;
+		v = 88;
+		print k;
+		first = false;
+	}
+}
+print arr[0];
+
+var total = 0;
+foreach (var i, v in arr) {
+	var v = 7;
+	total = total + v;
+}
+print total;

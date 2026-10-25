@@ -8,6 +8,8 @@
 #include "value.h"
 #include "table.h"
 #include "chunk.h"
+#include "arena_bump.h"
+#include <assert.h>
 
 //compress the ptr to 48bits
 #ifndef COMPRESS_OBJ_HEADER
@@ -31,6 +33,12 @@ typedef enum {
 	OBJ_BOUND_METHOD,
 	OBJ_CLASS,
 	OBJ_INSTANCE,
+
+	//iter
+	OBJ_ITERATOR,
+
+	//coroutine
+	OBJ_FIBER,
 
 	//string builder and array are typed arrays
 	OBJ_STRING_BUILDER,
@@ -57,6 +65,8 @@ typedef enum {
 	TYPE_STRING_NATIVE,
 	TYPE_STRING_CLASS,
 	TYPE_STRING_OBJECT,
+	TYPE_STRING_ITERATOR,
+	TYPE_STRING_FIBER,
 	TYPE_STRING_ARRAY,
 	TYPE_STRING_ARRAY_F64,
 	TYPE_STRING_ARRAY_F32,
@@ -83,7 +93,7 @@ struct Obj {
 			uint8_t isMarked;
 			uint8_t padding[6]; //high 48bits for ptr low48bits
 		};
-		uintptr_t boxedNext;	//ptr: The user-space pointer's high 16 bits can be 0 directly,the high 16 bits of the pointer depends on the 47th bit
+		uintptr_t boxedNext;	//gc list next ptr, stored in the upper 48 bits (nextPtr << 16); the low 16 bits hold type + isMarked
 	};
 };
 #define OBJ_PTR_SET_NEXT(obj,nextPtr)	((obj)->boxedNext = ((obj)->boxedNext & UINT16_MAX) | ((uintptr_t)nextPtr << 16))
@@ -141,13 +151,11 @@ typedef struct {
 } ObjFunction;
 
 #define CLOSED_OBJ_UPVALUE_LOCATION UINT32_MAX
+
 typedef struct ObjUpvalue {
 	Obj obj;
 	Value closed; //closed value
 	//ptrdiff_t location_offset; // store the offset, so we can update location when stack grow
-	//kept as a comment for future use: the vm stack now lives at a fixed arena base
-	//that never moves, so location pointers never go stale and no offset bookkeeping
-	//is needed; restore this field if the stack becomes movable again
 	Value* location;
 	struct ObjUpvalue* next;
 } ObjUpvalue;
@@ -177,7 +185,7 @@ typedef struct ObjClass {
 	Obj obj;
 	ObjString* name;
 	Table methods;
-	Value initializer;//inline cache
+	Value initializer;//fast path cache
 	struct ObjClass* superclass;//recorded by OP_INHERIT,walked by instanceof
 } ObjClass;
 
@@ -198,7 +206,7 @@ struct ObjString {
 	uint32_t symbol; // used to boost global hash table
 	uint32_t length; // the real length,not include '\0'
 	uint64_t hash; // the hash
-	char chars[]; // flexible array members FAM
+	char chars[];
 };
 
 //begin at 8 and align to 8, when < 64,mul 2, then *1.5 and align 8
@@ -211,13 +219,72 @@ typedef struct {
 	void* payload;
 } ObjArray;
 
-// iterator object for foreach
+//opaque iterator object for foreach
 typedef struct {
 	Obj obj;
-	uint32_t index;  // current index of array or hashTable
-	uint32_t padding;
-	Value target;
+	uint8_t type;		// target type snapshot
+	uint8_t isDone;
+	uint16_t padding;
+
+	uint32_t index;		// current index of array or hashTable
+	Obj* target;
 } ObjIterator;
+
+//frames live in a no-GC heap array indexed by the dispatch loop; capacity grows
+//geometrically up to FRAMES_MAX, and the dispatch loop must refresh its frame
+//pointer after any call that may have grown the array
+//CallFrame layout still matters for cache-line packing; re-verify dispatch
+//benchmarks before trusting hot-loop numbers
+typedef struct {
+	ObjClosure* closure;
+	uint8_t* ip;
+	Value* slots; //first available slot
+	//ptrdiff_t slotsOffset;// offset of the first slot in the vm stack, not a ptr, so that we can realloc the stack when needed
+	InlineCacheSlot* caches;// IC slots of frame->closure->function, resolved once per call to avoid per-op deref chains
+} CallFrame;
+
+// status of fiber
+typedef enum {
+	FIBER_PENDING,
+	FIBER_SETTLED,
+	FIBER_FAILED,
+	FIBER_CANCELLED
+} FiberStatus;
+
+typedef struct {
+	Value* stack;
+	//saved stack top when this fiber is suspended; VM keeps its own stackTop
+	//cache while this fiber is current
+	Value* stackTop;
+	//the only push boundary: the committed edge of the stack arena; crossing it
+	//means commit more pages or (at the VA end = currentFiber->stackArena.capacity) overflow
+	Value* stackBoundary;
+
+	CallFrame* frames;
+	uint32_t frameCount;
+	uint32_t frameCapacity;
+
+	ObjUpvalue* openUpvalues;
+} FiberCore;
+
+typedef struct ObjFiber {
+	Obj obj;
+
+	FiberCore core;
+
+	// caller of ObjFiber(need gc track)
+	struct ObjFiber* resumer;
+
+	FiberStatus status;
+	// is running or not (avoid loop call)
+	uint32_t isRunning;
+
+	//result of coroutine or catched error
+	Value result;
+
+	//fixed-base backing storage for the stack (VA never moves, lazy commit)
+	ArenaBumpAllocator stackArena;
+} ObjFiber;
 
 /*
 * TODO:
@@ -254,6 +321,8 @@ typedef struct {
 #define IS_BOUND_METHOD(value)		isObjType(value, OBJ_BOUND_METHOD)
 #define IS_CLASS(value)				isObjType(value, OBJ_CLASS)
 #define IS_INSTANCE(value)			isObjType(value, OBJ_INSTANCE)
+#define IS_FIBER(value)				isObjType(value, OBJ_FIBER)
+#define IS_ITERATOR(value)			isObjType(value, OBJ_ITERATOR)
 #define IS_STRING(value)			isObjType(value, OBJ_STRING)
 #define IS_STRING_BUILDER(value)	isObjType(value, OBJ_STRING_BUILDER)
 #define IS_ARRAY(value)				isObjType(value, OBJ_ARRAY)
@@ -262,11 +331,50 @@ typedef struct {
 #define ARRAY_ELEMENT(array, type, index)	(((type*)array->payload)[index])
 #define ARRAY_IN_RANGE(array, index)		((index >= 0) && (index < array->length))
 
+//element load/store switch inlined at the call site: array/index/val are
+//expanded per case, so pass side-effect-free lvalues; illegal types are only
+//caught by the debug assert
+#define GET_INDEXABLE_ELEMENT(array, index, out) { \
+	uint8_t t = OBJ_GET_TYPE((array)->obj); \
+	assert(t >= OBJ_STRING_BUILDER && t <= OBJ_ARRAY_I8); \
+	switch (t) { \
+	case OBJ_STRING_BUILDER: out = NUMBER_VAL(ARRAY_ELEMENT(array, uint8_t, index)); break; \
+	case OBJ_ARRAY:          out = ARRAY_ELEMENT(array, Value, index); break; \
+	case OBJ_ARRAY_F64:      out = NUMBER_VAL(ARRAY_ELEMENT(array, double, index)); break; \
+	case OBJ_ARRAY_F32:      out = NUMBER_VAL(ARRAY_ELEMENT(array, float, index)); break; \
+	case OBJ_ARRAY_U32:      out = NUMBER_VAL(ARRAY_ELEMENT(array, uint32_t, index)); break; \
+	case OBJ_ARRAY_I32:      out = NUMBER_VAL(ARRAY_ELEMENT(array, int32_t, index)); break; \
+	case OBJ_ARRAY_U16:      out = NUMBER_VAL(ARRAY_ELEMENT(array, uint16_t, index)); break; \
+	case OBJ_ARRAY_I16:      out = NUMBER_VAL(ARRAY_ELEMENT(array, int16_t, index)); break; \
+	case OBJ_ARRAY_U8:       out = NUMBER_VAL(ARRAY_ELEMENT(array, uint8_t, index)); break; \
+	case OBJ_ARRAY_I8:       out = NUMBER_VAL(ARRAY_ELEMENT(array, int8_t, index)); break; \
+	} \
+}
+
+//Value slots store raw; typed slots store 0 for non-numbers
+#define SET_INDEXABLE_ELEMENT(array, index, val) { \
+	uint8_t t = OBJ_GET_TYPE((array)->obj); \
+	assert(t >= OBJ_STRING_BUILDER && t <= OBJ_ARRAY_I8); \
+	switch (t) { \
+	case OBJ_ARRAY:     ARRAY_ELEMENT(array, Value, index) = val; break; \
+	case OBJ_ARRAY_F64: ARRAY_ELEMENT(array, double, index) = IS_NUMBER(val) ? AS_NUMBER(val) : 0.0; break; \
+	case OBJ_ARRAY_F32: ARRAY_ELEMENT(array, float, index) = IS_NUMBER(val) ? double_to_f32(AS_NUMBER(val)) : 0.0f; break; \
+	case OBJ_ARRAY_U32: ARRAY_ELEMENT(array, uint32_t, index) = IS_NUMBER(val) ? double_to_u32(AS_NUMBER(val)) : 0; break; \
+	case OBJ_ARRAY_I32: ARRAY_ELEMENT(array, int32_t, index) = IS_NUMBER(val) ? double_to_i32(AS_NUMBER(val)) : 0; break; \
+	case OBJ_ARRAY_U16: ARRAY_ELEMENT(array, uint16_t, index) = IS_NUMBER(val) ? (uint16_t)double_to_u32(AS_NUMBER(val)) : 0; break; \
+	case OBJ_ARRAY_I16: ARRAY_ELEMENT(array, int16_t, index) = IS_NUMBER(val) ? (int16_t)double_to_i32(AS_NUMBER(val)) : 0; break; \
+	case OBJ_ARRAY_U8:  ARRAY_ELEMENT(array, uint8_t, index) = IS_NUMBER(val) ? (uint8_t)double_to_u32(AS_NUMBER(val)) : 0; break; \
+	case OBJ_ARRAY_I8:  ARRAY_ELEMENT(array, int8_t, index) = IS_NUMBER(val) ? (int8_t)double_to_i32(AS_NUMBER(val)) : 0; break; \
+	} \
+}
+
 #define AS_CLOSURE(value)			((ObjClosure*)AS_OBJ(value))
 #define AS_FUNCTION(value)			((ObjFunction*)AS_OBJ(value))
 #define AS_BOUND_METHOD(value)		((ObjBoundMethod*)AS_OBJ(value))
 #define AS_CLASS(value)				((ObjClass*)AS_OBJ(value))
 #define AS_INSTANCE(value)			((ObjInstance*)AS_OBJ(value))
+#define AS_FIBER(value)				((ObjFiber*)AS_OBJ(value))
+#define AS_ITERATOR(value)			((ObjIterator*)AS_OBJ(value))
 #define AS_NATIVE(value)			(((ObjNative*)AS_OBJ(value))->function)
 #define AS_STRING(value)			((ObjString*)AS_OBJ(value))
 #define AS_ARRAY(value)				((ObjArray*)AS_OBJ(value))
@@ -313,12 +421,11 @@ ObjBoundMethod* newBoundMethod(Value receiver, ObjClosure* method);
 ObjNative* newNative(NativeFn function);
 ObjClass* newClass(ObjString* name);
 ObjInstance* newInstance(ObjClass* klass);
+ObjFiber* newFiber();
 ObjArray* newArray(ObjType type);
+ObjIterator* newIterator(Obj* target);
 
 void reserveArray(ObjArray* array, uint64_t size);
-
-Value getTypedArrayElement(ObjArray* array, uint32_t index);
-void setTypedArrayElement(ObjArray* array, uint32_t index, Value val);
 
 //extracts a NUL-terminated C buffer from a string-like value: strings return
 //their internal chars, stringBuilders return their payload (every mutator

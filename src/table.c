@@ -27,7 +27,6 @@ void table_free(Table* table)
 
 HOT_FUNCTION
 static Entry* findEntry(Entry* entries, uint32_t capacity, ObjString* key, bool isGlobal) {
-	//check it
 	Entry* entry = NULL;
 
 	uint32_t index = key->hash & (capacity - 1);
@@ -56,7 +55,6 @@ static Entry* findEntry(Entry* entries, uint32_t capacity, ObjString* key, bool 
 			if (isGlobal) {
 				key->symbol = index;
 			}
-			// We found the key.
 			return entry;
 		}
 
@@ -163,6 +161,33 @@ void tableAddAll(Table* from, Table* to)
 			tableSet(to, entry->key, entry->value);
 		}
 	}
+}
+
+bool tableGetFirstEntryIndex(Table* table, uint32_t* index_out) {
+	for (uint32_t i = 0; i < table->capacity; i++) {
+		if (table->entries[i].key != NULL) {
+			*index_out = i;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+//on a hit *index_inout has been advanced past the produced slot
+HOT_FUNCTION
+bool tableIterateNext(Table* table, uint32_t* index_inout, Entry** entry_out) {
+	//skips empty slots and tombstones; rehash during iteration is best-effort
+	while (*index_inout < table->capacity) {
+		Entry* entry = &table->entries[(*index_inout)++];
+
+		if (entry->key != NULL) {
+			*entry_out = entry;
+			return false;
+		}
+	}
+
+	return true;
 }
 
 //void tableRemoveWhite(Table* table)

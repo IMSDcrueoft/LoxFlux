@@ -1,0 +1,21 @@
+// loop vars do not shadow the iterable: the enclosing binding is used and survives
+// exit: 0
+// out: 6
+// out: 3
+// out: 30
+// out: 2
+var arr = [1, 2, 3];
+var total = 0;
+foreach (var arr, v in arr) {
+	total = total + v;
+}
+print total;
+print @array.length(arr);
+
+var k = [10, 20];
+var acc = 0;
+foreach (var k, v in k) {
+	acc = acc + v;
+}
+print acc;
+print @array.length(k);

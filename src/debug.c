@@ -63,9 +63,9 @@ static uint32_t builtinInStruction(C_STR name, Chunk* chunk, uint32_t offset) {
 COLD_FUNCTION
 static uint32_t bitwiseInStruction(C_STR name, Chunk* chunk, uint32_t offset) {
 	uint32_t slot = chunk->code[offset + 1];
-	//24bit index
+	//1-byte operand
 	uint32_t constant1B = (uint32_t)chunk->code[offset + 2];
-	//24bit index
+	//4-byte operand
 	uint32_t constant4B = ((uint32_t)chunk->code[offset + 2]) | ((uint32_t)chunk->code[offset + 3] << 8) | ((uint32_t)chunk->code[offset + 4] << 16) | ((uint32_t)chunk->code[offset + 5] << 24);
 
 	switch (slot)
@@ -275,6 +275,10 @@ uint32_t disassembleInstruction(ObjFunction* function, uint32_t offset) {
 		return invokeInstruction("OP_SUPER_INVOKE", chunk, offset);
 	case OP_RETURN:
 		return simpleInstruction("OP_RETURN", offset);
+	case OP_ITERATE:
+		return jumpInstruction("OP_ITERATE", 1, chunk, offset);
+	case OP_FREE_LOCAL:
+		return shortInstruction("OP_FREE_LOCAL", chunk, offset);
 	case OP_THROW:
 		return simpleInstruction("OP_THROW", offset);
 	case OP_POP:
@@ -311,7 +315,7 @@ uint32_t disassembleInstruction(ObjFunction* function, uint32_t offset) {
 		disPrintValue(vm.constants.values[constant]);
 		DIS_PRINTF("'\n");
 
-		//OP_CONSTANT 4
+		//OP_CLOSURE 4
 		offset += 4;
 
 		ObjFunction* function = AS_FUNCTION(vm.constants.values[constant]);
@@ -355,6 +359,8 @@ uint32_t disassembleInstruction(ObjFunction* function, uint32_t offset) {
 		return simpleInstruction("OP_INSTANCE_OF", offset);
 	case OP_TYPE_OF:
 		return simpleInstruction("OP_TYPE_OF", offset);
+	case OP_IN:
+		return simpleInstruction("OP_IN", offset);
 
 	case OP_BITWISE:
 		return bitwiseInStruction("OP_BITWISE", chunk, offset);
@@ -399,6 +405,8 @@ uint32_t disassembleInstruction(ObjFunction* function, uint32_t offset) {
 		return simpleInstruction("OP_NEW_OBJECT", offset);
 	case OP_NEW_PROPERTY:
 		return constantInstruction("OP_NEW_PROPERTY", chunk, offset);
+	case OP_NEW_ITERATOR:
+		return simpleInstruction("OP_NEW_ITERATOR", offset);
 
 	case OP_NEW_ARRAY:
 		return shortInstruction("OP_NEW_ARRAY", chunk, offset);
@@ -632,10 +640,14 @@ void disassembleOpStack(OPStack* opStack) {
 		case OP_NEW_PROPERTY:     DIS_PRINTF("OP_NEW_PROPERTY\n"); break;
 		case OP_INSTANCE_OF:      DIS_PRINTF("OP_INSTANCE_OF\n"); break;
 		case OP_TYPE_OF:          DIS_PRINTF("OP_TYPE_OF\n"); break;
+		case OP_IN:               DIS_PRINTF("OP_IN\n"); break;
 		case OP_THROW:            DIS_PRINTF("OP_THROW\n"); break;
 		case OP_IMPORT:           DIS_PRINTF("OP_IMPORT\n"); break;
 		case OP_NOT_EQUAL_CONST_NUMBER: DIS_PRINTF("OP_NOT_EQUAL_CONST_NUMBER\n"); break;
 		case OP_NOT_EQUAL_CONST:  DIS_PRINTF("OP_NOT_EQUAL_CONST\n"); break;
+		case OP_ITERATE:          DIS_PRINTF("OP_ITERATE\n"); break;
+		case OP_FREE_LOCAL:       DIS_PRINTF("OP_FREE_LOCAL\n"); break;
+		case OP_NEW_ITERATOR:     DIS_PRINTF("OP_NEW_ITERATOR\n"); break;
 		default: break;//unknown codes are silently ignored in the debug dump
 		}
 	}

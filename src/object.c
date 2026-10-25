@@ -21,6 +21,8 @@ const C_STR objTypeInfo[] = {
 	[OBJ_STRING] = {"string"},
 	[OBJ_BOUND_METHOD] = {"boundMethod"},
 	[OBJ_INSTANCE] = {"instance"},
+	[OBJ_ITERATOR] = {"iterator"},
+	[OBJ_FIBER] = {"fiber"},
 	[OBJ_STRING_BUILDER] = {"stringBuilder"},
 	[OBJ_ARRAY] = {"array"},
 	[OBJ_ARRAY_F64] = {"arrayF64"},
@@ -91,7 +93,7 @@ ObjUpvalue* newUpvalue(Value* slot)
 {
 	ObjUpvalue* upvalue = ALLOCATE_OBJ(ObjUpvalue, OBJ_UPVALUE);
 	upvalue->location = slot;
-	//upvalue->location_offset = offset; //unused since the arena stack (fixed base, never re-fixed)
+	//upvalue->location_offset = offset;
 	upvalue->closed = NIL_VAL;
 	upvalue->next = NULL;
 	return upvalue;
@@ -128,7 +130,7 @@ ObjFunction* newFunctionMakeFAM(ObjFunction* function, ValueArray* constants){
 	chunk_init(&function->chunk);
 	function->caches = NULL;
 	function->constantsCount = 0;
-	unlinkObj_no_gc(&function->obj);
+	unlinkObj(&vm.objects_no_gc, &function->obj);
 	freeObject(&function->obj);
 
 	return fresh;
@@ -149,6 +151,7 @@ ObjClosure* newClosure(ObjFunction* function) {
 	return closure;
 }
 
+HOT_FUNCTION
 ObjBoundMethod* newBoundMethod(Value receiver, ObjClosure* method)
 {
 	ObjBoundMethod* bound = ALLOCATE_OBJ(ObjBoundMethod, OBJ_BOUND_METHOD);
@@ -190,6 +193,29 @@ ObjInstance* newInstance(ObjClass* klass) {
 	return instance;
 }
 
+ObjFiber* newFiber()
+{
+	ObjFiber* fiber = allocFiber();
+
+	//allocFiber() may return a recycled fiber, so initialize every execution
+	//field here; the stack arena itself is owned/reused by memory.c
+	fiber->core.stack = (Value*)fiber->stackArena.base;
+	fiber->core.stackTop = fiber->core.stack;
+	fiber->core.stackBoundary = (Value*)((char*)fiber->stackArena.base + fiber->stackArena.commitTop);
+
+	fiber->core.frames = ALLOCATE_NO_GC(CallFrame, FRAMES_INIT);
+	fiber->core.frameCount = 0;
+	fiber->core.frameCapacity = FRAMES_INIT;
+
+	fiber->core.openUpvalues = NULL;
+	fiber->resumer = NULL;
+	fiber->status = FIBER_PENDING;
+	fiber->isRunning = 0;
+	fiber->result = NIL_VAL;
+
+	return fiber;
+}
+
 HOT_FUNCTION
 ObjArray* newArray(ObjType type) {
 	ObjArray* array = ALLOCATE_OBJ(ObjArray, type);
@@ -197,6 +223,17 @@ ObjArray* newArray(ObjType type) {
 	array->length = 0;
 	array->payload = NULL;
 	return array;
+}
+
+HOT_FUNCTION
+ObjIterator* newIterator(Obj* target)
+{
+	ObjIterator* iterator = ALLOCATE_OBJ(ObjIterator, OBJ_ITERATOR);
+	iterator->type = OBJ_PTR_GET_TYPE(target);
+	iterator->isDone = false;
+	iterator->index = 0;
+	iterator->target = target;
+	return iterator;
 }
 
 HOT_FUNCTION
@@ -250,68 +287,7 @@ void reserveArray(ObjArray* array, uint64_t size)
 #undef GROW_TYPED_ARRAY
 }
 
-//it don't check index so be careful
-HOT_FUNCTION
-Value getTypedArrayElement(ObjArray* array, uint32_t index)
-{
-	switch (OBJ_GET_TYPE(array->obj)) {
-	case OBJ_ARRAY_F64:
-		return NUMBER_VAL(ARRAY_ELEMENT(array, double, index));
-	case OBJ_ARRAY_F32:
-		return NUMBER_VAL(ARRAY_ELEMENT(array, float, index));
-	case OBJ_ARRAY_U32:
-		return NUMBER_VAL(ARRAY_ELEMENT(array, uint32_t, index));
-	case OBJ_ARRAY_I32:
-		return NUMBER_VAL(ARRAY_ELEMENT(array, int32_t, index));
-	case OBJ_ARRAY_U16:
-		return NUMBER_VAL(ARRAY_ELEMENT(array, uint16_t, index));
-	case OBJ_ARRAY_I16:
-		return NUMBER_VAL(ARRAY_ELEMENT(array, int16_t, index));
-	case OBJ_ARRAY_U8:
-		return NUMBER_VAL(ARRAY_ELEMENT(array, uint8_t, index));
-	case OBJ_ARRAY_I8:
-		return NUMBER_VAL(ARRAY_ELEMENT(array, int8_t, index));
-	case OBJ_STRING_BUILDER:
-		return NUMBER_VAL(ARRAY_ELEMENT(array, uint8_t, index));
-	default:
-		return NIL_VAL;
-	}
-}
-
-HOT_FUNCTION
-void setTypedArrayElement(ObjArray* array, uint32_t index, Value val)
-{
-	val = IS_NUMBER(val) ? val : NUMBER_VAL(0);
-	double num = AS_NUMBER(val);
-	switch (OBJ_GET_TYPE(array->obj)) {
-	case OBJ_ARRAY_F64:
-		ARRAY_ELEMENT(array, double, index) = num;
-		break;
-	case OBJ_ARRAY_F32:
-		ARRAY_ELEMENT(array, float, index) = double_to_f32(num);
-		break;
-	case OBJ_ARRAY_U32:
-		ARRAY_ELEMENT(array, uint32_t, index) = double_to_u32(num);
-		break;
-	case OBJ_ARRAY_I32:
-		ARRAY_ELEMENT(array, int32_t, index) = double_to_i32(num);
-		break;
-	case OBJ_ARRAY_U16:
-		ARRAY_ELEMENT(array, uint16_t, index) = (uint16_t)double_to_u32(num);
-		break;
-	case OBJ_ARRAY_I16:
-		ARRAY_ELEMENT(array, int16_t, index) = (int16_t)double_to_i32(num);
-		break;
-	case OBJ_ARRAY_U8:
-		ARRAY_ELEMENT(array, uint8_t, index) = (uint8_t)double_to_u32(num);
-		break;
-	case OBJ_ARRAY_I8:
-		ARRAY_ELEMENT(array, int8_t, index) = (int8_t)double_to_i32(num);
-		break;
-	}
-}
-
-//if find deduplicate one return it else null
+//If a duplicate is found, return it; otherwise, return null.
 static inline ObjString* deduplicateString(C_STR chars, uint32_t length, uint64_t hash) {
 	return tableFindString(&vm.strings, chars, length, hash);
 }
@@ -325,8 +301,6 @@ ObjString* copyString(C_STR chars, uint32_t length, bool escapeChars)
 
 	if (!escapeChars) {
 		hash = HASH_64bits(chars, length);
-
-		//find deduplicate one
 		string = deduplicateString(chars, length, hash);
 		if (string == NULL) {
 			//create string
@@ -351,7 +325,7 @@ ObjString* copyString(C_STR chars, uint32_t length, bool escapeChars)
 		//the unescaped content is never longer than the source, so the source
 		//length bounds the scratch need; short literals stay on the stack,
 		//long ones use a transient heap buffer (always released below)
-		char stackScratch[512];// no init
+		char stackScratch[512];
 		char* scratch = NULL;
 		char* content = stackScratch;
 		if (length > (uint32_t)sizeof(stackScratch)) {
@@ -636,7 +610,13 @@ void printObjectTo(FILE* stream, Value value, bool isExpand) {
 		fprintf(stream, "%s", AS_STRING(value)->chars);
 		break;
 	case OBJ_UPVALUE:
-		fprintf(stream, "upvalue");
+		fprintf(stream, "<upvalue>");
+		break;
+	case OBJ_FIBER:
+		fprintf(stream, "<fiber>");
+		break;
+	case OBJ_ITERATOR:
+		fprintf(stream, "<iterator>");
 		break;
 	default: {
 		if (isIndexableArray(value)) {

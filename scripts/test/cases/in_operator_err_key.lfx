@@ -1,0 +1,6 @@
+// in operator: non-string key -> runtime error
+// exit: 70
+// err: 'in' key must be a string.
+
+var d = {};
+1 in d;

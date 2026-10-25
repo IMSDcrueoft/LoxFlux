@@ -41,7 +41,7 @@ typedef enum {
 	PREC_AND,         // and
 	PREC_BITWISE,	  // |, ^, &, <<, >>, >>>
 	PREC_EQUALITY,    // == !=
-	PREC_INSTANCEOF,  // instanceof
+	PREC_RELATIONAL,  // instanceof, in
 	PREC_COMPARISON,  // <, >, <=, >=
 	PREC_TERM,        // +, -
 	PREC_FACTOR,      // *, /, %
@@ -66,6 +66,14 @@ typedef struct {
 	bool isConst; //is a const
 } Local;
 
+typedef enum {
+	LOOP_OTHER = 0,
+	LOOP_WHILE,
+	LOOP_DO_WHILE,
+	LOOP_FOR,
+	LOOP_FOREACH
+} LoopType;
+
 typedef struct LoopContext {
 	int32_t start;
 	uint32_t enterParamCount;
@@ -77,7 +85,7 @@ typedef struct LoopContext {
 	//to loop.start directly
 	uint16_t continueJumpCount;
 	uint16_t continueJumpCapacity;
-	bool isDoWhile;
+	LoopType loopType;
 	int32_t* breakJumps;
 	int32_t* continueJumps;
 	struct LoopContext* enclosing;

@@ -107,12 +107,7 @@ static Value popNative(int argCount, Value* args) {
 
 	if (array->length > 0) {
 		Value value;
-		if (OBJ_IS_TYPE(array, OBJ_ARRAY)) {
-			value = ARRAY_ELEMENT(array, Value, array->length - 1);
-		}
-		else {
-			value = getTypedArrayElement(array, array->length - 1);
-		}
+		GET_INDEXABLE_ELEMENT(array, array->length - 1, value);
 		array->length--;
 		return value;
 	}

@@ -1,0 +1,44 @@
+// foreach over typed arrays: element width and sign come from the array type
+// (F64 keeps fractions, U8 unsigned, I8 signed); writing the same index while
+// iterating does not disturb the other slots
+// exit: 0
+// out: 7.5
+// out: 450
+// out: -5
+// out: 3
+// out: 6
+var f64 = @ctor.F64Array(3);
+f64[0] = 1.5;
+f64[1] = 2.5;
+f64[2] = 3.5;
+var fs = 0;
+foreach (var i, v in f64) {
+	fs = fs + v;
+}
+print fs;
+
+var u8 = @ctor.U8Array(2);
+u8[0] = 200;
+u8[1] = 250;
+var us = 0;
+foreach (var i, v in u8) {
+	us = us + v;
+}
+print us;
+
+var i8 = @ctor.I8Array(1);
+i8[0] = -5;
+foreach (var i, v in i8) {
+	print v;
+}
+
+var f2 = @ctor.F64Array(2);
+f2[0] = 1.0;
+f2[1] = 2.0;
+var acc = 0;
+foreach (var i, v in f2) {
+	f2[i] = v * 2;
+	acc = acc + v;
+}
+print acc;
+print f2[0] + f2[1];

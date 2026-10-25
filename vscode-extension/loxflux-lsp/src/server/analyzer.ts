@@ -870,7 +870,38 @@ export class Analyzer {
 				case 'For':
 					this.reportUnreachable([stmt.body]);
 					break;
-				case 'Branch':
+			case 'Foreach': {
+				// mirror the compiler: the iterable expression runs in the
+				// enclosing scope (k/v are not declared yet), then k/v become
+				// locals of the foreach scope and the body walks with the
+				// loop depth raised so break/continue validate against it
+				this.walkExpr(stmt.iterable);
+				this.pushScope(false, stmt.start, stmt.end);
+				try {
+					this.declare(stmt.keyToken, DeclKind.Local, {
+						isConst: stmt.isConst,
+						declStart: stmt.start,
+						declEnd: stmt.end,
+						doc: this.docFor(stmt.keyToken.start),
+					});
+					this.declare(stmt.valueToken, DeclKind.Local, {
+						isConst: stmt.isConst,
+						declStart: stmt.start,
+						declEnd: stmt.end,
+						doc: this.docFor(stmt.valueToken.start),
+					});
+					this.loopDepth++;
+					try {
+						this.walkStmt(stmt.body);
+					} finally {
+						this.loopDepth--;
+					}
+				} finally {
+					this.popScope();
+				}
+				break;
+			}
+			case 'Branch':
 					for (const c of stmt.cases) {
 						this.reportUnreachable([c.body]);
 					}

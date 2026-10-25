@@ -29,14 +29,12 @@ static void declaration();
 static void expression();
 static void statement();
 static void branchCaseStatement();
-//need to declare first
 static ParseRule* getRule(TokenType type);
 static void namedVariable(Token name, bool canAssign);
 static void variable(bool canAssign);
 static Token syntheticToken(C_STR text);
 
 #if COMPILATION_TIME_OPTIMIZATION
-//do optimize here
 static void instructionOptimize();
 #endif
 
@@ -474,7 +472,7 @@ static bool foldBuiltinNumber(void) {
 
 	Chunk* chunk = currentChunk();
 
-	//chech opStack first,than use this to override old codes
+	//check opStack first, then use it to override the old codes
 #define CHUNK_PEEK(offset) chunk->code[chunk->count - offset - 1]
 #define READ_24BITS_INDEX(offset)	\
 	(((uint32_t)chunk->code[chunk->count - (offset) - 1] << 16) +	\
@@ -554,7 +552,6 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 
 	compiler->localCount = 0;
 	compiler->scopeDepth = 0;
-	//init with 1024 slots
 	compiler->locals = ALLOCATE_NO_GC(Local, LOCAL_INIT);
 	compiler->localCapacity = LOCAL_INIT;
 
@@ -792,7 +789,7 @@ static void addLocal(Token name) {
 
 	Local* local = &current->locals[current->localCount++];
 	local->name = name;
-	local->depth = -1;// var a = a;??? avoid this
+	local->depth = -1;//guard: a local is not readable in its own initializer (var a = a;)
 	local->isCaptured = false;
 	local->isConst = false;
 }
@@ -802,11 +799,9 @@ static bool identifiersEqual(Token* a, Token* b) {
 	return memcmp(a->start, b->start, a->length) == 0;
 }
 
-static void declareVariable() {
+static void declareVariableAt(Token* name) {
 	//it is global
 	if (current->scopeDepth == 0) return;
-
-	Token* name = &parser.previous;
 
 	for (int32_t i = current->localCount - 1; i >= 0; i--) {
 		Local* local = &current->locals[i];
@@ -821,6 +816,10 @@ static void declareVariable() {
 	}
 
 	addLocal(*name);
+}
+
+static void declareVariable() {
+	declareVariableAt(&parser.previous);
 }
 
 typedef struct {
@@ -1049,7 +1048,7 @@ static void classDeclaration() {
 	ClassCompiler classCompiler = { .enclosing = currentClass,.hasSuperclass = false };
 	currentClass = &classCompiler;
 
-	//check class clsnname < super {}
+	//check 'class name < super {}'
 	if (match(TOKEN_LESS)) {
 		consume(TOKEN_IDENTIFIER, "Expect superclass name.");
 		variable(false);
@@ -1152,6 +1151,9 @@ static void forStatement() {
 	else if (match(TOKEN_VAR)) { //like this -> for(var i = 0;;)
 		varDeclaration();
 	}
+	else if (match(TOKEN_CONST)) {
+		constDeclaration();
+	}
 	else { //like this -> for( here ;;)
 		expressionStatement();
 	}
@@ -1187,7 +1189,16 @@ static void forStatement() {
 	}
 
 	//record the loop
-	LoopContext loop = (LoopContext){ .start = loopStart, .enclosing = current->currentLoop,.breakJumps = NULL,.breakJumpCount = 0 ,.enterParamCount = current->localCount,.continueJumps = NULL,.continueJumpCount = 0,.isDoWhile = false };
+	LoopContext loop = (LoopContext){ 
+		.start = loopStart,
+		.enclosing = current->currentLoop,
+		.breakJumps = NULL,
+		.breakJumpCount = 0 ,
+		.enterParamCount = current->localCount,
+		.continueJumps = NULL,
+		.continueJumpCount = 0,
+		.loopType = LOOP_FOR 
+	};
 	loop.breakJumpCapacity = 8;
 	loop.breakJumps = ALLOCATE_NO_GC(int32_t, loop.breakJumpCapacity);
 	current->currentLoop = &loop;
@@ -1208,6 +1219,83 @@ static void forStatement() {
 	current->currentLoop = current->currentLoop->enclosing;
 	//end block
 	endScope();
+}
+
+static void foreachStatement() {
+	//locals layout: [others..., k, v, hidden iterator, body locals]
+	beginScope();
+
+	//var/const only controls user assignment; OP_ITERATE always overwrites k/v
+	consume(TOKEN_LEFT_PAREN, "Expect '(' after 'foreach'.");
+	if (!match(TOKEN_VAR) && !match(TOKEN_CONST)) {
+		errorAtCurrent("Expect 'var' or 'const' after 'foreach'.");
+		return;
+	}
+	bool isConst = (parser.previous.type == TOKEN_CONST);
+
+	emitBytes(2, OP_NIL, OP_NIL);
+	clearOpStack();
+
+	consume(TOKEN_IDENTIFIER, "Expect loop key variable name.");
+	Token keyName = parser.previous;
+
+	consume(TOKEN_COMMA, "Expect ',' between loop variables.");
+
+	consume(TOKEN_IDENTIFIER, "Expect loop value variable name.");
+	Token valueName = parser.previous;
+
+	consume(TOKEN_IN, "Expect 'in' after loop variables.");
+
+	expression();
+	consume(TOKEN_RIGHT_PAREN, "Expect ')' after the iterable.");
+
+	//declare after the iterable: a same-named variable in it resolves to the
+	//enclosing scope, only the loop body gets the new k/v
+	declareVariableAt(&keyName);
+	markInitialized(isConst);
+	declareVariableAt(&valueName);
+	markInitialized(isConst);
+
+	emitByte(OP_NEW_ITERATOR);
+	clearOpStack();
+
+	//empty name: never resolvable by user code
+	Token hiddenIterator = (Token){ .start = "", .length = 0, .line = parser.previous.line };
+	addLocal(hiddenIterator);
+	markInitialized(false);
+
+	LoopContext loop = (LoopContext){
+		.start = currentChunk()->count,
+		.enclosing = current->currentLoop,
+		.breakJumps = NULL,
+		.breakJumpCount = 0,
+		.enterParamCount = current->localCount,
+		.continueJumps = NULL,
+		.continueJumpCount = 0,
+		.loopType = LOOP_FOREACH
+	};
+	loop.breakJumpCapacity = 8;
+	loop.breakJumps = ALLOCATE_NO_GC(int32_t, loop.breakJumpCapacity);
+	current->currentLoop = &loop;
+
+	//exhaustion jump: patched past the dead endScope cleanup below
+	int32_t exhaustJump = emitJump(OP_ITERATE);
+
+	statement();
+
+	emitLoop(loop.start);
+
+	//dead cleanup bytes: both loop exits already unwound k/v/iter at runtime
+	endScope();
+
+	patchJump(exhaustJump);
+
+	while (loop.breakJumpCount > 0) {
+		patchJump(loop.breakJumps[--loop.breakJumpCount]);
+	}
+
+	FREE_ARRAY_NO_GC(int32_t, loop.breakJumps, loop.breakJumpCapacity);
+	current->currentLoop = current->currentLoop->enclosing;
 }
 
 static void ifStatement() {
@@ -1353,7 +1441,16 @@ static void whileStatement() {
 	int32_t exitJump = emitBranchJump(OP_JUMP_IF_FALSE_POP, condStart);
 
 	//record the loop
-	LoopContext loop = (LoopContext){ .start = loopStart, .enclosing = current->currentLoop,.breakJumps = NULL,.breakJumpCount = 0 ,.enterParamCount = current->localCount,.continueJumps = NULL,.continueJumpCount = 0,.isDoWhile = false };
+	LoopContext loop = (LoopContext){ 
+		.start = loopStart,
+		.enclosing = current->currentLoop,
+		.breakJumps = NULL,
+		.breakJumpCount = 0 ,
+		.enterParamCount = current->localCount,
+		.continueJumps = NULL,
+		.continueJumpCount = 0,
+		.loopType = LOOP_WHILE 
+	};
 	loop.breakJumpCapacity = 8;
 	loop.breakJumps = ALLOCATE_NO_GC(int32_t, loop.breakJumpCapacity);
 	current->currentLoop = &loop;
@@ -1377,7 +1474,16 @@ static void whileStatement() {
 static void doWhileStatement() {
 	int32_t loopStart = currentChunk()->count;
 	//record the loop
-	LoopContext loop = (LoopContext){ .start = loopStart, .enclosing = current->currentLoop,.breakJumps = NULL,.breakJumpCount = 0 ,.enterParamCount = current->localCount,.continueJumps = NULL,.continueJumpCount = 0,.isDoWhile = true };
+	LoopContext loop = (LoopContext){ 
+		.start = loopStart, 
+		.enclosing = current->currentLoop,
+		.breakJumps = NULL,
+		.breakJumpCount = 0 ,
+		.enterParamCount = current->localCount,
+		.continueJumps = NULL,
+		.continueJumpCount = 0,
+		.loopType = LOOP_DO_WHILE 
+	};
 	loop.breakJumpCapacity = 8;
 	loop.breakJumps = ALLOCATE_NO_GC(int32_t, loop.breakJumpCapacity);
 	current->currentLoop = &loop;
@@ -1420,7 +1526,16 @@ static void breakStatement() {
 		return;
 	}
 
-	closeLoopLocals(current->currentLoop->enterParamCount);
+	//foreach: free the iterator (last of k/v/iter) before unwinding, then close
+	//down to k's index so body locals and k/v go in one pass
+	if (current->currentLoop->loopType == LOOP_FOREACH) {
+		emitShortCommand(OP_FREE_LOCAL, current->currentLoop->enterParamCount - 1);
+		closeLoopLocals(current->currentLoop->enterParamCount - 3);
+	}
+	else {
+		closeLoopLocals(current->currentLoop->enterParamCount);
+	}
+
 	int32_t jump = emitJump(OP_JUMP);
 
 	if (current->currentLoop->breakJumpCount == current->currentLoop->breakJumpCapacity) {
@@ -1450,7 +1565,7 @@ static void continueStatement() {
 
 	closeLoopLocals(current->currentLoop->enterParamCount);
 
-	if (current->currentLoop->isDoWhile) {
+	if (current->currentLoop->loopType == LOOP_DO_WHILE) {
 		//do-while: the condition check sits after the body and its position
 		//is not known yet, so jump forward and patch it to condStart later
 		//(jumping to loop.start would skip the condition -> infinite loop)
@@ -1494,6 +1609,7 @@ static void synchronize() {
 		case TOKEN_BRANCH:
 		case TOKEN_DO:
 		case TOKEN_WHILE:
+		case TOKEN_FOREACH:
 		case TOKEN_PRINT:
 		case TOKEN_RETURN:
 		case TOKEN_THROW:
@@ -1531,6 +1647,9 @@ static void statementInner() {
 	}
 	else if (match(TOKEN_FOR)) {
 		forStatement();
+	}
+	else if (match(TOKEN_FOREACH)) {
+		foreachStatement();
 	}
 	else if (match(TOKEN_BREAK)) {
 		breakStatement();
@@ -1655,6 +1774,11 @@ static void binary(bool canAssign) {
 	}
 	case TOKEN_INSTANCE_OF: {
 		emitByte(OP_INSTANCE_OF);
+		clearOpStack();
+		break;
+	}
+	case TOKEN_IN: {
+		emitByte(OP_IN);
 		clearOpStack();
 		break;
 	}
@@ -2177,7 +2301,7 @@ ParseRule rules[] = {
 	[TOKEN_GREATER_EQUAL] = {NULL,     binary, PREC_COMPARISON},
 	[TOKEN_LESS] = {NULL,     binary, PREC_COMPARISON},
 	[TOKEN_LESS_EQUAL] = {NULL,     binary, PREC_COMPARISON},
-	[TOKEN_INSTANCE_OF] = {NULL,     binary, PREC_INSTANCEOF},
+	[TOKEN_INSTANCE_OF] = {NULL,     binary,   PREC_RELATIONAL},
 	[TOKEN_TYPE_OF] = {unary,	NULL, PREC_UNARY},
 	[TOKEN_BIT_AND] = {NULL,	binary, PREC_BITWISE},
 	[TOKEN_BIT_OR] = {NULL,		binary, PREC_BITWISE},
@@ -2204,6 +2328,8 @@ ParseRule rules[] = {
 	[TOKEN_ELSE] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_FALSE] = {literal,     NULL,   PREC_NONE},
 	[TOKEN_FOR] = {NULL,     NULL,   PREC_NONE},
+	[TOKEN_FOREACH] = { NULL,     NULL,   PREC_NONE },
+	[TOKEN_IN] = { NULL,     binary,   PREC_RELATIONAL },
 	[TOKEN_FUN] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_LAMBDA] = {lambda,	NULL,	PREC_NONE},
 	[TOKEN_RIGHT_ARROW] = {NULL,	NULL,	PREC_NONE},
@@ -2248,7 +2374,6 @@ ObjFunction* compile(C_STR source, FunctionType compileType) {
 
 	advance();
 
-	//keep compiling
 	while (!match(TOKEN_EOF)) {
 		declaration();
 	}
@@ -2269,13 +2394,11 @@ void markCompilerRoots()
 }
 
 /*
-* do optimize here
 * This part uses hard-coded instruction lengths, which needs to be noted
 */
 #if COMPILATION_TIME_OPTIMIZATION
 //COLD_FUNCTION
 static void instructionOptimize() {
-	//do optimize here
 	Chunk* chunk = currentChunk();
 	OPStack* opStack = currentOpStack();
 
@@ -2293,7 +2416,6 @@ static void instructionOptimize() {
 	//literal opcodes (true/false/nil) are compile-time constants too
 	bool isLeftLiteral = (prevLeft == OP_TRUE) || (prevLeft == OP_FALSE) || (prevLeft == OP_NIL);
 	bool isRightLiteral = (prevRight == OP_TRUE) || (prevRight == OP_FALSE) || (prevRight == OP_NIL);
-	// local
 	bool isLeftLocal = (prevLeft == OP_GET_LOCAL);
 	bool isRightLocal = (prevRight == OP_GET_LOCAL);
 
@@ -2494,7 +2616,6 @@ static void instructionOptimize() {
 		break;
 	}
 	case OP_NOT: {
-		//all constants are true
 		if (isRightConstNumber) {
 			chunk_fallback(chunk, 1 + 3);//op + const
 			opStack_fallback(opStack, 2);

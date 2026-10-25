@@ -1,0 +1,56 @@
+// in operator: membership over instance fields and class methods (closed inheritance)
+// exit: 0
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: false
+// out: true
+// out: true
+// out: p1
+// out: p2
+// out: 2
+
+class Animal {
+	init(name, age) {
+		this.name = name;
+		this.age = age;
+	}
+	speak() {
+		return "sound";
+	}
+}
+class Dog < Animal {
+	fetch() {
+		return "ball";
+	}
+}
+
+var d = Dog("rex", 3);
+
+print "name" in d;      // instance field
+print "fetch" in d;     // own class method
+print "speak" in d;     // inherited method (copied into methods at inherit time)
+print "fetch" in Dog;   // class direct: own method
+print "speak" in Dog;   // class direct: inherited method
+print "nope" in d;      // miss -> false
+print "init" in d;      // init lives in the methods table
+print "age" in d;       // second field
+
+// relational precedence: binds tighter than == and and/or
+if ("name" in d == true) {
+	print "p1";
+}
+if ("name" in d and "age" in d) {
+	print "p2";
+}
+
+// separator 'in' (foreach) and operator 'in' coexist
+var count = 0;
+foreach (var k, v in d) {
+	if (k in d) {
+		count = count + 1;
+	}
+}
+print count;

@@ -75,7 +75,11 @@ StringEntry* tableGetStringEntry(StringTable* table, ObjString* key);
 void tableSet_script(StringTable* table, ObjString* key, uint32_t index);
 StringEntry* tableGetScriptEntry(StringTable* table, ObjString* key);
 
-//if not value exist, set add return the entry pointer
 void numberTable_init(NumberTable* table);
 void numberTable_free(NumberTable* table);
 NumberEntry* tableGetNumberEntry(NumberTable* table, Value* value);
+
+// returns false if table is empty
+bool tableGetFirstEntryIndex(Table* table, uint32_t* index_out);
+// returns isDone
+bool tableIterateNext(Table* table, uint32_t* index_inout, Entry** entry_out);

@@ -32,24 +32,28 @@ static void closeUpvalues(Value* last);
 COLD_FUNCTION
 static void stack_reset()
 {
-	//close open upvalues before clearing the stack: discarded/cended executions
+	//close open upvalues before clearing the stack: discarded/ceded executions
 	//must not leave escaped closures pointing into reset stack slots
-	if (vm.openUpvalues != NULL) {
-		closeUpvalues(vm.stack);
+	if (vm.cache.openUpvalues != NULL) {
+		closeUpvalues(vm.cache.stack);
 	}
 
 	//reset the pointer
-	vm.stackTop = vm.stack;
+	vm.cache.stackTop = vm.cache.stack;
 
 	//set all to nil
 	//the commit watermark only grows within one vm lifetime, so clearing up to
 	//it covers every slot ever written; slots above it were never touched
-	for (Value* ptr = vm.stack; ptr < vm.stackBoundary; ++ptr) {
+	for (Value* ptr = vm.cache.stack; ptr < vm.cache.stackBoundary; ++ptr) {
 		*ptr = NIL_VAL;
 	}
 
-	vm.frameCount = 0;
-	vm.openUpvalues = NULL;
+	vm.cache.frameCount = 0;
+	vm.cache.openUpvalues = NULL;
+	vm.cache.stackTop = vm.cache.stack;
+
+	//the fiber's persistent state must follow the reset cache
+	vm_storeCacheToFiber();
 }
 
 COLD_FUNCTION
@@ -57,7 +61,6 @@ static ObjFunction* getCachedScript(STR absolutePath) {
 	// only to seek with absolute path
 	ObjString* path = copyString(absolutePath, (uint32_t)strlen(absolutePath), false);
 
-	// get deduplicate script
 	StringEntry* entry = tableGetScriptEntry(&vm.scripts, path);
 	ObjFunction* function = (entry != NULL) ? AS_FUNCTION(vm.constants.values[entry->index]) : NULL;
 
@@ -67,7 +70,7 @@ static ObjFunction* getCachedScript(STR absolutePath) {
 		STR source = readFile(absolutePath);
 
 		function = compile(source, TYPE_MODULE);
-		mem_free(source);// free memory
+		mem_free(source);
 
 		if (function != NULL) {
 			// add to pool
@@ -88,8 +91,8 @@ static bool throwError(Value error, C_STR format, ...) {
 	va_end(args);
 	fputs("\n", stderr);
 
-	for (int32_t i = vm.frameCount - 1; i >= 0; i--) {
-		CallFrame* frame = &vm.frames[i];
+	for (int32_t i = vm.cache.frameCount - 1; i >= 0; i--) {
+		CallFrame* frame = &vm.cache.frames[i];
 
 		ObjFunction* function = frame->closure->function;
 		size_t instruction = frame->ip - function->chunk.code - 1;
@@ -128,8 +131,8 @@ static void runtimeError(C_STR format, ...) {
 	va_end(args);
 	fputs("\n", stderr);
 
-	for (int32_t i = vm.frameCount - 1; i >= 0; i--) {
-		CallFrame* frame = &vm.frames[i];
+	for (int32_t i = vm.cache.frameCount - 1; i >= 0; i--) {
+		CallFrame* frame = &vm.cache.frames[i];
 		ObjFunction* function = frame->closure->function;
 		size_t instruction = frame->ip - function->chunk.code - 1;
 
@@ -155,62 +158,56 @@ static void runtimeError(C_STR format, ...) {
 HOT_FUNCTION
 void stack_push(Value value)
 {
-	*vm.stackTop = value;
+	*vm.cache.stackTop = value;
 
-	if (++vm.stackTop == vm.stackBoundary) {
-		//the old movable stack had to GROW_ARRAY (realloc) here and then re-fix
-		//every frame->slots and open upvalue->location (via slotsOffset /
-		//location_offset bookkeeping); the arena stack reserves fixed VA up
-		//front instead, so "growing" is only a lazy page commit and neither
-		//the re-fix passes nor the offset fields exist anymore
-		//
-		//if (oldStack != vm.stack) {
+	if (++vm.cache.stackTop == vm.cache.stackBoundary) {
+		//if (oldStack != vm.cache.stack) {
 		//	// update all stack frames so it is safe now
-		//	for (int32_t i = vm.frameCount - 1; i >= 0; i--) {
-		//		CallFrame* frame = &vm.frames[i];
-		//		frame->slots = vm.stack + frame->slotsOffset;
+		//	for (int32_t i = vm.cache.frameCount - 1; i >= 0; i--) {
+		//		CallFrame* frame = &vm.cache.frames[i];
+		//		frame->slots = vm.cache.stack + frame->slotsOffset;
 		//	}
 		//
 		//	// update all upvalues if needed
-		//	for (ObjUpvalue* upvalue = vm.openUpvalues;upvalue != NULL;upvalue = upvalue->next) {
+		//	for (ObjUpvalue* upvalue = vm.cache.openUpvalues;upvalue != NULL;upvalue = upvalue->next) {
 		//		if (upvalue->location_offset != CLOSED_OBJ_UPVALUE_LOCATION) {
-		//			upvalue->location = vm.stack + upvalue->location_offset;
+		//			upvalue->location = vm.cache.stack + upvalue->location_offset;
 		//		}
 		//	}
 		//}
 
 		//VA reservation exhausted: the last slot was written, the stack is full
-		size_t used = (size_t)((vm.stackTop - vm.stack) * sizeof(Value));
-		if (used >= vm.stackArena.capacity) {
+		size_t used = (size_t)((vm.cache.stackTop - vm.cache.stack) * sizeof(Value));
+		if (used >= vm.currentFiber->stackArena.capacity) {
 			runtimeError("Stack overflow.");
 			return;
 		}
 
 		//commit the next chunk lazily (must advance past stackTop, hence the
 		//extra chunk); failure means the stack cannot grow -> overflow
-		if (!arenaBump_ensureCommitted(&vm.stackArena, used + vm.stackArena.commitChunkSize)) {
+		if (!arenaBump_ensureCommitted(&vm.currentFiber->stackArena, used + vm.currentFiber->stackArena.commitChunkSize)) {
 			runtimeError("Stack overflow.");
 			return;
 		}
 
 		//commitTop is a page-aligned byte offset; a page is a multiple of sizeof(Value)
-		vm.stackBoundary = (Value*)((char*)vm.stackArena.base + vm.stackArena.commitTop);
+		vm.cache.stackBoundary = (Value*)((char*)vm.currentFiber->stackArena.base + vm.currentFiber->stackArena.commitTop);
 	}
 }
 
 HOT_FUNCTION
 void stack_replace(Value val) {
-	vm.stackTop[-1] = val;
+	vm.cache.stackTop[-1] = val;
 }
 
 HOT_FUNCTION
 Value stack_pop()
 {
-	vm.stackTop--;
-	return *vm.stackTop;
+	vm.cache.stackTop--;
+	return *vm.cache.stackTop;
 }
 
-#define STACK_PEEK(distance) (vm.stackTop[-1 - distance])
+#define STACK_PEEK(distance) (vm.cache.stackTop[-1 - distance])
 
 COLD_FUNCTION
 void defineNative_math_number(C_STR name, double value) {
@@ -280,7 +277,7 @@ COLD_FUNCTION
 void defineNative_global(C_STR name, NativeFn function) {
 	//stack_push(OBJ_VAL(copyString(name, (uint32_t)strlen(name), false)));
 	//stack_push(OBJ_VAL(newNative(function)));
-	//tableSet(&vm.globals.fields, AS_STRING(vm.stack[0]), vm.stack[1]);
+	//tableSet(&vm.globals.fields, AS_STRING(vm.cache.stack[0]), vm.cache.stack[1]);
 	//stack_pop();
 	//stack_pop();
 
@@ -340,6 +337,8 @@ static void initTypeStrings() {
 	vm.typeStrings[TYPE_STRING_NATIVE] = copyString("native", (uint32_t)strlen("native"), false);
 	vm.typeStrings[TYPE_STRING_CLASS] = copyString("class", (uint32_t)strlen("class"), false);
 	vm.typeStrings[TYPE_STRING_OBJECT] = copyString("object", (uint32_t)strlen("object"), false);
+	vm.typeStrings[TYPE_STRING_ITERATOR] = copyString("iterator", (uint32_t)strlen("iterator"), false);
+	vm.typeStrings[TYPE_STRING_FIBER] = copyString("fiber", (uint32_t)strlen("fiber"), false);
 	vm.typeStrings[TYPE_STRING_ARRAY] = copyString("array", (uint32_t)strlen("array"), false);
 	vm.typeStrings[TYPE_STRING_ARRAY_F64] = copyString("array-f64", (uint32_t)strlen("array-f64"), false);
 	vm.typeStrings[TYPE_STRING_ARRAY_F32] = copyString("array-f32", (uint32_t)strlen("array-f32"), false);
@@ -351,52 +350,46 @@ static void initTypeStrings() {
 	vm.typeStrings[TYPE_STRING_ARRAY_I8] = copyString("array-i8", (uint32_t)strlen("array-i8"), false);
 }
 
+HOT_FUNCTION
+static void vm_loadFiberToCache() {
+	if (vm.currentFiber != NULL) {
+		vm.cache = vm.currentFiber->core;
+	}
+}
+
+HOT_FUNCTION
+void vm_storeCacheToFiber() {
+	//the VM stack top is an execution cache; persist it before tracing so
+	//the current fiber's live stack prefix is complete
+	if (vm.currentFiber != NULL) {
+		vm.currentFiber->core = vm.cache;
+	}
+}
+
 COLD_FUNCTION
 void vm_init()
 {
 	//zero the accounting books BEFORE any allocation: everything vm_init
 	//allocates from here on must be counted, so the matching vm_free frees net
 	//the counters back to exactly zero
-	//(the vm stack and the interned strings are NOT counted anymore: they live
-	//in fixed OS VA arenas outside the allocator, like the grayStack)
+	//(each fiber stack and the interned strings live in fixed OS VA arenas
+	//outside the allocator, like the grayStack)
 	vm.bytesAllocated = 0;
 	vm.bytesAllocated_no_gc = 0;
 
-	//call frames live in a no-GC heap array: start at FRAMES_INIT and grow
-	//geometrically in call() up to FRAMES_MAX
-	vm.frames = ALLOCATE_NO_GC(CallFrame, FRAMES_INIT);
-	vm.frameCapacity = FRAMES_INIT;
-	vm.frameCount = 0;
+	vm.currentFiber = NULL;
+	vm.fiberFreeList = NULL;
+	vm.fiberFreeCount = 0;
 
-	vm.stack = NULL;
-	vm.stackTop = NULL;
-	vm.stackBoundary = NULL;
+	vm.cache = (FiberCore){0};
 
 	//init global
 	valueArray_init(&vm.constants);
 
-	//stack arena: reserve the full STACK_ARENA_SIZE of VA once (never moves)
-	//and commit the first chunk eagerly; the old heap stack (ALLOCATE_NO_GC of
-	//STACK_INITIAL_SIZE Values) is gone, growth is a lazy page commit now
-	//a non-NULL base here means the previous vm_free was skipped -> leaked bump segment
-	assert(vm.stackArena.base == NULL);
-	if (!arenaBump_init(&vm.stackArena, STACK_ARENA_SIZE, false, 0, 16 << 10)) {
-		fprintf(stderr, "Failed to reserve the vm stack arena.\n");
-		exit(1);
-	}
-
-	if (!arenaBump_ensureCommitted(&vm.stackArena, vm.stackArena.commitChunkSize)) {
-		fprintf(stderr, "Failed to commit the vm stack arena.\n");
-		exit(1);
-	}
-
-	vm.stack = (Value*)vm.stackArena.base;
-	vm.stackBoundary = (Value*)((char*)vm.stackArena.base + vm.stackArena.commitTop);
-
 	//string arena: reserve 512MiB of VA (committed lazily in 16KB steps); no
 	//eager commit needed - the first string allocation triggers it; strings
-	//are NOT counted in the accounting books anymore (same class as the stack
-	//arena and the grayStack)
+	//are NOT counted in the accounting books anymore (same class as fiber
+	//stack arenas and the grayStack)
 	assert(vm.stringArena.base == NULL);
 	if (!arenaBump_init(&vm.stringArena, STRING_ARENA_SIZE, false, 8, 16 << 10)) {
 		fprintf(stderr, "Failed to reserve the vm string arena.\n");
@@ -416,13 +409,11 @@ void vm_init()
 	vm.grayStack = (Obj**)vm.grayArena.base;
 	vm.grayCount = 0;
 
-	stack_reset();
-
 	// init global 
 	vm.globals = (ObjInstance){
 		.obj = stateLess_obj_header(OBJ_INSTANCE),
 		.klass = NULL,
-		.fields = {.isGlobal = true,.isFrozen = false,.isEternal = false,.isPoisoned = false}//remind this
+		.fields = {.isGlobal = true,.isFrozen = false,.isEternal = false,.isPoisoned = false}
 	};
 
 	table_init(&vm.globals.fields);
@@ -434,11 +425,26 @@ void vm_init()
 	vm.objects_no_gc = NULL;
 
 	vm.functionID = 0;
-	//set
 	vm.nextGC = GC_HEAP_BEGIN;
 	vm.beginGC = GC_HEAP_BEGIN;
-	vm.gcMark = true; //bool value
-	vm.gcWorking = false; //bool value
+	vm.gcMark = true;
+	vm.gcWorking = false;
+
+	//the root fiber owns the main VM stack and the live frame/open-upvalue state
+	vm.currentFiber = newFiber();
+
+	//commit the first stack chunk eagerly; later growth is lazy
+	if (!arenaBump_ensureCommitted(&vm.currentFiber->stackArena, vm.currentFiber->stackArena.commitChunkSize)) {
+		fprintf(stderr, "Failed to commit the vm stack arena.\n");
+		exit(1);
+	}
+
+	//the fiber's persistent stack cache must be initialized before the hot cache
+	//loads it; stack_reset() persists the reset state back into the fiber
+	vm.currentFiber->core.stackBoundary = (Value*)((char*)vm.currentFiber->stackArena.base + vm.currentFiber->stackArena.commitTop);
+	vm_loadFiberToCache();
+
+	stack_reset();
 
 	//the default class must exist before any builtin structure: every
 	//instance that has no real class (builtin modules, the global object)
@@ -469,9 +475,9 @@ void vm_init()
 COLD_FUNCTION
 bool vm_isCeding() {
 	if (!vm.ceding) return false;
-	if (vm.stack == NULL) return false;
+	if (vm.currentFiber == NULL) return false;
 	if (vm.grayStack == NULL) return false;
-	return vm.frameCount > 0;
+	return vm.cache.frameCount > 0;
 }
 
 COLD_FUNCTION
@@ -494,11 +500,6 @@ void vm_free()
 	vm.icFuncCount = 0;
 	vm.icFuncCapacity = 0;
 
-	FREE_ARRAY_NO_GC(CallFrame, vm.frames, vm.frameCapacity);
-	vm.frames = NULL;
-	vm.frameCount = 0;
-	vm.frameCapacity = 0;
-
 	valueArray_free(&vm.constants);
 
 	table_free(&vm.globals.fields);
@@ -509,19 +510,20 @@ void vm_free()
 	for (uint32_t i = 0; i < TYPE_STRING_COUNT; ++i) {
 		vm.typeStrings[i] = NULL;
 	}
-	//the list is about to dangle: a following vm_init -> stack_reset must not walk it
-	vm.openUpvalues = NULL;
-	freeObjects();
 
-	//release the stack + string + gray arenas (VA reservations + committed pages)
-	arenaBump_destroy(&vm.stackArena);
+	//root fiber is in vm.objects and is released/recycled by freeObjects();
+	//clear the weak execution cache first so nothing scans or derefs it
+	vm.currentFiber = NULL;
+	vm.cache = (FiberCore){0};
+
+	freeObjects();
+	freeFiberFreeList();
+
+	//release the string + gray arenas (VA reservations + committed pages)
 	arenaBump_destroy(&vm.stringArena);
 	arenaBump_destroy(&vm.grayArena);
 	//any surviving bump reservation is a leak (e.g. an init without a matching destroy)
 	assert(arenaBump_liveSegments() == 0);
-	vm.stack = NULL;
-	vm.stackTop = NULL;
-	vm.stackBoundary = NULL;
 	vm.grayStack = NULL;
 	vm.grayCount = 0;
 
@@ -530,14 +532,13 @@ void vm_free()
 	table_free(&vm.defaultClass.methods);
 
 	vm.ceding = 0;
-	vm.frameCount = 0;
 #if DEBUG_MODE
 	//leak accounting: every allocate/free pair runs through reallocate/reallocate_no_gc,
 	//so after the FULL teardown (objects, builtin tables, defaultClass) both
 	//counters must net to exactly zero
 	//(direct mem_alloc/mem_free users: readFile buffers, REPL line buffer,
-	//the stack, string and gray arenas, are uncounted on BOTH sides and
-	//therefore never show up here)
+	//fiber stack arenas, are uncounted on BOTH sides and therefore never
+	//show up here)
 	if (vm.bytesAllocated != 0 || vm.bytesAllocated_no_gc != 0) {
 		fprintf(stderr, "[mem] LEAK: bytesAllocated=%zu bytesAllocated_no_gc=%zu (both must be 0)\n",
 			vm.bytesAllocated, vm.bytesAllocated_no_gc);
@@ -560,7 +561,7 @@ uint32_t addConstant(Value value)
 }
 
 static void getTypeof() {
-	Value val = vm.stackTop[-1];
+	Value val = vm.cache.stackTop[-1];
 
 	if (IS_NUMBER(val)) {
 		stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_NUMBER]));
@@ -594,6 +595,12 @@ static void getTypeof() {
 			return;
 		case OBJ_INSTANCE:
 			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_OBJECT]));
+			return;
+		case OBJ_ITERATOR:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_ITERATOR]));
+			return;
+		case OBJ_FIBER:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_FIBER]));
 			return;
 		case OBJ_ARRAY:
 			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_ARRAY]));
@@ -637,20 +644,20 @@ static bool call(ObjClosure* closure, int argCount) {
 	//}
 
 	// check stack
-	if (vm.frameCount == vm.frameCapacity) {
-		if (vm.frameCapacity >= FRAMES_MAX) {
+	if (vm.cache.frameCount == vm.cache.frameCapacity) {
+		if (vm.cache.frameCapacity >= FRAMES_MAX) {
 			runtimeError("Stack overflow.");
 			return false;
 		}
 
 		//FRAMES_INIT / FRAMES_MAX are powers of two, so GROW_CAPACITY grows
 		//64 -> 128 -> 256 -> 512 -> 1024 and stops exactly at FRAMES_MAX
-		uint32_t newCapacity = vm.frameCapacity * 2;
+		uint32_t newCapacity = vm.cache.frameCapacity * 2;
 		assert((newCapacity <= FRAMES_MAX) && "Unexpected frame size overflow.");
 
 		//no-GC accounting: frames are VM bookkeeping, not collectible values
-		vm.frames = GROW_ARRAY_NO_GC(CallFrame, vm.frames, vm.frameCapacity, newCapacity);
-		vm.frameCapacity = newCapacity;
+		vm.cache.frames = GROW_ARRAY_NO_GC(CallFrame, vm.cache.frames, vm.cache.frameCapacity, newCapacity);
+		vm.cache.frameCapacity = newCapacity;
 	}
 
 	// append missing args
@@ -659,12 +666,12 @@ static bool call(ObjClosure* closure, int argCount) {
 		++argCount;
 	}
 
-	CallFrame* frame = &vm.frames[vm.frameCount++];// add after call
+	CallFrame* frame = &vm.cache.frames[vm.cache.frameCount++];// add after call
 	frame->closure = closure;
 	frame->ip = closure->function->chunk.code;
 	//-1 is for function itself
-	frame->slots = vm.stackTop - argCount - 1;
-	//frame->slotsOffset = (ptrdiff_t)(frame->slots - vm.stack); //unused since the arena stack (fixed base)
+	frame->slots = vm.cache.stackTop - argCount - 1;
+	//frame->slotsOffset = (ptrdiff_t)(frame->slots - vm.cache.stack); //unused since the arena stack (fixed base)
 	frame->caches = closure->function->caches;
 
 	// clear extra args
@@ -679,22 +686,22 @@ static bool call(ObjClosure* closure, int argCount) {
 
 HOT_FUNCTION
 static bool call_native(NativeFn native, int argCount) {
-	Value* stackTop = vm.stackTop - argCount;//store top, we don't know if native push stack (avoiding gc)
+	Value* stackTop = vm.cache.stackTop - argCount;//store top, we don't know if native push stack (avoiding gc)
 	Value result = native(argCount, stackTop);
-	vm.stackTop = stackTop;//restore the top
+	vm.cache.stackTop = stackTop;//restore the top
 	stack_replace(result);
 	return true;
 }
 
 static inline void defineMethod(ObjString* name) {
-	Value method = vm.stackTop[-1];
-	ObjClass* klass = AS_CLASS(vm.stackTop[-2]);
+	Value method = vm.cache.stackTop[-1];
+	ObjClass* klass = AS_CLASS(vm.cache.stackTop[-2]);
 
 	tableSet(&klass->methods, name, method);
 	if (name == vm.initString) {//inline cache
 		klass->initializer = method;
 	}
-	vm.stackTop--;
+	vm.cache.stackTop--;
 }
 
 HOT_FUNCTION
@@ -761,7 +768,7 @@ HOT_FUNCTION
 static void bindMethod(ObjClass* klass, ObjString* name) {
 	Value method;
 	if (tableGet(&klass->methods, name, &method)) {
-		ObjBoundMethod* bound = newBoundMethod(vm.stackTop[-1], AS_CLOSURE(method));
+		ObjBoundMethod* bound = newBoundMethod(vm.cache.stackTop[-1], AS_CLOSURE(method));
 		stack_replace(OBJ_VAL(bound));
 	}
 	else {
@@ -774,7 +781,7 @@ static void bindMethod(ObjClass* klass, ObjString* name) {
 HOT_FUNCTION
 static ObjUpvalue* captureUpvalue(Value* local) {
 	ObjUpvalue* prevUpvalue = NULL;
-	ObjUpvalue* upvalue = vm.openUpvalues;
+	ObjUpvalue* upvalue = vm.cache.openUpvalues;
 
 	//compare stack ptr(search from deepest,so [next] is upper)
 	while (upvalue != NULL && upvalue->location > local) {
@@ -786,13 +793,13 @@ static ObjUpvalue* captureUpvalue(Value* local) {
 		return upvalue;
 	}
 
-	//ObjUpvalue* createdUpvalue = newUpvalue(local, (ptrdiff_t)(local - vm.stack)); //offset unused since the arena stack
+	//ObjUpvalue* createdUpvalue = newUpvalue(local, (ptrdiff_t)(local - vm.cache.stack)); //offset unused since the arena stack
 	ObjUpvalue* createdUpvalue = newUpvalue(local);
 
 	//insert it
 	createdUpvalue->next = upvalue;
 	if (prevUpvalue == NULL) {
-		vm.openUpvalues = createdUpvalue;
+		vm.cache.openUpvalues = createdUpvalue;
 	}
 	else {
 		prevUpvalue->next = createdUpvalue;
@@ -803,14 +810,14 @@ static ObjUpvalue* captureUpvalue(Value* local) {
 
 HOT_FUNCTION
 static void closeUpvalues(Value* last) {
-	while (vm.openUpvalues != NULL && vm.openUpvalues->location >= last) {
-		ObjUpvalue* upvalue = vm.openUpvalues;
+	while (vm.cache.openUpvalues != NULL && vm.cache.openUpvalues->location >= last) {
+		ObjUpvalue* upvalue = vm.cache.openUpvalues;
 
 		//if one upValue closed,it's location is it's closed's pointer
 		upvalue->closed = *upvalue->location;
 		upvalue->location = &upvalue->closed;
 		//upvalue->location_offset = CLOSED_OBJ_UPVALUE_LOCATION; //unused since the arena stack
-		vm.openUpvalues = upvalue->next;
+		vm.cache.openUpvalues = upvalue->next;
 	}
 }
 
@@ -833,25 +840,25 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
 
 #define BINARAY_OP_BIT(op)																			\
     do {																							\
-		/* Pop the top two values from the stack */													\
-		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {								\
-			double left = AS_NUMBER(vm.stackTop[-2]);												\
-			double right = AS_NUMBER(vm.stackTop[-1]);												\
-			/* Perform the operation and push the result back */									\
-			vm.stackTop[-2] = NUMBER_VAL(double_to_i32(left) op double_to_i32(right));				\
-			vm.stackTop--;																			\
+		/* both operands must be numbers */													\
+		if (IS_NUMBER(vm.cache.stackTop[-2]) && IS_NUMBER(vm.cache.stackTop[-1])) {								\
+			double left = AS_NUMBER(vm.cache.stackTop[-2]);												\
+			double right = AS_NUMBER(vm.cache.stackTop[-1]);												\
+			/* compute the result in place */									\
+			vm.cache.stackTop[-2] = NUMBER_VAL(double_to_i32(left) op double_to_i32(right));				\
+			vm.cache.stackTop--;																			\
 			return ip;																				\
 		}																							\
 	} while (false)
 
 #define BINARAY_OP_BIT_IMM(op)																\
     do {																					\
-		/* Pop the top two values from the stack */											\
-		if (IS_NUMBER(vm.stackTop[-1])) {													\
+		/* both operands must be numbers */											\
+		if (IS_NUMBER(vm.cache.stackTop[-1])) {													\
 			int32_t constant = READ_WORD();													\
-			double left = AS_NUMBER(vm.stackTop[-1]);										\
-			/* Perform the operation and push the result back */							\
-			vm.stackTop[-1] = NUMBER_VAL(double_to_i32(left) op constant);					\
+			double left = AS_NUMBER(vm.cache.stackTop[-1]);										\
+			/* compute the result in place */							\
+			vm.cache.stackTop[-1] = NUMBER_VAL(double_to_i32(left) op constant);					\
 			return ip;																		\
 		}																					\
 	} while (false)
@@ -881,9 +888,9 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
 	{
 	case BIT_OP_NOT: {
 	label_bit_not:
-		if (IS_NUMBER(vm.stackTop[-1])) {
-			double operand = AS_NUMBER(vm.stackTop[-1]);
-			vm.stackTop[-1] = NUMBER_VAL(~double_to_i32(operand));
+		if (IS_NUMBER(vm.cache.stackTop[-1])) {
+			double operand = AS_NUMBER(vm.cache.stackTop[-1]);
+			vm.cache.stackTop[-1] = NUMBER_VAL(~double_to_i32(operand));
 			return ip;
 		}
 		break;
@@ -906,31 +913,31 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
 
 	case BIT_OP_SHL: {
 	label_bit_shl:
-		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
-			double left = AS_NUMBER(vm.stackTop[-2]);
-			double shift = AS_NUMBER(vm.stackTop[-1]);
+		if (IS_NUMBER(vm.cache.stackTop[-2]) && IS_NUMBER(vm.cache.stackTop[-1])) {
+			double left = AS_NUMBER(vm.cache.stackTop[-2]);
+			double shift = AS_NUMBER(vm.cache.stackTop[-1]);
 			//JS semantics: ToInt32(left) << (ToUint32(shift) & 31), result read as int32
 			uint32_t result = (uint32_t)double_to_i32(left) << double_to_shift32(shift);
-			vm.stackTop[-2] = NUMBER_VAL((int32_t)result);
-			vm.stackTop--;
+			vm.cache.stackTop[-2] = NUMBER_VAL((int32_t)result);
+			vm.cache.stackTop--;
 			return ip;
 		}
 		break;
 	}
 	case BIT_OP_SAR: {
 	label_bit_sar:
-		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
-			double left = AS_NUMBER(vm.stackTop[-2]);
-			double shift = AS_NUMBER(vm.stackTop[-1]);
+		if (IS_NUMBER(vm.cache.stackTop[-2]) && IS_NUMBER(vm.cache.stackTop[-1])) {
+			double left = AS_NUMBER(vm.cache.stackTop[-2]);
+			double shift = AS_NUMBER(vm.cache.stackTop[-1]);
 
 			//NaN is not negative: it takes the shift-0 path, matching the constant path
 			if (!(shift < 0.0)) {
-				vm.stackTop[-2] = NUMBER_VAL(double_to_i32(left) >> double_to_shift32(shift));
-				vm.stackTop--;
+				vm.cache.stackTop[-2] = NUMBER_VAL(double_to_i32(left) >> double_to_shift32(shift));
+				vm.cache.stackTop--;
 			}
 			else {
-				vm.stackTop[-2] = NUMBER_VAL(0);
-				vm.stackTop--;
+				vm.cache.stackTop[-2] = NUMBER_VAL(0);
+				vm.cache.stackTop--;
 			}
 			return ip;
 		}
@@ -938,18 +945,18 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
 	}
 	case BIT_OP_SHR: {
 	label_bit_shr:
-		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
-			double left = AS_NUMBER(vm.stackTop[-2]);
-			double shift = AS_NUMBER(vm.stackTop[-1]);
+		if (IS_NUMBER(vm.cache.stackTop[-2]) && IS_NUMBER(vm.cache.stackTop[-1])) {
+			double left = AS_NUMBER(vm.cache.stackTop[-2]);
+			double shift = AS_NUMBER(vm.cache.stackTop[-1]);
 
 			//NaN is not negative: it takes the shift-0 path, matching the constant path
 			if (!(shift < 0.0)) {
-				vm.stackTop[-2] = NUMBER_VAL(double_to_u32(left) >> double_to_shift32(shift));
-				vm.stackTop--;
+				vm.cache.stackTop[-2] = NUMBER_VAL(double_to_u32(left) >> double_to_shift32(shift));
+				vm.cache.stackTop--;
 			}
 			else {
-				vm.stackTop[-2] = NUMBER_VAL(0);
-				vm.stackTop--;
+				vm.cache.stackTop[-2] = NUMBER_VAL(0);
+				vm.cache.stackTop--;
 			}
 			return ip;
 		}
@@ -972,31 +979,31 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
 	}
 	case BIT_OP_SHLI: {
 	label_bit_shli:
-		if (IS_NUMBER(vm.stackTop[-1])) {
+		if (IS_NUMBER(vm.cache.stackTop[-1])) {
 			int32_t shiftBits = READ_BYTE();
-			double left = AS_NUMBER(vm.stackTop[-1]);
+			double left = AS_NUMBER(vm.cache.stackTop[-1]);
 			uint32_t result = (uint32_t)double_to_i32(left) << shiftBits;
-			vm.stackTop[-1] = NUMBER_VAL((int32_t)result);
+			vm.cache.stackTop[-1] = NUMBER_VAL((int32_t)result);
 			return ip;
 		}
 		break;
 	}
 	case BIT_OP_SARI: {
 	label_bit_sari:
-		if (IS_NUMBER(vm.stackTop[-1])) {
+		if (IS_NUMBER(vm.cache.stackTop[-1])) {
 			int32_t shiftBits = READ_BYTE();
-			double left = AS_NUMBER(vm.stackTop[-1]);
-			vm.stackTop[-1] = NUMBER_VAL(double_to_i32(left) >> shiftBits);
+			double left = AS_NUMBER(vm.cache.stackTop[-1]);
+			vm.cache.stackTop[-1] = NUMBER_VAL(double_to_i32(left) >> shiftBits);
 			return ip;
 		}
 		break;
 	}
 	case BIT_OP_SHRI: {
 	label_bit_shri:
-		if (IS_NUMBER(vm.stackTop[-1])) {
+		if (IS_NUMBER(vm.cache.stackTop[-1])) {
 			int32_t shiftBits = READ_BYTE();
-			double left = AS_NUMBER(vm.stackTop[-1]);
-			vm.stackTop[-1] = NUMBER_VAL(double_to_u32(left) >> shiftBits);
+			double left = AS_NUMBER(vm.cache.stackTop[-1]);
+			vm.cache.stackTop[-1] = NUMBER_VAL(double_to_u32(left) >> shiftBits);
 			return ip;
 		}
 		break;
@@ -1136,7 +1143,7 @@ static bool icInvokeSlow(ObjInstance* instance, ObjString* method, uint8_t argCo
 COLD_FUNCTION
 static void traceFrameStack(FILE* stream, CallFrame* frame) {
 	fprintf(stream, "          ");
-	for (Value* slot = frame->slots; slot < vm.stackTop; slot++) {
+	for (Value* slot = frame->slots; slot < vm.cache.stackTop; slot++) {
 		fprintf(stream, "[ ");
 		printValue(stream, *slot, false);
 		fprintf(stream, " ]");
@@ -1149,14 +1156,14 @@ static void traceFrameStack(FILE* stream, CallFrame* frame) {
 HOT_FUNCTION
 static InterpretResult run()
 {
-	CallFrame* frame = &vm.frames[vm.frameCount - 1];
+	CallFrame* frame = &vm.cache.frames[vm.cache.frameCount - 1];
 	register uint8_t* ip = frame->ip;
 	//cached constants base of the current function,refreshed at every frame switch
 	Value* constants = frame->closure->function->constants;
 
 #define UPDATE_FRAME()	\
 	do {				\
-		frame = &vm.frames[vm.frameCount - 1];\
+		frame = &vm.cache.frames[vm.cache.frameCount - 1];\
 		ip = frame->ip; \
 		constants = frame->closure->function->constants;	\
 	} while (false)
@@ -1201,6 +1208,8 @@ static InterpretResult run()
 		[OP_INVOKE] = && label_op_invoke,
 		[OP_SUPER_INVOKE] = && label_op_super_invoke,
 		[OP_RETURN] = && label_op_return,
+		[OP_ITERATE] = && label_op_iterate,
+		[OP_FREE_LOCAL] = && label_op_free_local,
 
 		[OP_GET_PROPERTY] = && label_op_get_property,
 		[OP_SET_PROPERTY] = && label_op_set_property,
@@ -1224,9 +1233,11 @@ static InterpretResult run()
 		[OP_NEW_ARRAY] = && label_op_new_array,
 		[OP_NEW_OBJECT] = && label_op_new_object,
 		[OP_NEW_PROPERTY] = && label_op_new_property,
+		[OP_NEW_ITERATOR] = && label_op_new_iterator,
 
 		[OP_INSTANCE_OF] = && label_op_instance_of,
 		[OP_TYPE_OF] = && label_op_type_of,
+		[OP_IN] = && label_op_in,
 		[OP_CLASS] = && label_op_class,
 		[OP_INHERIT] = && label_op_inherit,
 		[OP_METHOD] = && label_op_method,
@@ -1294,11 +1305,11 @@ static InterpretResult run()
 	// push(pop() op pop())
 #define BINARY_OP(valueType,op)																		\
     do {																							\
-		/* Pop the top two values from the stack */													\
-		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {								\
-			/* Perform the operation and push the result back */									\
-			vm.stackTop[-2] = valueType(AS_NUMBER(vm.stackTop[-2]) op AS_NUMBER(vm.stackTop[-1]));	\
-			vm.stackTop--;																			\
+		/* both operands must be numbers */													\
+		if (IS_NUMBER(vm.cache.stackTop[-2]) && IS_NUMBER(vm.cache.stackTop[-1])) {								\
+			/* compute the result in place */									\
+			vm.cache.stackTop[-2] = valueType(AS_NUMBER(vm.cache.stackTop[-2]) op AS_NUMBER(vm.cache.stackTop[-1]));	\
+			vm.cache.stackTop--;																			\
 		} else {														                            \
 			RUNTIME_ERROR("Operands must be numbers.");										\
 		}																							\
@@ -1306,10 +1317,10 @@ static InterpretResult run()
 
 #define BINARY_OP_WITH_RIGHT(valueType,right,op)											\
     do {																					\
-		/* Pop the top two values from the stack */											\
-		if (IS_NUMBER(vm.stackTop[-1]) && IS_NUMBER(right)) {								\
-			/* Perform the operation and push the result back */							\
-			vm.stackTop[-1] = valueType(AS_NUMBER(vm.stackTop[-1]) op AS_NUMBER(right));	\
+		/* both operands must be numbers */											\
+		if (IS_NUMBER(vm.cache.stackTop[-1]) && IS_NUMBER(right)) {								\
+			/* compute the result in place */							\
+			vm.cache.stackTop[-1] = valueType(AS_NUMBER(vm.cache.stackTop[-1]) op AS_NUMBER(right));	\
 		} else {																			\
 			RUNTIME_ERROR("Operands must be numbers.");										\
 		}																					\
@@ -1318,13 +1329,13 @@ static InterpretResult run()
 	//ordering comparison (< <= > >=): numbers or string/stringBuilder (memcmp order)
 #define COMPARE_OP(op)																		\
 	do {																					\
-		if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {						\
-			vm.stackTop[-2] = BOOL_VAL(AS_NUMBER(vm.stackTop[-2]) op AS_NUMBER(vm.stackTop[-1]));\
-			vm.stackTop--;																	\
+		if (IS_NUMBER(vm.cache.stackTop[-2]) && IS_NUMBER(vm.cache.stackTop[-1])) {						\
+			vm.cache.stackTop[-2] = BOOL_VAL(AS_NUMBER(vm.cache.stackTop[-2]) op AS_NUMBER(vm.cache.stackTop[-1]));\
+			vm.cache.stackTop--;																	\
 		}																					\
-		else if (isStringLike(vm.stackTop[-2]) && isStringLike(vm.stackTop[-1])) {			\
-			vm.stackTop[-2] = BOOL_VAL(compareStringLike(vm.stackTop[-2], vm.stackTop[-1]) op 0);\
-			vm.stackTop--;																	\
+		else if (isStringLike(vm.cache.stackTop[-2]) && isStringLike(vm.cache.stackTop[-1])) {			\
+			vm.cache.stackTop[-2] = BOOL_VAL(compareStringLike(vm.cache.stackTop[-2], vm.cache.stackTop[-1]) op 0);\
+			vm.cache.stackTop--;																	\
 		}																					\
 		else {																				\
 			RUNTIME_ERROR("Operands must be two numbers or two strings.");					\
@@ -1334,11 +1345,11 @@ static InterpretResult run()
 	//ordering comparison with a non-stack right operand (local or number constant)
 #define COMPARE_OP_WITH_RIGHT(right,op)													\
 	do {																					\
-		if (IS_NUMBER(vm.stackTop[-1]) && IS_NUMBER(right)) {								\
-			vm.stackTop[-1] = BOOL_VAL(AS_NUMBER(vm.stackTop[-1]) op AS_NUMBER(right));		\
+		if (IS_NUMBER(vm.cache.stackTop[-1]) && IS_NUMBER(right)) {								\
+			vm.cache.stackTop[-1] = BOOL_VAL(AS_NUMBER(vm.cache.stackTop[-1]) op AS_NUMBER(right));		\
 		}																					\
-		else if (isStringLike(vm.stackTop[-1]) && isStringLike(right)) {					\
-			vm.stackTop[-1] = BOOL_VAL(compareStringLike(vm.stackTop[-1], right) op 0);		\
+		else if (isStringLike(vm.cache.stackTop[-1]) && isStringLike(right)) {					\
+			vm.cache.stackTop[-1] = BOOL_VAL(compareStringLike(vm.cache.stackTop[-1], right) op 0);		\
 		}																					\
 		else {																				\
 			RUNTIME_ERROR("Operands must be two numbers or two strings.");					\
@@ -1395,7 +1406,7 @@ static InterpretResult run()
 		return INTERPRET_RUNTIME_ERROR;			\
 	} while (false)
 
-	while (true) //let it loop
+	while (true)
 	{
 #if DEBUG_TRACE_EXECUTION //print in debug mode
 		traceFrameStack(stderr, frame);
@@ -1459,9 +1470,9 @@ static InterpretResult run()
 		}
 		case OP_INHERIT: {
 		label_op_inherit:
-			Value superclass = vm.stackTop[-2];
+			Value superclass = vm.cache.stackTop[-2];
 			if (IS_CLASS(superclass)) {
-				ObjClass* subclass = AS_CLASS(vm.stackTop[-1]);
+				ObjClass* subclass = AS_CLASS(vm.cache.stackTop[-1]);
 				tableAddAll(&AS_CLASS(superclass)->methods, &subclass->methods);
 				//inherited constructor:keep the initializer fast path in sync with the copied methods table
 				//(a subclass init declared after this would overwrite it via defineMethod)
@@ -1487,11 +1498,11 @@ static InterpretResult run()
 		}
 		case OP_GET_PROPERTY: {
 		label_op_get_property:
-			if (!IS_INSTANCE(vm.stackTop[-1])) {
+			if (!IS_INSTANCE(vm.cache.stackTop[-1])) {
 				RUNTIME_ERROR("Only instances have properties.");
 			}
 
-			ObjInstance* instance = AS_INSTANCE(vm.stackTop[-1]);
+			ObjInstance* instance = AS_INSTANCE(vm.cache.stackTop[-1]);
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			uint8_t slot = READ_BYTE();
@@ -1516,11 +1527,11 @@ static InterpretResult run()
 		}
 		case OP_SET_PROPERTY: {
 		label_op_set_property:
-			if (!IS_INSTANCE(vm.stackTop[-2])) {
+			if (!IS_INSTANCE(vm.cache.stackTop[-2])) {
 				RUNTIME_ERROR("Only instances have fields.");
 			}
 
-			ObjInstance* instance = AS_INSTANCE(vm.stackTop[-2]);
+			ObjInstance* instance = AS_INSTANCE(vm.cache.stackTop[-2]);
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			uint8_t slot = READ_BYTE();
@@ -1528,12 +1539,12 @@ static InterpretResult run()
 
 			//inline cache: direct write only for existing entries with non-nil value (nil means delete)
 			//frozen fields fall through to the slow path, which rejects the write
-			if (NOT_NIL(vm.stackTop[-1])) {
+			if (NOT_NIL(vm.cache.stackTop[-1])) {
 				Table* fields = &instance->fields;
 				if (!fields->isFrozen && (uint32_t)icCache[slot].capacity == fields->capacity) {
 					uint32_t idx = icCache[slot].index;
 					if (idx < fields->capacity && fields->entries[idx].key == name) {
-						fields->entries[idx].value = vm.stackTop[-1];
+						fields->entries[idx].value = vm.cache.stackTop[-1];
 						Value value = stack_pop();
 						stack_replace(value);
 						NEXT_INSTRUCTION;
@@ -1541,18 +1552,18 @@ static InterpretResult run()
 				}
 			}
 
-			icSetPropertySlow(instance, name, vm.stackTop[-1], slot, icCache);
+			icSetPropertySlow(instance, name, vm.cache.stackTop[-1], slot, icCache);
 			Value value = stack_pop();
 			stack_replace(value);
 			NEXT_INSTRUCTION;
 		}
 		case OP_SET_PROPERTY_POP: {
 		label_op_set_property_pop:
-			if (!IS_INSTANCE(vm.stackTop[-2])) {
+			if (!IS_INSTANCE(vm.cache.stackTop[-2])) {
 				RUNTIME_ERROR("Only instances have fields.");
 			}
 
-			ObjInstance* instance = AS_INSTANCE(vm.stackTop[-2]);
+			ObjInstance* instance = AS_INSTANCE(vm.cache.stackTop[-2]);
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			uint8_t slot = READ_BYTE();
@@ -1560,22 +1571,22 @@ static InterpretResult run()
 
 			//inline cache: direct write only for existing entries with non-nil value (nil means delete)
 			//frozen fields fall through to the slow path, which rejects the write
-			if (NOT_NIL(vm.stackTop[-1])) {
+			if (NOT_NIL(vm.cache.stackTop[-1])) {
 				Table* fields = &instance->fields;
 				if (!fields->isFrozen && (uint32_t)icCache[slot].capacity == fields->capacity) {
 					uint32_t idx = icCache[slot].index;
 					if (idx < fields->capacity && fields->entries[idx].key == name) {
-						fields->entries[idx].value = vm.stackTop[-1];
+						fields->entries[idx].value = vm.cache.stackTop[-1];
 						//pop value and instance
-						vm.stackTop -= 2;
+						vm.cache.stackTop -= 2;
 						NEXT_INSTRUCTION;
 					}
 				}
 			}
 
-			icSetPropertySlow(instance, name, vm.stackTop[-1], slot, icCache);
+			icSetPropertySlow(instance, name, vm.cache.stackTop[-1], slot, icCache);
 			//pop value and instance
-			vm.stackTop -= 2;
+			vm.cache.stackTop -= 2;
 			NEXT_INSTRUCTION;
 		}
 		case OP_GET_PROP_LOCAL: {
@@ -1630,19 +1641,19 @@ static InterpretResult run()
 
 			//inline cache: direct write only for existing entries with non-nil value (nil means delete)
 			//frozen fields fall through to the slow path, which rejects the write
-			if (NOT_NIL(vm.stackTop[-1])) {
+			if (NOT_NIL(vm.cache.stackTop[-1])) {
 				Table* fields = &instance->fields;
 				if (!fields->isFrozen && (uint32_t)icCache[slot].capacity == fields->capacity) {
 					uint32_t idx = icCache[slot].index;
 					if (idx < fields->capacity && fields->entries[idx].key == name) {
-						fields->entries[idx].value = vm.stackTop[-1];
+						fields->entries[idx].value = vm.cache.stackTop[-1];
 						//the assigned value stays on the stack (assignment-as-expression semantics)
 						NEXT_INSTRUCTION;
 					}
 				}
 			}
 
-			icSetPropertySlow(instance, name, vm.stackTop[-1], slot, icCache);
+			icSetPropertySlow(instance, name, vm.cache.stackTop[-1], slot, icCache);
 			NEXT_INSTRUCTION;
 		}
 		case OP_SET_PROP_LOCAL_POP: {
@@ -1661,26 +1672,26 @@ static InterpretResult run()
 
 			//inline cache: direct write only for existing entries with non-nil value (nil means delete)
 			//frozen fields fall through to the slow path, which rejects the write
-			if (NOT_NIL(vm.stackTop[-1])) {
+			if (NOT_NIL(vm.cache.stackTop[-1])) {
 				Table* fields = &instance->fields;
 				if (!fields->isFrozen && (uint32_t)icCache[slot].capacity == fields->capacity) {
 					uint32_t idx = icCache[slot].index;
 					if (idx < fields->capacity && fields->entries[idx].key == name) {
-						fields->entries[idx].value = vm.stackTop[-1];
+						fields->entries[idx].value = vm.cache.stackTop[-1];
 						//pop the assigned value (the receiver never occupied a stack slot)
-						vm.stackTop -= 1;
+						vm.cache.stackTop -= 1;
 						NEXT_INSTRUCTION;
 					}
 				}
 			}
 
-			icSetPropertySlow(instance, name, vm.stackTop[-1], slot, icCache);
-			vm.stackTop -= 1;
+			icSetPropertySlow(instance, name, vm.cache.stackTop[-1], slot, icCache);
+			vm.cache.stackTop -= 1;
 			NEXT_INSTRUCTION;
 		}
 		case OP_GET_INDEX: {
 		label_op_get_index:
-			Value target = vm.stackTop[-1];
+			Value target = vm.cache.stackTop[-1];
 			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			double num_index = AS_NUMBER(constant);
 
@@ -1689,12 +1700,7 @@ static InterpretResult run()
 				ObjArray* array = AS_ARRAY(target);
 
 				if (ARRAY_IN_RANGE(array, num_index)) {
-					if (OBJ_IS_TYPE(array, OBJ_ARRAY)) {
-						stack_replace(ARRAY_ELEMENT(array, Value, (uint32_t)num_index));
-					}
-					else {
-						stack_replace(getTypedArrayElement(array, (uint32_t)num_index));
-					}
+					GET_INDEXABLE_ELEMENT(array, (uint32_t)num_index, STACK_PEEK(0));
 				}
 				else {
 					stack_replace(NIL_VAL);
@@ -1718,8 +1724,8 @@ static InterpretResult run()
 		}
 		case OP_SET_INDEX: {
 		label_op_set_index:
-			Value target = vm.stackTop[-2];
-			Value value = vm.stackTop[-1];
+			Value target = vm.cache.stackTop[-2];
+			Value value = vm.cache.stackTop[-1];
 
 			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			double num_index = AS_NUMBER(constant);
@@ -1729,15 +1735,10 @@ static InterpretResult run()
 				ObjArray* array = AS_ARRAY(target);
 
 				if (ARRAY_IN_RANGE(array, num_index)) {
-					if (OBJ_IS_TYPE(array, OBJ_ARRAY)) {
-						vm.stackTop[-2] = ARRAY_ELEMENT(array, Value, (uint32_t)num_index) = value;
-					}
-					else {
-						setTypedArrayElement(array, (uint32_t)num_index, value);
-						vm.stackTop[-2] = value;
-					}
+					SET_INDEXABLE_ELEMENT(array, (uint32_t)num_index, value);
+					vm.cache.stackTop[-2] = value;
 
-					vm.stackTop -= 1;
+					vm.cache.stackTop -= 1;
 					NEXT_INSTRUCTION;
 				}
 				else {
@@ -1749,8 +1750,8 @@ static InterpretResult run()
 		}
 		case OP_GET_SUBSCRIPT: {
 		label_op_get_subscript:
-			Value target = vm.stackTop[-2];
-			Value index = vm.stackTop[-1];
+			Value target = vm.cache.stackTop[-2];
+			Value index = vm.cache.stackTop[-1];
 
 			if (isIndexableArray(target)) {
 				if (IS_NUMBER(index)) {
@@ -1758,14 +1759,9 @@ static InterpretResult run()
 					ObjArray* array = AS_ARRAY(target);
 					double num_index = AS_NUMBER(index);
 
-					vm.stackTop--;//it is number,so pop is allowed
+					vm.cache.stackTop--;//it is number,so pop is allowed
 					if (ARRAY_IN_RANGE(array, num_index)) {
-						if (OBJ_IS_TYPE(array, OBJ_ARRAY)) {
-							stack_replace(ARRAY_ELEMENT(array, Value, (uint32_t)num_index));
-						}
-						else {
-							stack_replace(getTypedArrayElement(array, (uint32_t)num_index));
-						}
+						GET_INDEXABLE_ELEMENT(array, (uint32_t)num_index, STACK_PEEK(0));
 					}
 					else {
 						stack_replace(NIL_VAL);
@@ -1782,7 +1778,7 @@ static InterpretResult run()
 					ObjString* name = AS_STRING(index);
 					Value value;
 
-					vm.stackTop--;//it is string,we don't gc string so pop is allowed
+					vm.cache.stackTop--;//it is string,we don't gc string so pop is allowed
 					if (tableGet(&instance->fields, name, &value)) {
 						stack_replace(value);
 						NEXT_INSTRUCTION;
@@ -1801,7 +1797,7 @@ static InterpretResult run()
 					ObjString* string = AS_STRING(target);
 					double num_index = AS_NUMBER(index);
 
-					vm.stackTop--;//it is number,so pop is allowed
+					vm.cache.stackTop--;//it is number,so pop is allowed
 					if (ARRAY_IN_RANGE(string, num_index)) {//return ascii
 						stack_replace(NUMBER_VAL((uint8_t)(string->chars[(uint32_t)num_index])));
 					}
@@ -1819,9 +1815,9 @@ static InterpretResult run()
 		}
 		case OP_SET_SUBSCRIPT: {
 		label_op_set_subscript:
-			Value target = vm.stackTop[-3];
-			Value index = vm.stackTop[-2];
-			Value value = vm.stackTop[-1];
+			Value target = vm.cache.stackTop[-3];
+			Value index = vm.cache.stackTop[-2];
+			Value value = vm.cache.stackTop[-1];
 
 			if (isArrayLike(target)) {
 				if (IS_NUMBER(index)) {
@@ -1830,15 +1826,10 @@ static InterpretResult run()
 					double num_index = AS_NUMBER(index);
 
 					if (ARRAY_IN_RANGE(array, num_index)) {
-						if (OBJ_IS_TYPE(array, OBJ_ARRAY)) {
-							vm.stackTop[-3] = ARRAY_ELEMENT(array, Value, (uint32_t)num_index) = value;
-						}
-						else {
-							setTypedArrayElement(array, (uint32_t)num_index, value);
-							vm.stackTop[-3] = value;
-						}
+						SET_INDEXABLE_ELEMENT(array, (uint32_t)num_index, value);
+						vm.cache.stackTop[-3] = value;
 
-						vm.stackTop -= 2;
+						vm.cache.stackTop -= 2;
 						NEXT_INSTRUCTION;
 					}
 					else {
@@ -1868,8 +1859,8 @@ static InterpretResult run()
 						}
 					}
 
-					vm.stackTop[-3] = value;
-					vm.stackTop -= 2;
+					vm.cache.stackTop[-3] = value;
+					vm.cache.stackTop -= 2;
 					NEXT_INSTRUCTION;
 				}
 				else {
@@ -1885,8 +1876,8 @@ static InterpretResult run()
 			ObjString* name = AS_STRING(constant);
 
 			//it's not a new key,no cache, global can't frozen
-			tableSet(&vm.globals.fields, name, vm.stackTop[-1]);
-			vm.stackTop--;//can not dec first,because gc will kill it
+			tableSet(&vm.globals.fields, name, vm.cache.stackTop[-1]);
+			vm.cache.stackTop--;//can not dec first,because gc will kill it
 			NEXT_INSTRUCTION;
 		}
 		case OP_GET_GLOBAL: {
@@ -1899,7 +1890,6 @@ static InterpretResult run()
 				Entry* entry = &vm.globals.fields.entries[name->symbol];
 
 				if (entry->key == name) {
-					// We found the key.
 					stack_push(entry->value);
 					NEXT_INSTRUCTION;
 				}
@@ -1921,14 +1911,13 @@ static InterpretResult run()
 			if ((name->symbol != INVALID_OBJ_STRING_SYMBOL)) {
 				Entry* entry = &vm.globals.fields.entries[name->symbol];
 				if (entry->key == name) {
-					// We found the key.
-					entry->value = vm.stackTop[-1];
+					entry->value = vm.cache.stackTop[-1];
 					NEXT_INSTRUCTION;
 				}
 			}
 
 			// global can't frozen
-			if (tableSet(&vm.globals.fields, name, vm.stackTop[-1])) {
+			if (tableSet(&vm.globals.fields, name, vm.cache.stackTop[-1])) {
 				//lox dont allow setting undefined one
 				tableDelete(&vm.globals.fields, name);
 				RUNTIME_ERROR("Undefined variable '%s'.", name->chars);
@@ -1946,12 +1935,12 @@ static InterpretResult run()
 				reserveArray(array, size);//allocate after push stack
 
 				//init the array
-				memcpy(array->payload, vm.stackTop - size - 1, sizeof(Value) * size);
+				memcpy(array->payload, vm.cache.stackTop - size - 1, sizeof(Value) * size);
 				array->length = size;
 
 				//pop the values and the temp array at top
 				STACK_PEEK(size) = OBJ_VAL(array);
-				vm.stackTop -= size;
+				vm.cache.stackTop -= size;
 			}
 			NEXT_INSTRUCTION;
 		}
@@ -1962,13 +1951,34 @@ static InterpretResult run()
 		}
 		case OP_NEW_PROPERTY: {
 		label_op_new_property:
-			ObjInstance* instance = AS_INSTANCE(vm.stackTop[-2]);
+			ObjInstance* instance = AS_INSTANCE(vm.cache.stackTop[-2]);
 			Value constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			// this is used to create literal object,so we don't need to check frozen
-			tableSet(&instance->fields, name, vm.stackTop[-1]);
+			tableSet(&instance->fields, name, vm.cache.stackTop[-1]);
 			stack_pop();
 			NEXT_INSTRUCTION;
+		}
+		case OP_NEW_ITERATOR: {
+		label_op_new_iterator:
+			Value target = vm.cache.stackTop[-1];
+			ObjIterator* iter = NULL;
+
+			if (isArrayLike(target)) {
+				iter = newIterator(AS_OBJ(target));
+				stack_replace(OBJ_VAL(iter));
+				NEXT_INSTRUCTION;
+			} else if (IS_INSTANCE(target)) {
+				iter = newIterator(AS_OBJ(target));
+				stack_replace(OBJ_VAL(iter));
+				// init iter
+				if (!tableGetFirstEntryIndex(&AS_INSTANCE(target)->fields, &iter->index)) {
+					iter->isDone = 1;
+				}
+				NEXT_INSTRUCTION;
+			}
+
+			RUNTIME_ERROR("Only arrayLike and instance are iterable.");
 		}
 		case OP_GET_UPVALUE: {
 		label_op_get_upvalue:
@@ -1979,7 +1989,7 @@ static InterpretResult run()
 		case OP_SET_UPVALUE: {
 		label_op_set_upvalue:
 			uint8_t slot = READ_BYTE();
-			*frame->closure->upvalues[slot]->location = vm.stackTop[-1];
+			*frame->closure->upvalues[slot]->location = vm.cache.stackTop[-1];
 			NEXT_INSTRUCTION;
 		}
 		case OP_NIL: {
@@ -1999,14 +2009,14 @@ static InterpretResult run()
 		}
 		case OP_EQUAL: {
 		label_op_equal:
-			vm.stackTop[-2] = BOOL_VAL(valuesEqual(vm.stackTop[-2], vm.stackTop[-1]));
-			vm.stackTop--;
+			vm.cache.stackTop[-2] = BOOL_VAL(valuesEqual(vm.cache.stackTop[-2], vm.cache.stackTop[-1]));
+			vm.cache.stackTop--;
 			NEXT_INSTRUCTION;
 		}
 		case OP_NOT_EQUAL: {
 		label_op_not_equal:
-			vm.stackTop[-2] = BOOL_VAL(!valuesEqual(vm.stackTop[-2], vm.stackTop[-1]));
-			vm.stackTop--;
+			vm.cache.stackTop[-2] = BOOL_VAL(!valuesEqual(vm.cache.stackTop[-2], vm.cache.stackTop[-1]));
+			vm.cache.stackTop--;
 			NEXT_INSTRUCTION;
 		}
 		case OP_GREATER: {
@@ -2036,15 +2046,15 @@ static InterpretResult run()
 			//itself (so a class matches itself and every ancestor)
 			bool isInstanceOf = false;
 			ObjClass* k = NULL;
-			if (IS_INSTANCE(vm.stackTop[-2])) {
-				k = AS_INSTANCE(vm.stackTop[-2])->klass;
+			if (IS_INSTANCE(vm.cache.stackTop[-2])) {
+				k = AS_INSTANCE(vm.cache.stackTop[-2])->klass;
 			}
-			else if (IS_CLASS(vm.stackTop[-2])) {
-				k = AS_CLASS(vm.stackTop[-2]);
+			else if (IS_CLASS(vm.cache.stackTop[-2])) {
+				k = AS_CLASS(vm.cache.stackTop[-2]);
 			}
 
-			if (k != NULL && IS_CLASS(vm.stackTop[-1])) {
-				ObjClass* target = AS_CLASS(vm.stackTop[-1]);
+			if (k != NULL && IS_CLASS(vm.cache.stackTop[-1])) {
+				ObjClass* target = AS_CLASS(vm.cache.stackTop[-1]);
 				while (k != NULL) {
 					if (k == target) {
 						isInstanceOf = true;
@@ -2053,8 +2063,8 @@ static InterpretResult run()
 					k = k->superclass;
 				}
 			}
-			vm.stackTop[-2] = BOOL_VAL(isInstanceOf);
-			vm.stackTop--;
+			vm.cache.stackTop[-2] = BOOL_VAL(isInstanceOf);
+			vm.cache.stackTop--;
 			NEXT_INSTRUCTION;
 		}
 		case OP_TYPE_OF: {
@@ -2062,18 +2072,51 @@ static InterpretResult run()
 			getTypeof();
 			NEXT_INSTRUCTION;
 		}
+		case OP_IN: {
+		label_op_in:
+			Value key = vm.cache.stackTop[-2];
+			Value target = vm.cache.stackTop[-1];
+
+			if (!IS_STRING(key)) {
+				RUNTIME_ERROR("'in' key must be a string.");
+			}
+
+			//closed inheritance copies ancestor methods into the class table
+			//at inherit time, so fields + own class methods cover everything
+			bool found = false;
+			ObjString* name = AS_STRING(key);
+			Value slot;
+			if (IS_INSTANCE(target)) {
+				ObjInstance* instance = AS_INSTANCE(target);
+				//default class owns no methods: skip the guaranteed-miss lookup
+				found = tableGet(&instance->fields, name, &slot)
+					|| (instance->klass != &vm.defaultClass && tableGet(&instance->klass->methods, name, &slot));
+				vm.cache.stackTop[-2] = BOOL_VAL(found);
+				vm.cache.stackTop--;
+				NEXT_INSTRUCTION;
+			}
+			else if (IS_CLASS(target)) {
+				found = tableGet(&AS_CLASS(target)->methods, name, &slot);
+				vm.cache.stackTop[-2] = BOOL_VAL(found);
+				vm.cache.stackTop--;
+				NEXT_INSTRUCTION;
+			}
+			else {
+				RUNTIME_ERROR("Only instances and classes support 'in'.");
+			}
+		}
 		case OP_ADD: {
 		label_op_add:
 			// might cause gc,so can't decrease first
-			if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
-				vm.stackTop[-2] = NUMBER_VAL(AS_NUMBER(vm.stackTop[-2]) + AS_NUMBER(vm.stackTop[-1]));
-				vm.stackTop--;
+			if (IS_NUMBER(vm.cache.stackTop[-2]) && IS_NUMBER(vm.cache.stackTop[-1])) {
+				vm.cache.stackTop[-2] = NUMBER_VAL(AS_NUMBER(vm.cache.stackTop[-2]) + AS_NUMBER(vm.cache.stackTop[-1]));
+				vm.cache.stackTop--;
 				NEXT_INSTRUCTION;
 			}
-			else if (IS_STRING(vm.stackTop[-2]) && IS_STRING(vm.stackTop[-1])) {
-				ObjString* result = connectString(AS_STRING(vm.stackTop[-2]), AS_STRING(vm.stackTop[-1]));
-				vm.stackTop[-2] = OBJ_VAL(result);
-				vm.stackTop--;
+			else if (IS_STRING(vm.cache.stackTop[-2]) && IS_STRING(vm.cache.stackTop[-1])) {
+				ObjString* result = connectString(AS_STRING(vm.cache.stackTop[-2]), AS_STRING(vm.cache.stackTop[-1]));
+				vm.cache.stackTop[-2] = OBJ_VAL(result);
+				vm.cache.stackTop--;
 				NEXT_INSTRUCTION;
 			}
 
@@ -2096,11 +2139,11 @@ static InterpretResult run()
 		}
 		case OP_MODULUS: {
 		label_op_modulus:
-			/* Pop the top two values from the stack */
-			if (IS_NUMBER(vm.stackTop[-2]) && IS_NUMBER(vm.stackTop[-1])) {
-				/* Perform the operation and push the result back */
-				vm.stackTop[-2] = NUMBER_VAL(fmod(AS_NUMBER(vm.stackTop[-2]), AS_NUMBER(vm.stackTop[-1])));
-				vm.stackTop--;
+			/* both operands must be numbers */
+			if (IS_NUMBER(vm.cache.stackTop[-2]) && IS_NUMBER(vm.cache.stackTop[-1])) {
+				/* compute the result in place */
+				vm.cache.stackTop[-2] = NUMBER_VAL(fmod(AS_NUMBER(vm.cache.stackTop[-2]), AS_NUMBER(vm.cache.stackTop[-1])));
+				vm.cache.stackTop--;
 				NEXT_INSTRUCTION;
 			}
 			else {
@@ -2110,14 +2153,14 @@ static InterpretResult run()
 
 		case OP_NOT: {
 		label_op_not:
-			vm.stackTop[-1] = BOOL_VAL(isFalsey(vm.stackTop[-1]));
+			vm.cache.stackTop[-1] = BOOL_VAL(isFalsey(vm.cache.stackTop[-1]));
 			NEXT_INSTRUCTION;
 		}
 
 		case OP_NEGATE: {
 		label_op_negate:
-			if (IS_NUMBER(vm.stackTop[-1])) {
-				vm.stackTop[-1] = NUMBER_VAL(-AS_NUMBER(vm.stackTop[-1]));
+			if (IS_NUMBER(vm.cache.stackTop[-1])) {
+				vm.cache.stackTop[-1] = NUMBER_VAL(-AS_NUMBER(vm.cache.stackTop[-1]));
 				NEXT_INSTRUCTION;
 			}
 			else {
@@ -2145,15 +2188,14 @@ static InterpretResult run()
 			//each value uses the plain single-value print formatting (no expansion)
 			for (uint8_t i = 0; i < argCount; i++) {
 				if (i != 0) printf(" ");
-				printValue(stdout, vm.stackTop[-argCount + i], false);
+				printValue(stdout, vm.cache.stackTop[-argCount + i], false);
 			}
 			printf("\n");
-			vm.stackTop -= argCount;
+			vm.cache.stackTop -= argCount;
 			NEXT_INSTRUCTION;
 		}
 		case OP_THROW: {
 		label_op_throw:
-			//if solved break else error
 			//sync for the stack trace before the error printer walks the frames
 			frame->ip = ip;
 			if (throwError(stack_pop(), "An exception was thrown.")) {
@@ -2170,14 +2212,14 @@ static InterpretResult run()
 		case OP_SET_LOCAL: {
 		label_op_set_local:
 			uint32_t index = READ_SHORT();
-			frame->slots[index] = vm.stackTop[-1];
+			frame->slots[index] = vm.cache.stackTop[-1];
 			NEXT_INSTRUCTION;
 		}
 		case OP_SET_LOCAL_POP: {
 		label_op_set_local_pop:
 			uint32_t index = READ_SHORT();
-			frame->slots[index] = vm.stackTop[-1];
-			vm.stackTop--;
+			frame->slots[index] = vm.cache.stackTop[-1];
+			vm.cache.stackTop--;
 			NEXT_INSTRUCTION;
 		}
 		case OP_MOVE_LOCAL: {
@@ -2189,7 +2231,7 @@ static InterpretResult run()
 		}
 		case OP_CLOSE_UPVALUE: {
 		label_op_close_upvalue:
-			closeUpvalues(vm.stackTop - 1);
+			closeUpvalues(vm.cache.stackTop - 1);
 			stack_pop();
 			NEXT_INSTRUCTION;
 		}
@@ -2201,7 +2243,7 @@ static InterpretResult run()
 		case OP_POP_N: {
 		label_op_pop_n:
 			uint32_t index = READ_SHORT();
-			vm.stackTop -= index;
+			vm.cache.stackTop -= index;
 			NEXT_INSTRUCTION;
 		}
 		case OP_JUMP: {
@@ -2219,7 +2261,7 @@ static InterpretResult run()
 		case OP_JUMP_IF_FALSE: {
 		label_op_jump_if_false:
 			uint16_t offset = READ_SHORT();
-			Value condition = vm.stackTop[-1];
+			Value condition = vm.cache.stackTop[-1];
 			if (isFalsey(condition)) {
 				ip += offset;
 				NEXT_INSTRUCTION;
@@ -2229,8 +2271,8 @@ static InterpretResult run()
 		case OP_JUMP_IF_FALSE_POP: {
 		label_op_jump_if_false_pop:
 			uint16_t offset = READ_SHORT();
-			Value condition = vm.stackTop[-1];
-			vm.stackTop--;
+			Value condition = vm.cache.stackTop[-1];
+			vm.cache.stackTop--;
 			if (isFalsey(condition)) {
 				ip += offset;
 				NEXT_INSTRUCTION;
@@ -2240,7 +2282,7 @@ static InterpretResult run()
 		case OP_JUMP_IF_TRUE: {
 		label_op_jump_if_true:
 			uint16_t offset = READ_SHORT();
-			Value condition = vm.stackTop[-1];
+			Value condition = vm.cache.stackTop[-1];
 			if (isTruthy(condition)) {
 				ip += offset;
 				NEXT_INSTRUCTION;
@@ -2315,18 +2357,74 @@ static InterpretResult run()
 			Value result = stack_pop();
 			//close all remaining upValues of function
 			closeUpvalues(frame->slots);
-			if (--vm.frameCount == 0) {
+			if (--vm.cache.frameCount == 0) {
 				stack_pop();
 				return INTERPRET_OK;
 			}
 
-			//vm.stackTop = frame->slots;
+			//vm.cache.stackTop = frame->slots;
 			//stack_push(result);
 
 			*frame->slots = result;
-			vm.stackTop = frame->slots + 1;
+			vm.cache.stackTop = frame->slots + 1;
 
 			UPDATE_FRAME();
+			NEXT_INSTRUCTION;
+		}
+		case OP_ITERATE: {
+		label_op_iterate:
+			//stack: [k][v][iter]; operand = exhaustion jump
+			uint16_t offset = READ_SHORT();
+			ObjIterator* iter = AS_ITERATOR(vm.cache.stackTop[-1]);
+
+			if (!iter->isDone) {
+				if (iter->type >= OBJ_ARRAY) {
+					ObjArray* array = (ObjArray*)iter->target;
+					if (iter->index < array->length) {
+						uint32_t i = iter->index++;
+						vm.cache.stackTop[-3] = NUMBER_VAL((double)i);
+						GET_INDEXABLE_ELEMENT(array, i, vm.cache.stackTop[-2]);
+						NEXT_INSTRUCTION;
+					}
+				}
+				else {
+					assert(iter->type == OBJ_INSTANCE && "The iterator received a non-instance input.");
+
+					//rehash/insert/delete during iteration is best-effort
+					Table* fields = &((ObjInstance*)iter->target)->fields;
+					Entry* entry = NULL;
+
+					if (!tableIterateNext(fields, &iter->index, &entry)) {
+						vm.cache.stackTop[-3] = OBJ_VAL(entry->key);
+						vm.cache.stackTop[-2] = entry->value;
+						NEXT_INSTRUCTION;
+					}
+					else {
+						iter->isDone = 1;
+					}
+				}
+			}
+
+			//exhausted: close k/v upvalues, release the iterator, pop k/v/iter
+			closeUpvalues(vm.cache.stackTop - 3);
+			unlinkObj(&vm.objects, &iter->obj);
+			freeObject(&iter->obj);
+			vm.cache.stackTop -= 3;
+			ip += offset;
+			NEXT_INSTRUCTION;
+		}
+		case OP_FREE_LOCAL: {
+		label_op_free_local:
+			uint32_t index = READ_SHORT();
+			Value local = frame->slots[index];
+
+			if (IS_ITERATOR(local)) {
+				Obj* iterator = AS_OBJ(local);
+				unlinkObj(&vm.objects, iterator);
+				freeObject(iterator);
+			}
+
+			frame->slots[index] = NIL_VAL;
 			NEXT_INSTRUCTION;
 		}
 		case OP_MODULE_BUILTIN: {
@@ -2337,7 +2435,7 @@ static InterpretResult run()
 		}
 		case OP_IMPORT: {
 		label_op_import:
-			Value target = vm.stackTop[-1];
+			Value target = vm.cache.stackTop[-1];
 
 			C_STR path = getBufferFromStringLike(target);
 			if (path == NULL) {
@@ -2351,13 +2449,13 @@ static InterpretResult run()
 			}
 
 			ObjFunction* function = getCachedScript(absolutePath);
-			mem_free(absolutePath);// free memory
+			mem_free(absolutePath);
 			if (function == NULL) return INTERPRET_COMPILE_ERROR;
 
 			//circular import:the module is already executing somewhere on the
 			//call stack,calling it again would re-run its body without end
-			for (uint32_t i = 0; i < vm.frameCount; i++) {
-				if (vm.frames[i].closure != NULL && vm.frames[i].closure->function == function) {
+			for (uint32_t i = 0; i < vm.cache.frameCount; i++) {
+				if (vm.cache.frames[i].closure != NULL && vm.cache.frames[i].closure->function == function) {
 					RUNTIME_ERROR("Circular import detected.");
 				}
 			}
@@ -2382,8 +2480,8 @@ static InterpretResult run()
 			//number only,16bits index into function's own constants
 			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			// might cause gc,so can't decrease first
-			if (IS_NUMBER(vm.stackTop[-1])) {
-				vm.stackTop[-1] = NUMBER_VAL(AS_NUMBER(vm.stackTop[-1]) + AS_NUMBER(constant));
+			if (IS_NUMBER(vm.cache.stackTop[-1])) {
+				vm.cache.stackTop[-1] = NUMBER_VAL(AS_NUMBER(vm.cache.stackTop[-1]) + AS_NUMBER(constant));
 				NEXT_INSTRUCTION;
 			}
 
@@ -2410,10 +2508,10 @@ static InterpretResult run()
 		case OP_MODULUS_CONST: {
 		label_op_modulus_const:
 			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
-			/* Pop the top two values from the stack */
-			if (IS_NUMBER(vm.stackTop[-1])) {
-				/* Perform the operation and push the result back */
-				vm.stackTop[-1] = NUMBER_VAL(fmod(AS_NUMBER(vm.stackTop[-1]), AS_NUMBER(constant)));
+			/* both operands must be numbers */
+			if (IS_NUMBER(vm.cache.stackTop[-1])) {
+				/* compute the result in place */
+				vm.cache.stackTop[-1] = NUMBER_VAL(fmod(AS_NUMBER(vm.cache.stackTop[-1]), AS_NUMBER(constant)));
 				NEXT_INSTRUCTION;
 			}
 			else {
@@ -2424,14 +2522,14 @@ static InterpretResult run()
 		label_op_equal_const:
 			//non-number constant,24bits index into vm.constants
 			Value constant = READ_CONSTANT(READ_24bits());
-			vm.stackTop[-1] = BOOL_VAL(valuesEqual(vm.stackTop[-1], constant));
+			vm.cache.stackTop[-1] = BOOL_VAL(valuesEqual(vm.cache.stackTop[-1], constant));
 			NEXT_INSTRUCTION;
 		}
 		case OP_NOT_EQUAL_CONST: {
 		label_op_not_equal_const:
 			//non-number constant,24bits index into vm.constants
 			Value constant = READ_CONSTANT(READ_24bits());
-			vm.stackTop[-1] = BOOL_VAL(!valuesEqual(vm.stackTop[-1], constant));
+			vm.cache.stackTop[-1] = BOOL_VAL(!valuesEqual(vm.cache.stackTop[-1], constant));
 			NEXT_INSTRUCTION;
 		}
 		case OP_GREATER_CONST: {
@@ -2462,14 +2560,14 @@ static InterpretResult run()
 		label_op_equal_const_number:
 			//number only,16bits index into function's own constants
 			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
-			vm.stackTop[-1] = BOOL_VAL(valuesEqual(vm.stackTop[-1], constant));
+			vm.cache.stackTop[-1] = BOOL_VAL(valuesEqual(vm.cache.stackTop[-1], constant));
 			NEXT_INSTRUCTION;
 		}
 		case OP_NOT_EQUAL_CONST_NUMBER: {
 		label_op_not_equal_const_number:
 			//number only,16bits index into function's own constants
 			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
-			vm.stackTop[-1] = BOOL_VAL(!valuesEqual(vm.stackTop[-1], constant));
+			vm.cache.stackTop[-1] = BOOL_VAL(!valuesEqual(vm.cache.stackTop[-1], constant));
 			NEXT_INSTRUCTION;
 		}
 
@@ -2479,13 +2577,13 @@ static InterpretResult run()
 			Value local = frame->slots[index];
 
 			// might cause gc,so can't decrease first
-			if (IS_NUMBER(vm.stackTop[-1]) && IS_NUMBER(local)) {
-				vm.stackTop[-1] = NUMBER_VAL(AS_NUMBER(vm.stackTop[-1]) + AS_NUMBER(local));
+			if (IS_NUMBER(vm.cache.stackTop[-1]) && IS_NUMBER(local)) {
+				vm.cache.stackTop[-1] = NUMBER_VAL(AS_NUMBER(vm.cache.stackTop[-1]) + AS_NUMBER(local));
 				NEXT_INSTRUCTION;
 			}
-			else if (IS_STRING(vm.stackTop[-1]) && IS_STRING(local)) {
-				ObjString* result = connectString(AS_STRING(vm.stackTop[-1]), AS_STRING(local));
-				vm.stackTop[-1] = OBJ_VAL(result);
+			else if (IS_STRING(vm.cache.stackTop[-1]) && IS_STRING(local)) {
+				ObjString* result = connectString(AS_STRING(vm.cache.stackTop[-1]), AS_STRING(local));
+				vm.cache.stackTop[-1] = OBJ_VAL(result);
 				NEXT_INSTRUCTION;
 			}
 
@@ -2520,10 +2618,10 @@ static InterpretResult run()
 			uint32_t index = READ_SHORT();
 			Value local = frame->slots[index];
 
-			/* Pop the top two values from the stack */
-			if (IS_NUMBER(vm.stackTop[-1]) && IS_NUMBER(local)) {
-				/* Perform the operation and push the result back */
-				vm.stackTop[-1] = NUMBER_VAL(fmod(AS_NUMBER(vm.stackTop[-1]), AS_NUMBER(local)));
+			/* both operands must be numbers */
+			if (IS_NUMBER(vm.cache.stackTop[-1]) && IS_NUMBER(local)) {
+				/* compute the result in place */
+				vm.cache.stackTop[-1] = NUMBER_VAL(fmod(AS_NUMBER(vm.cache.stackTop[-1]), AS_NUMBER(local)));
 				NEXT_INSTRUCTION;
 			}
 			else {
@@ -2534,14 +2632,14 @@ static InterpretResult run()
 		label_op_equal_local:
 			uint32_t index = READ_SHORT();
 			Value local = frame->slots[index];
-			vm.stackTop[-1] = BOOL_VAL(valuesEqual(vm.stackTop[-1], local));
+			vm.cache.stackTop[-1] = BOOL_VAL(valuesEqual(vm.cache.stackTop[-1], local));
 			NEXT_INSTRUCTION;
 		}
 		case OP_NOT_EQUAL_LOCAL: {
 		label_op_not_equal_local:
 			uint32_t index = READ_SHORT();
 			Value local = frame->slots[index];
-			vm.stackTop[-1] = BOOL_VAL(!valuesEqual(vm.stackTop[-1], local));
+			vm.cache.stackTop[-1] = BOOL_VAL(!valuesEqual(vm.cache.stackTop[-1], local));
 			NEXT_INSTRUCTION;
 		}
 		case OP_GREATER_LOCAL: {
@@ -2734,7 +2832,7 @@ static InterpretResult run()
 
 bool interpret_compile(C_STR source)
 {
-	if (vm.frameCount != 0 || vm.ceding) return false;
+	if (vm.cache.frameCount != 0 || vm.ceding) return false;
 
 #if LOG_COMPILE_TIMING
 	uint64_t time_compile = get_milliseconds();
@@ -2764,7 +2862,7 @@ bool interpret_compile(C_STR source)
 
 InterpretResult interpret_execute(void)
 {
-	if (!vm_isCeding() || vm.frameCount == 0) return INTERPRET_RUNTIME_ERROR;
+	if (!vm_isCeding() || vm.cache.frameCount == 0) return INTERPRET_RUNTIME_ERROR;
 
 	vm.ceding = 0;
 
@@ -2785,7 +2883,7 @@ InterpretResult interpret_execute(void)
 	}
 	else {
 		//an imported module failing to compile aborts without runtimeError()
-		if (vm.frameCount != 0) stack_reset();
+		if (vm.cache.frameCount != 0) stack_reset();
 		vm.ceding = 0;
 	}
 	return result;

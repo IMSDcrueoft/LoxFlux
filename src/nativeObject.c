@@ -52,6 +52,10 @@ static Value isBooleanNative(int argCount, Value* args) {
 	return BOOL_VAL(argCount >= 1 && IS_BOOL(args[0]));
 }
 
+static Value isFiberNative(int argCount, Value* args) {
+	return BOOL_VAL(argCount >= 1 && IS_FIBER(args[0]));
+}
+
 //returns the class object of an instance; pairs with the class-level
 //instanceof semantics: getClass(a) instanceof getClass(b) is a dynamic
 //subclass check. non-instances have no class -> nil
@@ -158,10 +162,9 @@ void importNative_object() {
 	defineNative_object("isTypedArray", isTypedArrayNative);
 	defineNative_object("isArrayLike", isArrayLikeNative);
 	defineNative_object("isBoolean", isBooleanNative);
+	defineNative_object("isFiber", isFiberNative);
 	defineNative_object("getClass", getClassNative);
-
 	defineNative_object("getGlobal", getGlobalNative);
-
 	defineNative_object("keys", keysNative);
 	defineNative_object("hasOwn", hasOwnNative);
 	defineNative_object("freeze", freezeNative);

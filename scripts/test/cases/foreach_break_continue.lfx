@@ -1,0 +1,49 @@
+// break (including from nested blocks) releases the iterator via the
+// OP_FREE_LOCAL path and still allows later iterations to build fresh ones;
+// continue keeps k/v/iter alive for the next round
+// exit: 0
+// out: 2
+// out: 40
+// out: 1
+// out: 3
+var arr = [10, 20, 30];
+
+var seen = 0;
+foreach (var i, v in arr) {
+	seen = seen + 1;
+	if (seen == 2) {
+		break;
+	}
+}
+print seen;
+
+var total = 0;
+foreach (var i, v in arr) {
+	if (v == 20) {
+		continue;
+	}
+	total = total + v;
+}
+print total;
+
+var hit = 0;
+foreach (var i, v in arr) {
+	if (v != 20) {
+		continue;
+	}
+	hit = hit + 1;
+}
+print hit;
+
+var again = 0;
+foreach (var i, v in arr) {
+	again = again + 1;
+	if (again == 2) {
+		break;
+	}
+}
+var third = 0;
+foreach (var i, v in arr) {
+	third = third + 1;
+}
+print third;

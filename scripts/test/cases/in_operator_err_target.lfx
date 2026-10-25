@@ -1,0 +1,6 @@
+// in operator: non-instance/class target -> runtime error
+// exit: 70
+// err: Only instances and classes support 'in'.
+
+var arr = [1, 2, 3];
+"k" in arr;

@@ -2,7 +2,7 @@
   "name": "loxflux-syntax-highlight",
   "displayName": "LoxFlux Syntax Highlight",
   "description": "Syntax highlighting for loxFlux.",
-  "version": "0.0.5",
+	"version": "0.0.6",
   "publisher": "IMSDCrueoft",
   "icon": "icon.png",
   "repository": {

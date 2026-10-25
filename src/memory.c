@@ -76,18 +76,18 @@ void* reallocate(void* pointer, size_t oldSize, size_t newSize)
 	return result;
 }
 
-//unlink one object from the immortal no-GC list
-//(prev/cur walk, works with both Obj header layouts; must run before freeObject on no-GC objects)
-void unlinkObj_no_gc(Obj* object) {
+//unlink one object from a vm object list (gc or no-gc)
+//(prev/cur walk, works with both Obj header layouts; must run before freeObject on the object)
+void unlinkObj(Obj** head, Obj* object) {
 	Obj* prev = NULL;
-	Obj* cur = vm.objects_no_gc;
+	Obj* cur = *head;
 
 	while (cur != NULL) {
 		Obj* next = OBJ_PTR_GET_NEXT(cur);
 
 		if (cur == object) {
 			if (prev == NULL) {
-				vm.objects_no_gc = next;
+				*head = next;
 			}
 			else {
 				OBJ_PTR_SET_NEXT(prev, next);
@@ -129,8 +129,32 @@ void freeObject(Obj* object) {
 		FREE(ObjBoundMethod, object);
 		break;
 	}
+	case OBJ_FIBER: {
+		ObjFiber* fiber = (ObjFiber*)object;
+
+		//frames are ordinary no-GC heap memory and are always released
+		FREE_ARRAY_NO_GC(CallFrame, fiber->core.frames, fiber->core.frameCapacity);
+
+		if (vm.fiberFreeCount < FIBER_CACHE_MAX) {
+			assert(vm.bytesAllocated >= sizeof(ObjFiber));
+			vm.bytesAllocated -= sizeof(ObjFiber);
+			//reuse the object header as the free-list link
+			OBJ_PTR_SET_NEXT(&fiber->obj, (Obj*)vm.fiberFreeList);
+			vm.fiberFreeList = fiber;
+			vm.fiberFreeCount++;
+		}
+		else {
+			arenaBump_destroy(&fiber->stackArena);
+			FREE(ObjFiber, fiber);
+		}
+
+		break;
+	}
 	case OBJ_UPVALUE:
 		FREE(ObjUpvalue, object);
+		break;
+	case OBJ_ITERATOR:
+		FREE(ObjIterator, object);
 		break;
 	case OBJ_FUNCTION: {
 		ObjFunction* function = (ObjFunction*)object;
@@ -233,6 +257,64 @@ void freeObjects()
 	}
 }
 
+//Allocate or recycle the raw ObjFiber storage. This deliberately does not
+//initialize fiber payload state; object.c owns that constructor logic.
+struct ObjFiber* allocFiber()
+{
+	ObjFiber* fiber = NULL;
+
+	if (vm.fiberFreeList != NULL) {
+		//cached fibers are linked through the object header; their allocator
+		//memory was removed from GC accounting when they entered the cache
+		fiber = vm.fiberFreeList;
+		vm.fiberFreeList = (ObjFiber*)OBJ_PTR_GET_NEXT((Obj*)fiber);
+		vm.fiberFreeCount--;
+
+		vm.bytesAllocated += sizeof(ObjFiber);
+
+		//relink the recycled object into the live object list
+		OBJ_PTR_SET_NEXT(&fiber->obj, vm.objects);
+		fiber->obj.isMarked = !vm.gcMark;
+		vm.objects = &fiber->obj;
+	}
+	else {
+		fiber = (ObjFiber*)reallocate(NULL, 0, sizeof(ObjFiber));
+
+#if DEBUG_LOG_GC
+		fprintf(stderr, "[gc] %p allocate %zu for (%s)\n",
+			(void*)fiber, sizeof(ObjFiber), objTypeInfo[OBJ_FIBER]);
+#endif
+
+		OBJ_PTR_SET_NEXT(&fiber->obj, vm.objects);
+		fiber->obj.type = OBJ_FIBER;
+		fiber->obj.isMarked = !vm.gcMark;
+		vm.objects = &fiber->obj;
+
+		memset(&fiber->stackArena, 0, sizeof(fiber->stackArena));
+
+		if (!arenaBump_init(&fiber->stackArena, STACK_ARENA_SIZE, false, 0, 16 << 10)) {
+			fprintf(stderr, "Failed to reserve the fiber stack arena.\n");
+			exit(1);
+		}
+	}
+
+	return fiber;
+}
+
+void freeFiberFreeList()
+{
+	while (vm.fiberFreeList != NULL) {
+		ObjFiber* fiber = vm.fiberFreeList;
+		vm.fiberFreeList = (ObjFiber*)OBJ_PTR_GET_NEXT((Obj*)fiber);
+
+		//cached fibers were already removed from GC accounting when enqueued
+		arenaBump_destroy(&fiber->stackArena);
+		mem_free(fiber);
+	}
+
+	vm.fiberFreeCount = 0;
+}
+
 //format bytes with an auto-scaled unit, mimalloc table style ("64.0 KiB")
 COLD_FUNCTION
 static void formatMemSize(char* buffer, size_t bufferSize, size_t bytes)
@@ -259,14 +341,9 @@ static void formatMemSize(char* buffer, size_t bufferSize, size_t bytes)
 COLD_FUNCTION
 void log_malloc_info()
 {
-	//the vm stack, the interned strings and the gc gray worklist live in OS VA
-	//arenas outside the allocator, so their bytes never show up in
-	//mem_print_stats: report them in the same table style
-	char committed[32];
-	char reserved[32];
-	formatMemSize(committed, sizeof(committed), arenaBump_committed(&vm.stackArena));
-	formatMemSize(reserved, sizeof(reserved), arenaBump_capacity(&vm.stackArena));
-
+	//the interned strings and the gc gray worklist live in OS VA arenas outside
+	//the allocator, so their bytes never show up in mem_print_stats: report them
+	//in the same table style. Fiber stacks are intentionally not aggregated here.
 	char strCommitted[32];
 	char strReserved[32];
 	formatMemSize(strCommitted, sizeof(strCommitted), vm.stringArena.commitTop);
@@ -277,10 +354,6 @@ void log_malloc_info()
 	formatMemSize(grayCommitted, sizeof(grayCommitted), arenaBump_committed(&vm.grayArena));
 	formatMemSize(grayReserved, sizeof(grayReserved), arenaBump_capacity(&vm.grayArena));
 
-	fprintf(stderr, " vm stack           current\n");
-	fprintf(stderr, "  committed   : %12s\n", committed);
-	fprintf(stderr, "  reserved    : %12s\n", reserved);
-	fprintf(stderr, "\n");
 	fprintf(stderr, " gc gray             current\n");
 	fprintf(stderr, "  committed   : %12s\n", grayCommitted);
 	fprintf(stderr, "  reserved    : %12s\n", grayReserved);

@@ -42,6 +42,7 @@ typedef enum {
 	OP_JUMP_IF_FALSE,   // condition jump if false
 	OP_JUMP_IF_FALSE_POP,
 	OP_JUMP_IF_TRUE,    // condition jump if true
+	OP_ITERATE,			// advance k/v, or release the iterator and jump if done
 	OP_POP,				// pop stack
 	OP_POP_N,			// pop multiple stack
 	OP_BITWISE,			//& | ~ ^ << >> >>>
@@ -49,8 +50,9 @@ typedef enum {
 	OP_INVOKE,			// call with xxx.()
 	OP_SUPER_INVOKE,	// call with super.()
 	OP_RETURN,          // ret
+	OP_FREE_LOCAL,		// release a GC-invisible local (foreach iterator)
 
-	OP_GET_PROPERTY,	// modify property
+	OP_GET_PROPERTY,	// get property
 	OP_SET_PROPERTY,
 	OP_SET_PROPERTY_POP,// set property and pop value
 	OP_SET_INDEX,		// for array, 1 + 2 byte, 16bits index into function's own constants (number only)
@@ -69,10 +71,12 @@ typedef enum {
 	OP_NEW_ARRAY,		// array literal
 	OP_NEW_OBJECT,		// object literal
 	OP_NEW_PROPERTY,	// set property but no pop
+	OP_NEW_ITERATOR,	// make iterator
 
 	//slow func
 	OP_INSTANCE_OF,		// instance
 	OP_TYPE_OF,			// typeof
+	OP_IN,				// membership: "k" in instance/class
 	OP_CLASS,			// create class
 	OP_INHERIT,			// super class
 	OP_METHOD,			// make class func
@@ -86,7 +90,7 @@ typedef enum {
 	// hand execution control back to the host
 	OP_CEDE,
 
-	//super commond
+	//super command
 	//OP_*_CONST : 1 + 2 byte, 16bits index into function's own constants (number only)
 	OP_ADD_CONST,
 	OP_SUBTRACT_CONST,
@@ -181,7 +185,7 @@ typedef struct {
 	LineArray lines; //codes are nearby,so it's based on offset
 } Chunk;
 
-//recommand ops when compiling
+//recommended ops when compiling
 typedef struct {
 	uint32_t count;    //limit to 4G
 	uint32_t capacity; //limit to 4G
@@ -194,7 +198,7 @@ void chunk_write(Chunk* chunk, uint8_t byte, uint32_t line);
 void chunk_fallback(Chunk* chunk, uint32_t byteCount);
 void chunk_free(Chunk* chunk);
 
-//free the error complied code (not used)
+//free the error compiled code (not used)
 void chunk_free_errorCode(Chunk* chunk, uint32_t beginError);
 
 void opStack_init(OPStack* stack);

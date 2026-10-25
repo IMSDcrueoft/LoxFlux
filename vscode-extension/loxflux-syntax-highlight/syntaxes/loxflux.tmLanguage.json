@@ -55,7 +55,7 @@
 				},
 				{
 					"name": "keyword.control.loop.loxflux",
-					"match": "\\b(while|for|do)\\b"
+					"match": "\\b(while|for|foreach|in|do)\\b"
 				},
 				{
 					"name": "keyword.control.flow.loxflux",

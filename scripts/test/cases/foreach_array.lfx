@@ -1,0 +1,30 @@
+// foreach over an any-array: k is the running subscript, v the element;
+// single-statement bodies are legal and k/v iterate in array order
+// exit: 0
+// out: 3
+// out: 60
+// out: 10
+// out: 20
+// out: 30
+// out: 0
+// out: 10
+// out: 1
+// out: 20
+// out: 2
+// out: 30
+var arr = [10, 20, 30];
+var count = 0;
+var sum = 0;
+foreach (var i, v in arr) {
+	count = count + 1;
+	sum = sum + v;
+}
+print count;
+print sum;
+
+foreach (var i, v in arr) print v;
+
+foreach (var i, v in arr) {
+	print i;
+	print v;
+}

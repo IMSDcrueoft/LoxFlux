@@ -1,0 +1,7 @@
+// iterating a non-iterable (number) is a runtime error at OP_NEW_ITERATOR;
+// string/stringBuilder are excluded by design for the same reason
+// exit: 70
+// err: iterable
+foreach (var k, v in 42) {
+	print v;
+}
