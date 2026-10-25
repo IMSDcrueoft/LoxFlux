@@ -99,6 +99,7 @@ export const BUILTIN_MODULES: Record<string, BuiltinModule> = {
 			fn('isStringBuilder', 'v', 'Verifies if a value is a StringBuilder.'),
 			fn('isNumber', 'v', 'Verifies whether a value is a number.'),
 			fn('isBoolean', 'v', 'Verifies whether a value is a boolean.'),
+			fn('isFiber', 'v', 'Verifies whether a value is a coroutine fiber.'),
 			fn('getClass', 'obj', 'Returns the class object of an instance (nil for non-instances). Pairs with the class-level instanceof: getClass(a) instanceof getClass(b) is a dynamic subclass check.'),
 			fn('getGlobal', '', 'Returns the global object.'),
 			fn('keys', 'obj', 'Returns the own keys array of an instance.'),

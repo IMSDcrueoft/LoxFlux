@@ -217,8 +217,12 @@ typedef struct {
 // opaque iterator object for foreach
 typedef struct {
 	Obj obj;
-	size_t index;  // current index of array or hashTable
-	Value target;
+	uint8_t type;		// fast path
+	uint8_t isDone;		// reject resume after done
+	uint16_t padding;
+
+	uint32_t index;		// current index of array or hashTable
+	Obj* target;
 } ObjIterator;
 
 //frames live in a no-GC heap array indexed by the dispatch loop; capacity grows
