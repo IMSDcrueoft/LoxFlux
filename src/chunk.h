@@ -76,6 +76,7 @@ typedef enum {
 	//slow func
 	OP_INSTANCE_OF,		// instance
 	OP_TYPE_OF,			// typeof
+	OP_IN,				// membership: "k" in instance/class
 	OP_CLASS,			// create class
 	OP_INHERIT,			// super class
 	OP_METHOD,			// make class func

@@ -1777,6 +1777,11 @@ static void binary(bool canAssign) {
 		clearOpStack();
 		break;
 	}
+	case TOKEN_IN: {
+		emitByte(OP_IN);
+		clearOpStack();
+		break;
+	}
 	case TOKEN_BIT_AND: {
 		emitBytes(2, OP_BITWISE, BIT_OP_AND);
 		emitOpStack(OP_BITWISE, true);
@@ -2296,7 +2301,7 @@ ParseRule rules[] = {
 	[TOKEN_GREATER_EQUAL] = {NULL,     binary, PREC_COMPARISON},
 	[TOKEN_LESS] = {NULL,     binary, PREC_COMPARISON},
 	[TOKEN_LESS_EQUAL] = {NULL,     binary, PREC_COMPARISON},
-	[TOKEN_INSTANCE_OF] = {NULL,     binary, PREC_INSTANCEOF},
+	[TOKEN_INSTANCE_OF] = {NULL,     binary,   PREC_RELATIONAL},
 	[TOKEN_TYPE_OF] = {unary,	NULL, PREC_UNARY},
 	[TOKEN_BIT_AND] = {NULL,	binary, PREC_BITWISE},
 	[TOKEN_BIT_OR] = {NULL,		binary, PREC_BITWISE},
@@ -2324,7 +2329,7 @@ ParseRule rules[] = {
 	[TOKEN_FALSE] = {literal,     NULL,   PREC_NONE},
 	[TOKEN_FOR] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_FOREACH] = { NULL,     NULL,   PREC_NONE },
-	[TOKEN_IN] = { NULL,     NULL,   PREC_NONE },
+	[TOKEN_IN] = { NULL,     binary,   PREC_RELATIONAL },
 	[TOKEN_FUN] = {NULL,     NULL,   PREC_NONE},
 	[TOKEN_LAMBDA] = {lambda,	NULL,	PREC_NONE},
 	[TOKEN_RIGHT_ARROW] = {NULL,	NULL,	PREC_NONE},

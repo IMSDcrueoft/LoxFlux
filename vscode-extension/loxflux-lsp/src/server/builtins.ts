@@ -206,6 +206,7 @@ export const KEYWORD_DOCS: KeywordDoc[] = [
 	{ keyword: 'super', doc: 'Calls a method from the superclass: `super.method(args)`.' },
 	{ keyword: 'typeof', doc: "Returns a string describing the item's subdivision type." },
 	{ keyword: 'instanceof', doc: 'Checks the class chain: `x instanceof Foo` is true when x is an instance of Foo (or of a subclass), or when x is itself a class derived from Foo.' },
+	{ keyword: 'in', doc: 'Membership check: `"k" in obj` is true when k names a field of obj or a method of its class (closed inheritance). Also works directly on classes to test method presence. Key must be a string.' },
 	{ keyword: 'and', doc: 'Logical AND (short-circuit).' },
 	{ keyword: 'or', doc: 'Logical OR (short-circuit).' },
 	{ keyword: 'nil', doc: 'The nil (null) literal.' },

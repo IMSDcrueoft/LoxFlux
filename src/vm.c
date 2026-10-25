@@ -1237,6 +1237,7 @@ static InterpretResult run()
 
 		[OP_INSTANCE_OF] = && label_op_instance_of,
 		[OP_TYPE_OF] = && label_op_type_of,
+		[OP_IN] = && label_op_in,
 		[OP_CLASS] = && label_op_class,
 		[OP_INHERIT] = && label_op_inherit,
 		[OP_METHOD] = && label_op_method,
@@ -2070,6 +2071,39 @@ static InterpretResult run()
 		label_op_type_of:
 			getTypeof();
 			NEXT_INSTRUCTION;
+		}
+		case OP_IN: {
+		label_op_in:
+			Value key = vm.cache.stackTop[-2];
+			Value target = vm.cache.stackTop[-1];
+
+			if (!IS_STRING(key)) {
+				RUNTIME_ERROR("'in' key must be a string.");
+			}
+
+			//closed inheritance copies ancestor methods into the class table
+			//at inherit time, so fields + own class methods cover everything
+			bool found = false;
+			ObjString* name = AS_STRING(key);
+			Value slot;
+			if (IS_INSTANCE(target)) {
+				ObjInstance* instance = AS_INSTANCE(target);
+				//default class owns no methods: skip the guaranteed-miss lookup
+				found = tableGet(&instance->fields, name, &slot)
+					|| (instance->klass != &vm.defaultClass && tableGet(&instance->klass->methods, name, &slot));
+				vm.cache.stackTop[-2] = BOOL_VAL(found);
+				vm.cache.stackTop--;
+				NEXT_INSTRUCTION;
+			}
+			else if (IS_CLASS(target)) {
+				found = tableGet(&AS_CLASS(target)->methods, name, &slot);
+				vm.cache.stackTop[-2] = BOOL_VAL(found);
+				vm.cache.stackTop--;
+				NEXT_INSTRUCTION;
+			}
+			else {
+				RUNTIME_ERROR("Only instances and classes support 'in'.");
+			}
 		}
 		case OP_ADD: {
 		label_op_add:

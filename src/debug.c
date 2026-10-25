@@ -359,6 +359,8 @@ uint32_t disassembleInstruction(ObjFunction* function, uint32_t offset) {
 		return simpleInstruction("OP_INSTANCE_OF", offset);
 	case OP_TYPE_OF:
 		return simpleInstruction("OP_TYPE_OF", offset);
+	case OP_IN:
+		return simpleInstruction("OP_IN", offset);
 
 	case OP_BITWISE:
 		return bitwiseInStruction("OP_BITWISE", chunk, offset);
@@ -638,6 +640,7 @@ void disassembleOpStack(OPStack* opStack) {
 		case OP_NEW_PROPERTY:     DIS_PRINTF("OP_NEW_PROPERTY\n"); break;
 		case OP_INSTANCE_OF:      DIS_PRINTF("OP_INSTANCE_OF\n"); break;
 		case OP_TYPE_OF:          DIS_PRINTF("OP_TYPE_OF\n"); break;
+		case OP_IN:               DIS_PRINTF("OP_IN\n"); break;
 		case OP_THROW:            DIS_PRINTF("OP_THROW\n"); break;
 		case OP_IMPORT:           DIS_PRINTF("OP_IMPORT\n"); break;
 		case OP_NOT_EQUAL_CONST_NUMBER: DIS_PRINTF("OP_NOT_EQUAL_CONST_NUMBER\n"); break;

@@ -17,7 +17,7 @@ enum Precedence {
 	PrecAnd, // and
 	PrecBitwise, // | ^ & << >> >>> (shared level, like the compiler)
 	PrecEquality, // == !=
-	PrecInstanceof, // instanceof
+	PrecRelational, // instanceof, in
 	PrecComparison, // < > <= >=
 	PrecTerm, // + -
 	PrecFactor, // * / %
@@ -618,7 +618,8 @@ export class Parser {
 			case TokenType.EqualEqual:
 				return { prefix: undefined, infix: (l) => this.binary(l), precedence: Precedence.PrecEquality };
 			case TokenType.InstanceOf:
-				return { prefix: undefined, infix: (l) => this.binary(l), precedence: Precedence.PrecInstanceof };
+			case TokenType.In:
+				return { prefix: undefined, infix: (l) => this.binary(l), precedence: Precedence.PrecRelational };
 			case TokenType.Greater:
 			case TokenType.GreaterEqual:
 			case TokenType.Less:
