@@ -146,6 +146,7 @@ typedef struct {
 } ObjFunction;
 
 #define CLOSED_OBJ_UPVALUE_LOCATION UINT32_MAX
+
 typedef struct ObjUpvalue {
 	Obj obj;
 	Value closed; //closed value
@@ -270,7 +271,7 @@ typedef struct ObjFiber {
 	// caller of ObjFiber(need gc track)
 	struct ObjFiber* resumer;
 
-	uint32_t status;
+	FiberStatus status;
 	// is running or not (avoid loop call)
 	uint32_t isRunning;
 

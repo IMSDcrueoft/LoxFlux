@@ -1184,7 +1184,16 @@ static void forStatement() {
 	}
 
 	//record the loop
-	LoopContext loop = (LoopContext){ .start = loopStart, .enclosing = current->currentLoop,.breakJumps = NULL,.breakJumpCount = 0 ,.enterParamCount = current->localCount,.continueJumps = NULL,.continueJumpCount = 0,.isDoWhile = false };
+	LoopContext loop = (LoopContext){ 
+		.start = loopStart,
+		.enclosing = current->currentLoop,
+		.breakJumps = NULL,
+		.breakJumpCount = 0 ,
+		.enterParamCount = current->localCount,
+		.continueJumps = NULL,
+		.continueJumpCount = 0,
+		.loopType = LOOP_FOR 
+	};
 	loop.breakJumpCapacity = 8;
 	loop.breakJumps = ALLOCATE_NO_GC(int32_t, loop.breakJumpCapacity);
 	current->currentLoop = &loop;
@@ -1350,7 +1359,16 @@ static void whileStatement() {
 	int32_t exitJump = emitBranchJump(OP_JUMP_IF_FALSE_POP, condStart);
 
 	//record the loop
-	LoopContext loop = (LoopContext){ .start = loopStart, .enclosing = current->currentLoop,.breakJumps = NULL,.breakJumpCount = 0 ,.enterParamCount = current->localCount,.continueJumps = NULL,.continueJumpCount = 0,.isDoWhile = false };
+	LoopContext loop = (LoopContext){ 
+		.start = loopStart,
+		.enclosing = current->currentLoop,
+		.breakJumps = NULL,
+		.breakJumpCount = 0 ,
+		.enterParamCount = current->localCount,
+		.continueJumps = NULL,
+		.continueJumpCount = 0,
+		.loopType = LOOP_WHILE 
+	};
 	loop.breakJumpCapacity = 8;
 	loop.breakJumps = ALLOCATE_NO_GC(int32_t, loop.breakJumpCapacity);
 	current->currentLoop = &loop;
@@ -1374,7 +1392,16 @@ static void whileStatement() {
 static void doWhileStatement() {
 	int32_t loopStart = currentChunk()->count;
 	//record the loop
-	LoopContext loop = (LoopContext){ .start = loopStart, .enclosing = current->currentLoop,.breakJumps = NULL,.breakJumpCount = 0 ,.enterParamCount = current->localCount,.continueJumps = NULL,.continueJumpCount = 0,.isDoWhile = true };
+	LoopContext loop = (LoopContext){ 
+		.start = loopStart, 
+		.enclosing = current->currentLoop,
+		.breakJumps = NULL,
+		.breakJumpCount = 0 ,
+		.enterParamCount = current->localCount,
+		.continueJumps = NULL,
+		.continueJumpCount = 0,
+		.loopType = LOOP_DO_WHILE 
+	};
 	loop.breakJumpCapacity = 8;
 	loop.breakJumps = ALLOCATE_NO_GC(int32_t, loop.breakJumpCapacity);
 	current->currentLoop = &loop;
@@ -1447,7 +1474,7 @@ static void continueStatement() {
 
 	closeLoopLocals(current->currentLoop->enterParamCount);
 
-	if (current->currentLoop->isDoWhile) {
+	if (current->currentLoop->loopType == LOOP_DO_WHILE) {
 		//do-while: the condition check sits after the body and its position
 		//is not known yet, so jump forward and patch it to condStart later
 		//(jumping to loop.start would skip the condition -> infinite loop)
