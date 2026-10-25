@@ -100,6 +100,28 @@ void unlinkObj_no_gc(Obj* object) {
 	}
 }
 
+void unlinkObj_gc(Obj* object) {
+	Obj* prev = NULL;
+	Obj* cur = vm.objects;
+
+	while (cur != NULL) {
+		Obj* next = OBJ_PTR_GET_NEXT(cur);
+
+		if (cur == object) {
+			if (prev == NULL) {
+				vm.objects = next;
+			}
+			else {
+				OBJ_PTR_SET_NEXT(prev, next);
+			}
+			return;
+		}
+
+		prev = cur;
+		cur = next;
+	}
+}
+
 void freeObject(Obj* object) {
 #if DEBUG_LOG_GC
 	fprintf(stderr, "[gc] %p free (%s)\n", (void*)object, objTypeInfo[object->type]);
@@ -152,6 +174,9 @@ void freeObject(Obj* object) {
 	}
 	case OBJ_UPVALUE:
 		FREE(ObjUpvalue, object);
+		break;
+	case OBJ_ITERATOR:
+		FREE(ObjIterator, object);
 		break;
 	case OBJ_FUNCTION: {
 		ObjFunction* function = (ObjFunction*)object;

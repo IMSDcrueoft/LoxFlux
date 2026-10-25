@@ -337,6 +337,7 @@ static void initTypeStrings() {
 	vm.typeStrings[TYPE_STRING_NATIVE] = copyString("native", (uint32_t)strlen("native"), false);
 	vm.typeStrings[TYPE_STRING_CLASS] = copyString("class", (uint32_t)strlen("class"), false);
 	vm.typeStrings[TYPE_STRING_OBJECT] = copyString("object", (uint32_t)strlen("object"), false);
+	vm.typeStrings[TYPE_STRING_ITERATOR] = copyString("iterator", (uint32_t)strlen("iterator"), false);
 	vm.typeStrings[TYPE_STRING_FIBER] = copyString("fiber", (uint32_t)strlen("fiber"), false);
 	vm.typeStrings[TYPE_STRING_ARRAY] = copyString("array", (uint32_t)strlen("array"), false);
 	vm.typeStrings[TYPE_STRING_ARRAY_F64] = copyString("array-f64", (uint32_t)strlen("array-f64"), false);
@@ -594,6 +595,9 @@ static void getTypeof() {
 			return;
 		case OBJ_INSTANCE:
 			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_OBJECT]));
+			return;
+		case OBJ_ITERATOR:
+			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_ITERATOR]));
 			return;
 		case OBJ_FIBER:
 			stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_FIBER]));
@@ -1204,6 +1208,8 @@ static InterpretResult run()
 		[OP_INVOKE] = && label_op_invoke,
 		[OP_SUPER_INVOKE] = && label_op_super_invoke,
 		[OP_RETURN] = && label_op_return,
+		[OP_ITERATE] = && label_op_iterate,
+		[OP_FREE_LOCAL] = && label_op_free_local,
 
 		[OP_GET_PROPERTY] = && label_op_get_property,
 		[OP_SET_PROPERTY] = && label_op_set_property,
@@ -1227,6 +1233,7 @@ static InterpretResult run()
 		[OP_NEW_ARRAY] = && label_op_new_array,
 		[OP_NEW_OBJECT] = && label_op_new_object,
 		[OP_NEW_PROPERTY] = && label_op_new_property,
+		[OP_NEW_ITERATOR] = && label_op_new_iterator,
 
 		[OP_INSTANCE_OF] = && label_op_instance_of,
 		[OP_TYPE_OF] = && label_op_type_of,
@@ -1692,12 +1699,7 @@ static InterpretResult run()
 				ObjArray* array = AS_ARRAY(target);
 
 				if (ARRAY_IN_RANGE(array, num_index)) {
-					if (OBJ_IS_TYPE(array, OBJ_ARRAY)) {
-						stack_replace(ARRAY_ELEMENT(array, Value, (uint32_t)num_index));
-					}
-					else {
-						stack_replace(getTypedArrayElement(array, (uint32_t)num_index));
-					}
+					GET_INDEXABLE_ELEMENT(array, (uint32_t)num_index, STACK_PEEK(0));
 				}
 				else {
 					stack_replace(NIL_VAL);
@@ -1732,13 +1734,8 @@ static InterpretResult run()
 				ObjArray* array = AS_ARRAY(target);
 
 				if (ARRAY_IN_RANGE(array, num_index)) {
-					if (OBJ_IS_TYPE(array, OBJ_ARRAY)) {
-						vm.cache.stackTop[-2] = ARRAY_ELEMENT(array, Value, (uint32_t)num_index) = value;
-					}
-					else {
-						setTypedArrayElement(array, (uint32_t)num_index, value);
-						vm.cache.stackTop[-2] = value;
-					}
+					SET_INDEXABLE_ELEMENT(array, (uint32_t)num_index, value);
+					vm.cache.stackTop[-2] = value;
 
 					vm.cache.stackTop -= 1;
 					NEXT_INSTRUCTION;
@@ -1763,12 +1760,7 @@ static InterpretResult run()
 
 					vm.cache.stackTop--;//it is number,so pop is allowed
 					if (ARRAY_IN_RANGE(array, num_index)) {
-						if (OBJ_IS_TYPE(array, OBJ_ARRAY)) {
-							stack_replace(ARRAY_ELEMENT(array, Value, (uint32_t)num_index));
-						}
-						else {
-							stack_replace(getTypedArrayElement(array, (uint32_t)num_index));
-						}
+						GET_INDEXABLE_ELEMENT(array, (uint32_t)num_index, STACK_PEEK(0));
 					}
 					else {
 						stack_replace(NIL_VAL);
@@ -1833,13 +1825,8 @@ static InterpretResult run()
 					double num_index = AS_NUMBER(index);
 
 					if (ARRAY_IN_RANGE(array, num_index)) {
-						if (OBJ_IS_TYPE(array, OBJ_ARRAY)) {
-							vm.cache.stackTop[-3] = ARRAY_ELEMENT(array, Value, (uint32_t)num_index) = value;
-						}
-						else {
-							setTypedArrayElement(array, (uint32_t)num_index, value);
-							vm.cache.stackTop[-3] = value;
-						}
+						SET_INDEXABLE_ELEMENT(array, (uint32_t)num_index, value);
+						vm.cache.stackTop[-3] = value;
 
 						vm.cache.stackTop -= 2;
 						NEXT_INSTRUCTION;
@@ -1970,6 +1957,27 @@ static InterpretResult run()
 			tableSet(&instance->fields, name, vm.cache.stackTop[-1]);
 			stack_pop();
 			NEXT_INSTRUCTION;
+		}
+		case OP_NEW_ITERATOR: {
+		label_op_new_iterator:
+			Value target = vm.cache.stackTop[-1];
+			ObjIterator* iter = NULL;
+
+			if (isArrayLike(target)) {
+				iter = newIterator(AS_OBJ(target));
+				stack_replace(OBJ_VAL(iter));
+				NEXT_INSTRUCTION;
+			} else if (IS_INSTANCE(target)) {
+				iter = newIterator(AS_OBJ(target));
+				stack_replace(OBJ_VAL(iter));
+				// init iter
+				if (!tableGetFirstEntryIndex(&AS_INSTANCE(target)->fields, &iter->index)) {
+					iter->isDone = 1;
+				}
+				NEXT_INSTRUCTION;
+			}
+
+			RUNTIME_ERROR("Only arrayLike and instance are iterable.");
 		}
 		case OP_GET_UPVALUE: {
 		label_op_get_upvalue:
@@ -2327,6 +2335,80 @@ static InterpretResult run()
 			vm.cache.stackTop = frame->slots + 1;
 
 			UPDATE_FRAME();
+			NEXT_INSTRUCTION;
+		}
+		case OP_ITERATE: {
+		label_op_iterate:
+			//stack layout: [k][v][iter] with iter on top; the operand is the
+			//exhaustion jump, patched past the loop body + dead endScope bytes
+			uint16_t offset = READ_SHORT();
+			ObjIterator* iter = AS_ITERATOR(vm.cache.stackTop[-1]);
+
+			//TODO: OBJ_ARRAY / typed array paths (walk payload by iter->index);
+			//kept as an if-chain on purpose: the sparse ObjType values would
+			//turn a switch into a jump table / binary search
+			if (!iter->isDone) {
+				if (iter->type >= OBJ_ARRAY) {
+					//array / typed array: walk the payload by index; k is the
+					//subscript, v the element (Value payload vs typed reader)
+					ObjArray* array = (ObjArray*)iter->target;
+					if (iter->index < array->length) {
+						uint32_t i = iter->index++;
+						vm.cache.stackTop[-3] = NUMBER_VAL((double)i);
+						GET_INDEXABLE_ELEMENT(array, i, vm.cache.stackTop[-2]);
+						NEXT_INSTRUCTION;
+					}
+					//else: exhausted, fall through to the release path below
+				}
+				else {
+					assert(iter->type == OBJ_INSTANCE && "The iterator received a non-instance input.");
+
+					//the table layer owns the whole walk: tableIterateNext skips
+					//empty slots and tombstones and re-reads the live capacity
+					//every call, so insert/delete/rehash during iteration stays
+					//best-effort safe; iter->isDone was raised by OP_NEW_ITERATOR
+					//for empty tables
+					Table* fields = &((ObjInstance*)iter->target)->fields;
+					Entry* entry = NULL;
+
+					if (!tableIterateNext(fields, &iter->index, &entry)) {
+						vm.cache.stackTop[-3] = OBJ_VAL(entry->key);
+						vm.cache.stackTop[-2] = entry->value;
+						NEXT_INSTRUCTION;
+					}
+					else {
+						iter->isDone = 1;
+					}
+				}
+			}
+
+			//exhausted: close k/v upvalues first, then release the iterator
+			//(inline, same as OP_FREE_LOCAL), pop the 3 control slots and
+			//jump past the loop body
+			closeUpvalues(vm.cache.stackTop - 3);
+			unlinkObj_gc(&iter->obj);
+			freeObject(&iter->obj);
+			vm.cache.stackTop -= 3;
+			ip += offset;
+			NEXT_INSTRUCTION;
+		}
+		case OP_FREE_LOCAL: {
+		label_op_free_local:
+			// This feature currently can only be used for the release of local variables that have no other references.
+			// If ordinary objects are to be released in the future, special handling will be required.
+			uint32_t index = READ_SHORT();
+			Value local = frame->slots[index];
+
+			// Currently, only non-transparent iterators generate this bytecode.
+			if (IS_ITERATOR(local)) {
+				Obj* iterator = AS_OBJ(local);
+				unlinkObj_gc(iterator);
+				freeObject(iterator);
+			}
+			// Overwriting the slot, although no error occurs currently, 
+			// does not guarantee that future unexpected garbage collection 
+			// will not trigger access to a dangling pointer.
+			frame->slots[index] = NIL_VAL;
 			NEXT_INSTRUCTION;
 		}
 		case OP_MODULE_BUILTIN: {

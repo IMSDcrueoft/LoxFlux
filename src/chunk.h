@@ -42,6 +42,7 @@ typedef enum {
 	OP_JUMP_IF_FALSE,   // condition jump if false
 	OP_JUMP_IF_FALSE_POP,
 	OP_JUMP_IF_TRUE,    // condition jump if true
+	OP_ITERATE,			// check/update objIterator, update k,v / clean k+v+iterator and jump
 	OP_POP,				// pop stack
 	OP_POP_N,			// pop multiple stack
 	OP_BITWISE,			//& | ~ ^ << >> >>>
@@ -49,6 +50,7 @@ typedef enum {
 	OP_INVOKE,			// call with xxx.()
 	OP_SUPER_INVOKE,	// call with super.()
 	OP_RETURN,          // ret
+	OP_FREE_LOCAL,		// Used to release opaque local values or objects without references (currently used in break situations within foreach)
 
 	OP_GET_PROPERTY,	// get property
 	OP_SET_PROPERTY,
@@ -69,6 +71,7 @@ typedef enum {
 	OP_NEW_ARRAY,		// array literal
 	OP_NEW_OBJECT,		// object literal
 	OP_NEW_PROPERTY,	// set property but no pop
+	OP_NEW_ITERATOR,	// make opaque iterator
 
 	//slow func
 	OP_INSTANCE_OF,		// instance

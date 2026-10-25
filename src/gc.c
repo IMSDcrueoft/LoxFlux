@@ -159,6 +159,11 @@ static void blackenObject(Obj* object) {
 		markTable(&instance->fields);
 		break;
 	}
+	case OBJ_ITERATOR: {
+		ObjIterator* iterator = (ObjIterator*)object;
+		markObject(iterator->target);
+		break;
+	}
 	case OBJ_FIBER: {
 		ObjFiber* fiber = (ObjFiber*)object;
 

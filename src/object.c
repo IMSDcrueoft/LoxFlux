@@ -21,6 +21,7 @@ const C_STR objTypeInfo[] = {
 	[OBJ_STRING] = {"string"},
 	[OBJ_BOUND_METHOD] = {"boundMethod"},
 	[OBJ_INSTANCE] = {"instance"},
+	[OBJ_ITERATOR] = {"iterator"},
 	[OBJ_FIBER] = {"fiber"},
 	[OBJ_STRING_BUILDER] = {"stringBuilder"},
 	[OBJ_ARRAY] = {"array"},
@@ -150,6 +151,7 @@ ObjClosure* newClosure(ObjFunction* function) {
 	return closure;
 }
 
+HOT_FUNCTION
 ObjBoundMethod* newBoundMethod(Value receiver, ObjClosure* method)
 {
 	ObjBoundMethod* bound = ALLOCATE_OBJ(ObjBoundMethod, OBJ_BOUND_METHOD);
@@ -224,6 +226,17 @@ ObjArray* newArray(ObjType type) {
 }
 
 HOT_FUNCTION
+ObjIterator* newIterator(Obj* target)
+{
+	ObjIterator* iterator = ALLOCATE_OBJ(ObjIterator, OBJ_ITERATOR);
+	iterator->type = OBJ_PTR_GET_TYPE(target);	//fast path tag, snapshot of the target kind
+	iterator->isDone = false;
+	iterator->index = 0;
+	iterator->target = target;
+	return iterator;
+}
+
+HOT_FUNCTION
 void reserveArray(ObjArray* array, uint64_t size)
 {
 	size = (size + 7) & ~7;
@@ -272,67 +285,6 @@ void reserveArray(ObjArray* array, uint64_t size)
 	array->payload = newPayload;
 	array->capacity = (uint32_t)size;
 #undef GROW_TYPED_ARRAY
-}
-
-//it don't check index so be careful
-HOT_FUNCTION
-Value getTypedArrayElement(ObjArray* array, uint32_t index)
-{
-	switch (OBJ_GET_TYPE(array->obj)) {
-	case OBJ_ARRAY_F64:
-		return NUMBER_VAL(ARRAY_ELEMENT(array, double, index));
-	case OBJ_ARRAY_F32:
-		return NUMBER_VAL(ARRAY_ELEMENT(array, float, index));
-	case OBJ_ARRAY_U32:
-		return NUMBER_VAL(ARRAY_ELEMENT(array, uint32_t, index));
-	case OBJ_ARRAY_I32:
-		return NUMBER_VAL(ARRAY_ELEMENT(array, int32_t, index));
-	case OBJ_ARRAY_U16:
-		return NUMBER_VAL(ARRAY_ELEMENT(array, uint16_t, index));
-	case OBJ_ARRAY_I16:
-		return NUMBER_VAL(ARRAY_ELEMENT(array, int16_t, index));
-	case OBJ_ARRAY_U8:
-		return NUMBER_VAL(ARRAY_ELEMENT(array, uint8_t, index));
-	case OBJ_ARRAY_I8:
-		return NUMBER_VAL(ARRAY_ELEMENT(array, int8_t, index));
-	case OBJ_STRING_BUILDER:
-		return NUMBER_VAL(ARRAY_ELEMENT(array, uint8_t, index));
-	default:
-		return NIL_VAL;
-	}
-}
-
-HOT_FUNCTION
-void setTypedArrayElement(ObjArray* array, uint32_t index, Value val)
-{
-	val = IS_NUMBER(val) ? val : NUMBER_VAL(0);
-	double num = AS_NUMBER(val);
-	switch (OBJ_GET_TYPE(array->obj)) {
-	case OBJ_ARRAY_F64:
-		ARRAY_ELEMENT(array, double, index) = num;
-		break;
-	case OBJ_ARRAY_F32:
-		ARRAY_ELEMENT(array, float, index) = double_to_f32(num);
-		break;
-	case OBJ_ARRAY_U32:
-		ARRAY_ELEMENT(array, uint32_t, index) = double_to_u32(num);
-		break;
-	case OBJ_ARRAY_I32:
-		ARRAY_ELEMENT(array, int32_t, index) = double_to_i32(num);
-		break;
-	case OBJ_ARRAY_U16:
-		ARRAY_ELEMENT(array, uint16_t, index) = (uint16_t)double_to_u32(num);
-		break;
-	case OBJ_ARRAY_I16:
-		ARRAY_ELEMENT(array, int16_t, index) = (int16_t)double_to_i32(num);
-		break;
-	case OBJ_ARRAY_U8:
-		ARRAY_ELEMENT(array, uint8_t, index) = (uint8_t)double_to_u32(num);
-		break;
-	case OBJ_ARRAY_I8:
-		ARRAY_ELEMENT(array, int8_t, index) = (int8_t)double_to_i32(num);
-		break;
-	}
 }
 
 //If a duplicate is found, return it; otherwise, return null.
@@ -662,6 +614,9 @@ void printObjectTo(FILE* stream, Value value, bool isExpand) {
 		break;
 	case OBJ_FIBER:
 		fprintf(stream, "<fiber>");
+		break;
+	case OBJ_ITERATOR:
+		fprintf(stream, "<iterator>");
 		break;
 	default: {
 		if (isIndexableArray(value)) {

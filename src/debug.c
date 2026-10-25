@@ -275,6 +275,11 @@ uint32_t disassembleInstruction(ObjFunction* function, uint32_t offset) {
 		return invokeInstruction("OP_SUPER_INVOKE", chunk, offset);
 	case OP_RETURN:
 		return simpleInstruction("OP_RETURN", offset);
+	case OP_ITERATE:
+		// [op][offset u16]
+		return jumpInstruction("OP_ITERATE", 1, chunk, offset);
+	case OP_FREE_LOCAL:
+		return shortInstruction("OP_FREE_LOCAL", chunk, offset);
 	case OP_THROW:
 		return simpleInstruction("OP_THROW", offset);
 	case OP_POP:
@@ -399,6 +404,8 @@ uint32_t disassembleInstruction(ObjFunction* function, uint32_t offset) {
 		return simpleInstruction("OP_NEW_OBJECT", offset);
 	case OP_NEW_PROPERTY:
 		return constantInstruction("OP_NEW_PROPERTY", chunk, offset);
+	case OP_NEW_ITERATOR:
+		return simpleInstruction("OP_NEW_ITERATOR", offset);
 
 	case OP_NEW_ARRAY:
 		return shortInstruction("OP_NEW_ARRAY", chunk, offset);
@@ -636,6 +643,9 @@ void disassembleOpStack(OPStack* opStack) {
 		case OP_IMPORT:           DIS_PRINTF("OP_IMPORT\n"); break;
 		case OP_NOT_EQUAL_CONST_NUMBER: DIS_PRINTF("OP_NOT_EQUAL_CONST_NUMBER\n"); break;
 		case OP_NOT_EQUAL_CONST:  DIS_PRINTF("OP_NOT_EQUAL_CONST\n"); break;
+		case OP_ITERATE:          DIS_PRINTF("OP_ITERATE\n"); break;
+		case OP_FREE_LOCAL:       DIS_PRINTF("OP_FREE_LOCAL\n"); break;
+		case OP_NEW_ITERATOR:     DIS_PRINTF("OP_NEW_ITERATOR\n"); break;
 		default: break;//unknown codes are silently ignored in the debug dump
 		}
 	}

@@ -163,6 +163,36 @@ void tableAddAll(Table* from, Table* to)
 	}
 }
 
+// returns false if table is empty
+bool tableGetFirstEntryIndex(Table* table, uint32_t* index_out) {
+	for (uint32_t i = 0; i < table->capacity; i++) {
+		if (table->entries[i].key != NULL) {
+			*index_out = i;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// returns isDone (true = exhausted); on a hit *index_inout has already been
+// advanced past the produced slot, so the caller just stores it back
+bool tableIterateNext(Table* table, uint32_t* index_inout, Entry** entry_out) {
+	//scan from *index_inout, skipping empty slots AND tombstones (tableDelete
+	//stores key == NULL for both); the live capacity is re-read on every call,
+	//so insert/delete/rehash during iteration stays best-effort safe
+	while (*index_inout < table->capacity) {
+		Entry* entry = &table->entries[(*index_inout)++];
+
+		if (entry->key != NULL) {
+			*entry_out = entry;
+			return false;
+		}
+	}
+
+	return true;
+}
+
 //void tableRemoveWhite(Table* table)
 //{
 //	for (uint32_t i = 0; i < table->capacity; i++) {

@@ -9,6 +9,7 @@
 #include "table.h"
 #include "chunk.h"
 #include "arena_bump.h"
+#include <assert.h>
 
 //compress the ptr to 48bits
 #ifndef COMPRESS_OBJ_HEADER
@@ -32,6 +33,9 @@ typedef enum {
 	OBJ_BOUND_METHOD,
 	OBJ_CLASS,
 	OBJ_INSTANCE,
+
+	//iter
+	OBJ_ITERATOR,
 
 	//coroutine
 	OBJ_FIBER,
@@ -61,6 +65,7 @@ typedef enum {
 	TYPE_STRING_NATIVE,
 	TYPE_STRING_CLASS,
 	TYPE_STRING_OBJECT,
+	TYPE_STRING_ITERATOR,
 	TYPE_STRING_FIBER,
 	TYPE_STRING_ARRAY,
 	TYPE_STRING_ARRAY_F64,
@@ -214,8 +219,7 @@ typedef struct {
 	void* payload;
 } ObjArray;
 
-// not used now
-// opaque iterator object for foreach
+// opaque iterator object for foreach;
 typedef struct {
 	Obj obj;
 	uint8_t type;		// fast path
@@ -318,6 +322,7 @@ typedef struct ObjFiber {
 #define IS_CLASS(value)				isObjType(value, OBJ_CLASS)
 #define IS_INSTANCE(value)			isObjType(value, OBJ_INSTANCE)
 #define IS_FIBER(value)				isObjType(value, OBJ_FIBER)
+#define IS_ITERATOR(value)			isObjType(value, OBJ_ITERATOR)
 #define IS_STRING(value)			isObjType(value, OBJ_STRING)
 #define IS_STRING_BUILDER(value)	isObjType(value, OBJ_STRING_BUILDER)
 #define IS_ARRAY(value)				isObjType(value, OBJ_ARRAY)
@@ -326,12 +331,54 @@ typedef struct ObjFiber {
 #define ARRAY_ELEMENT(array, type, index)	(((type*)array->payload)[index])
 #define ARRAY_IN_RANGE(array, index)		((index >= 0) && (index < array->length))
 
+//statement macros: expand an element load/store switch right at the use site,
+//zero function call. `array`/`index`/`val` are expanded several times, so only
+//pass side-effect free lvalues (all current call sites do). `out` is a Value
+//lvalue. no default labels: consecutive cases 11..20 keep the switch a pure
+//jump table, illegal types are caught by the assert (debug) instead
+#define GET_INDEXABLE_ELEMENT(array, index, out) { \
+	uint8_t t = OBJ_GET_TYPE((array)->obj); \
+	assert(t >= OBJ_STRING_BUILDER && t <= OBJ_ARRAY_I8); \
+	switch (t) { \
+	case OBJ_STRING_BUILDER: out = NUMBER_VAL(ARRAY_ELEMENT(array, uint8_t, index)); break; \
+	case OBJ_ARRAY:          out = ARRAY_ELEMENT(array, Value, index); break; \
+	case OBJ_ARRAY_F64:      out = NUMBER_VAL(ARRAY_ELEMENT(array, double, index)); break; \
+	case OBJ_ARRAY_F32:      out = NUMBER_VAL(ARRAY_ELEMENT(array, float, index)); break; \
+	case OBJ_ARRAY_U32:      out = NUMBER_VAL(ARRAY_ELEMENT(array, uint32_t, index)); break; \
+	case OBJ_ARRAY_I32:      out = NUMBER_VAL(ARRAY_ELEMENT(array, int32_t, index)); break; \
+	case OBJ_ARRAY_U16:      out = NUMBER_VAL(ARRAY_ELEMENT(array, uint16_t, index)); break; \
+	case OBJ_ARRAY_I16:      out = NUMBER_VAL(ARRAY_ELEMENT(array, int16_t, index)); break; \
+	case OBJ_ARRAY_U8:       out = NUMBER_VAL(ARRAY_ELEMENT(array, uint8_t, index)); break; \
+	case OBJ_ARRAY_I8:       out = NUMBER_VAL(ARRAY_ELEMENT(array, int8_t, index)); break; \
+	} \
+}
+
+//Value-width storage always assigns the raw value; typed storage checks the
+//number inside each case and stores a plain 0 for anything that is not one,
+//so the any-array path never pays for the number normalize at all
+#define SET_INDEXABLE_ELEMENT(array, index, val) { \
+	uint8_t t = OBJ_GET_TYPE((array)->obj); \
+	assert(t >= OBJ_STRING_BUILDER && t <= OBJ_ARRAY_I8); \
+	switch (t) { \
+	case OBJ_ARRAY:     ARRAY_ELEMENT(array, Value, index) = val; break; \
+	case OBJ_ARRAY_F64: ARRAY_ELEMENT(array, double, index) = IS_NUMBER(val) ? AS_NUMBER(val) : 0.0; break; \
+	case OBJ_ARRAY_F32: ARRAY_ELEMENT(array, float, index) = IS_NUMBER(val) ? double_to_f32(AS_NUMBER(val)) : 0.0f; break; \
+	case OBJ_ARRAY_U32: ARRAY_ELEMENT(array, uint32_t, index) = IS_NUMBER(val) ? double_to_u32(AS_NUMBER(val)) : 0; break; \
+	case OBJ_ARRAY_I32: ARRAY_ELEMENT(array, int32_t, index) = IS_NUMBER(val) ? double_to_i32(AS_NUMBER(val)) : 0; break; \
+	case OBJ_ARRAY_U16: ARRAY_ELEMENT(array, uint16_t, index) = IS_NUMBER(val) ? (uint16_t)double_to_u32(AS_NUMBER(val)) : 0; break; \
+	case OBJ_ARRAY_I16: ARRAY_ELEMENT(array, int16_t, index) = IS_NUMBER(val) ? (int16_t)double_to_i32(AS_NUMBER(val)) : 0; break; \
+	case OBJ_ARRAY_U8:  ARRAY_ELEMENT(array, uint8_t, index) = IS_NUMBER(val) ? (uint8_t)double_to_u32(AS_NUMBER(val)) : 0; break; \
+	case OBJ_ARRAY_I8:  ARRAY_ELEMENT(array, int8_t, index) = IS_NUMBER(val) ? (int8_t)double_to_i32(AS_NUMBER(val)) : 0; break; \
+	} \
+}
+
 #define AS_CLOSURE(value)			((ObjClosure*)AS_OBJ(value))
 #define AS_FUNCTION(value)			((ObjFunction*)AS_OBJ(value))
 #define AS_BOUND_METHOD(value)		((ObjBoundMethod*)AS_OBJ(value))
 #define AS_CLASS(value)				((ObjClass*)AS_OBJ(value))
 #define AS_INSTANCE(value)			((ObjInstance*)AS_OBJ(value))
 #define AS_FIBER(value)				((ObjFiber*)AS_OBJ(value))
+#define AS_ITERATOR(value)			((ObjIterator*)AS_OBJ(value))
 #define AS_NATIVE(value)			(((ObjNative*)AS_OBJ(value))->function)
 #define AS_STRING(value)			((ObjString*)AS_OBJ(value))
 #define AS_ARRAY(value)				((ObjArray*)AS_OBJ(value))
@@ -380,11 +427,9 @@ ObjClass* newClass(ObjString* name);
 ObjInstance* newInstance(ObjClass* klass);
 ObjFiber* newFiber();
 ObjArray* newArray(ObjType type);
+ObjIterator* newIterator(Obj* target);
 
 void reserveArray(ObjArray* array, uint64_t size);
-
-Value getTypedArrayElement(ObjArray* array, uint32_t index);
-void setTypedArrayElement(ObjArray* array, uint32_t index, Value val);
 
 //extracts a NUL-terminated C buffer from a string-like value: strings return
 //their internal chars, stringBuilders return their payload (every mutator
