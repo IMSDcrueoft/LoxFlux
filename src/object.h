@@ -144,7 +144,7 @@ typedef struct {
 
 	ObjString* name;
 	InlineCacheSlot* caches;			// inline cache slots, sized at compile time, runtime only overwrites (numbers + gc-marked pointers)
-	uint16_t cacheCount;	// number of allocated slots (capped at UINT8_MAX: the slot operand is u8)
+	uint32_t cacheCount;	// number of allocated slots (capped at UINT8_MAX: the slot operand is u8)
 
 	uint32_t constantsCount; // number of constants in the FAM (sealed at endCompiler; code indexes are 16-bit)
 	Value constants[];
@@ -390,8 +390,8 @@ void printObjectTo(FILE* stream, Value value, bool isExpand);
 StringEntry* getStringEntryInPool(ObjString* string);
 
 ObjUpvalue* newUpvalue(Value* slot);
-ObjFunction* newFunction();
-ObjFunction* newFunctionMakeFAM(ObjFunction* function, ValueArray* constants);
+struct Compiler;
+ObjFunction* newFunction(struct Compiler* compiler);
 ObjClosure* newClosure(ObjFunction* function);
 ObjBoundMethod* newBoundMethod(Value receiver, ObjClosure* method);
 ObjNative* newNative(NativeFn function);

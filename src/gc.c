@@ -58,8 +58,8 @@ static void markRoots() {
 	//inline caches are WEAK references: invoke slots holding dead ObjClass*/ObjClosure*
 	//are cleared in gc_clear_dead_ic_slots() after tracing, before sweep frees them
 
-	markCompilerRoots();
-
+	//Inlining a function at compile time in the compiler makes it meaningless for the GC to mark it.
+	// markCompilerRoots();
 	//markObject((Obj*)vm.initString);
 }
 

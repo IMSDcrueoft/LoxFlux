@@ -76,30 +76,6 @@ void* reallocate(void* pointer, size_t oldSize, size_t newSize)
 	return result;
 }
 
-//unlink one object from a vm object list (gc or no-gc)
-//(prev/cur walk, works with both Obj header layouts; must run before freeObject on the object)
-void unlinkObj(Obj** head, Obj* object) {
-	Obj* prev = NULL;
-	Obj* cur = *head;
-
-	while (cur != NULL) {
-		Obj* next = OBJ_PTR_GET_NEXT(cur);
-
-		if (cur == object) {
-			if (prev == NULL) {
-				*head = next;
-			}
-			else {
-				OBJ_PTR_SET_NEXT(prev, next);
-			}
-			return;
-		}
-
-		prev = cur;
-		cur = next;
-	}
-}
-
 void freeObject(Obj* object) {
 #if DEBUG_LOG_GC
 	fprintf(stderr, "[gc] %p free (%s)\n", (void*)object, objTypeInfo[object->type]);

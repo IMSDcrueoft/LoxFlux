@@ -39,7 +39,7 @@ static void instructionOptimize();
 #endif
 
 static Chunk* currentChunk() {
-	return &current->function->chunk;
+	return &current->function.chunk;
 }
 
 static OPStack* currentOpStack() {
@@ -177,40 +177,39 @@ static uint8_t emitCacheSlot(void) {
 		if (!current->icWarned) {
 			current->icWarned = true;
 			fprintf(stderr, "[ic] function '%s' exhausted inline-cache slots, remaining sites will not be cached\n",
-				current->function->name != NULL ? current->function->name->chars : "<script>");
+				current->function.name != NULL ? current->function.name->chars : "<script>");
 		}
 #endif
 		if (current->cacheCapacity == 0) {//sentinel sites still need array[0] to exist
-			current->function->caches = ALLOCATE_NO_GC(InlineCacheSlot, 1);
+			current->function.caches = ALLOCATE_NO_GC(InlineCacheSlot, 1);
 			current->cacheCapacity = 1;
-			current->function->caches[0].capacity = 0;
-			current->function->caches[0].index = 0;
-			current->function->caches[0].extraA = NULL;
-			current->function->caches[0].extraB = NULL;
+			current->function.caches[0].capacity = 0;
+			current->function.caches[0].index = 0;
+			current->function.caches[0].extraA = NULL;
+			current->function.caches[0].extraB = NULL;
 		}
 		return 0;//sentinel
 	}
 
 	if (current->cacheCapacity < (uint32_t)current->cacheCount + 2) {//real slot k lives at array index k+1
 		uint32_t capacity = GROW_CAPACITY(current->cacheCapacity);
-		bool firstAlloc = (current->function->caches == NULL);
-		current->function->caches = GROW_ARRAY_NO_GC(InlineCacheSlot, current->function->caches, current->cacheCapacity, capacity);
+		bool firstAlloc = (current->function.caches == NULL);
+		current->function.caches = GROW_ARRAY_NO_GC(InlineCacheSlot, current->function.caches, current->cacheCapacity, capacity);
 		if (firstAlloc) {//malloc memory is not zeroed: init the shared sentinel slot at index 0
-			current->function->caches[0].capacity = 0;
-			current->function->caches[0].index = 0;
-			current->function->caches[0].extraA = NULL;
-			current->function->caches[0].extraB = NULL;
+			current->function.caches[0].capacity = 0;
+			current->function.caches[0].index = 0;
+			current->function.caches[0].extraA = NULL;
+			current->function.caches[0].extraB = NULL;
 		}
 		current->cacheCapacity = capacity;
 	}
 
 	uint8_t slot = (uint8_t)(current->cacheCount + 1);//operand = real index + 1
 	current->cacheCount++;
-	current->function->caches[slot].capacity = 0;
-	current->function->caches[slot].index = 0;
-	current->function->caches[slot].extraA = NULL;
-	current->function->caches[slot].extraB = NULL;
-	current->function->cacheCount = current->cacheCount;//sync real slot count for the VM
+	current->function.caches[slot].capacity = 0;
+	current->function.caches[slot].index = 0;
+	current->function.caches[slot].extraA = NULL;
+	current->function.caches[slot].extraB = NULL;
 	return slot;
 }
 
@@ -529,7 +528,6 @@ static bool foldBuiltinMember(void) {
 	// revert the allocated IC slot: the folded site no longer owns one
 	if (slot != 0) {
 		current->cacheCount--;
-		current->function->cacheCount = current->cacheCount;
 	}
 
 	//numbers into the function's own pool, native members into the shared pool
@@ -587,7 +585,6 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	//init
 	compiler->currentLoop = NULL;
 
-	compiler->function = NULL;
 	compiler->type = type;
 
 	compiler->localCount = 0;
@@ -595,7 +592,15 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	compiler->locals = ALLOCATE_NO_GC(Local, LOCAL_INIT);
 	compiler->localCapacity = LOCAL_INIT;
 
-	compiler->function = newFunction();
+	//embedded compile-time function state: no heap allocation, no list linkage
+	compiler->function.id = vm.functionID++;
+	compiler->function.arity = 0;
+	compiler->function.upvalueCount = 0;
+	compiler->function.name = NULL;
+	chunk_init(&compiler->function.chunk);
+	compiler->function.caches = NULL;
+	compiler->function.cacheCount = 0;
+	compiler->function.constantsCount = 0;//scratch state, constants live in the compiler until sealed
 	compiler->objectNestingDepth = 0;
 
 	//inline cache slots
@@ -613,10 +618,10 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	case TYPE_FUNCTION:
 	case TYPE_METHOD:
 	case TYPE_INITIALIZER:
-		compiler->function->name = copyString(parser.previous.start, parser.previous.length, false);
+		compiler->function.name = copyString(parser.previous.start, parser.previous.length, false);
 		break;
 	case TYPE_LAMBDA:
-		compiler->function->name = copyString("", 0, false);
+		compiler->function.name = copyString("", 0, false);
 		break;
 	default:
 		break;
@@ -663,18 +668,22 @@ static ObjFunction* endCompiler() {
 	opStack_free(currentOpStack());
 	binaryTable_free(&current->numbers);//free every compiler's number pool (nested compilers were leaking)
 
-	ObjFunction* function = current->function;
-
 	//shrink inline caches to exactly cacheCount+1 entries (index 0 = shared sentinel slot)
 	//small functions/lambdas keep no doubling slack; functions without ic sites keep NULL
 	if (current->cacheCapacity > (uint32_t)current->cacheCount + 1) {
-		function->caches = GROW_ARRAY_NO_GC(InlineCacheSlot, function->caches, current->cacheCapacity, (uint32_t)current->cacheCount + 1);
+		current->function.caches = GROW_ARRAY_NO_GC(InlineCacheSlot, current->function.caches, current->cacheCapacity, (uint32_t)current->cacheCount + 1);
 		current->cacheCapacity = (uint32_t)current->cacheCount + 1;
 	}
 
-	//seal compile-time constants into the FAM (no-op when there are none)
+	//materialize the final FAM function from the embedded compile-time state
 	//must run BEFORE IC registration: the registry and OP_CLOSURE must hold the final object pointer
-	current->function = function = newFunctionMakeFAM(function, &current->constants);
+	ObjFunction* function = newFunction(current);
+
+	//detach the moved buffers from the embedded state: the fresh object owns them now
+	chunk_init(&current->function.chunk);
+	current->function.caches = NULL;
+	current->function.constantsCount = 0;
+
 	valueArray_free(&current->constants);
 
 	//register for gc: invoke cache slots hold ObjClass*/ObjClosure* that must stay marked
@@ -888,7 +897,7 @@ static LocalInfo resolveLocal(Compiler* compiler, Token* name) {
 }
 
 static uint32_t addUpvalue(Compiler* compiler, int32_t index, bool isLocal) {
-	uint32_t upvalueCount = compiler->function->upvalueCount;
+	uint32_t upvalueCount = compiler->function.upvalueCount;
 
 	//deduplicate
 	for (uint32_t i = 0; i < upvalueCount; i++) {
@@ -905,7 +914,7 @@ static uint32_t addUpvalue(Compiler* compiler, int32_t index, bool isLocal) {
 
 	compiler->upvalues[upvalueCount].isLocal = isLocal;
 	compiler->upvalues[upvalueCount].index = index;
-	return compiler->function->upvalueCount++;
+	return compiler->function.upvalueCount++;
 }
 
 static LocalInfo resolveUpvalue(Compiler* compiler, Token* name) {
@@ -1016,8 +1025,8 @@ static void function(FunctionType type) {
 
 	if (!check(TOKEN_RIGHT_PAREN)) {
 		do {
-			current->function->arity++;
-			if (current->function->arity > UINT8_MAX) {
+			current->function.arity++;
+			if (current->function.arity > UINT8_MAX) {
 				errorAtCurrent("Can't have more than 255 parameters.");
 			}
 
@@ -2459,14 +2468,15 @@ ObjFunction* compile(C_STR source, FunctionType compileType) {
 	return parser.hadError ? NULL : function;
 }
 
-void markCompilerRoots()
-{
-	Compiler* compiler = current;
-	while (compiler != NULL) {
-		markObject((Obj*)compiler->function);
-		compiler = compiler->enclosing;
-	}
-}
+// removed
+//void markCompilerRoots()
+//{
+//	Compiler* compiler = current;
+//	while (compiler != NULL) {
+//		markObject((Obj*)compiler->function);
+//		compiler = compiler->enclosing;
+//	}
+//}
 
 /*
 * This part uses hard-coded instruction lengths, which needs to be noted

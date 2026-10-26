@@ -197,9 +197,6 @@ void chunk_write(Chunk* chunk, uint8_t byte, uint32_t line);
 void chunk_fallback(Chunk* chunk, uint32_t byteCount);
 void chunk_free(Chunk* chunk);
 
-//free the error compiled code (not used)
-void chunk_free_errorCode(Chunk* chunk, uint32_t beginError);
-
 void opStack_init(OPStack* stack);
 void opStack_push(OPStack* stack, uint8_t byte);
 //we don't know the offset of the code,so we use this to get the opType
