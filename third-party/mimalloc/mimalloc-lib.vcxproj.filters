@@ -1,0 +1,216 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="src\alloc\alloc.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="src\alloc\alloc-aligned.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="src\alloc\alloc-override.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="src\alloc\alloc-posix.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="src\arena\arena.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="src\arena\arena-alloc.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="src\arena\arena-page.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="src\arena\bitmap.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="src\arena\bitmap-chunk.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="src\alloc\free.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="src\heap\theap.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="src\heap\init.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="src\util\libc.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="src\util\options.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="src\prim\os.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="src\alloc\page.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="src\alloc\alloc-generic.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="src\alloc\page-queue.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="src\prim\windows\prim.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="src\prim\prim.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="src\util\random.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="src\util\stats.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="src\heap\page-map.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="src\heap\heap.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="src\util\threadlocal.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="src\prim\prim-tls.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="src\profile\pprof.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="src\heap\subproc.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="src\profile\sample-guarded.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="src\profile\sample-profile.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\mimalloc\atomic.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="src\arena\bitmap.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="src\arena\bitmap-chunk.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="src\arena\arena.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="src\alloc\page-queue.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="src\alloc\page.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mimalloc\internal.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mimalloc\util\libc.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mimalloc\util\options.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mimalloc\util\random.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mimalloc\prim\prim-tls.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mimalloc\heap\subproc.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mimalloc\heap\init.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mimalloc\prim\os.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mimalloc\util\threadlocal.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mimalloc\arena\arena.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mimalloc\arena\arena-alloc.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mimalloc\arena\arena-page.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mimalloc\heap\page-map.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mimalloc\alloc\page.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mimalloc\heap\theap.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mimalloc\heap\heap.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mimalloc\util\stats.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mimalloc\alloc\alloc.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mimalloc\alloc\free.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mimalloc\profile\sample-guarded.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mimalloc\profile\sample-profile.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mimalloc\profile\pprof.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="$(ProjectDir)include\mimalloc.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mimalloc-new-delete.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="$(ProjectDir)include\mimalloc-override.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mimalloc\track.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mimalloc\types.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mimalloc\prim.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mimalloc\bits.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mimalloc-stats.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mimalloc-profile.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Headers">
+      <UniqueIdentifier>{1430490c-e711-4ace-a1b8-36f4d5105873}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Sources">
+      <UniqueIdentifier>{461c78ef-04b0-44d1-a0ca-7d488abaa592}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

@@ -53,30 +53,21 @@ add_library(xxhash INTERFACE)
 target_include_directories(xxhash INTERFACE ${CMAKE_SOURCE_DIR}/third-party/xxHash)
 
 # mimalloc -------------------------------------------------------------------
-# Only required on Windows where a prebuilt static library is shipped.
-# On other platforms, fall back to the standard library allocator unless a
-# system mimalloc is found.
-set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
-
-# Default: enable mimalloc when it can be found. A user may opt out with
-# -DLOXFLUX_USE_MIMALLOC=OFF.
-option(LOXFLUX_USE_MIMALLOC "Use mimalloc allocator if available" ON)
-
-find_package(mimalloc QUIET)
+# Vendored from source (third-party/mimalloc) and built through its own
+# CMakeLists; Debug/Release output naming is handled by upstream. Opt out
+# with -DLOXFLUX_USE_MIMALLOC=OFF to use the standard library allocator.
+option(LOXFLUX_USE_MIMALLOC "Build and use the vendored mimalloc allocator" ON)
 
 set(LOXFLUX_ALLOC_MIMALLOC OFF)
-
-if(mimalloc_FOUND AND LOXFLUX_USE_MIMALLOC)
+if(LOXFLUX_USE_MIMALLOC)
+  set(MI_BUILD_SHARED OFF)
+  set(MI_BUILD_OBJECT OFF)
+  set(MI_BUILD_TESTS OFF)
+  add_subdirectory(third-party/mimalloc)
   set(LOXFLUX_ALLOC_MIMALLOC ON)
-  message(STATUS "mimalloc: found -> using mimalloc allocator")
-elseif(mimalloc_FOUND AND NOT LOXFLUX_USE_MIMALLOC)
-  message(STATUS "mimalloc: found but disabled by LOXFLUX_USE_MIMALLOC=OFF -> using the standard library allocator")
+  message(STATUS "mimalloc: building vendored source -> using mimalloc allocator")
 else()
-  if(WIN32)
-    message(WARNING "mimalloc library not found; falling back to the standard library allocator")
-  else()
-    message(STATUS "mimalloc: not found -> using the standard library allocator")
-  endif()
+  message(STATUS "mimalloc disabled by LOXFLUX_USE_MIMALLOC=OFF -> using the standard library allocator")
 endif()
 
 # Core library --------------------------------------------------------------
@@ -127,7 +118,7 @@ target_link_libraries(loxFluxCore PUBLIC xxhash)
 target_compile_definitions(loxFluxCore PUBLIC
   LOXFLUX_USE_MIMALLOC=$<IF:$<BOOL:${LOXFLUX_ALLOC_MIMALLOC}>,1,0>)
 if(LOXFLUX_ALLOC_MIMALLOC)
-  target_link_libraries(loxFluxCore PUBLIC mimalloc::mimalloc)
+  target_link_libraries(loxFluxCore PUBLIC mimalloc)
 endif()
 
 # Link-Time Optimization -----------------------------------------------------
