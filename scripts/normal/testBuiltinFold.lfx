@@ -1,0 +1,10 @@
+//builtin member folding correctness:
+//every member access below is foldable at compile time (fields are frozen at vm_init)
+print @math.abs(-1);
+print @math.floor(2.9);
+print @math.PI;
+print @string.slice("hello", 1, 3);
+var arr = [10, 20, 30];
+print arr[@math.floor(1.9)];
+var s = @string.slice("world", 0, 5);
+print s;

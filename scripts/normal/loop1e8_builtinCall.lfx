@@ -1,0 +1,10 @@
+//A/B: `@math.abs(...)` call site folded to [OP_CONSTANT native][OP_CALL]
+//vs unfolded OP_MODULE_BUILTIN + OP_INVOKE (inline-cache) path
+var start = @time.milli();
+var sink = 0.0;
+for(var i = 0;i<1e8;){
+    sink = sink + @math.abs(i - 5e7);
+    i = i+1;
+}
+print @time.milli() - start;
+print sink;

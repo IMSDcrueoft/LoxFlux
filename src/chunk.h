@@ -50,7 +50,6 @@ typedef enum {
 	OP_INVOKE,			// call with xxx.()
 	OP_SUPER_INVOKE,	// call with super.()
 	OP_RETURN,          // ret
-	OP_FREE_LOCAL,		// release a GC-invisible local (foreach iterator)
 
 	OP_GET_PROPERTY,	// get property
 	OP_SET_PROPERTY,
@@ -197,9 +196,6 @@ void chunk_init(Chunk* chunk);
 void chunk_write(Chunk* chunk, uint8_t byte, uint32_t line);
 void chunk_fallback(Chunk* chunk, uint32_t byteCount);
 void chunk_free(Chunk* chunk);
-
-//free the error compiled code (not used)
-void chunk_free_errorCode(Chunk* chunk, uint32_t beginError);
 
 void opStack_init(OPStack* stack);
 void opStack_push(OPStack* stack, uint8_t byte);

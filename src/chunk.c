@@ -50,19 +50,6 @@ void chunk_free(Chunk* chunk) {
 	chunk_init(chunk);
 }
 
-//beginError:where error begins
-COLD_FUNCTION
-void chunk_free_errorCode(Chunk* chunk, uint32_t beginError) {
-	if (chunk == NULL || beginError > chunk->count) {
-		return;
-	}
-	else {
-		if (beginError > 0) --beginError;
-
-		chunk->count = beginError;
-	}
-}
-
 void opStack_init(OPStack* stack)
 {
 	stack->count = 0u;

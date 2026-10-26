@@ -88,7 +88,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>third-party\mimalloc\mimalloc-x86-debug.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(SolutionDir)x64\mimalloc\Win32\Debug\mimalloc.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -120,7 +120,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
-      <AdditionalDependencies>third-party\mimalloc\mimalloc-x86.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(SolutionDir)x64\mimalloc\Win32\Release\mimalloc.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -141,7 +141,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>third-party\mimalloc\mimalloc-x64-debug.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(SolutionDir)x64\mimalloc\x64\Debug\mimalloc.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -172,7 +172,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
-      <AdditionalDependencies>third-party\mimalloc\mimalloc-x64.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(SolutionDir)x64\mimalloc\x64\Release\mimalloc.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -192,7 +192,7 @@
     <ClCompile Include="src\nativeMath.c" />
     <ClCompile Include="src\nativeSystem.c" />
     <ClCompile Include="src\nativeTime.c" />
-    <ClCompile Include="src\numberTable.c" />
+    <ClCompile Include="src\binaryTable.c" />
     <ClCompile Include="src\object.c" />
     <ClCompile Include="src\nativeObject.c" />
     <ClCompile Include="src\scanner.c" />
@@ -230,6 +230,11 @@
     <ClInclude Include="src\vm.h" />
     <ClInclude Include="src\allocator.h" />
     <ClInclude Include="src\xoshiro256.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="third-party\mimalloc\mimalloc-lib.vcxproj">
+      <Project>{abb5eae7-b3e6-432e-b636-333449892ea6}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

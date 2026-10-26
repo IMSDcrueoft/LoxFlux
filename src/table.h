@@ -12,12 +12,14 @@ typedef struct {
 	Value value;
 } Entry;
 
+//bit-keyed entry: raw 64-bit Value representation -> constant index
+//numbers compare by bits (NaN-safe), natives by pointer bits (immortal); keep the two in separate tables
 typedef struct {
-	uint64_t binary;//binary info of number
-	uint64_t hash;//hash of number
+	uint64_t binary;//binary info of the key value
+	uint64_t hash;//hash of the binary
 	bool isValid;
 	uint32_t index;//index of constant array
-} NumberEntry;
+} BinaryEntry;
 
 typedef struct {
 	ObjString* key;
@@ -40,8 +42,8 @@ typedef struct {
 typedef struct {
 	uint32_t count;
 	uint32_t capacity;
-	NumberEntry* entries;
-} NumberTable;
+	BinaryEntry* entries;
+} BinaryTable;
 
 typedef struct {
 	uint32_t count;
@@ -75,9 +77,9 @@ StringEntry* tableGetStringEntry(StringTable* table, ObjString* key);
 void tableSet_script(StringTable* table, ObjString* key, uint32_t index);
 StringEntry* tableGetScriptEntry(StringTable* table, ObjString* key);
 
-void numberTable_init(NumberTable* table);
-void numberTable_free(NumberTable* table);
-NumberEntry* tableGetNumberEntry(NumberTable* table, Value* value);
+void binaryTable_init(BinaryTable* table);
+void binaryTable_free(BinaryTable* table);
+BinaryEntry* tableGetBinaryEntry(BinaryTable* table, Value* value);
 
 // returns false if table is empty
 bool tableGetFirstEntryIndex(Table* table, uint32_t* index_out);

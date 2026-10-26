@@ -385,6 +385,7 @@ void vm_init()
 
 	//init global
 	valueArray_init(&vm.constants);
+	binaryTable_init(&vm.nativeConstants);
 
 	//string arena: reserve 512MiB of VA (committed lazily in 16KB steps); no
 	//eager commit needed - the first string allocation triggers it; strings
@@ -501,6 +502,7 @@ void vm_free()
 	vm.icFuncCapacity = 0;
 
 	valueArray_free(&vm.constants);
+	binaryTable_free(&vm.nativeConstants);
 
 	table_free(&vm.globals.fields);
 	stringTable_free(&vm.scripts);
@@ -512,7 +514,10 @@ void vm_free()
 	}
 
 	//root fiber is in vm.objects and is released/recycled by freeObjects();
-	//clear the weak execution cache first so nothing scans or derefs it
+	//persist the live execution cache into the fiber first: vm.cache.frames may
+	//have been reallocated (grown) since the last store, so freeing the fiber
+	//with a stale frames pointer would double-free the old block
+	vm_storeCacheToFiber();
 	vm.currentFiber = NULL;
 	vm.cache = (FiberCore){0};
 
@@ -1209,7 +1214,6 @@ static InterpretResult run()
 		[OP_SUPER_INVOKE] = && label_op_super_invoke,
 		[OP_RETURN] = && label_op_return,
 		[OP_ITERATE] = && label_op_iterate,
-		[OP_FREE_LOCAL] = && label_op_free_local,
 
 		[OP_GET_PROPERTY] = && label_op_get_property,
 		[OP_SET_PROPERTY] = && label_op_set_property,
@@ -2405,26 +2409,10 @@ static InterpretResult run()
 				}
 			}
 
-			//exhausted: close k/v upvalues, release the iterator, pop k/v/iter
+			//exhausted: close k/v upvalues, pop k/v/iter
 			closeUpvalues(vm.cache.stackTop - 3);
-			unlinkObj(&vm.objects, &iter->obj);
-			freeObject(&iter->obj);
 			vm.cache.stackTop -= 3;
 			ip += offset;
-			NEXT_INSTRUCTION;
-		}
-		case OP_FREE_LOCAL: {
-		label_op_free_local:
-			uint32_t index = READ_SHORT();
-			Value local = frame->slots[index];
-
-			if (IS_ITERATOR(local)) {
-				Obj* iterator = AS_OBJ(local);
-				unlinkObj(&vm.objects, iterator);
-				freeObject(iterator);
-			}
-
-			frame->slots[index] = NIL_VAL;
 			NEXT_INSTRUCTION;
 		}
 		case OP_MODULE_BUILTIN: {

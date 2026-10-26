@@ -1,5 +1,5 @@
 # LoxFlux
-![Version](https://img.shields.io/badge/version-0.12.0-blue)
+![Version](https://img.shields.io/badge/version-0.12.1-blue)
 
 LoxFlux is an independent reimplementation of the cLox interpreter described in "Crafting Interpreters"—a stack-based bytecode virtual machine. All code is written from scratch, following the book’s design principles. This project is still actively being developed and improved.
 
@@ -29,7 +29,7 @@ Lox is a programming language designed for learning purposes. It is conceived as
 - **Inline caching for properties & methods**: Every property access and method call site embeds a cache slot. Field reads/writes cache the hash-table probe position(guarded by table capacity + interned key pointer); method invokes cache the resolved class & closure pair(guarded by class pointer identity). Instances whose fields shadow method names are poisoned and skip the method cache. Cached class/closure references are weak: the GC clears slots holding dying objects, so caches never extend object lifetimes.
 - **Flip-up GC marking**: Flipping tags can avoid reverting to the write of tags during the recycling process, and favor concurrent tags (if actually implemented).
 - **Detached static and dynamic objects**: Static objects such as strings/functions, they don't usually bloat very much, so I think it's a viable option not to recycle them.
-- **Compilation-time optimizations**: Provides basic constant folding, super instruction, and builtin module member folding(number members of the frozen builtin modules become immediate constants, e.g. `@math.PI`).
+- **Compilation-time optimizations**: Provides basic constant folding, super instruction, and builtin module member folding: frozen builtin members compile to constants — number members become immediate constants (e.g. `@math.PI`), native members are loaded directly, and `@module.member(args)` call sites collapse into a direct call without the module access or method dispatch.
 - **Instruction Dispatching**: Use `direct threading code` instead of `switch case` in compilers that support compute goto(clang & gcc).
 
 ---

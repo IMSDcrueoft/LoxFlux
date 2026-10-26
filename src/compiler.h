@@ -64,6 +64,7 @@ typedef struct {
 	int32_t depth;
 	bool isCaptured; //captured by upvalue
 	bool isConst; //is a const
+	bool isHidden; //compiler-owned slot (such as foreach iterator): skipped by every name-matching path
 } Local;
 
 typedef enum {
@@ -108,9 +109,8 @@ typedef struct {
 typedef struct Compiler {
 	struct Compiler* enclosing;
 
-	ObjFunction* function;
 	OPStack stack; //the command stack for optimizer
-	NumberTable numbers; //per-function number dedup pool, indexes into function's own constants
+	BinaryTable numbers; //per-function number dedup pool, indexes into function's own constants
 	ValueArray constants;//pre-function constants, exits when function is compiled, then merged into objFunction FAM
 
 	FunctionType type;
@@ -124,11 +124,13 @@ typedef struct Compiler {
 	//inline cache slots (capped at UINT8_MAX sites, slot operand is u8)
 	uint16_t cacheCount;
 	bool icWarned; //one-shot exhaustion warning flag (debug builds only)
-	uint32_t cacheCapacity; //allocated InlineCacheSlot capacity of function->caches
+	uint32_t cacheCapacity; //allocated InlineCacheSlot capacity of function.caches
 	Local* locals;
 
 	LoopContext* currentLoop;
 	Upvalue upvalues[UINT8_COUNT];
+
+	ObjFunction function; //embedded compile-time state: no heap object, no list linkage; newFunction() materializes the final FAM object from it
 } Compiler;
 
 typedef struct ClassCompiler {
@@ -137,7 +139,6 @@ typedef struct ClassCompiler {
 } ClassCompiler;
 
 ObjFunction* compile(C_STR source, FunctionType compileType);
-void markCompilerRoots();
 
 //runtime --print-bytecode flag: process-level setting (set once by main,
 //survives /reset), read by endCompiler to dump the final bytecode to stderr

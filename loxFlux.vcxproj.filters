@@ -86,7 +86,7 @@
     <ClCompile Include="src\nativeObject.c">
       <Filter>loxFlux\source</Filter>
     </ClCompile>
-    <ClCompile Include="src\numberTable.c">
+    <ClCompile Include="src\binaryTable.c">
       <Filter>loxFlux\source</Filter>
     </ClCompile>
     <ClCompile Include="src\stringTable.c">

@@ -144,7 +144,7 @@ typedef struct {
 
 	ObjString* name;
 	InlineCacheSlot* caches;			// inline cache slots, sized at compile time, runtime only overwrites (numbers + gc-marked pointers)
-	uint16_t cacheCount;	// number of allocated slots (capped at UINT8_MAX: the slot operand is u8)
+	uint32_t cacheCount;	// number of allocated slots (capped at UINT8_MAX: the slot operand is u8)
 
 	uint32_t constantsCount; // number of constants in the FAM (sealed at endCompiler; code indexes are 16-bit)
 	Value constants[];
@@ -286,30 +286,6 @@ typedef struct ObjFiber {
 	ArenaBumpAllocator stackArena;
 } ObjFiber;
 
-/*
-* TODO:
-*
-* TOKEN_FOREACH、TOKEN_IN
-*
-* foreach(var k,v in arr){ code }
-* foreach(const k,v in arr){ code }
-*
-* FOREACH ( var/const IDENTIFIER , IDENTIFIER IN EXPRESSION ) BLOCK
-*
-* BYTECODE:
-* OP_NIL
-* OP_NIL
-* EXTRESSION...
-* OP_NEW_ITER (check type, push iter or throw error?)
-* OP_ITERATE OFFSET(for jump out) (check range, if false pop and jump to break) if jump, pop 3(k,v,iter) else update k,v
-* ...
-* OP_POPN (pop local vars)
-* OP_LOOP
-*
-* break: OP_POPN (pop local vars + 3slot) OP_JUMP(to end)
-* continue: OP_POPN (pop local vars) OP_LOOP(to check iter)
-*/
-
 #define OBJ_GET_TYPE(obj)			((obj).type)
 #define OBJ_SET_TYPE(obj,objType)	((obj).type = objType)
 #define OBJ_PTR_GET_TYPE(obj)		((obj)->type)
@@ -414,8 +390,8 @@ void printObjectTo(FILE* stream, Value value, bool isExpand);
 StringEntry* getStringEntryInPool(ObjString* string);
 
 ObjUpvalue* newUpvalue(Value* slot);
-ObjFunction* newFunction();
-ObjFunction* newFunctionMakeFAM(ObjFunction* function, ValueArray* constants);
+struct Compiler;
+ObjFunction* newFunction(struct Compiler* compiler);
 ObjClosure* newClosure(ObjFunction* function);
 ObjBoundMethod* newBoundMethod(Value receiver, ObjClosure* method);
 ObjNative* newNative(NativeFn function);

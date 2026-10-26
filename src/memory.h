@@ -48,8 +48,6 @@ void* reallocate_no_gc(void* pointer, size_t oldSize, size_t newSize);
 
 #define FREE_FLEX_NO_GC(type,pointer,flexType,count) reallocate_no_gc(pointer, sizeof(type) + sizeof(flexType) * count, 0)
 
-void unlinkObj(Obj** head, Obj* object);
-
 void freeObject(Obj* object);
 void freeObjects();
 

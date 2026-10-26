@@ -18,7 +18,7 @@
 bool vm_printBytecode = false;
 
 //runtime --no-optimize flag: when false, emitOpStack/instructionOptimize,
-//foldBuiltinNumber and emitBranchJump all pass through unoptimized
+//foldBuiltinMember and emitBranchJump all pass through unoptimized
 bool vm_optimizationEnabled = true;
 //shared parser
 Parser parser;
@@ -39,7 +39,7 @@ static void instructionOptimize();
 #endif
 
 static Chunk* currentChunk() {
-	return &current->function->chunk;
+	return &current->function.chunk;
 }
 
 static OPStack* currentOpStack() {
@@ -177,40 +177,39 @@ static uint8_t emitCacheSlot(void) {
 		if (!current->icWarned) {
 			current->icWarned = true;
 			fprintf(stderr, "[ic] function '%s' exhausted inline-cache slots, remaining sites will not be cached\n",
-				current->function->name != NULL ? current->function->name->chars : "<script>");
+				current->function.name != NULL ? current->function.name->chars : "<script>");
 		}
 #endif
 		if (current->cacheCapacity == 0) {//sentinel sites still need array[0] to exist
-			current->function->caches = ALLOCATE_NO_GC(InlineCacheSlot, 1);
+			current->function.caches = ALLOCATE_NO_GC(InlineCacheSlot, 1);
 			current->cacheCapacity = 1;
-			current->function->caches[0].capacity = 0;
-			current->function->caches[0].index = 0;
-			current->function->caches[0].extraA = NULL;
-			current->function->caches[0].extraB = NULL;
+			current->function.caches[0].capacity = 0;
+			current->function.caches[0].index = 0;
+			current->function.caches[0].extraA = NULL;
+			current->function.caches[0].extraB = NULL;
 		}
 		return 0;//sentinel
 	}
 
 	if (current->cacheCapacity < (uint32_t)current->cacheCount + 2) {//real slot k lives at array index k+1
 		uint32_t capacity = GROW_CAPACITY(current->cacheCapacity);
-		bool firstAlloc = (current->function->caches == NULL);
-		current->function->caches = GROW_ARRAY_NO_GC(InlineCacheSlot, current->function->caches, current->cacheCapacity, capacity);
+		bool firstAlloc = (current->function.caches == NULL);
+		current->function.caches = GROW_ARRAY_NO_GC(InlineCacheSlot, current->function.caches, current->cacheCapacity, capacity);
 		if (firstAlloc) {//malloc memory is not zeroed: init the shared sentinel slot at index 0
-			current->function->caches[0].capacity = 0;
-			current->function->caches[0].index = 0;
-			current->function->caches[0].extraA = NULL;
-			current->function->caches[0].extraB = NULL;
+			current->function.caches[0].capacity = 0;
+			current->function.caches[0].index = 0;
+			current->function.caches[0].extraA = NULL;
+			current->function.caches[0].extraB = NULL;
 		}
 		current->cacheCapacity = capacity;
 	}
 
 	uint8_t slot = (uint8_t)(current->cacheCount + 1);//operand = real index + 1
 	current->cacheCount++;
-	current->function->caches[slot].capacity = 0;
-	current->function->caches[slot].index = 0;
-	current->function->caches[slot].extraA = NULL;
-	current->function->caches[slot].extraB = NULL;
-	current->function->cacheCount = current->cacheCount;//sync real slot count for the VM
+	current->function.caches[slot].capacity = 0;
+	current->function.caches[slot].index = 0;
+	current->function.caches[slot].extraA = NULL;
+	current->function.caches[slot].extraB = NULL;
 	return slot;
 }
 
@@ -407,7 +406,7 @@ static void emitReturn() {
 	clearOpStack();
 }
 
-//non-number constants only,24bits index into vm.constants
+//string and native constants,24bits index into vm.constants (both deduplicated)
 static uint32_t makeConstant(Value value) {
 	if (IS_STRING(value)) {
 		//find if string is in constant,because it is in pool
@@ -430,13 +429,32 @@ static uint32_t makeConstant(Value value) {
 			return entry->index;
 		}
 	}
+	else if (IS_NATIVE(value)) {
+		//natives are immortal (gc-excluded),so pointer bits are a stable dedup key
+		BinaryEntry* entry = tableGetBinaryEntry(&vm.nativeConstants, &value);
+
+		if (entry->index == UINT32_MAX) {
+			uint32_t index = addConstant(value);
+
+			//never cache a wrapped index: it would silently reference
+			//the wrong constant; report and return the sentinel instead
+			if (index > UINT24_MAX) {
+				error("Too many constants in chunk.");
+				return UINT32_MAX;
+			}
+
+			entry->index = index;//set value and return
+			return index;
+		}
+		return entry->index;
+	}
 	return addConstant(value);
 }
 
 //number constants only,16bits index into function's own constants
 static uint32_t makeNumberConstant(Value value) {
 	//deduplicate in per-function pool
-	NumberEntry* entry = tableGetNumberEntry(&current->numbers, &value);
+	BinaryEntry* entry = tableGetBinaryEntry(&current->numbers, &value);
 
 	if (entry->index == UINT32_MAX) {
 		//OP_CONST_NUMBER encodes a 16bits index: reject before the entry
@@ -463,10 +481,12 @@ static void emitNumberConstant(Value value) {
 	emitOpStack(OP_CONST_NUMBER, false);
 }
 
-//fold `OP_MODULE_BUILTIN m` + `OP_GET_PROPERTY name slot` into an immediate number constant
-//valid because builtin module fields are frozen once vm_init populates them (they never change at runtime)
+//fold `OP_MODULE_BUILTIN m` + `OP_GET_PROPERTY name slot` into a constant load
+//valid because builtin module fields are frozen once vm_init populates them (they never change at runtime):
+//numbers fold to the function's number pool (short index), native members to the shared constant pool;
+//other member kinds keep the property-access site (only known-safe kinds are folded)
 //the pre-allocated IC slot is rolled back:the folded site no longer owns one
-static bool foldBuiltinNumber(void) {
+static bool foldBuiltinMember(void) {
 #if COMPILATION_TIME_OPTIMIZATION
 	if (!vm_optimizationEnabled) return false;
 
@@ -490,15 +510,33 @@ static bool foldBuiltinNumber(void) {
 
 	Value member;
 	if (!tableGet(&vm.builtins[module].fields, AS_STRING(vm.constants.values[nameIdx]), &member)) return false;
-	if (!IS_NUMBER(member)) return false;
+	//only fold member kinds that are safe as compile-time constants: numbers (function pool)
+	//and native functions (shared pool; static/non-GC objects). anything else keeps the
+	//property-access site untouched.
+	if (!IS_NUMBER(member) && !IS_NATIVE(member)) return false;
 
 	chunk_fallback(chunk, 7);
+	//drop the tracked module push entry folded away with the bytes
+	OPStack* opStack = currentOpStack();
+	if (opStack_peek(opStack, 0) == OP_MODULE_BUILTIN) {
+		opStack_fallback(opStack, 1);
+	}
+	else {
+		//compiler bug: pattern exists but the push was never tracked
+		fprintf(stderr, "[compiler bug] foldBuiltinMember: pattern matched but opStack tail is not OP_MODULE_BUILTIN\n");
+	}
 	// revert the allocated IC slot: the folded site no longer owns one
 	if (slot != 0) {
 		current->cacheCount--;
-		current->function->cacheCount = current->cacheCount;
 	}
-	emitNumberConstant(NUMBER_VAL(AS_NUMBER(member)));
+
+	//numbers into the function's own pool, native members into the shared pool
+	if (IS_NUMBER(member)) {
+		emitNumberConstant(NUMBER_VAL(AS_NUMBER(member)));
+	}
+	else {// is native
+		emitConstant(member);
+	}
 	return true;
 
 #undef CHUNK_PEEK
@@ -547,7 +585,6 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	//init
 	compiler->currentLoop = NULL;
 
-	compiler->function = NULL;
 	compiler->type = type;
 
 	compiler->localCount = 0;
@@ -555,7 +592,15 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	compiler->locals = ALLOCATE_NO_GC(Local, LOCAL_INIT);
 	compiler->localCapacity = LOCAL_INIT;
 
-	compiler->function = newFunction();
+	//embedded compile-time function state: no heap allocation, no list linkage
+	compiler->function.id = vm.functionID++;
+	compiler->function.arity = 0;
+	compiler->function.upvalueCount = 0;
+	compiler->function.name = NULL;
+	chunk_init(&compiler->function.chunk);
+	compiler->function.caches = NULL;
+	compiler->function.cacheCount = 0;
+	compiler->function.constantsCount = 0;//scratch state, constants live in the compiler until sealed
 	compiler->objectNestingDepth = 0;
 
 	//inline cache slots
@@ -564,7 +609,7 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	compiler->cacheCapacity = 0;
 
 	opStack_init(&compiler->stack);
-	numberTable_init(&compiler->numbers);
+	binaryTable_init(&compiler->numbers);
 	// init compile constants, after compile we copy it to FAM objFunction
 	valueArray_init(&compiler->constants);
 
@@ -573,10 +618,10 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	case TYPE_FUNCTION:
 	case TYPE_METHOD:
 	case TYPE_INITIALIZER:
-		compiler->function->name = copyString(parser.previous.start, parser.previous.length, false);
+		compiler->function.name = copyString(parser.previous.start, parser.previous.length, false);
 		break;
 	case TYPE_LAMBDA:
-		compiler->function->name = copyString("", 0, false);
+		compiler->function.name = copyString("", 0, false);
 		break;
 	default:
 		break;
@@ -585,6 +630,8 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	Local* local = &compiler->locals[compiler->localCount++];
 	local->depth = 0;
 	local->isCaptured = false;
+	local->isConst = false;
+	local->isHidden = false;
 
 	if (type != TYPE_FUNCTION && type != TYPE_LAMBDA) {
 		local->name.start = "this";
@@ -621,20 +668,24 @@ static void freeLocals(Compiler* compiler) {
 static ObjFunction* endCompiler() {
 	emitReturn();
 	opStack_free(currentOpStack());
-	numberTable_free(&current->numbers);//free every compiler's number pool (nested compilers were leaking)
-
-	ObjFunction* function = current->function;
+	binaryTable_free(&current->numbers);//free every compiler's number pool (nested compilers were leaking)
 
 	//shrink inline caches to exactly cacheCount+1 entries (index 0 = shared sentinel slot)
 	//small functions/lambdas keep no doubling slack; functions without ic sites keep NULL
 	if (current->cacheCapacity > (uint32_t)current->cacheCount + 1) {
-		function->caches = GROW_ARRAY_NO_GC(InlineCacheSlot, function->caches, current->cacheCapacity, (uint32_t)current->cacheCount + 1);
+		current->function.caches = GROW_ARRAY_NO_GC(InlineCacheSlot, current->function.caches, current->cacheCapacity, (uint32_t)current->cacheCount + 1);
 		current->cacheCapacity = (uint32_t)current->cacheCount + 1;
 	}
 
-	//seal compile-time constants into the FAM (no-op when there are none)
+	//materialize the final FAM function from the embedded compile-time state
 	//must run BEFORE IC registration: the registry and OP_CLOSURE must hold the final object pointer
-	current->function = function = newFunctionMakeFAM(function, &current->constants);
+	ObjFunction* function = newFunction(current);
+
+	//detach the moved buffers from the embedded state: the fresh object owns them now
+	chunk_init(&current->function.chunk);
+	current->function.caches = NULL;
+	current->function.constantsCount = 0;
+
 	valueArray_free(&current->constants);
 
 	//register for gc: invoke cache slots hold ObjClass*/ObjClosure* that must stay marked
@@ -774,7 +825,7 @@ static uint32_t identifierConstant(Token* name) {
 	return makeConstant(OBJ_VAL(copyString(name->start, name->length, false)));
 }
 
-static void addLocal(Token name) {
+static void addLocal(Token name, bool isHidden) {
 	if (current->localCount == LOCAL_MAX) {
 		error("Too many nested local variables in scope.");
 		return;
@@ -792,6 +843,7 @@ static void addLocal(Token name) {
 	local->depth = -1;//guard: a local is not readable in its own initializer (var a = a;)
 	local->isCaptured = false;
 	local->isConst = false;
+	local->isHidden = isHidden;
 }
 
 static bool identifiersEqual(Token* a, Token* b) {
@@ -810,12 +862,14 @@ static void declareVariableAt(Token* name) {
 			break;
 		}
 
+		if (local->isHidden) continue;//hidden locals are unresolvable, never a duplicate source
+
 		if (identifiersEqual(name, &local->name)) {
 			error("Already a variable with this name in this scope.");
 		}
 	}
 
-	addLocal(*name);
+	addLocal(*name, false);
 }
 
 static void declareVariable() {
@@ -830,6 +884,7 @@ typedef struct {
 static LocalInfo resolveLocal(Compiler* compiler, Token* name) {
 	for (int32_t i = compiler->localCount - 1; i >= 0; i--) {
 		Local* local = &compiler->locals[i];
+		if (local->isHidden) continue;//compiler-owned slot, unreachable by any user token
 		if (identifiersEqual(name, &local->name)) {
 			if (local->depth == -1) {
 				error("Can't read local variable in its own initializer.");
@@ -844,7 +899,7 @@ static LocalInfo resolveLocal(Compiler* compiler, Token* name) {
 }
 
 static uint32_t addUpvalue(Compiler* compiler, int32_t index, bool isLocal) {
-	uint32_t upvalueCount = compiler->function->upvalueCount;
+	uint32_t upvalueCount = compiler->function.upvalueCount;
 
 	//deduplicate
 	for (uint32_t i = 0; i < upvalueCount; i++) {
@@ -861,7 +916,7 @@ static uint32_t addUpvalue(Compiler* compiler, int32_t index, bool isLocal) {
 
 	compiler->upvalues[upvalueCount].isLocal = isLocal;
 	compiler->upvalues[upvalueCount].index = index;
-	return compiler->function->upvalueCount++;
+	return compiler->function.upvalueCount++;
 }
 
 static LocalInfo resolveUpvalue(Compiler* compiler, Token* name) {
@@ -972,8 +1027,8 @@ static void function(FunctionType type) {
 
 	if (!check(TOKEN_RIGHT_PAREN)) {
 		do {
-			current->function->arity++;
-			if (current->function->arity > UINT8_MAX) {
+			current->function.arity++;
+			if (current->function.arity > UINT8_MAX) {
 				errorAtCurrent("Can't have more than 255 parameters.");
 			}
 
@@ -1058,7 +1113,7 @@ static void classDeclaration() {
 		}
 
 		beginScope();
-		addLocal(syntheticToken("super"));
+		addLocal(syntheticToken("super"), false);
 		defineVariable(0);
 
 		namedVariable(className, false);
@@ -1259,9 +1314,9 @@ static void foreachStatement() {
 	emitByte(OP_NEW_ITERATOR);
 	clearOpStack();
 
-	//empty name: never resolvable by user code
+	//hidden local: unresolvable by user code (isHidden skips it in every matching path)
 	Token hiddenIterator = (Token){ .start = "", .length = 0, .line = parser.previous.line };
-	addLocal(hiddenIterator);
+	addLocal(hiddenIterator, true);
 	markInitialized(false);
 
 	LoopContext loop = (LoopContext){
@@ -1526,10 +1581,9 @@ static void breakStatement() {
 		return;
 	}
 
-	//foreach: free the iterator (last of k/v/iter) before unwinding, then close
-	//down to k's index so body locals and k/v go in one pass
+	//foreach: the iterator (last of k/v/iter) is gc-managed, unwind it with the
+	//body locals down to k's index so body locals and k/v go in one pass
 	if (current->currentLoop->loopType == LOOP_FOREACH) {
-		emitShortCommand(OP_FREE_LOCAL, current->currentLoop->enterParamCount - 1);
 		closeLoopLocals(current->currentLoop->enterParamCount - 3);
 	}
 	else {
@@ -1867,6 +1921,39 @@ static void dot(bool canAssign) {
 		emitOpStack(receiverLocal >= 0 ? OP_SET_PROP_LOCAL : OP_SET_PROPERTY, false);
 	}
 	else if (match(TOKEN_LEFT_PAREN)) {
+#if COMPILATION_TIME_OPTIMIZATION
+		//fold `@module.member(args)` -> `OP_CONSTANT <native> + args + OP_CALL`:
+		//builtin module fields are frozen, so the member is a compile-time constant; this drops
+		//the module push and the invoke site (and its inline-cache slot)
+		//detect a bare builtin-module receiver by its tracked opcode (like tryPopReceiverLocal)
+		if (vm_optimizationEnabled) {
+			OPStack* opStack = currentOpStack();
+			Chunk* chunk = currentChunk();
+			if (opStack_peek(opStack, 0) == OP_MODULE_BUILTIN) {
+				//module id is the operand byte right behind the opcode
+				uint8_t builtinModule = chunk->code[chunk->count - 1];
+
+				Value member;
+				if (tableGet(&vm.builtins[builtinModule].fields, AS_STRING(vm.constants.values[name]), &member)) {
+					if (!IS_NATIVE(member)) {
+						//frozen builtin member that is not a method (e.g. @math.PI): calling it is a
+						//compile-time-detectable error
+						errorAtCurrent("Cannot call a non-method member of a builtin module.");
+						return;
+					}
+					//drop the OP_MODULE_BUILTIN push (opcode + module u8)
+					chunk_fallback(chunk, 2);
+					opStack_fallback(opStack, 1);//the opcode entry
+					emitConstant(member);
+					uint8_t argCount = argumentList();
+					emitBytes(2, OP_CALL, argCount);
+					clearOpStack();
+					return;
+				}
+			}
+		}
+#endif
+
 		uint8_t argCount = argumentList();
 		emitConstantCommond(OP_INVOKE, name);
 		emitByte(argCount);
@@ -1886,7 +1973,7 @@ static void dot(bool canAssign) {
 		else {
 			emitConstantCommond(OP_GET_PROPERTY, name);
 			emitByte(emitCacheSlot());
-			if (!foldBuiltinNumber()) {
+			if (!foldBuiltinMember()) {
 				clearOpStack();
 			}
 		}
@@ -2001,7 +2088,7 @@ static void mergeSubscript(uint8_t code, bool isAssignment) {
 				clearOpStack();
 				emitOpStack(OP_SET_PROPERTY, false);
 			}
-			else if (!foldBuiltinNumber()) {
+			else if (!foldBuiltinMember()) {
 				clearOpStack();
 			}
 		}
@@ -2040,49 +2127,48 @@ static void subscript(bool canAssign) {
 
 //check builtin
 static void builtinLiteral(bool canAssign) {
+	uint8_t module = 0;
 	switch (parser.previous.type)
 	{
 	case TOKEN_MODULE_MATH: {
-		emitBytes(2, OP_MODULE_BUILTIN, MODULE_MATH);
-		clearOpStack();
+		module = MODULE_MATH;
 		break;
 	}
 	case TOKEN_MODULE_ARRAY: {
-		emitBytes(2, OP_MODULE_BUILTIN, MODULE_ARRAY);
-		clearOpStack();
+		module = MODULE_ARRAY;
 		break;
 	}
 	case TOKEN_MODULE_OBJECT: {
-		emitBytes(2, OP_MODULE_BUILTIN, MODULE_OBJECT);
-		clearOpStack();
+		module = MODULE_OBJECT;
 		break;
 	}
 	case TOKEN_MODULE_STRING: {
-		emitBytes(2, OP_MODULE_BUILTIN, MODULE_STRING);
-		clearOpStack();
+		module = MODULE_STRING;
 		break;
 	}
 	case TOKEN_MODULE_TIME: {
-		emitBytes(2, OP_MODULE_BUILTIN, MODULE_TIME);
-		clearOpStack();
+		module = MODULE_TIME;
 		break;
 	}
 	case TOKEN_MODULE_CTOR: {
-		emitBytes(2, OP_MODULE_BUILTIN, MODULE_CTOR);
-		clearOpStack();
+		module = MODULE_CTOR;
 		break;
 	}
 	case TOKEN_MODULE_SYSTEM: {
-		emitBytes(2, OP_MODULE_BUILTIN, MODULE_SYSTEM);
-		clearOpStack();
+		module = MODULE_SYSTEM;
 		break;
 	}
 	default: {
 		emitByte(OP_NIL);
 		clearOpStack();
-		break;
+		return;
 	}
 	}
+
+	emitBytes(2, OP_MODULE_BUILTIN, module);
+	//reset tracking (merges never cross a module boundary) and track the push for dot()'s fold
+	clearOpStack();
+	emitOpStack(OP_MODULE_BUILTIN, false);
 }
 
 static void literal(bool canAssign) {
@@ -2384,14 +2470,15 @@ ObjFunction* compile(C_STR source, FunctionType compileType) {
 	return parser.hadError ? NULL : function;
 }
 
-void markCompilerRoots()
-{
-	Compiler* compiler = current;
-	while (compiler != NULL) {
-		markObject((Obj*)compiler->function);
-		compiler = compiler->enclosing;
-	}
-}
+// removed
+//void markCompilerRoots()
+//{
+//	Compiler* compiler = current;
+//	while (compiler != NULL) {
+//		markObject((Obj*)compiler->function);
+//		compiler = compiler->enclosing;
+//	}
+//}
 
 /*
 * This part uses hard-coded instruction lengths, which needs to be noted

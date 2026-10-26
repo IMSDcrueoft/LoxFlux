@@ -4,6 +4,7 @@
  * See LICENSE file in the root directory for full license text.
 */
 #include "object.h"
+#include "compiler.h"
 #include "vm.h"
 #include "hash.h"
 #include "memory.h"
@@ -99,41 +100,21 @@ ObjUpvalue* newUpvalue(Value* slot)
 	return upvalue;
 }
 
-ObjFunction* newFunction() {
-	ObjFunction* function = ALLOCATE_OBJ(ObjFunction, OBJ_FUNCTION);
-	function->arity = 0;
-	function->upvalueCount = 0;
-	function->id = vm.functionID++;//unique id
-	function->name = NULL;
-	chunk_init(&function->chunk);
-	function->caches = NULL;
-	function->cacheCount = 0;
-	function->constantsCount = 0;//scratch object, constants live in the compiler until sealed
+ObjFunction* newFunction(Compiler* compiler) {
+	// materialize the final function from the compiler's embedded state (read-only:
+	// the compiler owns the embedded state and detaches the moved buffers itself)
+	// (ALLOCATE_FLEX_OBJ takes the total size: header + FAM; links into vm.objects_no_gc)
+	uint32_t constantsCount = compiler->constants.count;
+	ObjFunction* function = ALLOCATE_FLEX_OBJ(ObjFunction, OBJ_FUNCTION, sizeof(ObjFunction) + sizeof(Value) * constantsCount);
+	Obj header = function->obj;//keep list link/type/mark state set by allocateObject
+	memcpy(function, &compiler->function, sizeof(ObjFunction));//carries id/name/arity/upvalueCount/chunk/caches over
+	function->obj = header;
+
+	memcpy(function->constants, compiler->constants.values, sizeof(Value) * constantsCount);//always copy, count may be 0
+	function->constantsCount = constantsCount;
+	function->cacheCount = compiler->cacheCount;//real slot count for the VM
+
 	return function;
-}
-
-ObjFunction* newFunctionMakeFAM(ObjFunction* function, ValueArray* constants){
-	if (constants->count == 0) {
-		return function;
-	}
-
-	// make FAM & reuse ID (ALLOCATE_FLEX_OBJ takes the total size: header + FAM)
-	ObjFunction* fresh = ALLOCATE_FLEX_OBJ(ObjFunction, OBJ_FUNCTION, sizeof(ObjFunction) + sizeof(Value) * constants->count);
-	Obj header = fresh->obj;//keep list link/type/mark state set by allocateObject
-	memcpy(fresh, function, sizeof(ObjFunction));//carries id/name/chunk/caches ownership over
-	fresh->obj = header;
-
-	memcpy(fresh->constants, constants->values, sizeof(Value) * constants->count);
-	fresh->constantsCount = constants->count;
-
-	//retire the scratch object: owned buffers were moved to fresh, leave nothing to release
-	chunk_init(&function->chunk);
-	function->caches = NULL;
-	function->constantsCount = 0;
-	unlinkObj(&vm.objects_no_gc, &function->obj);
-	freeObject(&function->obj);
-
-	return fresh;
 }
 
 HOT_FUNCTION
