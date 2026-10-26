@@ -512,7 +512,10 @@ void vm_free()
 	}
 
 	//root fiber is in vm.objects and is released/recycled by freeObjects();
-	//clear the weak execution cache first so nothing scans or derefs it
+	//persist the live execution cache into the fiber first: vm.cache.frames may
+	//have been reallocated (grown) since the last store, so freeing the fiber
+	//with a stale frames pointer would double-free the old block
+	vm_storeCacheToFiber();
 	vm.currentFiber = NULL;
 	vm.cache = (FiberCore){0};
 
