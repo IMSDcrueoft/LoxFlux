@@ -18,7 +18,7 @@
 bool vm_printBytecode = false;
 
 //runtime --no-optimize flag: when false, emitOpStack/instructionOptimize,
-//foldBuiltinNumber and emitBranchJump all pass through unoptimized
+//foldBuiltinMember and emitBranchJump all pass through unoptimized
 bool vm_optimizationEnabled = true;
 //shared parser
 Parser parser;
@@ -407,7 +407,7 @@ static void emitReturn() {
 	clearOpStack();
 }
 
-//non-number constants only,24bits index into vm.constants
+//string and native constants,24bits index into vm.constants (both deduplicated)
 static uint32_t makeConstant(Value value) {
 	if (IS_STRING(value)) {
 		//find if string is in constant,because it is in pool
@@ -430,13 +430,32 @@ static uint32_t makeConstant(Value value) {
 			return entry->index;
 		}
 	}
+	else if (IS_NATIVE(value)) {
+		//natives are immortal (gc-excluded),so pointer bits are a stable dedup key
+		BinaryEntry* entry = tableGetBinaryEntry(&vm.nativeConstants, &value);
+
+		if (entry->index == UINT32_MAX) {
+			uint32_t index = addConstant(value);
+
+			//never cache a wrapped index: it would silently reference
+			//the wrong constant; report and return the sentinel instead
+			if (index > UINT24_MAX) {
+				error("Too many constants in chunk.");
+				return UINT32_MAX;
+			}
+
+			entry->index = index;//set value and return
+			return index;
+		}
+		return entry->index;
+	}
 	return addConstant(value);
 }
 
 //number constants only,16bits index into function's own constants
 static uint32_t makeNumberConstant(Value value) {
 	//deduplicate in per-function pool
-	NumberEntry* entry = tableGetNumberEntry(&current->numbers, &value);
+	BinaryEntry* entry = tableGetBinaryEntry(&current->numbers, &value);
 
 	if (entry->index == UINT32_MAX) {
 		//OP_CONST_NUMBER encodes a 16bits index: reject before the entry
@@ -463,10 +482,12 @@ static void emitNumberConstant(Value value) {
 	emitOpStack(OP_CONST_NUMBER, false);
 }
 
-//fold `OP_MODULE_BUILTIN m` + `OP_GET_PROPERTY name slot` into an immediate number constant
-//valid because builtin module fields are frozen once vm_init populates them (they never change at runtime)
+//fold `OP_MODULE_BUILTIN m` + `OP_GET_PROPERTY name slot` into a constant load
+//valid because builtin module fields are frozen once vm_init populates them (they never change at runtime):
+//numbers fold to the function's number pool (short index), native members to the shared constant pool;
+//other member kinds keep the property-access site (only known-safe kinds are folded)
 //the pre-allocated IC slot is rolled back:the folded site no longer owns one
-static bool foldBuiltinNumber(void) {
+static bool foldBuiltinMember(void) {
 #if COMPILATION_TIME_OPTIMIZATION
 	if (!vm_optimizationEnabled) return false;
 
@@ -490,15 +511,34 @@ static bool foldBuiltinNumber(void) {
 
 	Value member;
 	if (!tableGet(&vm.builtins[module].fields, AS_STRING(vm.constants.values[nameIdx]), &member)) return false;
-	if (!IS_NUMBER(member)) return false;
+	//only fold member kinds that are safe as compile-time constants: numbers (function pool)
+	//and native functions (shared pool; static/non-GC objects). anything else keeps the
+	//property-access site untouched.
+	if (!IS_NUMBER(member) && !IS_NATIVE(member)) return false;
 
 	chunk_fallback(chunk, 7);
+	//drop the tracked module push entry folded away with the bytes
+	OPStack* opStack = currentOpStack();
+	if (opStack_peek(opStack, 0) == OP_MODULE_BUILTIN) {
+		opStack_fallback(opStack, 1);
+	}
+	else {
+		//compiler bug: pattern exists but the push was never tracked
+		fprintf(stderr, "[compiler bug] foldBuiltinMember: pattern matched but opStack tail is not OP_MODULE_BUILTIN\n");
+	}
 	// revert the allocated IC slot: the folded site no longer owns one
 	if (slot != 0) {
 		current->cacheCount--;
 		current->function->cacheCount = current->cacheCount;
 	}
-	emitNumberConstant(NUMBER_VAL(AS_NUMBER(member)));
+
+	//numbers into the function's own pool, native members into the shared pool
+	if (IS_NUMBER(member)) {
+		emitNumberConstant(NUMBER_VAL(AS_NUMBER(member)));
+	}
+	else {// is native
+		emitConstant(member);
+	}
 	return true;
 
 #undef CHUNK_PEEK
@@ -564,7 +604,7 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	compiler->cacheCapacity = 0;
 
 	opStack_init(&compiler->stack);
-	numberTable_init(&compiler->numbers);
+	binaryTable_init(&compiler->numbers);
 	// init compile constants, after compile we copy it to FAM objFunction
 	valueArray_init(&compiler->constants);
 
@@ -621,7 +661,7 @@ static void freeLocals(Compiler* compiler) {
 static ObjFunction* endCompiler() {
 	emitReturn();
 	opStack_free(currentOpStack());
-	numberTable_free(&current->numbers);//free every compiler's number pool (nested compilers were leaking)
+	binaryTable_free(&current->numbers);//free every compiler's number pool (nested compilers were leaking)
 
 	ObjFunction* function = current->function;
 
@@ -1867,6 +1907,39 @@ static void dot(bool canAssign) {
 		emitOpStack(receiverLocal >= 0 ? OP_SET_PROP_LOCAL : OP_SET_PROPERTY, false);
 	}
 	else if (match(TOKEN_LEFT_PAREN)) {
+#if COMPILATION_TIME_OPTIMIZATION
+		//fold `@module.member(args)` -> `OP_CONSTANT <native> + args + OP_CALL`:
+		//builtin module fields are frozen, so the member is a compile-time constant; this drops
+		//the module push and the invoke site (and its inline-cache slot)
+		//detect a bare builtin-module receiver by its tracked opcode (like tryPopReceiverLocal)
+		if (vm_optimizationEnabled) {
+			OPStack* opStack = currentOpStack();
+			Chunk* chunk = currentChunk();
+			if (opStack_peek(opStack, 0) == OP_MODULE_BUILTIN) {
+				//module id is the operand byte right behind the opcode
+				uint8_t builtinModule = chunk->code[chunk->count - 1];
+
+				Value member;
+				if (tableGet(&vm.builtins[builtinModule].fields, AS_STRING(vm.constants.values[name]), &member)) {
+					if (!IS_NATIVE(member)) {
+						//frozen builtin member that is not a method (e.g. @math.PI): calling it is a
+						//compile-time-detectable error
+						errorAtCurrent("Cannot call a non-method member of a builtin module.");
+						return;
+					}
+					//drop the OP_MODULE_BUILTIN push (opcode + module u8)
+					chunk_fallback(chunk, 2);
+					opStack_fallback(opStack, 1);//the opcode entry
+					emitConstant(member);
+					uint8_t argCount = argumentList();
+					emitBytes(2, OP_CALL, argCount);
+					clearOpStack();
+					return;
+				}
+			}
+		}
+#endif
+
 		uint8_t argCount = argumentList();
 		emitConstantCommond(OP_INVOKE, name);
 		emitByte(argCount);
@@ -1886,7 +1959,7 @@ static void dot(bool canAssign) {
 		else {
 			emitConstantCommond(OP_GET_PROPERTY, name);
 			emitByte(emitCacheSlot());
-			if (!foldBuiltinNumber()) {
+			if (!foldBuiltinMember()) {
 				clearOpStack();
 			}
 		}
@@ -2001,7 +2074,7 @@ static void mergeSubscript(uint8_t code, bool isAssignment) {
 				clearOpStack();
 				emitOpStack(OP_SET_PROPERTY, false);
 			}
-			else if (!foldBuiltinNumber()) {
+			else if (!foldBuiltinMember()) {
 				clearOpStack();
 			}
 		}
@@ -2040,49 +2113,48 @@ static void subscript(bool canAssign) {
 
 //check builtin
 static void builtinLiteral(bool canAssign) {
+	uint8_t module = 0;
 	switch (parser.previous.type)
 	{
 	case TOKEN_MODULE_MATH: {
-		emitBytes(2, OP_MODULE_BUILTIN, MODULE_MATH);
-		clearOpStack();
+		module = MODULE_MATH;
 		break;
 	}
 	case TOKEN_MODULE_ARRAY: {
-		emitBytes(2, OP_MODULE_BUILTIN, MODULE_ARRAY);
-		clearOpStack();
+		module = MODULE_ARRAY;
 		break;
 	}
 	case TOKEN_MODULE_OBJECT: {
-		emitBytes(2, OP_MODULE_BUILTIN, MODULE_OBJECT);
-		clearOpStack();
+		module = MODULE_OBJECT;
 		break;
 	}
 	case TOKEN_MODULE_STRING: {
-		emitBytes(2, OP_MODULE_BUILTIN, MODULE_STRING);
-		clearOpStack();
+		module = MODULE_STRING;
 		break;
 	}
 	case TOKEN_MODULE_TIME: {
-		emitBytes(2, OP_MODULE_BUILTIN, MODULE_TIME);
-		clearOpStack();
+		module = MODULE_TIME;
 		break;
 	}
 	case TOKEN_MODULE_CTOR: {
-		emitBytes(2, OP_MODULE_BUILTIN, MODULE_CTOR);
-		clearOpStack();
+		module = MODULE_CTOR;
 		break;
 	}
 	case TOKEN_MODULE_SYSTEM: {
-		emitBytes(2, OP_MODULE_BUILTIN, MODULE_SYSTEM);
-		clearOpStack();
+		module = MODULE_SYSTEM;
 		break;
 	}
 	default: {
 		emitByte(OP_NIL);
 		clearOpStack();
-		break;
+		return;
 	}
 	}
+
+	emitBytes(2, OP_MODULE_BUILTIN, module);
+	//reset tracking (merges never cross a module boundary) and track the push for dot()'s fold
+	clearOpStack();
+	emitOpStack(OP_MODULE_BUILTIN, false);
 }
 
 static void literal(bool canAssign) {

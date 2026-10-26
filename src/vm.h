@@ -57,6 +57,9 @@ typedef struct {
 	// erased slots become holes, silently reused by the next valueArray_write
 	ValueArray constants;
 
+	// bit-keyed dedup pool for native constants binary64 -> index into constants
+	BinaryTable nativeConstants;
+
 	//scripts
 	StringTable scripts;
 	//pool

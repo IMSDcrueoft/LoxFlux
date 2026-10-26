@@ -98,7 +98,7 @@ set(LOXFLUX_CORE_SOURCES
   src/nativeString.c
   src/nativeSystem.c
   src/nativeTime.c
-  src/numberTable.c
+  src/binaryTable.c
   src/object.c
   src/scanner.c
   src/stringTable.c

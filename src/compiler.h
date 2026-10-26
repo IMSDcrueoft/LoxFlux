@@ -110,7 +110,7 @@ typedef struct Compiler {
 
 	ObjFunction* function;
 	OPStack stack; //the command stack for optimizer
-	NumberTable numbers; //per-function number dedup pool, indexes into function's own constants
+	BinaryTable numbers; //per-function number dedup pool, indexes into function's own constants
 	ValueArray constants;//pre-function constants, exits when function is compiled, then merged into objFunction FAM
 
 	FunctionType type;

@@ -385,6 +385,7 @@ void vm_init()
 
 	//init global
 	valueArray_init(&vm.constants);
+	binaryTable_init(&vm.nativeConstants);
 
 	//string arena: reserve 512MiB of VA (committed lazily in 16KB steps); no
 	//eager commit needed - the first string allocation triggers it; strings
@@ -501,6 +502,7 @@ void vm_free()
 	vm.icFuncCapacity = 0;
 
 	valueArray_free(&vm.constants);
+	binaryTable_free(&vm.nativeConstants);
 
 	table_free(&vm.globals.fields);
 	stringTable_free(&vm.scripts);

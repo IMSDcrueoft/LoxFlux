@@ -10,21 +10,21 @@
 #define TABLE_MAX_LOAD 0.75 // 3/4
 #define MUL_3_DIV_4(x) ((x) * 3 / 4)
 
-void numberTable_init(NumberTable* table)
+void binaryTable_init(BinaryTable* table)
 {
 	table->count = 0;
 	table->capacity = 0;
 	table->entries = NULL;
 }
 
-void numberTable_free(NumberTable* table)
+void binaryTable_free(BinaryTable* table)
 {
-	FREE_ARRAY_NO_GC(NumberEntry, table->entries, table->capacity);
-	numberTable_init(table);
+	FREE_ARRAY_NO_GC(BinaryEntry, table->entries, table->capacity);
+	binaryTable_init(table);
 }
 
-static NumberEntry* findNumberEntry(NumberEntry* entries, uint32_t capacity, uint64_t binary, uint64_t hash) {
-	NumberEntry* entry = NULL;
+static BinaryEntry* findBinaryEntry(BinaryEntry* entries, uint32_t capacity, uint64_t binary, uint64_t hash) {
+	BinaryEntry* entry = NULL;
 	uint32_t index = hash & (capacity - 1);
 
 	while (true) {
@@ -41,9 +41,9 @@ static NumberEntry* findNumberEntry(NumberEntry* entries, uint32_t capacity, uin
 	}
 }
 
-static void adjustNumberCapacity(NumberTable* table, uint32_t capacity) {
+static void adjustBinaryCapacity(BinaryTable* table, uint32_t capacity) {
 	//we need re input, so don't reallocate
-	NumberEntry* entries = ALLOCATE_NO_GC(NumberEntry, capacity);
+	BinaryEntry* entries = ALLOCATE_NO_GC(BinaryEntry, capacity);
 
 	for (uint32_t i = 0; i < capacity; ++i) {
 		entries[i].binary = 0;
@@ -55,10 +55,10 @@ static void adjustNumberCapacity(NumberTable* table, uint32_t capacity) {
 	table->count = 0;
 
 	for (uint32_t i = 0; i < table->capacity; ++i) {
-		NumberEntry* entry = &table->entries[i];
+		BinaryEntry* entry = &table->entries[i];
 		if (!entry->isValid) continue;
 
-		NumberEntry* dest = findNumberEntry(entries, capacity, entry->binary, entry->hash);
+		BinaryEntry* dest = findBinaryEntry(entries, capacity, entry->binary, entry->hash);
 		dest->binary = entry->binary;
 		dest->hash = entry->hash;
 		dest->isValid = true;
@@ -67,24 +67,24 @@ static void adjustNumberCapacity(NumberTable* table, uint32_t capacity) {
 		table->count++;
 	}
 
-	FREE_ARRAY_NO_GC(NumberEntry, table->entries, table->capacity);
+	FREE_ARRAY_NO_GC(BinaryEntry, table->entries, table->capacity);
 
 	table->entries = entries;
 	table->capacity = capacity;
 }
 
-// the number might not in pool,i need to treat NaN as NaN,so compare binary
-NumberEntry* tableGetNumberEntry(NumberTable* table, Value* value)
+// the key might not be in pool: keys are compared as raw 64-bit binary (NaN as NaN, natives by pointer bits)
+BinaryEntry* tableGetBinaryEntry(BinaryTable* table, Value* value)
 {
 	//if (table->count + 1 > table->capacity * TABLE_MAX_LOAD) {
 	if ((table->count + 1) > MUL_3_DIV_4((uint64_t)(table->capacity))) {
 		uint32_t capacity = GROW_CAPACITY(table->capacity);
-		adjustNumberCapacity(table, capacity);
+		adjustBinaryCapacity(table, capacity);
 	}
 
 	uint64_t binary = AS_BINARY(*value);
 	uint64_t hash = HASH_64bits(&binary, sizeof(uint64_t));
-	NumberEntry* entry = findNumberEntry(table->entries, table->capacity, binary, hash);
+	BinaryEntry* entry = findBinaryEntry(table->entries, table->capacity, binary, hash);
 
 	bool isNewKey = !entry->isValid;
 	if (isNewKey) {
