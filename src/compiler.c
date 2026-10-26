@@ -630,6 +630,8 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
 	Local* local = &compiler->locals[compiler->localCount++];
 	local->depth = 0;
 	local->isCaptured = false;
+	local->isConst = false;
+	local->isHidden = false;
 
 	if (type != TYPE_FUNCTION && type != TYPE_LAMBDA) {
 		local->name.start = "this";
