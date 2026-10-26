@@ -1566,10 +1566,9 @@ static void breakStatement() {
 		return;
 	}
 
-	//foreach: free the iterator (last of k/v/iter) before unwinding, then close
-	//down to k's index so body locals and k/v go in one pass
+	//foreach: the iterator (last of k/v/iter) is gc-managed, unwind it with the
+	//body locals down to k's index so body locals and k/v go in one pass
 	if (current->currentLoop->loopType == LOOP_FOREACH) {
-		emitShortCommand(OP_FREE_LOCAL, current->currentLoop->enterParamCount - 1);
 		closeLoopLocals(current->currentLoop->enterParamCount - 3);
 	}
 	else {

@@ -1,0 +1,60 @@
+﻿//lightweight check for the OP_FREE_LOCAL removal:
+//foreach iterators are now pure gc garbage on every exit path (no eager unlink/free)
+@sys.gcRun();
+var base = @sys.allocatedBytes();
+
+//normal exhaustion exit
+var sum = 0;
+foreach(var k, v in [10, 20, 30]) {
+    sum = sum + v;
+}
+print sum; //60
+
+//break mid-iteration (the changed break path)
+var hit = 0;
+foreach(var k, v in [1, 2, 3, 4, 5]) {
+    hit = hit + v;
+    if (v == 2) { break; }
+}
+print hit; //3
+
+//continue path
+var c = 0;
+foreach(var k, v in [1, 2, 3, 4]) {
+    if (v == 2) { continue; }
+    c = c + v;
+}
+print c; //8
+
+//nested foreach, break only the inner loop
+var n = 0;
+foreach(var a, x in [1, 2]) {
+    foreach(var b, y in [10, 20, 30]) {
+        n = n + 1;
+        if (y == 20) { break; }
+    }
+}
+print n; //4
+
+//closure captures v, break closes the upvalue, call after the loop
+var f = nil;
+foreach(var k, v in [7, 8]) {
+    f = lambda () { return v; };
+    if (v == 8) { break; }
+}
+print f(); //8
+
+//iterators from all loops are garbage now: gc must sweep them without a crash
+@sys.gcRun();
+print @sys.allocatedBytes() - base; //small delta, no leak growth
+
+//1000 broken-out foreach loops: leaked iterators would add ~48KiB, swept ones ~0
+@sys.gcRun();
+base = @sys.allocatedBytes();
+for (var i = 0; i < 1000; i = i + 1) {
+    foreach(var k, v in [1, 2, 3, 4, 5]) {
+        if (v == 2) { break; }
+    }
+}
+@sys.gcRun();
+print @sys.allocatedBytes() - base; //~0

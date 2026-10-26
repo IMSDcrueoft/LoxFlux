@@ -1214,7 +1214,6 @@ static InterpretResult run()
 		[OP_SUPER_INVOKE] = && label_op_super_invoke,
 		[OP_RETURN] = && label_op_return,
 		[OP_ITERATE] = && label_op_iterate,
-		[OP_FREE_LOCAL] = && label_op_free_local,
 
 		[OP_GET_PROPERTY] = && label_op_get_property,
 		[OP_SET_PROPERTY] = && label_op_set_property,
@@ -2410,26 +2409,10 @@ static InterpretResult run()
 				}
 			}
 
-			//exhausted: close k/v upvalues, release the iterator, pop k/v/iter
+			//exhausted: close k/v upvalues, pop k/v/iter
 			closeUpvalues(vm.cache.stackTop - 3);
-			unlinkObj(&vm.objects, &iter->obj);
-			freeObject(&iter->obj);
 			vm.cache.stackTop -= 3;
 			ip += offset;
-			NEXT_INSTRUCTION;
-		}
-		case OP_FREE_LOCAL: {
-		label_op_free_local:
-			uint32_t index = READ_SHORT();
-			Value local = frame->slots[index];
-
-			if (IS_ITERATOR(local)) {
-				Obj* iterator = AS_OBJ(local);
-				unlinkObj(&vm.objects, iterator);
-				freeObject(iterator);
-			}
-
-			frame->slots[index] = NIL_VAL;
 			NEXT_INSTRUCTION;
 		}
 		case OP_MODULE_BUILTIN: {

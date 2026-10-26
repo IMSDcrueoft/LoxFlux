@@ -50,7 +50,6 @@ typedef enum {
 	OP_INVOKE,			// call with xxx.()
 	OP_SUPER_INVOKE,	// call with super.()
 	OP_RETURN,          // ret
-	OP_FREE_LOCAL,		// release a GC-invisible local (foreach iterator)
 
 	OP_GET_PROPERTY,	// get property
 	OP_SET_PROPERTY,
