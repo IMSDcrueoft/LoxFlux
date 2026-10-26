@@ -64,6 +64,7 @@ typedef struct {
 	int32_t depth;
 	bool isCaptured; //captured by upvalue
 	bool isConst; //is a const
+	bool isHidden; //compiler-owned slot (such as foreach iterator): skipped by every name-matching path
 } Local;
 
 typedef enum {

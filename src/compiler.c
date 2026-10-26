@@ -814,7 +814,7 @@ static uint32_t identifierConstant(Token* name) {
 	return makeConstant(OBJ_VAL(copyString(name->start, name->length, false)));
 }
 
-static void addLocal(Token name) {
+static void addLocal(Token name, bool isHidden) {
 	if (current->localCount == LOCAL_MAX) {
 		error("Too many nested local variables in scope.");
 		return;
@@ -832,6 +832,7 @@ static void addLocal(Token name) {
 	local->depth = -1;//guard: a local is not readable in its own initializer (var a = a;)
 	local->isCaptured = false;
 	local->isConst = false;
+	local->isHidden = isHidden;
 }
 
 static bool identifiersEqual(Token* a, Token* b) {
@@ -850,12 +851,14 @@ static void declareVariableAt(Token* name) {
 			break;
 		}
 
+		if (local->isHidden) continue;//hidden locals are unresolvable, never a duplicate source
+
 		if (identifiersEqual(name, &local->name)) {
 			error("Already a variable with this name in this scope.");
 		}
 	}
 
-	addLocal(*name);
+	addLocal(*name, false);
 }
 
 static void declareVariable() {
@@ -870,6 +873,7 @@ typedef struct {
 static LocalInfo resolveLocal(Compiler* compiler, Token* name) {
 	for (int32_t i = compiler->localCount - 1; i >= 0; i--) {
 		Local* local = &compiler->locals[i];
+		if (local->isHidden) continue;//compiler-owned slot, unreachable by any user token
 		if (identifiersEqual(name, &local->name)) {
 			if (local->depth == -1) {
 				error("Can't read local variable in its own initializer.");
@@ -1098,7 +1102,7 @@ static void classDeclaration() {
 		}
 
 		beginScope();
-		addLocal(syntheticToken("super"));
+		addLocal(syntheticToken("super"), false);
 		defineVariable(0);
 
 		namedVariable(className, false);
@@ -1299,9 +1303,9 @@ static void foreachStatement() {
 	emitByte(OP_NEW_ITERATOR);
 	clearOpStack();
 
-	//empty name: never resolvable by user code
+	//hidden local: unresolvable by user code (isHidden skips it in every matching path)
 	Token hiddenIterator = (Token){ .start = "", .length = 0, .line = parser.previous.line };
-	addLocal(hiddenIterator);
+	addLocal(hiddenIterator, true);
 	markInitialized(false);
 
 	LoopContext loop = (LoopContext){
