@@ -150,6 +150,9 @@ typedef struct {
 	Value constants[];
 } ObjFunction;
 
+_Static_assert(sizeof(ObjFunction) % sizeof(Value) == 0, "ObjFunction size must be a multiple of sizeof(Value) so the constants FAM stays aligned.");
+_Static_assert(offsetof(ObjFunction, constants) % _Alignof(Value) == 0, "ObjFunction FAM offset must be aligned to Value alignment.");
+
 #define CLOSED_OBJ_UPVALUE_LOCATION UINT32_MAX
 
 typedef struct ObjUpvalue {
