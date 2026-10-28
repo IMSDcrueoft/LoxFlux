@@ -453,7 +453,8 @@ void vm_init()
 	vm.defaultClass = (ObjClass){
 		.obj = stateLess_obj_header(OBJ_CLASS),
 		.name = copyString("<object>", (uint32_t)strlen("<object>"), false),
-		.initializer = NIL_VAL
+		.initializer = NULL,
+		.superclass = NULL
 	};
 	table_init(&vm.defaultClass.methods);
 
@@ -704,7 +705,9 @@ static inline void defineMethod(ObjString* name) {
 
 	tableSet(&klass->methods, name, method);
 	if (name == vm.initString) {//inline cache
-		klass->initializer = method;
+		assert(IS_CLOSURE(method) && "The initializer must be a closure.");
+
+		klass->initializer = AS_CLOSURE(method);
 	}
 	vm.cache.stackTop--;
 }
@@ -725,8 +728,8 @@ static bool callValue(LfxValue callee, int argCount) {
 			STACK_PEEK(argCount) = OBJ_VAL(newInstance(klass));
 
 			//call init with fast path
-			if (NOT_NIL(klass->initializer)) {
-				return call(AS_CLOSURE(klass->initializer), argCount);
+			if (klass->initializer != NULL) {
+				return call(klass->initializer, argCount);
 			}
 			else if (argCount != 0) {
 				runtimeError("Expected 0 arguments for initializer but got %d.", argCount);
@@ -1478,11 +1481,11 @@ static InterpretResult run()
 			if (IS_CLASS(superclass)) {
 				ObjClass* subclass = AS_CLASS(vm.cache.stackTop[-1]);
 				tableAddAll(&AS_CLASS(superclass)->methods, &subclass->methods);
-				//inherited constructor:keep the initializer fast path in sync with the copied methods table
-				//(a subclass init declared after this would overwrite it via defineMethod)
-				if (IS_NIL(subclass->initializer)) {
-					subclass->initializer = AS_CLASS(superclass)->initializer;
-				}
+			//inherited constructor:keep the initializer fast path in sync with the copied methods table
+			//(a subclass init declared after this would overwrite it via defineMethod)
+			if (subclass->initializer == NULL) {
+				subclass->initializer = AS_CLASS(superclass)->initializer;
+			}
 				//record the link for instanceof (methods above are copies, not a lookup chain)
 				subclass->superclass = AS_CLASS(superclass);
 				stack_pop(); // Subclass.

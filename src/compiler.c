@@ -2528,7 +2528,7 @@ static void instructionOptimize() {
 //read the index by the constant kind,offset counts from the last emitted byte
 #define READ_INDEX(isConstNumber, offset)	((isConstNumber) ? READ_SHORT_INDEX(offset) : READ_24BITS_INDEX(offset))
 
-//read the constant LfxValue by the constant kind
+	//read the constant value by the constant kind
 #define READ_CONST_VALUE(isConstNumber, offset)	\
 	((isConstNumber) ? READ_LOCAL_CONSTANT(READ_INDEX(isConstNumber, offset))	\
 					 : READ_GLOBAL_CONSTANT(READ_INDEX(isConstNumber, offset)))
@@ -2537,7 +2537,7 @@ static void instructionOptimize() {
 #define OPERAND_SIZE(op)	\
 	(((op) == OP_CONST_NUMBER) ? 3 : (((op) == OP_CONSTANT) ? 4 : 1))
 
-//resolve a compile-time constant operand (OP_CONSTANT/OP_CONST_NUMBER/OP_TRUE/OP_FALSE/OP_NIL) to its LfxValue
+	//resolve a compile-time constant operand (OP_CONSTANT/OP_CONST_NUMBER/OP_TRUE/OP_FALSE/OP_NIL) to its value
 #define READ_OPERAND(op, offset)	\
 	(((op) == OP_CONST_NUMBER)	? READ_LOCAL_CONSTANT(READ_SHORT_INDEX(offset)) :	\
 	 ((op) == OP_CONSTANT)		? READ_GLOBAL_CONSTANT(READ_24BITS_INDEX(offset)) :	\

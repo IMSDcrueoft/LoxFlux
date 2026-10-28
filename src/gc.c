@@ -144,7 +144,9 @@ static void blackenObject(Obj* object) {
 	case OBJ_CLASS: {
 		ObjClass* klass = (ObjClass*)object;
 		//markObject((Obj*)klass->name);
-		markValue(klass->initializer);
+		if (klass->initializer != NULL) {
+			markObject((Obj*)klass->initializer);
+		}
 		markTable(&klass->methods);
 		//the superclass chain must survive as long as the subclass
 		if (klass->superclass != NULL) {

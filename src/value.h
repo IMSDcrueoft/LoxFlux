@@ -111,7 +111,7 @@ typedef struct {
 	uint32_t valueHoleIndex;
 } ValueArray;
 
-_Static_assert(sizeof(LfxValue) >= 4, "In order to accommodate the reuse holes, the LfxValue needs to be at least 4B in size.");
+_Static_assert(sizeof(LfxValue) >= 4, "In order to accommodate the reuse holes, the value needs to be at least 4B in size.");
 
 bool valuesEqual(LfxValue a, LfxValue b);
 void convert_adaptive_double(double value, char* buffer, uint32_t bufferSize);//ECMAScript type Number; buffer size 40 is enough

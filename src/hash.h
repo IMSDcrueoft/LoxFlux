@@ -4,7 +4,7 @@
  * See LICENSE file in the root directory for full license text.
 */
 #pragma once
-//backend toggle; overridable from the build command line (/DUSE_XXHASH=0)
+//backend toggle; overridable from the build command line (/DLOXFLUX_USE_XXHASH=0)
 //for testing the murmur fallback
 #ifndef LOXFLUX_USE_XXHASH
 #define LOXFLUX_USE_XXHASH 1

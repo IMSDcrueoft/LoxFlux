@@ -152,7 +152,7 @@ ObjClass* newClass(ObjString* name)
 {
 	ObjClass* klass = ALLOCATE_OBJ(ObjClass, OBJ_CLASS);
 	klass->name = name;
-	klass->initializer = NIL_VAL;
+	klass->initializer = NULL;
 	klass->methods.isGlobal = false;
 	klass->methods.isFrozen = false;
 	klass->methods.isEternal = false;

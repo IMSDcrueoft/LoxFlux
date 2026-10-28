@@ -12,7 +12,7 @@ typedef struct {
 	LfxValue value;
 } Entry;
 
-//bit-keyed entry: raw 64-bit LfxValue representation -> constant index
+	//bit-keyed entry: raw 64-bit value representation -> constant index
 //numbers compare by bits (NaN-safe), natives by pointer bits (immortal); keep the two in separate tables
 typedef struct {
 	uint64_t binary;//binary info of the key value

@@ -190,7 +190,7 @@ typedef struct ObjClass {
 	Obj obj;
 	ObjString* name;
 	Table methods;
-	LfxValue initializer;//fast path cache
+	ObjClosure* initializer;//fast path cache
 	struct ObjClass* superclass;//recorded by OP_INHERIT,walked by instanceof
 } ObjClass;
 
@@ -332,7 +332,7 @@ typedef struct ObjFiber {
 	} \
 }
 
-//LfxValue slots store raw; typed slots store 0 for non-numbers
+	//value slots store raw; typed slots store 0 for non-numbers
 #define SET_INDEXABLE_ELEMENT(array, index, val) { \
 	uint8_t t = OBJ_GET_TYPE((array)->obj); \
 	assert(t >= OBJ_STRING_BUILDER && t <= OBJ_ARRAY_I8); \
