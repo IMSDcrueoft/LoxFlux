@@ -35,7 +35,7 @@ static LfxValue ArrayNative(LfxVM* vm, int argCount, LfxValue* args) {
 	}
 
 	ObjArray* array = newArray(OBJ_ARRAY);
-	stack_push(OBJ_VAL(array));
+	stack_push(vm, OBJ_VAL(array));
 	reserveArray(array, length);
 
 	while (array->length < length)
@@ -71,7 +71,7 @@ static LfxValue F64ArrayNative(LfxVM* vm, int argCount, LfxValue* args) {
 	}
 
 	ObjArray* array = newArray(OBJ_ARRAY_F64);
-	stack_push(OBJ_VAL(array));
+	stack_push(vm, OBJ_VAL(array));
 	reserveArray(array, length);
 	uint64_t size = 8ULL * length;
 	memset(array->payload, 0, size);//must fit ieee754
@@ -104,7 +104,7 @@ static LfxValue F32ArrayNative(LfxVM* vm, int argCount, LfxValue* args) {
 	}
 
 	ObjArray* array = newArray(OBJ_ARRAY_F32);
-	stack_push(OBJ_VAL(array));
+	stack_push(vm, OBJ_VAL(array));
 	reserveArray(array, length);
 	uint64_t size = 4ULL * length;
 	memset(array->payload, 0, size); // must fit ieee754
@@ -137,7 +137,7 @@ static LfxValue U32ArrayNative(LfxVM* vm, int argCount, LfxValue* args) {
 	}
 
 	ObjArray* array = newArray(OBJ_ARRAY_U32);
-	stack_push(OBJ_VAL(array));
+	stack_push(vm, OBJ_VAL(array));
 	reserveArray(array, length);
 	uint64_t size = 4ULL * length;
 	memset(array->payload, 0, size);
@@ -170,7 +170,7 @@ static LfxValue I32ArrayNative(LfxVM* vm, int argCount, LfxValue* args) {
 	}
 
 	ObjArray* array = newArray(OBJ_ARRAY_I32);
-	stack_push(OBJ_VAL(array));
+	stack_push(vm, OBJ_VAL(array));
 	reserveArray(array, length);
 	uint64_t size = 4ULL * length;
 	memset(array->payload, 0, size);
@@ -203,7 +203,7 @@ static LfxValue U16ArrayNative(LfxVM* vm, int argCount, LfxValue* args) {
 	}
 
 	ObjArray* array = newArray(OBJ_ARRAY_U16);
-	stack_push(OBJ_VAL(array));
+	stack_push(vm, OBJ_VAL(array));
 	reserveArray(array, length);
 	uint64_t size = 2ULL * length;
 	memset(array->payload, 0, size);
@@ -236,7 +236,7 @@ static LfxValue I16ArrayNative(LfxVM* vm, int argCount, LfxValue* args) {
 	}
 
 	ObjArray* array = newArray(OBJ_ARRAY_I16);
-	stack_push(OBJ_VAL(array));
+	stack_push(vm, OBJ_VAL(array));
 	reserveArray(array, length);
 	uint64_t size = 2ULL * length;
 	memset(array->payload, 0, size);
@@ -269,7 +269,7 @@ static LfxValue U8ArrayNative(LfxVM* vm, int argCount, LfxValue* args) {
 	}
 
 	ObjArray* array = newArray(OBJ_ARRAY_U8);
-	stack_push(OBJ_VAL(array));
+	stack_push(vm, OBJ_VAL(array));
 	reserveArray(array, length);
 	uint64_t size = 1ULL * length;
 	memset(array->payload, 0, size);
@@ -302,7 +302,7 @@ static LfxValue I8ArrayNative(LfxVM* vm, int argCount, LfxValue* args) {
 	}
 
 	ObjArray* array = newArray(OBJ_ARRAY_I8);
-	stack_push(OBJ_VAL(array));
+	stack_push(vm, OBJ_VAL(array));
 	reserveArray(array, length);
 	uint64_t size = 1ULL * length;
 	memset(array->payload, 0, size);
@@ -330,7 +330,7 @@ static uint32_t calculateBuilderCapacity(uint64_t initialLength) {
 static LfxValue stringBuilderNative(LfxVM* vm, int argCount, LfxValue* args) {
 	(void)vm;
 	ObjArray* stringBuilder = newArray(OBJ_STRING_BUILDER);
-	stack_push(OBJ_VAL(stringBuilder));
+	stack_push(vm, OBJ_VAL(stringBuilder));
 
 	//Select an adaptation scheme based on the type
 	if (argCount >= 1) {

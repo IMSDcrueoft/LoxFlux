@@ -145,7 +145,7 @@ static LfxValue inputNative(LfxVM* vm, int argCount, LfxValue* args) {
 	(void)vm;
 	//don't need param
 	ObjArray* stringBuilder = newArray(OBJ_STRING_BUILDER);
-	stack_push(OBJ_VAL(stringBuilder));
+	stack_push(vm, OBJ_VAL(stringBuilder));
 
 	//init size
 	reserveArray(stringBuilder, 16);
@@ -246,7 +246,7 @@ static LfxValue readFileNative(LfxVM* vm, int argCount, LfxValue* args) {
 	}
 
 	ObjArray* stringBuilder = newArray(OBJ_STRING_BUILDER);
-	stack_push(OBJ_VAL(stringBuilder));
+	stack_push(vm, OBJ_VAL(stringBuilder));
 
 	// allocate memory
 	reserveArray(stringBuilder, fileSize + 1);
@@ -297,7 +297,7 @@ static LfxValue readBinNative(LfxVM* vm, int argCount, LfxValue* args) {
 	}
 
 	ObjArray* array = newArray(OBJ_ARRAY_U8);
-	stack_push(OBJ_VAL(array));
+	stack_push(vm, OBJ_VAL(array));
 
 	reserveArray(array, (uint64_t)fileSize);
 

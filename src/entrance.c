@@ -57,10 +57,10 @@ int loxFluxMain(int argc, C_STR argv[]) {
 	}
 
 	if (script == NULL) {
-		repl();
+		repl(&vm);
 	}
 	else {
-		runFile(script);
+		runFile(&vm, script);
 	}
 	return 0;
 }
@@ -134,10 +134,10 @@ static STR dealWithFilePath(STR line) {
 	return begin;
 }
 
-void repl() {
+void repl(LfxVM* vm) {
 	printf("%s %s  Copyright (C) %s, %s\n", LOXFLUX_INTERPRETER_NAME, LOXFLUX_INTERPRETER_VERSION, LOXFLUX_INTERPRETER_COPYRIGHT, LOXFLUX_INTERPRETER_DEVELOPER);
 
-	vm_init();
+	vm_init(vm);
 
 	//512 chars max per line (+ '\n' + '\0'),matches the documented limit
 	char line[514];
@@ -196,18 +196,18 @@ void repl() {
 					continue;
 				}
 				else if (match_string(line, "/reset")) {
-					size_t reclaimed = vm.bytesAllocated + vm.bytesAllocated_no_gc;
+					size_t reclaimed = vm->bytesAllocated + vm->bytesAllocated_no_gc;
 					//full teardown + fresh state: used by the REPL /reset command
 					//vm_free runs the DEBUG leak-accounting check, so every /reset doubles as a health check
-					vm_free();
-					vm_init();
+					vm_free(vm);
+					vm_init(vm);
 					printf("vm reset: reclaimed %.1f KiB\n", (double)reclaimed / 1024.0);
 					continue;
 				}
 				else if (startsWith_string(line, "/eval ")) {
 					STR path = dealWithFilePath(line + 6);
 					STR source = readFile(path);
-					interpret_repl(source);
+					interpret_repl(vm, source);
 					mem_free(source);
 					continue;
 				}
@@ -236,7 +236,7 @@ void repl() {
 			fprintf(stderr, "CODE TEXT:\n%s\n", fullLine);
 #endif
 
-			interpret_repl(fullLine);
+			interpret_repl(vm, fullLine);
 			fullLine[0] = '\0';
 			fullLineLength = 0;
 		}
@@ -244,7 +244,7 @@ void repl() {
 
 	mem_free(fullLine);
 
-	vm_free();
+	vm_free(vm);
 
 #if LOG_MALLOC_INFO
 	//final stats only: release delayed-free blocks so mimalloc's "current"
@@ -255,16 +255,16 @@ void repl() {
 #undef match_string
 }
 
-void runFile(C_STR path) {
-	vm_init();
+void runFile(LfxVM* vm, C_STR path) {
+	vm_init(vm);
 
 	STR source = readFile(path);
-	bool ok = interpret_compile(source);
+	bool ok = interpret_compile(vm, source);
 	mem_free(source);
 
 	if (!ok) exit(65);
 
-	InterpretResult result = interpret_execute();
+	InterpretResult result = interpret_execute(vm);
 
 	if (result == INTERPRET_CEDE) {
 		fprintf(stderr, "[Cede] execution ceded; no resumer available.\n");
@@ -276,7 +276,7 @@ void runFile(C_STR path) {
 		exit(70);
 	}
 
-	vm_free();
+	vm_free(vm);
 
 #if LOG_MALLOC_INFO
 	//final stats only: release delayed-free blocks so mimalloc's "current"

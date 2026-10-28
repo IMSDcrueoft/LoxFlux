@@ -7,5 +7,5 @@
 #include "common.h"
 
 int loxFluxMain(int argc, C_STR argv[]);
-void runFile(C_STR path);
-void repl();
+void runFile(LfxVM* vm, C_STR path);
+void repl(LfxVM* vm);

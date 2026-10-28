@@ -268,7 +268,7 @@ void garbageCollect()
 	//mark the state
 	vm.gcWorking = 1;
 
-	vm_storeCacheToFiber();
+	vm_storeCacheToFiber(&vm);
 
 	markRoots();
 	traceReferences();

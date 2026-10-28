@@ -215,7 +215,7 @@ static LfxValue sliceNative(LfxVM* vm, int argCount, LfxValue* args) {
 
 	uint32_t newLength = (uint32_t)(end - start);
 	ObjArray* result = newArray(OBJ_GET_TYPE(array->obj));
-	stack_push(OBJ_VAL(result));
+	stack_push(vm, OBJ_VAL(result));
 
 	// allocate
 	if (newLength > 0) {

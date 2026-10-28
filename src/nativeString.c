@@ -417,7 +417,7 @@ static LfxValue sliceNative(LfxVM* vm, int argCount, LfxValue* args) {
 	uint32_t sliceLength = (uint32_t)(endIndex - beginIndex);
 
 	ObjArray* stringBuilder = newArray(OBJ_STRING_BUILDER);
-	stack_push(OBJ_VAL(stringBuilder));
+	stack_push(vm, OBJ_VAL(stringBuilder));
 
 	if (sliceLength > 0) {
 		//allocate

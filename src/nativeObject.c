@@ -121,7 +121,7 @@ static LfxValue keysNative(LfxVM* vm, int argCount, LfxValue* args) {
 	(void)vm;
 	// Create an empty array as result  
 	ObjArray* result = newArray(OBJ_ARRAY);
-	stack_push(OBJ_VAL(result));
+	stack_push(vm, OBJ_VAL(result));
 
 	// Check argument count  
 	if (argCount == 0 || !IS_INSTANCE(args[0])) {

@@ -176,8 +176,6 @@ typedef struct {
 	ObjClosure* method;
 } ObjBoundMethod;
 
-typedef struct LfxVM LfxVM;
-
 //argCount and argValues
 typedef LfxValue(*LfxNativeFn)(LfxVM* vm, int argCount, LfxValue* args);
 

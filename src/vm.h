@@ -49,7 +49,6 @@ _Static_assert(((LOXFLUX_FRAMES_MAX / LOXFLUX_FRAMES_INIT) & ((LOXFLUX_FRAMES_MA
 typedef struct LfxVM {
 	// runtime weak ref cache
 	FiberCore cache;
-
 	//currently executing fiber; owns the real frames/open-upvalue state
 	ObjFiber* currentFiber;
 
@@ -136,19 +135,19 @@ typedef enum {
 //the global shared vm extern to other file
 extern LfxVM vm;
 
-void vm_init();
-void vm_free();
-bool vm_isCeding();
+void vm_init(LfxVM* vm);
+void vm_free(LfxVM* vm);
+bool vm_isCeding(LfxVM* vm);
 // Must be called when switching fibers or performing GC
-void vm_storeCacheToFiber();
-void vm_register_ic_function(ObjFunction* function);
+void vm_storeCacheToFiber(LfxVM* vm);
+void vm_registerIcFunction(ObjFunction* function);
 
-void stack_push(LfxValue value);
-LfxValue stack_pop();
-void stack_replace(LfxValue val);
+void stack_push(LfxVM* vm, LfxValue value);
+LfxValue stack_pop(LfxVM* vm);
+void stack_replace(LfxVM* vm, LfxValue val);
 
 //get the size of constants (including the holes)
-uint32_t getConstantSize();
+uint32_t getConstantSize(LfxVM* vm);
 //add a constant and get the index of it,i will handle it later
 uint32_t addConstant(LfxValue value);
 
@@ -159,10 +158,10 @@ uint32_t addConstant(LfxValue value);
 
 //compile + prepare the top-level frame; on success the VM is ceding and the
 //caller may release the source buffer before calling interpret_execute
-bool interpret_compile(C_STR source);
+bool interpret_compile(LfxVM* vm, C_STR source);
 //run the prepared frame, or continue after INTERPRET_CEDE
-InterpretResult interpret_execute(void);
-InterpretResult interpret_repl(C_STR source);
+InterpretResult interpret_execute(LfxVM* vm);
+InterpretResult interpret_repl(LfxVM* vm, C_STR source);
 
 //for builtin
 void defineNative_math_number(LfxVM* vm, C_STR name, double value);

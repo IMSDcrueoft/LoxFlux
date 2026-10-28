@@ -690,7 +690,7 @@ static ObjFunction* endCompiler() {
 
 	//register for gc: invoke cache slots hold ObjClass*/ObjClosure* that must stay marked
 	if (current->cacheCapacity > 0) {
-		vm_register_ic_function(function);
+		vm_registerIcFunction(function);
 	}
 
 #if DEBUG_PRINT_CODE
@@ -1244,7 +1244,7 @@ static void forStatement() {
 	}
 
 	//record the loop
-	LoopContext loop = (LoopContext){ 
+	LoopContext loop = (LoopContext){
 		.start = loopStart,
 		.enclosing = current->currentLoop,
 		.breakJumps = NULL,
@@ -1496,7 +1496,7 @@ static void whileStatement() {
 	int32_t exitJump = emitBranchJump(OP_JUMP_IF_FALSE_POP, condStart);
 
 	//record the loop
-	LoopContext loop = (LoopContext){ 
+	LoopContext loop = (LoopContext){
 		.start = loopStart,
 		.enclosing = current->currentLoop,
 		.breakJumps = NULL,
@@ -1529,7 +1529,7 @@ static void whileStatement() {
 static void doWhileStatement() {
 	int32_t loopStart = currentChunk()->count;
 	//record the loop
-	LoopContext loop = (LoopContext){ 
+	LoopContext loop = (LoopContext){
 		.start = loopStart, 
 		.enclosing = current->currentLoop,
 		.breakJumps = NULL,
