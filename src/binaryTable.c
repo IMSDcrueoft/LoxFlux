@@ -74,7 +74,7 @@ static void adjustBinaryCapacity(BinaryTable* table, uint32_t capacity) {
 }
 
 // the key might not be in pool: keys are compared as raw 64-bit binary (NaN as NaN, natives by pointer bits)
-BinaryEntry* tableGetBinaryEntry(BinaryTable* table, Value* value)
+BinaryEntry* tableGetBinaryEntry(BinaryTable* table, LfxValue* value)
 {
 	//if (table->count + 1 > table->capacity * TABLE_MAX_LOAD) {
 	if ((table->count + 1) > MUL_3_DIV_4((uint64_t)(table->capacity))) {

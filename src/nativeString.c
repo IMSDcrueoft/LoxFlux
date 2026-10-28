@@ -10,8 +10,9 @@
 #define INTERN_STRING_WARN (1024)
 
 //String
-static Value lengthNative(int argCount, Value* args)
+static LfxValue lengthNative(LfxVM* vm, int argCount, LfxValue* args)
 {
+	(void)vm;
 	if (argCount >= 1) {
 		if (IS_STRING(args[0])) {
 			return NUMBER_VAL(AS_STRING(args[0])->length);
@@ -23,7 +24,8 @@ static Value lengthNative(int argCount, Value* args)
 	return NAN_VAL;
 }
 
-static Value UTF8LenNative(int argCount, Value* args) {
+static LfxValue UTF8LenNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount >= 1) {
 		C_STR stringPtr = NULL;
 		uint32_t length = 0;
@@ -72,7 +74,8 @@ static Value UTF8LenNative(int argCount, Value* args) {
 	return NAN_VAL;
 }
 
-static Value charAtNative(int argCount, Value* args) {
+static LfxValue charAtNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount >= 2 && IS_NUMBER(args[1])) {
 		C_STR stringPtr = NULL;
 		uint32_t length = 0;
@@ -104,7 +107,8 @@ static Value charAtNative(int argCount, Value* args) {
 	return NIL_VAL;
 }
 
-static Value utf8AtNative(int argCount, Value* args) {
+static LfxValue utf8AtNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount >= 2 && IS_NUMBER(args[1])) {
 		C_STR stringPtr = NULL;
 		uint32_t length = 0;
@@ -172,7 +176,8 @@ static void growStringBuilder(ObjArray* builder, uint32_t appendLen) {
 }
 
 COLD_FUNCTION
-static Value appendNative(int argCount, Value* args) {
+static LfxValue appendNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount == 0 || !IS_STRING_BUILDER(args[0])) {
 		fprintf(stderr, "append() expects a stringBuilder as first argument.\n");
 		return NIL_VAL;
@@ -214,7 +219,8 @@ static Value appendNative(int argCount, Value* args) {
 }
 
 //make and return const string
-static Value internNative(int argCount, Value* args) {
+static LfxValue internNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount >= 1) {
 		if (IS_STRING_BUILDER(args[0])) {
 			ObjArray* stringBuilder = AS_ARRAY(args[0]);
@@ -231,7 +237,8 @@ static Value internNative(int argCount, Value* args) {
 	return NIL_VAL;
 }
 
-static Value equalsNative(int argCount, Value* args) {
+static LfxValue equalsNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount >= 2) {
 		if (IS_STRING_BUILDER(args[0])) {
 			ObjArray* stringBuilderA = AS_ARRAY(args[0]);
@@ -262,7 +269,8 @@ static Value equalsNative(int argCount, Value* args) {
 	return BOOL_VAL(false);
 }
 
-static Value parseIntNative(int argCount, Value* args) {
+static LfxValue parseIntNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount >= 1) {
 		C_STR stringPtr = NULL;
 		uint32_t length = 0;
@@ -338,7 +346,8 @@ static Value parseIntNative(int argCount, Value* args) {
 	return NAN_VAL; // Return NaN if parsing fails
 }
 
-static Value parseFloatNative(int argCount, Value* args) {
+static LfxValue parseFloatNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount >= 1) {
 		C_STR stringPtr = NULL;
 
@@ -365,7 +374,8 @@ static Value parseFloatNative(int argCount, Value* args) {
 	return NAN_VAL;
 }
 
-static Value sliceNative(int argCount, Value* args) {
+static LfxValue sliceNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount < 2 || !IS_NUMBER(args[1])) {
 		fprintf(stderr, "slice() expects a string or stringBuilder and at least one number argument.\n");
 		return NIL_VAL;
@@ -423,15 +433,15 @@ static Value sliceNative(int argCount, Value* args) {
 }
 
 COLD_FUNCTION
-void importNative_string() {
-	defineNative_string("byteLen", lengthNative);
-	defineNative_string("charAt", charAtNative);
-	defineNative_string("utf8Len", UTF8LenNative);
-	defineNative_string("utf8At", utf8AtNative);
-	defineNative_string("append", appendNative);
-	defineNative_string("intern", internNative);
-	defineNative_string("equals", equalsNative);
-	defineNative_string("slice", sliceNative);
-	defineNative_string("parseInt", parseIntNative);
-	defineNative_string("parseFloat", parseFloatNative);
+void importNative_string(LfxVM* vm) {
+	defineNative_string(vm, "byteLen", lengthNative);
+	defineNative_string(vm, "charAt", charAtNative);
+	defineNative_string(vm, "utf8Len", UTF8LenNative);
+	defineNative_string(vm, "utf8At", utf8AtNative);
+	defineNative_string(vm, "append", appendNative);
+	defineNative_string(vm, "intern", internNative);
+	defineNative_string(vm, "equals", equalsNative);
+	defineNative_string(vm, "slice", sliceNative);
+	defineNative_string(vm, "parseInt", parseIntNative);
+	defineNative_string(vm, "parseFloat", parseFloatNative);
 }

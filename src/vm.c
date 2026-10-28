@@ -25,9 +25,9 @@
 #endif
 
 //the global shared vm
-VM vm;
+LfxVM vm;
 
-static void closeUpvalues(Value* last);
+static void closeUpvalues(LfxValue* last);
 
 COLD_FUNCTION
 static void stack_reset()
@@ -44,7 +44,7 @@ static void stack_reset()
 	//set all to nil
 	//the commit watermark only grows within one vm lifetime, so clearing up to
 	//it covers every slot ever written; slots above it were never touched
-	for (Value* ptr = vm.cache.stack; ptr < vm.cache.stackBoundary; ++ptr) {
+	for (LfxValue* ptr = vm.cache.stack; ptr < vm.cache.stackBoundary; ++ptr) {
 		*ptr = NIL_VAL;
 	}
 
@@ -82,7 +82,7 @@ static ObjFunction* getCachedScript(STR absolutePath) {
 }
 
 COLD_FUNCTION
-static bool throwError(Value error, C_STR format, ...) {
+static bool throwError(LfxValue error, C_STR format, ...) {
 	fprintf(stderr, "[RuntimeError] ");
 
 	va_list args;
@@ -156,7 +156,7 @@ static void runtimeError(C_STR format, ...) {
 }
 
 HOT_FUNCTION
-void stack_push(Value value)
+void stack_push(LfxValue value)
 {
 	*vm.cache.stackTop = value;
 
@@ -177,7 +177,7 @@ void stack_push(Value value)
 		//}
 
 		//VA reservation exhausted: the last slot was written, the stack is full
-		size_t used = (size_t)((vm.cache.stackTop - vm.cache.stack) * sizeof(Value));
+		size_t used = (size_t)((vm.cache.stackTop - vm.cache.stack) * sizeof(LfxValue));
 		if (used >= vm.currentFiber->stackArena.capacity) {
 			runtimeError("Stack overflow.");
 			return;
@@ -190,18 +190,18 @@ void stack_push(Value value)
 			return;
 		}
 
-		//commitTop is a page-aligned byte offset; a page is a multiple of sizeof(Value)
-		vm.cache.stackBoundary = (Value*)((char*)vm.currentFiber->stackArena.base + vm.currentFiber->stackArena.commitTop);
+		//commitTop is a page-aligned byte offset; a page is a multiple of sizeof(LfxValue)
+		vm.cache.stackBoundary = (LfxValue*)((char*)vm.currentFiber->stackArena.base + vm.currentFiber->stackArena.commitTop);
 	}
 }
 
 HOT_FUNCTION
-void stack_replace(Value val) {
+void stack_replace(LfxValue val) {
 	vm.cache.stackTop[-1] = val;
 }
 
 HOT_FUNCTION
-Value stack_pop()
+LfxValue stack_pop()
 {
 	vm.cache.stackTop--;
 	return *vm.cache.stackTop;
@@ -210,78 +210,78 @@ Value stack_pop()
 #define STACK_PEEK(distance) (vm.cache.stackTop[-1 - distance])
 
 COLD_FUNCTION
-void defineNative_math_number(C_STR name, double value) {
-	tableSet(&vm.builtins[MODULE_MATH].fields,
+void defineNative_math_number(LfxVM* vm, C_STR name, double value) {
+	tableSet(&vm->builtins[MODULE_MATH].fields,
 		copyString(name, (uint32_t)strlen(name), false),
 		NUMBER_VAL(value)
 	);
 }
 
 COLD_FUNCTION
-void defineNative_math(C_STR name, NativeFn function) {
-	tableSet(&vm.builtins[MODULE_MATH].fields,
+void defineNative_math(LfxVM* vm, C_STR name, LfxNativeFn function) {
+	tableSet(&vm->builtins[MODULE_MATH].fields,
 		copyString(name, (uint32_t)strlen(name), false),
 		OBJ_VAL(newNative(function))
 	);
 }
 
 COLD_FUNCTION
-void defineNative_array(C_STR name, NativeFn function) {
-	tableSet(&vm.builtins[MODULE_ARRAY].fields,
+void defineNative_array(LfxVM* vm, C_STR name, LfxNativeFn function) {
+	tableSet(&vm->builtins[MODULE_ARRAY].fields,
 		copyString(name, (uint32_t)strlen(name), false),
 		OBJ_VAL(newNative(function))
 	);
 }
 
 COLD_FUNCTION
-void defineNative_object(C_STR name, NativeFn function) {
-	tableSet(&vm.builtins[MODULE_OBJECT].fields,
+void defineNative_object(LfxVM* vm, C_STR name, LfxNativeFn function) {
+	tableSet(&vm->builtins[MODULE_OBJECT].fields,
 		copyString(name, (uint32_t)strlen(name), false),
 		OBJ_VAL(newNative(function))
 	);
 }
 
 COLD_FUNCTION
-void defineNative_string(C_STR name, NativeFn function) {
-	tableSet(&vm.builtins[MODULE_STRING].fields,
+void defineNative_string(LfxVM* vm, C_STR name, LfxNativeFn function) {
+	tableSet(&vm->builtins[MODULE_STRING].fields,
 		copyString(name, (uint32_t)strlen(name), false),
 		OBJ_VAL(newNative(function))
 	);
 }
 
 COLD_FUNCTION
-void defineNative_time(C_STR name, NativeFn function) {
-	tableSet(&vm.builtins[MODULE_TIME].fields,
+void defineNative_time(LfxVM* vm, C_STR name, LfxNativeFn function) {
+	tableSet(&vm->builtins[MODULE_TIME].fields,
 		copyString(name, (uint32_t)strlen(name), false),
 		OBJ_VAL(newNative(function))
 	);
 }
 
 COLD_FUNCTION
-void defineNative_ctor(C_STR name, NativeFn function) {
-	tableSet(&vm.builtins[MODULE_CTOR].fields,
+void defineNative_ctor(LfxVM* vm, C_STR name, LfxNativeFn function) {
+	tableSet(&vm->builtins[MODULE_CTOR].fields,
 		copyString(name, (uint32_t)strlen(name), false),
 		OBJ_VAL(newNative(function))
 	);
 }
 
 COLD_FUNCTION
-void defineNative_system(C_STR name, NativeFn function) {
-	tableSet(&vm.builtins[MODULE_SYSTEM].fields,
+void defineNative_system(LfxVM* vm, C_STR name, LfxNativeFn function) {
+	tableSet(&vm->builtins[MODULE_SYSTEM].fields,
 		copyString(name, (uint32_t)strlen(name), false),
 		OBJ_VAL(newNative(function))
 	);
 }
 
 COLD_FUNCTION
-void defineNative_global(C_STR name, NativeFn function) {
+void defineNative_global(LfxVM* vm, C_STR name, LfxNativeFn function) {
 	//stack_push(OBJ_VAL(copyString(name, (uint32_t)strlen(name), false)));
 	//stack_push(OBJ_VAL(newNative(function)));
 	//tableSet(&vm.globals.fields, AS_STRING(vm.cache.stack[0]), vm.cache.stack[1]);
 	//stack_pop();
 	//stack_pop();
 
-	tableSet(&vm.globals.fields,
+	tableSet(&vm->globals.fields,
 		copyString(name, (uint32_t)strlen(name), false),
 		OBJ_VAL(newNative(function))
 	);
@@ -306,13 +306,13 @@ static void importBuiltins() {
 	table_init(&vm.builtins[MODULE_CTOR].fields);
 	table_init(&vm.builtins[MODULE_SYSTEM].fields);
 
-	importNative_math();
-	importNative_array();
-	importNative_object();
-	importNative_string();
-	importNative_time();
-	importNative_ctor();
-	importNative_system();
+	importNative_math(&vm);
+	importNative_array(&vm);
+	importNative_object(&vm);
+	importNative_string(&vm);
+	importNative_time(&vm);
+	importNative_ctor(&vm);
+	importNative_system(&vm);
 }
 
 COLD_FUNCTION
@@ -392,7 +392,7 @@ void vm_init()
 	//are NOT counted in the accounting books anymore (same class as fiber
 	//stack arenas and the grayStack)
 	assert(vm.stringArena.base == NULL);
-	if (!arenaBump_init(&vm.stringArena, STRING_ARENA_SIZE, false, 8, 16 << 10)) {
+	if (!arenaBump_init(&vm.stringArena, LOXFLUX_STRING_ARENA_SIZE, false, 8, 16 << 10)) {
 		fprintf(stderr, "Failed to reserve the vm string arena.\n");
 		exit(1);
 	}
@@ -401,7 +401,7 @@ void vm_init()
 	//crosses the committed edge (commitTop == 0) and commits the first 64KB
 	//chunk lazily, same lazy-growth model as the vm stack
 	assert(vm.grayArena.base == NULL);
-	if (!arenaBump_init(&vm.grayArena, GRAY_ARENA_SIZE, false, 0, 0)) {
+	if (!arenaBump_init(&vm.grayArena, LOXFLUX_GRAY_ARENA_SIZE, false, 0, 0)) {
 		fprintf(stderr, "Failed to reserve the vm gray arena.\n");
 		exit(1);
 	}
@@ -426,8 +426,8 @@ void vm_init()
 	vm.objects_no_gc = NULL;
 
 	vm.functionID = 0;
-	vm.nextGC = GC_HEAP_BEGIN;
-	vm.beginGC = GC_HEAP_BEGIN;
+	vm.nextGC = LOXFLUX_GC_HEAP_BEGIN;
+	vm.beginGC = LOXFLUX_GC_HEAP_BEGIN;
 	vm.gcMark = true;
 	vm.gcWorking = false;
 
@@ -442,7 +442,7 @@ void vm_init()
 
 	//the fiber's persistent stack cache must be initialized before the hot cache
 	//loads it; stack_reset() persists the reset state back into the fiber
-	vm.currentFiber->core.stackBoundary = (Value*)((char*)vm.currentFiber->stackArena.base + vm.currentFiber->stackArena.commitTop);
+	vm.currentFiber->core.stackBoundary = (LfxValue*)((char*)vm.currentFiber->stackArena.base + vm.currentFiber->stackArena.commitTop);
 	vm_loadFiberToCache();
 
 	stack_reset();
@@ -464,7 +464,7 @@ void vm_init()
 	importBuiltins();
 
 	//import native funcs
-	importNative_global();
+	importNative_global(&vm);
 
 	vm.initString = NULL;
 	vm.initString = copyString("init", (uint32_t)strlen("init"), false);
@@ -557,7 +557,7 @@ uint32_t getConstantSize()
 }
 
 //return the constant index
-uint32_t addConstant(Value value)
+uint32_t addConstant(LfxValue value)
 {
 	stack_push(value);//prevent GC errors
 	uint32_t index = valueArray_write(&vm.constants, value);
@@ -566,7 +566,7 @@ uint32_t addConstant(Value value)
 }
 
 static void getTypeof() {
-	Value val = vm.cache.stackTop[-1];
+	LfxValue val = vm.cache.stackTop[-1];
 
 	if (IS_NUMBER(val)) {
 		stack_replace(OBJ_VAL(vm.typeStrings[TYPE_STRING_NUMBER]));
@@ -650,15 +650,15 @@ static bool call(ObjClosure* closure, int argCount) {
 
 	// check stack
 	if (vm.cache.frameCount == vm.cache.frameCapacity) {
-		if (vm.cache.frameCapacity >= FRAMES_MAX) {
+		if (vm.cache.frameCapacity >= LOXFLUX_FRAMES_MAX) {
 			runtimeError("Stack overflow.");
 			return false;
 		}
 
-		//FRAMES_INIT / FRAMES_MAX are powers of two, so GROW_CAPACITY grows
-		//64 -> 128 -> 256 -> 512 -> 1024 and stops exactly at FRAMES_MAX
+		//LOXFLUX_FRAMES_INIT / LOXFLUX_FRAMES_MAX are powers of two, so GROW_CAPACITY grows
+		//64 -> 128 -> 256 -> 512 -> 1024 and stops exactly at LOXFLUX_FRAMES_MAX
 		uint32_t newCapacity = vm.cache.frameCapacity * 2;
-		assert((newCapacity <= FRAMES_MAX) && "Unexpected frame size overflow.");
+		assert((newCapacity <= LOXFLUX_FRAMES_MAX) && "Unexpected frame size overflow.");
 
 		//no-GC accounting: frames are VM bookkeeping, not collectible values
 		vm.cache.frames = GROW_ARRAY_NO_GC(CallFrame, vm.cache.frames, vm.cache.frameCapacity, newCapacity);
@@ -690,16 +690,16 @@ static bool call(ObjClosure* closure, int argCount) {
 }
 
 HOT_FUNCTION
-static bool call_native(NativeFn native, int argCount) {
-	Value* stackTop = vm.cache.stackTop - argCount;//store top, we don't know if native push stack (avoiding gc)
-	Value result = native(argCount, stackTop);
-	vm.cache.stackTop = stackTop;//restore the top
+static bool call_native(LfxVM* vm, LfxNativeFn native, int argCount) {
+	LfxValue* stackTop = vm->cache.stackTop - argCount;//store top, we don't know if native push stack (avoiding gc)
+	LfxValue result = native(vm, argCount, stackTop);
+	vm->cache.stackTop = stackTop;//restore the top
 	stack_replace(result);
 	return true;
 }
 
 static inline void defineMethod(ObjString* name) {
-	Value method = vm.cache.stackTop[-1];
+	LfxValue method = vm.cache.stackTop[-1];
 	ObjClass* klass = AS_CLASS(vm.cache.stackTop[-2]);
 
 	tableSet(&klass->methods, name, method);
@@ -710,11 +710,11 @@ static inline void defineMethod(ObjString* name) {
 }
 
 HOT_FUNCTION
-static bool callValue(Value callee, int argCount) {
+static bool callValue(LfxValue callee, int argCount) {
 	if (IS_OBJ(callee)) {
 		switch (OBJ_TYPE(callee)) {
 		case OBJ_CLOSURE: return call(AS_CLOSURE(callee), argCount);
-		case OBJ_NATIVE: return call_native(AS_NATIVE(callee), argCount);
+		case OBJ_NATIVE: return call_native(&vm, AS_NATIVE(callee), argCount);
 		case OBJ_BOUND_METHOD: {
 			ObjBoundMethod* bound = AS_BOUND_METHOD(callee);
 			STACK_PEEK(argCount) = bound->receiver;//bind 'this' to logic slot[0]
@@ -743,7 +743,7 @@ static bool callValue(Value callee, int argCount) {
 
 HOT_FUNCTION
 static inline bool invokeFromClass(ObjClass* klass, ObjString* name, int argCount) {
-	Value method;
+	LfxValue method;
 	if (!tableGet(&klass->methods, name, &method)) {
 		runtimeError("Undefined property '%s'.", name->chars);
 		return false;
@@ -753,14 +753,14 @@ static inline bool invokeFromClass(ObjClass* klass, ObjString* name, int argCoun
 
 //HOT_FUNCTION
 //static inline bool invoke(ObjString* name, int argCount) {
-//	Value receiver = STACK_PEEK(argCount);
+//	LfxValue receiver = STACK_PEEK(argCount);
 //	if (!IS_INSTANCE(receiver)) {
 //		runtimeError("Only instances have methods.");
 //		return false;
 //	}
 //	ObjInstance* instance = AS_INSTANCE(receiver);
 //
-//	Value value;
+//	LfxValue value;
 //	if (tableGet(&instance->fields, name, &value)) {
 //		STACK_PEEK(argCount) = value;
 //		return callValue(value, argCount);
@@ -771,7 +771,7 @@ static inline bool invokeFromClass(ObjClass* klass, ObjString* name, int argCoun
 
 HOT_FUNCTION
 static void bindMethod(ObjClass* klass, ObjString* name) {
-	Value method;
+	LfxValue method;
 	if (tableGet(&klass->methods, name, &method)) {
 		ObjBoundMethod* bound = newBoundMethod(vm.cache.stackTop[-1], AS_CLOSURE(method));
 		stack_replace(OBJ_VAL(bound));
@@ -784,7 +784,7 @@ static void bindMethod(ObjClass* klass, ObjString* name) {
 }
 
 HOT_FUNCTION
-static ObjUpvalue* captureUpvalue(Value* local) {
+static ObjUpvalue* captureUpvalue(LfxValue* local) {
 	ObjUpvalue* prevUpvalue = NULL;
 	ObjUpvalue* upvalue = vm.cache.openUpvalues;
 
@@ -814,7 +814,7 @@ static ObjUpvalue* captureUpvalue(Value* local) {
 }
 
 HOT_FUNCTION
-static void closeUpvalues(Value* last) {
+static void closeUpvalues(LfxValue* last) {
 	while (vm.cache.openUpvalues != NULL && vm.cache.openUpvalues->location >= last) {
 		ObjUpvalue* upvalue = vm.cache.openUpvalues;
 
@@ -827,12 +827,12 @@ static void closeUpvalues(Value* last) {
 }
 
 HOT_FUNCTION
-static inline bool isFalsey(Value value) {
+static inline bool isFalsey(LfxValue value) {
 	return IS_NIL(value) || (IS_BOOL(value) && !AS_BOOL(value));
 }
 
 HOT_FUNCTION
-static inline bool isTruthy(Value value) {
+static inline bool isTruthy(LfxValue value) {
 	return !IS_NIL(value) && (!IS_BOOL(value) || AS_BOOL(value));
 }
 
@@ -1027,7 +1027,7 @@ static uint8_t* bitInstruction(uint8_t bitOpType, uint8_t* ip) {
 COLD_FUNCTION
 NOINLINE_FUNCTION
 static void icGetPropertySlow(ObjInstance* instance, ObjString* name, uint8_t slot, InlineCacheSlot* icCache) {
-	Value value;
+	LfxValue value;
 	Entry* entry;
 	if (tableGetEntry(&instance->fields, name, &value, &entry)) {
 		//backfill cache
@@ -1045,13 +1045,13 @@ static void icGetPropertySlow(ObjInstance* instance, ObjString* name, uint8_t sl
 
 COLD_FUNCTION
 NOINLINE_FUNCTION
-static void icSetPropertySlow(ObjInstance* instance, ObjString* name, Value newValue, uint8_t slot, InlineCacheSlot* icCache) {
+static void icSetPropertySlow(ObjInstance* instance, ObjString* name, LfxValue newValue, uint8_t slot, InlineCacheSlot* icCache) {
 	//frozen instances reject every write/delete; early return keeps the IC
 	//un-backfilled so later writes keep taking this cheap exit
 	if (instance->fields.isFrozen) return;
 
 	if (NOT_NIL(newValue)) {
-		Value oldValue;
+		LfxValue oldValue;
 		Entry* entry;
 		if (tableGetEntry(&instance->fields, name, &oldValue, &entry)) {
 			//existing field: single-probe direct write + backfill
@@ -1076,7 +1076,7 @@ static void icSetPropertySlow(ObjInstance* instance, ObjString* name, Value newV
 				}
 			}
 			else {
-				Value methodValue;
+				LfxValue methodValue;
 				if (tableGet(&instance->klass->methods, name, &methodValue)) {
 					INSTANCE_POISON(instance) = true;
 					if (slot != 0) {
@@ -1098,7 +1098,7 @@ static void icSetPropertySlow(ObjInstance* instance, ObjString* name, Value newV
 		//the global object backs the variable store: nil-assign ASSIGNS nil and
 		//never deletes (a deleted variable would break already-emitted global
 		//accesses); mirrors OP_SET_GLOBAL's plain assign semantics
-		Value oldValue;
+		LfxValue oldValue;
 		Entry* entry;
 		if (tableGetEntry(&instance->fields, name, &oldValue, &entry)) {
 			entry->value = NIL_VAL;
@@ -1120,7 +1120,7 @@ COLD_FUNCTION
 NOINLINE_FUNCTION
 static bool icInvokeSlow(ObjInstance* instance, ObjString* method, uint8_t argCount, uint8_t slot, InlineCacheSlot* icCache) {
 	//slow path: field hit shadows method → poison + callValue
-	Value value;
+	LfxValue value;
 	Entry* entry;
 	if (tableGetEntry(&instance->fields, method, &value, &entry)) {
 		INSTANCE_POISON(instance) = true;
@@ -1129,7 +1129,7 @@ static bool icInvokeSlow(ObjInstance* instance, ObjString* method, uint8_t argCo
 	}
 
 	//method lookup
-	Value methodValue;
+	LfxValue methodValue;
 	if (!tableGetEntry(&instance->klass->methods, method, &methodValue, &entry)) {
 		runtimeError("Undefined property '%s'.", method->chars);
 		return false;
@@ -1148,7 +1148,7 @@ static bool icInvokeSlow(ObjInstance* instance, ObjString* method, uint8_t argCo
 COLD_FUNCTION
 static void traceFrameStack(FILE* stream, CallFrame* frame) {
 	fprintf(stream, "          ");
-	for (Value* slot = frame->slots; slot < vm.cache.stackTop; slot++) {
+	for (LfxValue* slot = frame->slots; slot < vm.cache.stackTop; slot++) {
 		fprintf(stream, "[ ");
 		printValue(stream, *slot, false);
 		fprintf(stream, " ]");
@@ -1164,7 +1164,7 @@ static InterpretResult run()
 	CallFrame* frame = &vm.cache.frames[vm.cache.frameCount - 1];
 	register uint8_t* ip = frame->ip;
 	//cached constants base of the current function,refreshed at every frame switch
-	Value* constants = frame->closure->function->constants;
+	LfxValue* constants = frame->closure->function->constants;
 
 #define UPDATE_FRAME()	\
 	do {				\
@@ -1429,19 +1429,19 @@ static InterpretResult run()
 		{
 		case OP_CONSTANT: {
 		label_op_constant:
-			Value constant = READ_CONSTANT(READ_24bits());
+			LfxValue constant = READ_CONSTANT(READ_24bits());
 			stack_push(constant);
 			NEXT_INSTRUCTION;
 		}
 		case OP_CONST_NUMBER: {
 		label_op_const_number:
-			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			stack_push(constant);
 			NEXT_INSTRUCTION;
 		}
 		case OP_CLOSURE: {
 		label_op_closure:
-			Value constant = READ_CONSTANT(READ_24bits());
+			LfxValue constant = READ_CONSTANT(READ_24bits());
 			ObjFunction* function = AS_FUNCTION(constant);
 			ObjClosure* closure = newClosure(function);
 			stack_push(OBJ_VAL(closure));
@@ -1460,21 +1460,21 @@ static InterpretResult run()
 		}
 		case OP_CLASS: {
 		label_op_class:
-			Value constant = READ_CONSTANT(READ_24bits());
+			LfxValue constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			stack_push(OBJ_VAL(newClass(name)));
 			NEXT_INSTRUCTION;
 		}
 		case OP_METHOD: {
 		label_op_method:
-			Value constant = READ_CONSTANT(READ_24bits());
+			LfxValue constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			defineMethod(name);
 			NEXT_INSTRUCTION;
 		}
 		case OP_INHERIT: {
 		label_op_inherit:
-			Value superclass = vm.cache.stackTop[-2];
+			LfxValue superclass = vm.cache.stackTop[-2];
 			if (IS_CLASS(superclass)) {
 				ObjClass* subclass = AS_CLASS(vm.cache.stackTop[-1]);
 				tableAddAll(&AS_CLASS(superclass)->methods, &subclass->methods);
@@ -1494,7 +1494,7 @@ static InterpretResult run()
 		}
 		case OP_GET_SUPER: {
 		label_op_get_super:
-			Value constant = READ_CONSTANT(READ_24bits());
+			LfxValue constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			ObjClass* superclass = AS_CLASS(stack_pop());
 			bindMethod(superclass, name);
@@ -1507,7 +1507,7 @@ static InterpretResult run()
 			}
 
 			ObjInstance* instance = AS_INSTANCE(vm.cache.stackTop[-1]);
-			Value constant = READ_CONSTANT(READ_24bits());
+			LfxValue constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			uint8_t slot = READ_BYTE();
 			//icCache derived per handler,not a run()-wide local,to keep the dispatch loop's live ranges small
@@ -1536,7 +1536,7 @@ static InterpretResult run()
 			}
 
 			ObjInstance* instance = AS_INSTANCE(vm.cache.stackTop[-2]);
-			Value constant = READ_CONSTANT(READ_24bits());
+			LfxValue constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			uint8_t slot = READ_BYTE();
 			InlineCacheSlot* icCache = frame->caches;
@@ -1549,7 +1549,7 @@ static InterpretResult run()
 					uint32_t idx = icCache[slot].index;
 					if (idx < fields->capacity && fields->entries[idx].key == name) {
 						fields->entries[idx].value = vm.cache.stackTop[-1];
-						Value value = stack_pop();
+						LfxValue value = stack_pop();
 						stack_replace(value);
 						NEXT_INSTRUCTION;
 					}
@@ -1557,7 +1557,7 @@ static InterpretResult run()
 			}
 
 			icSetPropertySlow(instance, name, vm.cache.stackTop[-1], slot, icCache);
-			Value value = stack_pop();
+			LfxValue value = stack_pop();
 			stack_replace(value);
 			NEXT_INSTRUCTION;
 		}
@@ -1568,7 +1568,7 @@ static InterpretResult run()
 			}
 
 			ObjInstance* instance = AS_INSTANCE(vm.cache.stackTop[-2]);
-			Value constant = READ_CONSTANT(READ_24bits());
+			LfxValue constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			uint8_t slot = READ_BYTE();
 			InlineCacheSlot* icCache = frame->caches;
@@ -1596,13 +1596,13 @@ static InterpretResult run()
 		case OP_GET_PROP_LOCAL: {
 		label_op_get_prop_local:
 			uint32_t index = READ_SHORT();
-			Value receiver = frame->slots[index];
+			LfxValue receiver = frame->slots[index];
 			if (!IS_INSTANCE(receiver)) {
 				RUNTIME_ERROR("Only instances have properties.");
 			}
 
 			ObjInstance* instance = AS_INSTANCE(receiver);
-			Value constant = READ_CONSTANT(READ_24bits());
+			LfxValue constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			uint8_t slot = READ_BYTE();
 			//icCache derived per handler,not a run()-wide local,to keep the dispatch loop's live ranges small
@@ -1632,13 +1632,13 @@ static InterpretResult run()
 		case OP_SET_PROP_LOCAL: {
 		label_op_set_prop_local:
 			uint32_t index = READ_SHORT();
-			Value receiver = frame->slots[index];
+			LfxValue receiver = frame->slots[index];
 			if (!IS_INSTANCE(receiver)) {
 				RUNTIME_ERROR("Only instances have fields.");
 			}
 
 			ObjInstance* instance = AS_INSTANCE(receiver);
-			Value constant = READ_CONSTANT(READ_24bits());
+			LfxValue constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			uint8_t slot = READ_BYTE();
 			InlineCacheSlot* icCache = frame->caches;
@@ -1663,13 +1663,13 @@ static InterpretResult run()
 		case OP_SET_PROP_LOCAL_POP: {
 		label_op_set_property_local_pop:
 			uint32_t index = READ_SHORT();
-			Value receiver = frame->slots[index];
+			LfxValue receiver = frame->slots[index];
 			if (!IS_INSTANCE(receiver)) {
 				RUNTIME_ERROR("Only instances have fields.");
 			}
 
 			ObjInstance* instance = AS_INSTANCE(receiver);
-			Value constant = READ_CONSTANT(READ_24bits());
+			LfxValue constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			uint8_t slot = READ_BYTE();
 			InlineCacheSlot* icCache = frame->caches;
@@ -1695,8 +1695,8 @@ static InterpretResult run()
 		}
 		case OP_GET_INDEX: {
 		label_op_get_index:
-			Value target = vm.cache.stackTop[-1];
-			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			LfxValue target = vm.cache.stackTop[-1];
+			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			double num_index = AS_NUMBER(constant);
 
 			if (isIndexableArray(target)) {
@@ -1728,10 +1728,10 @@ static InterpretResult run()
 		}
 		case OP_SET_INDEX: {
 		label_op_set_index:
-			Value target = vm.cache.stackTop[-2];
-			Value value = vm.cache.stackTop[-1];
+			LfxValue target = vm.cache.stackTop[-2];
+			LfxValue value = vm.cache.stackTop[-1];
 
-			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			double num_index = AS_NUMBER(constant);
 
 			if (isArrayLike(target)) {
@@ -1754,8 +1754,8 @@ static InterpretResult run()
 		}
 		case OP_GET_SUBSCRIPT: {
 		label_op_get_subscript:
-			Value target = vm.cache.stackTop[-2];
-			Value index = vm.cache.stackTop[-1];
+			LfxValue target = vm.cache.stackTop[-2];
+			LfxValue index = vm.cache.stackTop[-1];
 
 			if (isIndexableArray(target)) {
 				if (IS_NUMBER(index)) {
@@ -1780,7 +1780,7 @@ static InterpretResult run()
 				if (IS_STRING(index)) {
 					ObjInstance* instance = AS_INSTANCE(target);
 					ObjString* name = AS_STRING(index);
-					Value value;
+					LfxValue value;
 
 					vm.cache.stackTop--;//it is string,we don't gc string so pop is allowed
 					if (tableGet(&instance->fields, name, &value)) {
@@ -1819,9 +1819,9 @@ static InterpretResult run()
 		}
 		case OP_SET_SUBSCRIPT: {
 		label_op_set_subscript:
-			Value target = vm.cache.stackTop[-3];
-			Value index = vm.cache.stackTop[-2];
-			Value value = vm.cache.stackTop[-1];
+			LfxValue target = vm.cache.stackTop[-3];
+			LfxValue index = vm.cache.stackTop[-2];
+			LfxValue value = vm.cache.stackTop[-1];
 
 			if (isArrayLike(target)) {
 				if (IS_NUMBER(index)) {
@@ -1876,7 +1876,7 @@ static InterpretResult run()
 		}
 		case OP_DEFINE_GLOBAL: {
 		label_op_define_global:
-			Value constant = READ_CONSTANT(READ_24bits());
+			LfxValue constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 
 			//it's not a new key,no cache, global can't frozen
@@ -1886,7 +1886,7 @@ static InterpretResult run()
 		}
 		case OP_GET_GLOBAL: {
 		label_op_get_global:
-			Value constant = READ_CONSTANT(READ_24bits());
+			LfxValue constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 
 			//inline find by cache symbol
@@ -1899,7 +1899,7 @@ static InterpretResult run()
 				}
 			}
 
-			Value value;
+			LfxValue value;
 			if (!tableGet(&vm.globals.fields, name, &value)) {
 				RUNTIME_ERROR("Undefined variable '%s'.", name->chars);
 			}
@@ -1908,7 +1908,7 @@ static InterpretResult run()
 		}
 		case OP_SET_GLOBAL: {
 		label_op_set_global:
-			Value constant = READ_CONSTANT(READ_24bits());
+			LfxValue constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 
 			//inline find by cache symbol(if we found it,it's not new key)
@@ -1939,7 +1939,7 @@ static InterpretResult run()
 				reserveArray(array, size);//allocate after push stack
 
 				//init the array
-				memcpy(array->payload, vm.cache.stackTop - size - 1, sizeof(Value) * size);
+				memcpy(array->payload, vm.cache.stackTop - size - 1, sizeof(LfxValue) * size);
 				array->length = size;
 
 				//pop the values and the temp array at top
@@ -1956,7 +1956,7 @@ static InterpretResult run()
 		case OP_NEW_PROPERTY: {
 		label_op_new_property:
 			ObjInstance* instance = AS_INSTANCE(vm.cache.stackTop[-2]);
-			Value constant = READ_CONSTANT(READ_24bits());
+			LfxValue constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			// this is used to create literal object,so we don't need to check frozen
 			tableSet(&instance->fields, name, vm.cache.stackTop[-1]);
@@ -1965,7 +1965,7 @@ static InterpretResult run()
 		}
 		case OP_NEW_ITERATOR: {
 		label_op_new_iterator:
-			Value target = vm.cache.stackTop[-1];
+			LfxValue target = vm.cache.stackTop[-1];
 			ObjIterator* iter = NULL;
 
 			if (isArrayLike(target)) {
@@ -2078,8 +2078,8 @@ static InterpretResult run()
 		}
 		case OP_IN: {
 		label_op_in:
-			Value key = vm.cache.stackTop[-2];
-			Value target = vm.cache.stackTop[-1];
+			LfxValue key = vm.cache.stackTop[-2];
+			LfxValue target = vm.cache.stackTop[-1];
 
 			if (!IS_STRING(key)) {
 				RUNTIME_ERROR("'in' key must be a string.");
@@ -2089,7 +2089,7 @@ static InterpretResult run()
 			//at inherit time, so fields + own class methods cover everything
 			bool found = false;
 			ObjString* name = AS_STRING(key);
-			Value slot;
+			LfxValue slot;
 			if (IS_INSTANCE(target)) {
 				ObjInstance* instance = AS_INSTANCE(target);
 				//default class owns no methods: skip the guaranteed-miss lookup
@@ -2265,7 +2265,7 @@ static InterpretResult run()
 		case OP_JUMP_IF_FALSE: {
 		label_op_jump_if_false:
 			uint16_t offset = READ_SHORT();
-			Value condition = vm.cache.stackTop[-1];
+			LfxValue condition = vm.cache.stackTop[-1];
 			if (isFalsey(condition)) {
 				ip += offset;
 				NEXT_INSTRUCTION;
@@ -2275,7 +2275,7 @@ static InterpretResult run()
 		case OP_JUMP_IF_FALSE_POP: {
 		label_op_jump_if_false_pop:
 			uint16_t offset = READ_SHORT();
-			Value condition = vm.cache.stackTop[-1];
+			LfxValue condition = vm.cache.stackTop[-1];
 			vm.cache.stackTop--;
 			if (isFalsey(condition)) {
 				ip += offset;
@@ -2286,7 +2286,7 @@ static InterpretResult run()
 		case OP_JUMP_IF_TRUE: {
 		label_op_jump_if_true:
 			uint16_t offset = READ_SHORT();
-			Value condition = vm.cache.stackTop[-1];
+			LfxValue condition = vm.cache.stackTop[-1];
 			if (isTruthy(condition)) {
 				ip += offset;
 				NEXT_INSTRUCTION;
@@ -2307,13 +2307,13 @@ static InterpretResult run()
 		}
 		case OP_INVOKE: {
 		label_op_invoke:
-			Value constant = READ_CONSTANT(READ_24bits());
+			LfxValue constant = READ_CONSTANT(READ_24bits());
 			ObjString* method = AS_STRING(constant);
 			uint8_t argCount = READ_BYTE();
 			uint8_t slot = READ_BYTE();
 			InlineCacheSlot* icCache = frame->caches;
 
-			Value receiver = STACK_PEEK(argCount);
+			LfxValue receiver = STACK_PEEK(argCount);
 			if (!IS_INSTANCE(receiver)) {
 				RUNTIME_ERROR("Only instances have methods.");
 			}
@@ -2344,7 +2344,7 @@ static InterpretResult run()
 		}
 		case OP_SUPER_INVOKE: {
 		label_op_super_invoke:
-			Value constant = READ_CONSTANT(READ_24bits());
+			LfxValue constant = READ_CONSTANT(READ_24bits());
 			ObjString* method = AS_STRING(constant);
 			uint8_t argCount = READ_BYTE();
 
@@ -2358,7 +2358,7 @@ static InterpretResult run()
 		}
 		case OP_RETURN: {
 		label_op_return:
-			Value result = stack_pop();
+			LfxValue result = stack_pop();
 			//close all remaining upValues of function
 			closeUpvalues(frame->slots);
 			if (--vm.cache.frameCount == 0) {
@@ -2423,7 +2423,7 @@ static InterpretResult run()
 		}
 		case OP_IMPORT: {
 		label_op_import:
-			Value target = vm.cache.stackTop[-1];
+			LfxValue target = vm.cache.stackTop[-1];
 
 			C_STR path = getBufferFromStringLike(target);
 			if (path == NULL) {
@@ -2466,7 +2466,7 @@ static InterpretResult run()
 		case OP_ADD_CONST: {
 		label_op_add_const:
 			//number only,16bits index into function's own constants
-			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			// might cause gc,so can't decrease first
 			if (IS_NUMBER(vm.cache.stackTop[-1])) {
 				vm.cache.stackTop[-1] = NUMBER_VAL(AS_NUMBER(vm.cache.stackTop[-1]) + AS_NUMBER(constant));
@@ -2477,25 +2477,25 @@ static InterpretResult run()
 		}
 		case OP_SUBTRACT_CONST: {
 		label_op_subtract_const:
-			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			BINARY_OP_WITH_RIGHT(NUMBER_VAL, constant, -);
 			NEXT_INSTRUCTION;
 		}
 		case OP_MULTIPLY_CONST: {
 		label_op_multiply_const:
-			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			BINARY_OP_WITH_RIGHT(NUMBER_VAL, constant, *);
 			NEXT_INSTRUCTION;
 		}
 		case OP_DIVIDE_CONST: {
 		label_op_divide_const:
-			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			BINARY_OP_WITH_RIGHT(NUMBER_VAL, constant, / );
 			NEXT_INSTRUCTION;
 		}
 		case OP_MODULUS_CONST: {
 		label_op_modulus_const:
-			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			/* both operands must be numbers */
 			if (IS_NUMBER(vm.cache.stackTop[-1])) {
 				/* compute the result in place */
@@ -2509,52 +2509,52 @@ static InterpretResult run()
 		case OP_EQUAL_CONST: {
 		label_op_equal_const:
 			//non-number constant,24bits index into vm.constants
-			Value constant = READ_CONSTANT(READ_24bits());
+			LfxValue constant = READ_CONSTANT(READ_24bits());
 			vm.cache.stackTop[-1] = BOOL_VAL(valuesEqual(vm.cache.stackTop[-1], constant));
 			NEXT_INSTRUCTION;
 		}
 		case OP_NOT_EQUAL_CONST: {
 		label_op_not_equal_const:
 			//non-number constant,24bits index into vm.constants
-			Value constant = READ_CONSTANT(READ_24bits());
+			LfxValue constant = READ_CONSTANT(READ_24bits());
 			vm.cache.stackTop[-1] = BOOL_VAL(!valuesEqual(vm.cache.stackTop[-1], constant));
 			NEXT_INSTRUCTION;
 		}
 		case OP_GREATER_CONST: {
 		label_op_greater_const:
-			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			COMPARE_OP_WITH_RIGHT(constant, > );
 			NEXT_INSTRUCTION;
 		}
 		case OP_LESS_CONST: {
 		label_op_less_const:
-			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			COMPARE_OP_WITH_RIGHT(constant, < );
 			NEXT_INSTRUCTION;
 		}
 		case OP_GREATER_EQUAL_CONST: {
 		label_op_greater_equal_const:
-			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			COMPARE_OP_WITH_RIGHT(constant, >= );
 			NEXT_INSTRUCTION;
 		}
 		case OP_LESS_EQUAL_CONST: {
 		label_op_less_equal_const:
-			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			COMPARE_OP_WITH_RIGHT(constant, <= );
 			NEXT_INSTRUCTION;
 		}
 		case OP_EQUAL_CONST_NUMBER: {
 		label_op_equal_const_number:
 			//number only,16bits index into function's own constants
-			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			vm.cache.stackTop[-1] = BOOL_VAL(valuesEqual(vm.cache.stackTop[-1], constant));
 			NEXT_INSTRUCTION;
 		}
 		case OP_NOT_EQUAL_CONST_NUMBER: {
 		label_op_not_equal_const_number:
 			//number only,16bits index into function's own constants
-			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			vm.cache.stackTop[-1] = BOOL_VAL(!valuesEqual(vm.cache.stackTop[-1], constant));
 			NEXT_INSTRUCTION;
 		}
@@ -2562,7 +2562,7 @@ static InterpretResult run()
 		case OP_ADD_LOCAL: {
 		label_op_add_local:
 			uint32_t index = READ_SHORT();
-			Value local = frame->slots[index];
+			LfxValue local = frame->slots[index];
 
 			// might cause gc,so can't decrease first
 			if (IS_NUMBER(vm.cache.stackTop[-1]) && IS_NUMBER(local)) {
@@ -2580,7 +2580,7 @@ static InterpretResult run()
 		case OP_SUBTRACT_LOCAL: {
 		label_op_subtract_local:
 			uint32_t index = READ_SHORT();
-			Value local = frame->slots[index];
+			LfxValue local = frame->slots[index];
 
 			BINARY_OP_WITH_RIGHT(NUMBER_VAL, local, -);
 			NEXT_INSTRUCTION;
@@ -2588,7 +2588,7 @@ static InterpretResult run()
 		case OP_MULTIPLY_LOCAL: {
 		label_op_multiply_local:
 			uint32_t index = READ_SHORT();
-			Value local = frame->slots[index];
+			LfxValue local = frame->slots[index];
 
 			BINARY_OP_WITH_RIGHT(NUMBER_VAL, local, *);
 			NEXT_INSTRUCTION;
@@ -2596,7 +2596,7 @@ static InterpretResult run()
 		case OP_DIVIDE_LOCAL: {
 		label_op_divide_local:
 			uint32_t index = READ_SHORT();
-			Value local = frame->slots[index];
+			LfxValue local = frame->slots[index];
 
 			BINARY_OP_WITH_RIGHT(NUMBER_VAL, local, / );
 			NEXT_INSTRUCTION;
@@ -2604,7 +2604,7 @@ static InterpretResult run()
 		case OP_MODULUS_LOCAL: {
 		label_op_modulus_local:
 			uint32_t index = READ_SHORT();
-			Value local = frame->slots[index];
+			LfxValue local = frame->slots[index];
 
 			/* both operands must be numbers */
 			if (IS_NUMBER(vm.cache.stackTop[-1]) && IS_NUMBER(local)) {
@@ -2619,42 +2619,42 @@ static InterpretResult run()
 		case OP_EQUAL_LOCAL: {
 		label_op_equal_local:
 			uint32_t index = READ_SHORT();
-			Value local = frame->slots[index];
+			LfxValue local = frame->slots[index];
 			vm.cache.stackTop[-1] = BOOL_VAL(valuesEqual(vm.cache.stackTop[-1], local));
 			NEXT_INSTRUCTION;
 		}
 		case OP_NOT_EQUAL_LOCAL: {
 		label_op_not_equal_local:
 			uint32_t index = READ_SHORT();
-			Value local = frame->slots[index];
+			LfxValue local = frame->slots[index];
 			vm.cache.stackTop[-1] = BOOL_VAL(!valuesEqual(vm.cache.stackTop[-1], local));
 			NEXT_INSTRUCTION;
 		}
 		case OP_GREATER_LOCAL: {
 		label_op_greater_local:
 			uint32_t index = READ_SHORT();
-			Value local = frame->slots[index];
+			LfxValue local = frame->slots[index];
 			COMPARE_OP_WITH_RIGHT(local, > );
 			NEXT_INSTRUCTION;
 		}
 		case OP_LESS_LOCAL: {
 		label_op_less_local:
 			uint32_t index = READ_SHORT();
-			Value local = frame->slots[index];
+			LfxValue local = frame->slots[index];
 			COMPARE_OP_WITH_RIGHT(local, < );
 			NEXT_INSTRUCTION;
 		}
 		case OP_GREATER_EQUAL_LOCAL: {
 		label_op_greater_equal_local:
 			uint32_t index = READ_SHORT();
-			Value local = frame->slots[index];
+			LfxValue local = frame->slots[index];
 			COMPARE_OP_WITH_RIGHT(local, >= );
 			NEXT_INSTRUCTION;
 		}
 		case OP_LESS_EQUAL_LOCAL: {
 		label_op_less_equal_local:
 			uint32_t index = READ_SHORT();
-			Value local = frame->slots[index];
+			LfxValue local = frame->slots[index];
 			COMPARE_OP_WITH_RIGHT(local, <= );
 			NEXT_INSTRUCTION;
 		}
@@ -2666,8 +2666,8 @@ static InterpretResult run()
 			uint32_t indexA = READ_SHORT();
 			uint32_t indexB = READ_SHORT();
 			uint16_t offset = READ_SHORT();
-			Value left = frame->slots[indexA];
-			Value right = frame->slots[indexB];
+			LfxValue left = frame->slots[indexA];
+			LfxValue right = frame->slots[indexB];
 			JIF_CMP_WITH_RIGHT(left, right, offset, < );
 		}
 		case OP_JIF_LESS_EQUAL_LL: {
@@ -2675,8 +2675,8 @@ static InterpretResult run()
 			uint32_t indexA = READ_SHORT();
 			uint32_t indexB = READ_SHORT();
 			uint16_t offset = READ_SHORT();
-			Value left = frame->slots[indexA];
-			Value right = frame->slots[indexB];
+			LfxValue left = frame->slots[indexA];
+			LfxValue right = frame->slots[indexB];
 			JIF_CMP_WITH_RIGHT(left, right, offset, <= );
 		}
 		case OP_JIF_EQUAL_LL: {
@@ -2703,39 +2703,39 @@ static InterpretResult run()
 		case OP_JIF_LESS_LC_NUMBER: {
 		label_op_jif_less_lc_number:
 			uint32_t index = READ_SHORT();
-			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			uint16_t offset = READ_SHORT();
-			Value local = frame->slots[index];
+			LfxValue local = frame->slots[index];
 			JIF_CMP_NUM_WITH_RIGHT(local, constant, offset, < );
 		}
 		case OP_JIF_LESS_EQUAL_LC_NUMBER: {
 		label_op_jif_less_equal_lc_number:
 			uint32_t index = READ_SHORT();
-			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			uint16_t offset = READ_SHORT();
-			Value local = frame->slots[index];
+			LfxValue local = frame->slots[index];
 			JIF_CMP_NUM_WITH_RIGHT(local, constant, offset, <= );
 		}
 		case OP_JIF_GREATER_LC_NUMBER: {
 		label_op_jif_greater_lc_number:
 			uint32_t index = READ_SHORT();
-			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			uint16_t offset = READ_SHORT();
-			Value local = frame->slots[index];
+			LfxValue local = frame->slots[index];
 			JIF_CMP_NUM_WITH_RIGHT(local, constant, offset, > );
 		}
 		case OP_JIF_GREATER_EQUAL_LC_NUMBER: {
 		label_op_jif_greater_equal_lc_number:
 			uint32_t index = READ_SHORT();
-			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			uint16_t offset = READ_SHORT();
-			Value local = frame->slots[index];
+			LfxValue local = frame->slots[index];
 			JIF_CMP_NUM_WITH_RIGHT(local, constant, offset, >= );
 		}
 		case OP_JIF_EQUAL_LC_NUMBER: {
 		label_op_jif_equal_lc_number:
 			uint32_t index = READ_SHORT();
-			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			uint16_t offset = READ_SHORT();
 			if (valuesEqual(frame->slots[index], constant)) NEXT_INSTRUCTION;
 			ip += offset;
@@ -2744,7 +2744,7 @@ static InterpretResult run()
 		case OP_JIF_NOT_EQUAL_LC_NUMBER: {
 		label_op_jif_not_equal_lc_number:
 			uint32_t index = READ_SHORT();
-			Value constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			uint16_t offset = READ_SHORT();
 			if (!valuesEqual(frame->slots[index], constant)) NEXT_INSTRUCTION;
 			ip += offset;
@@ -2755,7 +2755,7 @@ static InterpretResult run()
 		case OP_JIF_EQUAL_LC: {
 		label_op_jif_equal_lc:
 			uint32_t index = READ_SHORT();
-			Value constant = READ_CONSTANT(READ_24bits());
+			LfxValue constant = READ_CONSTANT(READ_24bits());
 			uint16_t offset = READ_SHORT();
 			if (valuesEqual(frame->slots[index], constant)) NEXT_INSTRUCTION;
 			ip += offset;
@@ -2764,7 +2764,7 @@ static InterpretResult run()
 		case OP_JIF_NOT_EQUAL_LC: {
 		label_op_jif_not_equal_lc:
 			uint32_t index = READ_SHORT();
-			Value constant = READ_CONSTANT(READ_24bits());
+			LfxValue constant = READ_CONSTANT(READ_24bits());
 			uint16_t offset = READ_SHORT();
 			if (!valuesEqual(frame->slots[index], constant)) NEXT_INSTRUCTION;
 			ip += offset;
@@ -2774,7 +2774,7 @@ static InterpretResult run()
 		case OP_NOT_LOCAL: {
 		label_op_not_local:
 			uint32_t index = READ_SHORT();
-			Value local = frame->slots[index];
+			LfxValue local = frame->slots[index];
 
 			stack_push(BOOL_VAL(isFalsey(local)));
 			NEXT_INSTRUCTION;
@@ -2782,7 +2782,7 @@ static InterpretResult run()
 		case OP_NEGATE_LOCAL: {
 		label_op_negate_local:
 			uint32_t index = READ_SHORT();
-			Value local = frame->slots[index];
+			LfxValue local = frame->slots[index];
 
 			if (IS_NUMBER(local)) {
 				stack_push(NUMBER_VAL(-AS_NUMBER(local)));

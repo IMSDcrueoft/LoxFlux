@@ -111,7 +111,7 @@ void freeObject(Obj* object) {
 		//frames are ordinary no-GC heap memory and are always released
 		FREE_ARRAY_NO_GC(CallFrame, fiber->core.frames, fiber->core.frameCapacity);
 
-		if (vm.fiberFreeCount < FIBER_CACHE_MAX) {
+		if (vm.fiberFreeCount < LOXFLUX_FIBER_CACHE_MAX) {
 			assert(vm.bytesAllocated >= sizeof(ObjFiber));
 			vm.bytesAllocated -= sizeof(ObjFiber);
 			//reuse the object header as the free-list link
@@ -141,7 +141,7 @@ void freeObject(Obj* object) {
 			FREE_ARRAY_NO_GC(InlineCacheSlot, function->caches, (uint32_t)function->cacheCount + 1);
 			function->caches = NULL;
 		}
-		FREE_FLEX_NO_GC(ObjFunction, function, Value, function->constantsCount);
+		FREE_FLEX_NO_GC(ObjFunction, function, LfxValue, function->constantsCount);
 		break;
 	}
 	case OBJ_NATIVE:
@@ -155,9 +155,9 @@ void freeObject(Obj* object) {
 	case OBJ_ARRAY: {
 		//they share the same struct
 		ObjArray* array = (ObjArray*)object;
-		FREE_ARRAY(Value, array->payload, array->capacity);
+		FREE_ARRAY(LfxValue, array->payload, array->capacity);
 #if DEBUG_LOG_GC
-		fprintf(stderr, "[gc] %p free buffer : %zu\n", (void*)array->payload, array->capacity * sizeof(Value));
+		fprintf(stderr, "[gc] %p free buffer : %zu\n", (void*)array->payload, array->capacity * sizeof(LfxValue));
 #endif
 		FREE(ObjArray, object);
 		break;
@@ -268,7 +268,7 @@ struct ObjFiber* allocFiber()
 
 		memset(&fiber->stackArena, 0, sizeof(fiber->stackArena));
 
-		if (!arenaBump_init(&fiber->stackArena, STACK_ARENA_SIZE, false, 0, 16 << 10)) {
+		if (!arenaBump_init(&fiber->stackArena, LOXFLUX_STACK_ARENA_SIZE, false, 0, 16 << 10)) {
 			fprintf(stderr, "Failed to reserve the fiber stack arena.\n");
 			exit(1);
 		}

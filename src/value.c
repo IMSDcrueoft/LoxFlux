@@ -6,7 +6,9 @@
 #include "value.h"
 #include "object.h"
 
-bool valuesEqual(Value a, Value b)
+#define VALUEHOLES_EMPTY UINT32_MAX
+
+bool valuesEqual(LfxValue a, LfxValue b)
 {
 #if NAN_BOXING
 	if (IS_NUMBER(a) && IS_NUMBER(b)) {
@@ -135,7 +137,7 @@ void convert_adaptive_double(double value, char* buffer, uint32_t bufferSize) {
 	buffer[pos] = '\0';
 }
 
-void printValue(FILE* stream, Value value, bool isExpand) {
+void printValue(FILE* stream, LfxValue value, bool isExpand) {
 #if NAN_BOXING
 	if (IS_BOOL(value)) {
 		fprintf(stream, AS_BOOL(value) ? "true" : "false");
@@ -175,7 +177,7 @@ void valueArray_init(ValueArray* array) {
 	array->valueHoleIndex = VALUEHOLES_EMPTY;
 }
 
-uint32_t valueArray_write(ValueArray* array, Value value) {
+uint32_t valueArray_write(ValueArray* array, LfxValue value) {
 	//reuse a hole when one exists: pop the freeList head, which carries the
 	//next hole index stashed as raw bytes inside the slot itself
 	if (array->valueHoleIndex != VALUEHOLES_EMPTY) {
@@ -189,7 +191,7 @@ uint32_t valueArray_write(ValueArray* array, Value value) {
 	if (array->capacity < array->count + 1) {
 		uint32_t oldCapacity = array->capacity;
 		array->capacity = GROW_CAPACITY(oldCapacity);
-		array->values = GROW_ARRAY_NO_GC(Value, array->values, oldCapacity, array->capacity);
+		array->values = GROW_ARRAY_NO_GC(LfxValue, array->values, oldCapacity, array->capacity);
 	}
 
 	array->values[array->count] = value;
@@ -197,20 +199,20 @@ uint32_t valueArray_write(ValueArray* array, Value value) {
 	return array->count - 1u;
 }
 
-void valueArray_writeAt(ValueArray* array, Value value, uint32_t index)
+void valueArray_writeAt(ValueArray* array, LfxValue value, uint32_t index)
 {
 	array->values[index] = value;
 }
 
 void valueArray_free(ValueArray* array) {
-	FREE_ARRAY_NO_GC(Value, array->values, array->capacity);
+	FREE_ARRAY_NO_GC(LfxValue, array->values, array->capacity);
 	valueArray_init(array);
 }
 
 void valueArray_erase(ValueArray* array, uint32_t index) {
 	//the slot becomes dead memory: clear it, then stash the previous freeList
 	//head as raw bytes (only the low 4B are read back, see valueArray_write)
-	memset(&array->values[index], 0, sizeof(Value));
+	memset(&array->values[index], 0, sizeof(LfxValue));
 	memcpy(&array->values[index], &array->valueHoleIndex, sizeof(uint32_t));
 	array->valueHoleIndex = index;
 }

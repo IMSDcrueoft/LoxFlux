@@ -9,38 +9,43 @@
 
 //Time
 //return nano second
-static Value nanoNative(int argCount, Value* args)
+static LfxValue nanoNative(LfxVM* vm, int argCount, LfxValue* args)
 {
+	(void)vm;
 	return NUMBER_VAL((double)get_nanoseconds());
 }
 
 //return micro second
-static Value microNative(int argCount, Value* args)
+static LfxValue microNative(LfxVM* vm, int argCount, LfxValue* args)
 {
+	(void)vm;
 	return NUMBER_VAL((double)get_microseconds());
 }
 
 //return milli second-
-static Value milliNative(int argCount, Value* args)
+static LfxValue milliNative(LfxVM* vm, int argCount, LfxValue* args)
 {
+	(void)vm;
 	return NUMBER_VAL((double)get_milliseconds());
 }
 
 //return second
-static Value secondNative(int argCount, Value* args)
+static LfxValue secondNative(LfxVM* vm, int argCount, LfxValue* args)
 {
+	(void)vm;
 	return NUMBER_VAL((double)get_seconds());
 }
 
-static Value utcMilliNative(int argCount, Value* args) {
+static LfxValue utcMilliNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	return NUMBER_VAL((double)get_utc_milliseconds());
 }
 
 COLD_FUNCTION
-void importNative_time() {
-	defineNative_time("nano", nanoNative);
-	defineNative_time("micro", microNative);
-	defineNative_time("milli", milliNative);
-	defineNative_time("second", secondNative);
-	defineNative_time("utc", utcMilliNative);
+void importNative_time(LfxVM* vm) {
+	defineNative_time(vm, "nano", nanoNative);
+	defineNative_time(vm, "micro", microNative);
+	defineNative_time(vm, "milli", milliNative);
+	defineNative_time(vm, "second", secondNative);
+	defineNative_time(vm, "utc", utcMilliNative);
 }

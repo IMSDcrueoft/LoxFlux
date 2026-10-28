@@ -34,7 +34,7 @@ static void namedVariable(Token name, bool canAssign);
 static void variable(bool canAssign);
 static Token syntheticToken(C_STR text);
 
-#if COMPILATION_TIME_OPTIMIZATION
+#if LOXFLUX_COMPILATION_TIME_OPTIMIZATION
 static void instructionOptimize();
 #endif
 
@@ -55,7 +55,7 @@ static void clearOpStack() {
 static void emitOpStack(uint8_t byte, bool doCheck) {
 	opStack_push(currentOpStack(), byte);
 
-#if COMPILATION_TIME_OPTIMIZATION
+#if LOXFLUX_COMPILATION_TIME_OPTIMIZATION
 	if (!doCheck || !vm_optimizationEnabled) return;
 
 #if DEBUG_PRINT_CODE
@@ -226,7 +226,7 @@ static int32_t emitJump(uint8_t instruction) {
 //truthiness mirrors vm's isTruthy: only nil and false are falsy
 //returns patch offset like emitJump, or -1 when nothing to patch
 static int32_t emitBranchJump(uint8_t instruction, int32_t condStart) {
-#if COMPILATION_TIME_OPTIMIZATION
+#if LOXFLUX_COMPILATION_TIME_OPTIMIZATION
 	if (!vm_optimizationEnabled) return emitJump(instruction);
 
 	if (instruction == OP_JUMP_IF_FALSE_POP) {
@@ -407,7 +407,7 @@ static void emitReturn() {
 }
 
 //string and native constants,24bits index into vm.constants (both deduplicated)
-static uint32_t makeConstant(Value value) {
+static uint32_t makeConstant(LfxValue value) {
 	if (IS_STRING(value)) {
 		//find if string is in constant,because it is in pool
 		StringEntry* entry = getStringEntryInPool(AS_STRING(value));
@@ -452,7 +452,7 @@ static uint32_t makeConstant(Value value) {
 }
 
 //number constants only,16bits index into function's own constants
-static uint32_t makeNumberConstant(Value value) {
+static uint32_t makeNumberConstant(LfxValue value) {
 	//deduplicate in per-function pool
 	BinaryEntry* entry = tableGetBinaryEntry(&current->numbers, &value);
 
@@ -471,12 +471,12 @@ static uint32_t makeNumberConstant(Value value) {
 	return entry->index;
 }
 
-static void emitConstant(Value value) {
+static void emitConstant(LfxValue value) {
 	emitConstantCommond(OP_CONSTANT, makeConstant(value));
 	emitOpStack(OP_CONSTANT, false);
 }
 
-static void emitNumberConstant(Value value) {
+static void emitNumberConstant(LfxValue value) {
 	emitShortCommand(OP_CONST_NUMBER, makeNumberConstant(value));
 	emitOpStack(OP_CONST_NUMBER, false);
 }
@@ -487,7 +487,7 @@ static void emitNumberConstant(Value value) {
 //other member kinds keep the property-access site (only known-safe kinds are folded)
 //the pre-allocated IC slot is rolled back:the folded site no longer owns one
 static bool foldBuiltinMember(void) {
-#if COMPILATION_TIME_OPTIMIZATION
+#if LOXFLUX_COMPILATION_TIME_OPTIMIZATION
 	if (!vm_optimizationEnabled) return false;
 
 	Chunk* chunk = currentChunk();
@@ -508,7 +508,7 @@ static bool foldBuiltinMember(void) {
 	uint32_t nameIdx = READ_24BITS_INDEX(1);
 	uint8_t slot = CHUNK_PEEK(0);
 
-	Value member;
+	LfxValue member;
 	if (!tableGet(&vm.builtins[module].fields, AS_STRING(vm.constants.values[nameIdx]), &member)) return false;
 	//only fold member kinds that are safe as compile-time constants: numbers (function pool)
 	//and native functions (shared pool; static/non-GC objects). anything else keeps the
@@ -1882,7 +1882,7 @@ static void call(bool canAssign) {
 //returns -1 when the receiver is not a local load (upvalue/global/complex expression)
 static int32_t tryPopReceiverLocal() {
 	int32_t receiverLocal = -1;
-#if COMPILATION_TIME_OPTIMIZATION
+#if LOXFLUX_COMPILATION_TIME_OPTIMIZATION
 	if (!vm_optimizationEnabled) return receiverLocal;
 
 	OPStack* opStack = currentOpStack();
@@ -1921,7 +1921,7 @@ static void dot(bool canAssign) {
 		emitOpStack(receiverLocal >= 0 ? OP_SET_PROP_LOCAL : OP_SET_PROPERTY, false);
 	}
 	else if (match(TOKEN_LEFT_PAREN)) {
-#if COMPILATION_TIME_OPTIMIZATION
+#if LOXFLUX_COMPILATION_TIME_OPTIMIZATION
 		//fold `@module.member(args)` -> `OP_CONSTANT <native> + args + OP_CALL`:
 		//builtin module fields are frozen, so the member is a compile-time constant; this drops
 		//the module push and the invoke site (and its inline-cache slot)
@@ -1933,7 +1933,7 @@ static void dot(bool canAssign) {
 				//module id is the operand byte right behind the opcode
 				uint8_t builtinModule = chunk->code[chunk->count - 1];
 
-				Value member;
+				LfxValue member;
 				if (tableGet(&vm.builtins[builtinModule].fields, AS_STRING(vm.constants.values[name]), &member)) {
 					if (!IS_NATIVE(member)) {
 						//frozen builtin member that is not a method (e.g. @math.PI): calling it is a
@@ -2072,7 +2072,7 @@ static void mergeSubscript(uint8_t code, bool isAssignment) {
 	else {
 		//non-number constant index : OP_CONSTANT 1 + 3 byte
 		uint32_t index = READ_24BITS_INDEX();
-		Value val = READ_CONSTANT(index);
+		LfxValue val = READ_CONSTANT(index);
 
 		//must fallback
 		chunk_fallback(chunk, 4);
@@ -2483,7 +2483,7 @@ ObjFunction* compile(C_STR source, FunctionType compileType) {
 /*
 * This part uses hard-coded instruction lengths, which needs to be noted
 */
-#if COMPILATION_TIME_OPTIMIZATION
+#if LOXFLUX_COMPILATION_TIME_OPTIMIZATION
 //COLD_FUNCTION
 static void instructionOptimize() {
 	Chunk* chunk = currentChunk();
@@ -2528,7 +2528,7 @@ static void instructionOptimize() {
 //read the index by the constant kind,offset counts from the last emitted byte
 #define READ_INDEX(isConstNumber, offset)	((isConstNumber) ? READ_SHORT_INDEX(offset) : READ_24BITS_INDEX(offset))
 
-//read the constant Value by the constant kind
+//read the constant LfxValue by the constant kind
 #define READ_CONST_VALUE(isConstNumber, offset)	\
 	((isConstNumber) ? READ_LOCAL_CONSTANT(READ_INDEX(isConstNumber, offset))	\
 					 : READ_GLOBAL_CONSTANT(READ_INDEX(isConstNumber, offset)))
@@ -2537,7 +2537,7 @@ static void instructionOptimize() {
 #define OPERAND_SIZE(op)	\
 	(((op) == OP_CONST_NUMBER) ? 3 : (((op) == OP_CONSTANT) ? 4 : 1))
 
-//resolve a compile-time constant operand (OP_CONSTANT/OP_CONST_NUMBER/OP_TRUE/OP_FALSE/OP_NIL) to its Value
+//resolve a compile-time constant operand (OP_CONSTANT/OP_CONST_NUMBER/OP_TRUE/OP_FALSE/OP_NIL) to its LfxValue
 #define READ_OPERAND(op, offset)	\
 	(((op) == OP_CONST_NUMBER)	? READ_LOCAL_CONSTANT(READ_SHORT_INDEX(offset)) :	\
 	 ((op) == OP_CONSTANT)		? READ_GLOBAL_CONSTANT(READ_24BITS_INDEX(offset)) :	\
@@ -2580,8 +2580,8 @@ static void instructionOptimize() {
 	switch (code) {
 	case OP_ADD: {
 		if (isBothConstant) {
-			Value left = READ_CONST_VALUE(isLeftConstNumber, 1 + CONST_SIZE(isRightConstNumber));
-			Value right = READ_CONST_VALUE(isRightConstNumber, 1);
+			LfxValue left = READ_CONST_VALUE(isLeftConstNumber, 1 + CONST_SIZE(isRightConstNumber));
+			LfxValue right = READ_CONST_VALUE(isRightConstNumber, 1);
 
 			if (IS_NUMBER(left) && IS_NUMBER(right)) {
 				double val = AS_NUMBER(left) + AS_NUMBER(right);
@@ -2615,8 +2615,8 @@ static void instructionOptimize() {
 	}
 	case OP_SUBTRACT: {
 		if (isBothConstant) {
-			Value left = READ_CONST_VALUE(isLeftConstNumber, 1 + CONST_SIZE(isRightConstNumber));
-			Value right = READ_CONST_VALUE(isRightConstNumber, 1);
+			LfxValue left = READ_CONST_VALUE(isLeftConstNumber, 1 + CONST_SIZE(isRightConstNumber));
+			LfxValue right = READ_CONST_VALUE(isRightConstNumber, 1);
 			BINARY_CALC(left, right, -, CONST_SIZE(isLeftConstNumber), CONST_SIZE(isRightConstNumber));
 		}
 		else if (isRightConstNumber) {
@@ -2635,8 +2635,8 @@ static void instructionOptimize() {
 	}
 	case OP_MULTIPLY: {
 		if (isBothConstant) {
-			Value left = READ_CONST_VALUE(isLeftConstNumber, 1 + CONST_SIZE(isRightConstNumber));
-			Value right = READ_CONST_VALUE(isRightConstNumber, 1);
+			LfxValue left = READ_CONST_VALUE(isLeftConstNumber, 1 + CONST_SIZE(isRightConstNumber));
+			LfxValue right = READ_CONST_VALUE(isRightConstNumber, 1);
 			BINARY_CALC(left, right, *, CONST_SIZE(isLeftConstNumber), CONST_SIZE(isRightConstNumber));
 		}
 		else if (isRightConstNumber) {
@@ -2655,8 +2655,8 @@ static void instructionOptimize() {
 	}
 	case OP_DIVIDE: {
 		if (isBothConstant) {
-			Value left = READ_CONST_VALUE(isLeftConstNumber, 1 + CONST_SIZE(isRightConstNumber));
-			Value right = READ_CONST_VALUE(isRightConstNumber, 1);
+			LfxValue left = READ_CONST_VALUE(isLeftConstNumber, 1 + CONST_SIZE(isRightConstNumber));
+			LfxValue right = READ_CONST_VALUE(isRightConstNumber, 1);
 			BINARY_CALC(left, right, / , CONST_SIZE(isLeftConstNumber), CONST_SIZE(isRightConstNumber));
 		}
 		else if (isRightConstNumber) {
@@ -2675,8 +2675,8 @@ static void instructionOptimize() {
 	}
 	case OP_MODULUS: {
 		if (isBothConstant) {
-			Value left = READ_CONST_VALUE(isLeftConstNumber, 1 + CONST_SIZE(isRightConstNumber));
-			Value right = READ_CONST_VALUE(isRightConstNumber, 1);
+			LfxValue left = READ_CONST_VALUE(isLeftConstNumber, 1 + CONST_SIZE(isRightConstNumber));
+			LfxValue right = READ_CONST_VALUE(isRightConstNumber, 1);
 
 			if (IS_NUMBER(left) && IS_NUMBER(right)) {
 				double val = fmod(AS_NUMBER(left), AS_NUMBER(right));
@@ -2737,7 +2737,7 @@ static void instructionOptimize() {
 	case OP_NEGATE: {
 		if (isRightConstNumber) {
 			//number constants only,always foldable
-			Value right = READ_LOCAL_CONSTANT(READ_SHORT_INDEX(1));
+			LfxValue right = READ_LOCAL_CONSTANT(READ_SHORT_INDEX(1));
 
 			double val = -AS_NUMBER(right);
 			chunk_fallback(chunk, 1 + 3);//op + const
@@ -2760,8 +2760,8 @@ static void instructionOptimize() {
 	}
 	case OP_EQUAL: {
 		if ((isLeftConstant || isLeftLiteral) && (isRightConstant || isRightLiteral)) {
-			Value left = READ_OPERAND(prevLeft, 1 + OPERAND_SIZE(prevRight));
-			Value right = READ_OPERAND(prevRight, 1);
+			LfxValue left = READ_OPERAND(prevLeft, 1 + OPERAND_SIZE(prevRight));
+			LfxValue right = READ_OPERAND(prevRight, 1);
 
 			bool val = valuesEqual(left, right);
 			chunk_fallback(chunk, 1 + OPERAND_SIZE(prevLeft) + OPERAND_SIZE(prevRight));//op + const + const
@@ -2790,8 +2790,8 @@ static void instructionOptimize() {
 	}
 	case OP_NOT_EQUAL: {
 		if ((isLeftConstant || isLeftLiteral) && (isRightConstant || isRightLiteral)) {
-			Value left = READ_OPERAND(prevLeft, 1 + OPERAND_SIZE(prevRight));
-			Value right = READ_OPERAND(prevRight, 1);
+			LfxValue left = READ_OPERAND(prevLeft, 1 + OPERAND_SIZE(prevRight));
+			LfxValue right = READ_OPERAND(prevRight, 1);
 
 			bool val = !valuesEqual(left, right);
 			chunk_fallback(chunk, 1 + OPERAND_SIZE(prevLeft) + OPERAND_SIZE(prevRight));//op + const + const
@@ -2820,8 +2820,8 @@ static void instructionOptimize() {
 	}
 	case OP_GREATER: {
 		if (isBothConstant) {
-			Value left = READ_CONST_VALUE(isLeftConstNumber, 1 + CONST_SIZE(isRightConstNumber));
-			Value right = READ_CONST_VALUE(isRightConstNumber, 1);
+			LfxValue left = READ_CONST_VALUE(isLeftConstNumber, 1 + CONST_SIZE(isRightConstNumber));
+			LfxValue right = READ_CONST_VALUE(isRightConstNumber, 1);
 			BINARY_CMP(left, right, > , CONST_SIZE(isLeftConstNumber), CONST_SIZE(isRightConstNumber));
 		}
 		else if (isRightConstNumber) {
@@ -2840,8 +2840,8 @@ static void instructionOptimize() {
 	}
 	case OP_LESS: {
 		if (isBothConstant) {
-			Value left = READ_CONST_VALUE(isLeftConstNumber, 1 + CONST_SIZE(isRightConstNumber));
-			Value right = READ_CONST_VALUE(isRightConstNumber, 1);
+			LfxValue left = READ_CONST_VALUE(isLeftConstNumber, 1 + CONST_SIZE(isRightConstNumber));
+			LfxValue right = READ_CONST_VALUE(isRightConstNumber, 1);
 			BINARY_CMP(left, right, < , CONST_SIZE(isLeftConstNumber), CONST_SIZE(isRightConstNumber));
 		}
 		else if (isRightConstNumber) {
@@ -2860,8 +2860,8 @@ static void instructionOptimize() {
 	}
 	case OP_LESS_EQUAL: {
 		if (isBothConstant) {
-			Value left = READ_CONST_VALUE(isLeftConstNumber, 1 + CONST_SIZE(isRightConstNumber));
-			Value right = READ_CONST_VALUE(isRightConstNumber, 1);
+			LfxValue left = READ_CONST_VALUE(isLeftConstNumber, 1 + CONST_SIZE(isRightConstNumber));
+			LfxValue right = READ_CONST_VALUE(isRightConstNumber, 1);
 			BINARY_CMP(left, right, <= , CONST_SIZE(isLeftConstNumber), CONST_SIZE(isRightConstNumber));
 		}
 		else if (isRightConstNumber) {
@@ -2880,8 +2880,8 @@ static void instructionOptimize() {
 	}
 	case OP_GREATER_EQUAL: {
 		if (isBothConstant) {
-			Value left = READ_CONST_VALUE(isLeftConstNumber, 1 + CONST_SIZE(isRightConstNumber));
-			Value right = READ_CONST_VALUE(isRightConstNumber, 1);
+			LfxValue left = READ_CONST_VALUE(isLeftConstNumber, 1 + CONST_SIZE(isRightConstNumber));
+			LfxValue right = READ_CONST_VALUE(isRightConstNumber, 1);
 			BINARY_CMP(left, right, >= , CONST_SIZE(isLeftConstNumber), CONST_SIZE(isRightConstNumber));
 		}
 		else if (isRightConstNumber) {
@@ -2907,7 +2907,7 @@ static void instructionOptimize() {
 			}
 
 			uint32_t idx_right = READ_SHORT_INDEX(2); //op
-			Value right = READ_LOCAL_CONSTANT(idx_right);
+			LfxValue right = READ_LOCAL_CONSTANT(idx_right);
 
 			if (!IS_NUMBER(right)) {
 				error("Operand of bitwise must be a number.");

@@ -90,7 +90,7 @@ static Obj* allocateObject(size_t size, ObjType type) {
 }
 
 HOT_FUNCTION
-ObjUpvalue* newUpvalue(Value* slot)
+ObjUpvalue* newUpvalue(LfxValue* slot)
 {
 	ObjUpvalue* upvalue = ALLOCATE_OBJ(ObjUpvalue, OBJ_UPVALUE);
 	upvalue->location = slot;
@@ -105,12 +105,12 @@ ObjFunction* newFunction(Compiler* compiler) {
 	// the compiler owns the embedded state and detaches the moved buffers itself)
 	// (ALLOCATE_FLEX_OBJ takes the total size: header + FAM; links into vm.objects_no_gc)
 	uint32_t constantsCount = compiler->constants.count;
-	ObjFunction* function = ALLOCATE_FLEX_OBJ(ObjFunction, OBJ_FUNCTION, sizeof(ObjFunction) + sizeof(Value) * constantsCount);
+	ObjFunction* function = ALLOCATE_FLEX_OBJ(ObjFunction, OBJ_FUNCTION, sizeof(ObjFunction) + sizeof(LfxValue) * constantsCount);
 	Obj header = function->obj;//keep list link/type/mark state set by allocateObject
 	memcpy(function, &compiler->function, sizeof(ObjFunction));//carries id/name/arity/upvalueCount/chunk/caches over
 	function->obj = header;
 
-	memcpy(function->constants, compiler->constants.values, sizeof(Value) * constantsCount);//always copy, count may be 0
+	memcpy(function->constants, compiler->constants.values, sizeof(LfxValue) * constantsCount);//always copy, count may be 0
 	function->constantsCount = constantsCount;
 	function->cacheCount = compiler->cacheCount;//real slot count for the VM
 
@@ -133,7 +133,7 @@ ObjClosure* newClosure(ObjFunction* function) {
 }
 
 HOT_FUNCTION
-ObjBoundMethod* newBoundMethod(Value receiver, ObjClosure* method)
+ObjBoundMethod* newBoundMethod(LfxValue receiver, ObjClosure* method)
 {
 	ObjBoundMethod* bound = ALLOCATE_OBJ(ObjBoundMethod, OBJ_BOUND_METHOD);
 	bound->receiver = receiver;
@@ -142,7 +142,7 @@ ObjBoundMethod* newBoundMethod(Value receiver, ObjClosure* method)
 }
 
 //create native function
-ObjNative* newNative(NativeFn function) {
+ObjNative* newNative(LfxNativeFn function) {
 	ObjNative* native = ALLOCATE_OBJ(ObjNative, OBJ_NATIVE);
 	native->function = function;
 	return native;
@@ -180,13 +180,13 @@ ObjFiber* newFiber()
 
 	//allocFiber() may return a recycled fiber, so initialize every execution
 	//field here; the stack arena itself is owned/reused by memory.c
-	fiber->core.stack = (Value*)fiber->stackArena.base;
+	fiber->core.stack = (LfxValue*)fiber->stackArena.base;
 	fiber->core.stackTop = fiber->core.stack;
-	fiber->core.stackBoundary = (Value*)((char*)fiber->stackArena.base + fiber->stackArena.commitTop);
+	fiber->core.stackBoundary = (LfxValue*)((char*)fiber->stackArena.base + fiber->stackArena.commitTop);
 
-	fiber->core.frames = ALLOCATE_NO_GC(CallFrame, FRAMES_INIT);
+	fiber->core.frames = ALLOCATE_NO_GC(CallFrame, LOXFLUX_FRAMES_INIT);
 	fiber->core.frameCount = 0;
-	fiber->core.frameCapacity = FRAMES_INIT;
+	fiber->core.frameCapacity = LOXFLUX_FRAMES_INIT;
 
 	fiber->core.openUpvalues = NULL;
 	fiber->resumer = NULL;
@@ -232,7 +232,7 @@ void reserveArray(ObjArray* array, uint64_t size)
 
 	switch (OBJ_GET_TYPE(array->obj)) {
 	case OBJ_ARRAY:
-		newPayload = GROW_TYPED_ARRAY(Value, array->payload, size);
+		newPayload = GROW_TYPED_ARRAY(LfxValue, array->payload, size);
 		break;
 	case OBJ_ARRAY_F64:
 		newPayload = GROW_TYPED_ARRAY(double, array->payload, size);
@@ -418,7 +418,7 @@ ObjString* connectString(ObjString* strA, ObjString* strB) {
 
 //memcmp-style three-way ordering for string/stringBuilder pairs:
 //byte compare over the common prefix, then the shorter operand is the smaller one
-int compareStringLike(Value a, Value b) {
+int compareStringLike(LfxValue a, LfxValue b) {
 	C_STR charsA;
 	C_STR charsB;
 	uint32_t lengthA;
@@ -514,7 +514,7 @@ static void printArrayLike(FILE* stream, ObjArray* array, bool isExpand) {
 			for (uint32_t i = 0; i < array->length;) {
 				switch (OBJ_GET_TYPE(array->obj)) {
 				case OBJ_ARRAY: //don't expand now ,or it's too slow and too much
-					printValue(stream, ARRAY_ELEMENT(array, Value, i), false);
+					printValue(stream, ARRAY_ELEMENT(array, LfxValue, i), false);
 					break;
 				case OBJ_ARRAY_F64: {
 					convert_adaptive_double(ARRAY_ELEMENT(array, double, i), buffer, sizeof(buffer));
@@ -558,7 +558,7 @@ static void printArrayLike(FILE* stream, ObjArray* array, bool isExpand) {
 	}
 }
 
-void printObjectTo(FILE* stream, Value value, bool isExpand) {
+void printObjectTo(FILE* stream, LfxValue value, bool isExpand) {
 	switch (OBJ_TYPE(value)) {
 	case OBJ_CLASS: {
 		ObjString* name = AS_CLASS(value)->name;
@@ -617,7 +617,7 @@ StringEntry* getStringEntryInPool(ObjString* string)
 //string and stringBuilder both carry raw bytes and every mutator (ctor,
 //append, slice, readFile) keeps a terminator right past the length: return
 //the internal buffer as-is, no copy needed
-C_STR getBufferFromStringLike(Value value)
+C_STR getBufferFromStringLike(LfxValue value)
 {
 	if (IS_STRING(value)) {
 		return AS_STRING(value)->chars;

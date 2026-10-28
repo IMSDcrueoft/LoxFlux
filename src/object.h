@@ -12,13 +12,13 @@
 #include <assert.h>
 
 //compress the ptr to 48bits
-#ifndef COMPRESS_OBJ_HEADER
-#define COMPRESS_OBJ_HEADER 1
-#endif // !COMPRESS_OBJ_HEADER
+#ifndef LOXFLUX_COMPRESS_OBJ_HEADER
+#define LOXFLUX_COMPRESS_OBJ_HEADER 1
+#endif // !LOXFLUX_COMPRESS_OBJ_HEADER
 
 // no need to compress under 32bits
 #if !LOXFLUX_BUILD_64BIT
-#undef COMPRESS_OBJ_HEADER
+#undef LOXFLUX_COMPRESS_OBJ_HEADER
 #endif
 
 typedef enum {
@@ -84,7 +84,7 @@ typedef enum {
 extern const C_STR objTypeInfo[];
 #endif
 
-#if COMPRESS_OBJ_HEADER
+#if LOXFLUX_COMPRESS_OBJ_HEADER
 struct Obj {
 	union {
 		struct
@@ -147,19 +147,19 @@ typedef struct {
 	uint32_t cacheCount;	// number of allocated slots (capped at UINT8_MAX: the slot operand is u8)
 
 	uint32_t constantsCount; // number of constants in the FAM (sealed at endCompiler; code indexes are 16-bit)
-	Value constants[];
+	LfxValue constants[];
 } ObjFunction;
 
-_Static_assert(sizeof(ObjFunction) % sizeof(Value) == 0, "ObjFunction size must be a multiple of sizeof(Value) so the constants FAM stays aligned.");
-_Static_assert(offsetof(ObjFunction, constants) % _Alignof(Value) == 0, "ObjFunction FAM offset must be aligned to Value alignment.");
+_Static_assert(sizeof(ObjFunction) % sizeof(LfxValue) == 0, "ObjFunction size must be a multiple of sizeof(LfxValue) so the constants FAM stays aligned.");
+_Static_assert(offsetof(ObjFunction, constants) % _Alignof(LfxValue) == 0, "ObjFunction FAM offset must be aligned to LfxValue alignment.");
 
 #define CLOSED_OBJ_UPVALUE_LOCATION UINT32_MAX
 
 typedef struct ObjUpvalue {
 	Obj obj;
-	Value closed; //closed value
+	LfxValue closed; //closed value
 	//ptrdiff_t location_offset; // store the offset, so we can update location when stack grow
-	Value* location;
+	LfxValue* location;
 	struct ObjUpvalue* next;
 } ObjUpvalue;
 
@@ -172,23 +172,25 @@ typedef struct {
 
 typedef struct {
 	Obj obj;
-	Value receiver;
+	LfxValue receiver;
 	ObjClosure* method;
 } ObjBoundMethod;
 
+typedef struct LfxVM LfxVM;
+
 //argCount and argValues
-typedef Value(*NativeFn)(int argCount, Value* args);
+typedef LfxValue(*LfxNativeFn)(LfxVM* vm, int argCount, LfxValue* args);
 
 typedef struct {
 	Obj obj;
-	NativeFn function;
+	LfxNativeFn function;
 } ObjNative;
 
 typedef struct ObjClass {
 	Obj obj;
 	ObjString* name;
 	Table methods;
-	Value initializer;//fast path cache
+	LfxValue initializer;//fast path cache
 	struct ObjClass* superclass;//recorded by OP_INHERIT,walked by instanceof
 } ObjClass;
 
@@ -234,14 +236,14 @@ typedef struct {
 } ObjIterator;
 
 //frames live in a no-GC heap array indexed by the dispatch loop; capacity grows
-//geometrically up to FRAMES_MAX, and the dispatch loop must refresh its frame
+//geometrically up to LOXFLUX_FRAMES_MAX, and the dispatch loop must refresh its frame
 //pointer after any call that may have grown the array
 //CallFrame layout still matters for cache-line packing; re-verify dispatch
 //benchmarks before trusting hot-loop numbers
 typedef struct {
 	ObjClosure* closure;
 	uint8_t* ip;
-	Value* slots; //first available slot
+	LfxValue* slots; //first available slot
 	//ptrdiff_t slotsOffset;// offset of the first slot in the vm stack, not a ptr, so that we can realloc the stack when needed
 	InlineCacheSlot* caches;// IC slots of frame->closure->function, resolved once per call to avoid per-op deref chains
 } CallFrame;
@@ -255,13 +257,13 @@ typedef enum {
 } FiberStatus;
 
 typedef struct {
-	Value* stack;
+	LfxValue* stack;
 	//saved stack top when this fiber is suspended; VM keeps its own stackTop
 	//cache while this fiber is current
-	Value* stackTop;
+	LfxValue* stackTop;
 	//the only push boundary: the committed edge of the stack arena; crossing it
 	//means commit more pages or (at the VA end = currentFiber->stackArena.capacity) overflow
-	Value* stackBoundary;
+	LfxValue* stackBoundary;
 
 	CallFrame* frames;
 	uint32_t frameCount;
@@ -283,7 +285,7 @@ typedef struct ObjFiber {
 	uint32_t isRunning;
 
 	//result of coroutine or catched error
-	Value result;
+	LfxValue result;
 
 	//fixed-base backing storage for the stack (VA never moves, lazy commit)
 	ArenaBumpAllocator stackArena;
@@ -318,7 +320,7 @@ typedef struct ObjFiber {
 	assert(t >= OBJ_STRING_BUILDER && t <= OBJ_ARRAY_I8); \
 	switch (t) { \
 	case OBJ_STRING_BUILDER: out = NUMBER_VAL(ARRAY_ELEMENT(array, uint8_t, index)); break; \
-	case OBJ_ARRAY:          out = ARRAY_ELEMENT(array, Value, index); break; \
+	case OBJ_ARRAY:          out = ARRAY_ELEMENT(array, LfxValue, index); break; \
 	case OBJ_ARRAY_F64:      out = NUMBER_VAL(ARRAY_ELEMENT(array, double, index)); break; \
 	case OBJ_ARRAY_F32:      out = NUMBER_VAL(ARRAY_ELEMENT(array, float, index)); break; \
 	case OBJ_ARRAY_U32:      out = NUMBER_VAL(ARRAY_ELEMENT(array, uint32_t, index)); break; \
@@ -330,12 +332,12 @@ typedef struct ObjFiber {
 	} \
 }
 
-//Value slots store raw; typed slots store 0 for non-numbers
+//LfxValue slots store raw; typed slots store 0 for non-numbers
 #define SET_INDEXABLE_ELEMENT(array, index, val) { \
 	uint8_t t = OBJ_GET_TYPE((array)->obj); \
 	assert(t >= OBJ_STRING_BUILDER && t <= OBJ_ARRAY_I8); \
 	switch (t) { \
-	case OBJ_ARRAY:     ARRAY_ELEMENT(array, Value, index) = val; break; \
+	case OBJ_ARRAY:     ARRAY_ELEMENT(array, LfxValue, index) = val; break; \
 	case OBJ_ARRAY_F64: ARRAY_ELEMENT(array, double, index) = IS_NUMBER(val) ? AS_NUMBER(val) : 0.0; break; \
 	case OBJ_ARRAY_F32: ARRAY_ELEMENT(array, float, index) = IS_NUMBER(val) ? double_to_f32(AS_NUMBER(val)) : 0.0f; break; \
 	case OBJ_ARRAY_U32: ARRAY_ELEMENT(array, uint32_t, index) = IS_NUMBER(val) ? double_to_u32(AS_NUMBER(val)) : 0; break; \
@@ -358,25 +360,25 @@ typedef struct ObjFiber {
 #define AS_STRING(value)			((ObjString*)AS_OBJ(value))
 #define AS_ARRAY(value)				((ObjArray*)AS_OBJ(value))
 
-static inline bool isObjType(Value value, ObjType type) {
+static inline bool isObjType(LfxValue value, ObjType type) {
 	return IS_OBJ(value) && AS_OBJ(value)->type == type;
 }
 
 //array and stringBuilder (not including const string)
-static inline bool isArrayLike(Value value) {
+static inline bool isArrayLike(LfxValue value) {
 	return IS_OBJ(value) && AS_OBJ(value)->type >= OBJ_ARRAY;//enum type
 }
 
-static inline bool isIndexableArray(Value value) {
+static inline bool isIndexableArray(LfxValue value) {
 	return IS_OBJ(value) && AS_OBJ(value)->type >= OBJ_STRING_BUILDER;//enum type
 }
 
-static inline bool isTypedArray(Value value) {
+static inline bool isTypedArray(LfxValue value) {
 	return IS_OBJ(value) && (AS_OBJ(value)->type >= OBJ_ARRAY_F64);//enum type
 }
 
 //string or stringBuilder
-static inline bool isStringLike(Value value) {
+static inline bool isStringLike(LfxValue value) {
 	return IS_STRING(value) || IS_STRING_BUILDER(value);
 }
 
@@ -385,19 +387,19 @@ ObjString* connectString(ObjString* strA, ObjString* strB);
 
 //memcmp-style three-way ordering for string/stringBuilder pairs (assumes isStringLike on both):
 //byte compare over the common prefix, then the shorter operand is the smaller one
-int compareStringLike(Value a, Value b);
+int compareStringLike(LfxValue a, LfxValue b);
 
 //stream-targeted core: renders an object value (class/instance/function/array/...)
-void printObjectTo(FILE* stream, Value value, bool isExpand);
+void printObjectTo(FILE* stream, LfxValue value, bool isExpand);
 
 StringEntry* getStringEntryInPool(ObjString* string);
 
-ObjUpvalue* newUpvalue(Value* slot);
+ObjUpvalue* newUpvalue(LfxValue* slot);
 struct Compiler;
 ObjFunction* newFunction(struct Compiler* compiler);
 ObjClosure* newClosure(ObjFunction* function);
-ObjBoundMethod* newBoundMethod(Value receiver, ObjClosure* method);
-ObjNative* newNative(NativeFn function);
+ObjBoundMethod* newBoundMethod(LfxValue receiver, ObjClosure* method);
+ObjNative* newNative(LfxNativeFn function);
 ObjClass* newClass(ObjString* name);
 ObjInstance* newInstance(ObjClass* klass);
 ObjFiber* newFiber();
@@ -410,6 +412,6 @@ void reserveArray(ObjArray* array, uint64_t size);
 //their internal chars, stringBuilders return their payload (every mutator
 //keeps a terminator right past the length, asserted in debug builds) — the
 //result is owned by the value, never free it. NULL for any other value kind.
-C_STR getBufferFromStringLike(Value value);
+C_STR getBufferFromStringLike(LfxValue value);
 
-#undef COMPRESS_OBJ_HEADER
+#undef LOXFLUX_COMPRESS_OBJ_HEADER

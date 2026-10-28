@@ -15,19 +15,19 @@ typedef struct Obj Obj;
 typedef struct ObjString ObjString;
 
 #if NAN_BOXING
-typedef uint64_t Value;
+typedef uint64_t LfxValue;
 
 HOT_FUNCTION
-static inline Value numToValue(double num) {
-	Value value;
+static inline LfxValue numToValue(double num) {
+	LfxValue value;
 	memcpy(&value, &num, sizeof(double));
 	return value;
 }
 
 HOT_FUNCTION
-static inline double valueToNum(Value value) {
+static inline double valueToNum(LfxValue value) {
 	double num;
-	memcpy(&num, &value, sizeof(Value));
+	memcpy(&num, &value, sizeof(LfxValue));
 	return num;
 }
 
@@ -37,15 +37,15 @@ static inline double valueToNum(Value value) {
 #define TAG_FALSE 2 // 10.
 #define TAG_TRUE  3 // 11.
 
-#define FALSE_VAL       ((Value)(uint64_t)(QNAN | TAG_FALSE))
-#define TRUE_VAL        ((Value)(uint64_t)(QNAN | TAG_TRUE))
+#define FALSE_VAL       ((LfxValue)(uint64_t)(QNAN | TAG_FALSE))
+#define TRUE_VAL        ((LfxValue)(uint64_t)(QNAN | TAG_TRUE))
 
 #define NUMBER_VAL(num)		numToValue(num)
 #define AS_NUMBER(value)    valueToNum(value)
 #define IS_NUMBER(value)    (((value) & QNAN) != QNAN)
 #define AS_BINARY(value)	(value)
 
-#define NIL_VAL         ((Value)(uint64_t)(QNAN | TAG_NIL))
+#define NIL_VAL         ((LfxValue)(uint64_t)(QNAN | TAG_NIL))
 #define IS_NIL(value)   ((value) == NIL_VAL)
 #define NOT_NIL(value)  ((value) != NIL_VAL)
 
@@ -53,7 +53,7 @@ static inline double valueToNum(Value value) {
 #define AS_BOOL(value)  ((value) == TRUE_VAL)
 #define IS_BOOL(value)  (((value) | 1) == TRUE_VAL)
 
-#define OBJ_VAL(obj)	(Value)(SIGN_BIT | QNAN | (uint64_t)(uintptr_t)(obj))
+#define OBJ_VAL(obj)	(LfxValue)(SIGN_BIT | QNAN | (uint64_t)(uintptr_t)(obj))
 #define AS_OBJ(value)	((Obj*)(uintptr_t)((value) & ~(SIGN_BIT | QNAN)))
 #define IS_OBJ(value)	(((value) & (QNAN | SIGN_BIT)) == (QNAN | SIGN_BIT))
 
@@ -78,22 +78,22 @@ typedef struct {
 		//convert to binary
 		uint64_t binary;
 	} as;
-} Value;
+} LfxValue;
 
-#define NUMBER_VAL(value)	((Value){VAL_NUMBER, {.number = value}})
+#define NUMBER_VAL(value)	((LfxValue){VAL_NUMBER, {.number = value}})
 #define AS_NUMBER(value)	((value).as.number)
 #define IS_NUMBER(value)	((value).type == VAL_NUMBER)
 #define AS_BINARY(value)	((value).as.binary)
 
-#define NIL_VAL           ((Value){VAL_NIL, {.number = 0}})
+#define NIL_VAL           ((LfxValue){VAL_NIL, {.number = 0}})
 #define IS_NIL(value)     ((value).type == VAL_NIL)
 #define NOT_NIL(value)	  ((value).type != VAL_NIL)
 
-#define BOOL_VAL(value)   ((Value){VAL_BOOL, {.boolean = value}})
+#define BOOL_VAL(value)   ((LfxValue){VAL_BOOL, {.boolean = value}})
 #define AS_BOOL(value)    ((value).as.boolean)
 #define IS_BOOL(value)    ((value).type == VAL_BOOL)
 
-#define OBJ_VAL(object)   ((Value){VAL_OBJ, {.obj = (Obj*)object}})
+#define OBJ_VAL(object)   ((LfxValue){VAL_OBJ, {.obj = (Obj*)object}})
 #define AS_OBJ(value)     ((value).as.obj)
 #define IS_OBJ(value)     ((value).type == VAL_OBJ)
 
@@ -104,26 +104,25 @@ typedef struct {
 typedef struct {
 	uint32_t capacity; //limit to 4G
 	uint32_t count;    //limit to 4G (high-water mark, holes included)
-	Value* values;
+	LfxValue* values;
 
 	//internal: head of the hole freeList; a hole slot stashes the next hole
 	//index as raw bytes (VALUEHOLES_EMPTY = no holes)
 	uint32_t valueHoleIndex;
 } ValueArray;
 
-_Static_assert(sizeof(Value) >= 4, "In order to accommodate the reuse holes, the Value needs to be at least 4B in size.");
-#define VALUEHOLES_EMPTY UINT32_MAX
+_Static_assert(sizeof(LfxValue) >= 4, "In order to accommodate the reuse holes, the LfxValue needs to be at least 4B in size.");
 
-bool valuesEqual(Value a, Value b);
+bool valuesEqual(LfxValue a, LfxValue b);
 void convert_adaptive_double(double value, char* buffer, uint32_t bufferSize);//ECMAScript type Number; buffer size 40 is enough
 //all rendering goes through this: stream and expansion are explicit at every call site
-void printValue(FILE* stream, Value value, bool isExpand);
+void printValue(FILE* stream, LfxValue value, bool isExpand);
 
 void valueArray_init(ValueArray* array);
 //returns the index the value was written to: a reusable hole when one exists,
 //appended at the end otherwise (hole logic is fully internal)
-uint32_t valueArray_write(ValueArray* array, Value value);
-void valueArray_writeAt(ValueArray* array, Value value, uint32_t index);
+uint32_t valueArray_write(ValueArray* array, LfxValue value);
+void valueArray_writeAt(ValueArray* array, LfxValue value, uint32_t index);
 void valueArray_free(ValueArray* array);
 //dig a hole: mark the slot at index as reusable; the slot is treated as raw
 //memory from here on and will be overwritten by the next write

@@ -10,7 +10,7 @@
 #include "memory.h"
 #include "timer.h"
 
-void markValue(Value value)
+void markValue(LfxValue value)
 {
 	if (IS_OBJ(value)) markObject(AS_OBJ(value));
 }
@@ -24,7 +24,7 @@ void markValue(Value value)
 // static void blackenObject(Obj* object);
 //static void markConstants(ValueArray* array) {
 //	for (uint32_t i = 0; i < array->count; i++) {
-//		Value value = array->values[i];
+//		LfxValue value = array->values[i];
 //		if (IS_OBJ(value)) {
 //			AS_OBJ(value)->isMarked = vm.gcMark;
 //			blackenObject(AS_OBJ(value));
@@ -33,10 +33,10 @@ void markValue(Value value)
 //}
 
 static void markArrayAny(ObjArray* array) {
-	Value* arrPtr = (Value*)array->payload;
+	LfxValue* arrPtr = (LfxValue*)array->payload;
 
 	for (uint32_t i = 0; i < array->length; ++i) {
-		Value value = arrPtr[i];
+		LfxValue value = arrPtr[i];
 
 		if (IS_OBJ(value)) {
 			markObject(AS_OBJ(value));
@@ -168,7 +168,7 @@ static void blackenObject(Obj* object) {
 		ObjFiber* fiber = (ObjFiber*)object;
 
 		//scan only the live prefix of this fiber's stack
-		for (Value* slot = fiber->core.stack; slot < fiber->core.stackTop; slot++) {
+		for (LfxValue* slot = fiber->core.stack; slot < fiber->core.stackTop; slot++) {
 			markValue(*slot);
 		}
 
@@ -277,7 +277,7 @@ void garbageCollect()
 	sweep();
 
 	//reset the limit
-	vm.nextGC = max(vm.bytesAllocated * GC_HEAP_GROW_FACTOR, vm.beginGC);
+	vm.nextGC = max(vm.bytesAllocated * LOXFLUX_GC_HEAP_GROW_FACTOR, vm.beginGC);
 	//flip the mark
 	vm.gcMark = !vm.gcMark;
 	//mark the state

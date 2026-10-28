@@ -6,60 +6,72 @@
 #include "nativeBuiltin.h"
 #include "vm.h"
 //Object
-static Value isClassNative(int argCount, Value* args)
+static LfxValue isClassNative(LfxVM* vm, int argCount, LfxValue* args)
 {
+	(void)vm;
 	return BOOL_VAL(argCount >= 1 && IS_CLASS(args[0]));
 }
 
 //object is instance to user
-static Value isObjectNative(int argCount, Value* args)
+static LfxValue isObjectNative(LfxVM* vm, int argCount, LfxValue* args)
 {
+	(void)vm;
 	return BOOL_VAL(argCount >= 1 && IS_INSTANCE(args[0]));
 }
 
-static Value isStringNative(int argCount, Value* args)
+static LfxValue isStringNative(LfxVM* vm, int argCount, LfxValue* args)
 {
+	(void)vm;
 	return BOOL_VAL(argCount >= 1 && IS_STRING(args[0]));
 }
 
-static Value isStringBuilderNative(int argCount, Value* args)
+static LfxValue isStringBuilderNative(LfxVM* vm, int argCount, LfxValue* args)
 {
+	(void)vm;
 	return BOOL_VAL(argCount >= 1 && IS_STRING_BUILDER(args[0]));
 }
 
-static Value isNumberNative(int argCount, Value* args)
+static LfxValue isNumberNative(LfxVM* vm, int argCount, LfxValue* args)
 {
+	(void)vm;
 	return BOOL_VAL(argCount >= 1 && IS_NUMBER(args[0]));
 }
 
-static Value isArrayNative(int argCount, Value* args) {
+static LfxValue isArrayNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	return BOOL_VAL(argCount >= 1 && IS_ARRAY(args[0]));
 }
 
-static Value isArrayLikeNative(int argCount, Value* args) {
+static LfxValue isArrayLikeNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	return BOOL_VAL(argCount >= 1 && isArrayLike(args[0]));
 }
 
-static Value isTypedArrayNative(int argCount, Value* args) {
+static LfxValue isTypedArrayNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	return BOOL_VAL(argCount >= 1 && isTypedArray(args[0]));
 }
 
-static Value isFunctionNative(int argCount, Value* args) {
+static LfxValue isFunctionNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	return BOOL_VAL(argCount >= 1 && (IS_CLOSURE(args[0]) || IS_NATIVE(args[0]) || IS_BOUND_METHOD(args[0])));
 }
 
-static Value isBooleanNative(int argCount, Value* args) {
+static LfxValue isBooleanNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	return BOOL_VAL(argCount >= 1 && IS_BOOL(args[0]));
 }
 
-static Value isFiberNative(int argCount, Value* args) {
+static LfxValue isFiberNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	return BOOL_VAL(argCount >= 1 && IS_FIBER(args[0]));
 }
 
 //returns the class object of an instance; pairs with the class-level
 //instanceof semantics: getClass(a) instanceof getClass(b) is a dynamic
 //subclass check. non-instances have no class -> nil
-static Value getClassNative(int argCount, Value* args) {
+static LfxValue getClassNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount < 1 || !IS_INSTANCE(args[0])) {
 		return NIL_VAL;
 	}
@@ -68,14 +80,15 @@ static Value getClassNative(int argCount, Value* args) {
 	return OBJ_VAL(klass);
 }
 
-static Value getGlobalNative(int argCount, Value* args) {
-	return OBJ_VAL(&vm.globals);
+static LfxValue getGlobalNative(LfxVM* vm, int argCount, LfxValue* args) {
+	return OBJ_VAL(&vm->globals);
 }
 
 //JS-like Object.freeze, instance fields only (shallow): no add/modify/delete
 //after freezing. The global object is excluded: it backs the VM's variable
 //store, so freezing it would brick every global definition
-static Value freezeNative(int argCount, Value* args) {
+static LfxValue freezeNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount < 1 || !IS_INSTANCE(args[0])) {
 		fprintf(stderr, "freeze() expects an instance.\n");
 		return NIL_VAL;
@@ -94,7 +107,8 @@ static Value freezeNative(int argCount, Value* args) {
 
 //JS-like Object.isFrozen, restricted to what freeze() can freeze:
 //only instances carry a frozen state, every other value is just "not frozen"
-static Value isFrozenNative(int argCount, Value* args) {
+static LfxValue isFrozenNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount < 1 || !IS_INSTANCE(args[0])) {
 		return FALSE_VAL;
 	}
@@ -103,7 +117,8 @@ static Value isFrozenNative(int argCount, Value* args) {
 }
 
 COLD_FUNCTION
-static Value keysNative(int argCount, Value* args) {
+static LfxValue keysNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	// Create an empty array as result  
 	ObjArray* result = newArray(OBJ_ARRAY);
 	stack_push(OBJ_VAL(result));
@@ -130,7 +145,7 @@ static Value keysNative(int argCount, Value* args) {
 			}
 
 			// Add key to result array  
-			ARRAY_ELEMENT(result, Value, result->length) = OBJ_VAL(entry->key);
+			ARRAY_ELEMENT(result, LfxValue, result->length) = OBJ_VAL(entry->key);
 			result->length++;
 		}
 	}
@@ -140,33 +155,34 @@ static Value keysNative(int argCount, Value* args) {
 
 //pure predicate: any type mismatch is simply "not an own property"
 //own property = data field only (methods live on the klass, not the instance)
-static Value hasOwnNative(int argCount, Value* args) {
+static LfxValue hasOwnNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount < 2 || !IS_INSTANCE(args[0]) || !IS_STRING(args[1])) {
 		return FALSE_VAL;
 	}
 
 	ObjInstance* instance = AS_INSTANCE(args[0]);
-	Value dummy;
+	LfxValue dummy;
 	return BOOL_VAL(tableGet(&instance->fields, AS_STRING(args[1]), &dummy));
 }
 
 COLD_FUNCTION
-void importNative_object() {
-	defineNative_object("isNumber", isNumberNative);
-	defineNative_object("isString", isStringNative);
-	defineNative_object("isStringBuilder", isStringBuilderNative);
-	defineNative_object("isFunction", isFunctionNative);
-	defineNative_object("isClass", isClassNative);
-	defineNative_object("isObject", isObjectNative);
-	defineNative_object("isArray", isArrayNative);
-	defineNative_object("isTypedArray", isTypedArrayNative);
-	defineNative_object("isArrayLike", isArrayLikeNative);
-	defineNative_object("isBoolean", isBooleanNative);
-	defineNative_object("isFiber", isFiberNative);
-	defineNative_object("getClass", getClassNative);
-	defineNative_object("getGlobal", getGlobalNative);
-	defineNative_object("keys", keysNative);
-	defineNative_object("hasOwn", hasOwnNative);
-	defineNative_object("freeze", freezeNative);
-	defineNative_object("isFrozen", isFrozenNative);
+void importNative_object(LfxVM* vm) {
+	defineNative_object(vm, "isNumber", isNumberNative);
+	defineNative_object(vm, "isString", isStringNative);
+	defineNative_object(vm, "isStringBuilder", isStringBuilderNative);
+	defineNative_object(vm, "isFunction", isFunctionNative);
+	defineNative_object(vm, "isClass", isClassNative);
+	defineNative_object(vm, "isObject", isObjectNative);
+	defineNative_object(vm, "isArray", isArrayNative);
+	defineNative_object(vm, "isTypedArray", isTypedArrayNative);
+	defineNative_object(vm, "isArrayLike", isArrayLikeNative);
+	defineNative_object(vm, "isBoolean", isBooleanNative);
+	defineNative_object(vm, "isFiber", isFiberNative);
+	defineNative_object(vm, "getClass", getClassNative);
+	defineNative_object(vm, "getGlobal", getGlobalNative);
+	defineNative_object(vm, "keys", keysNative);
+	defineNative_object(vm, "hasOwn", hasOwnNative);
+	defineNative_object(vm, "freeze", freezeNative);
+	defineNative_object(vm, "isFrozen", isFrozenNative);
 }

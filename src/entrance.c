@@ -20,7 +20,7 @@ static void print_usage(FILE* stream) {
 }
 
 static void print_version() {
-	printf("%s %s\n", INTERPRETER_NAME, INTERPRETER_VERSION);
+	printf("%s %s\n", LOXFLUX_INTERPRETER_NAME, LOXFLUX_INTERPRETER_VERSION);
 }
 
 int loxFluxMain(int argc, C_STR argv[]) {
@@ -135,7 +135,7 @@ static STR dealWithFilePath(STR line) {
 }
 
 void repl() {
-	printf("%s %s  Copyright (C) %s, %s\n", INTERPRETER_NAME, INTERPRETER_VERSION, INTERPRETER_COPYRIGHT, INTERPRETER_DEVELOPER);
+	printf("%s %s  Copyright (C) %s, %s\n", LOXFLUX_INTERPRETER_NAME, LOXFLUX_INTERPRETER_VERSION, LOXFLUX_INTERPRETER_COPYRIGHT, LOXFLUX_INTERPRETER_DEVELOPER);
 
 	vm_init();
 

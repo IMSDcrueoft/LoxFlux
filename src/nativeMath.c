@@ -12,8 +12,9 @@ Xoshiro256StarStar rng;
 
 //Math
 //max with multiple input
-static Value maxNative(int argCount, Value* args)
+static LfxValue maxNative(LfxVM* vm, int argCount, LfxValue* args)
 {
+	(void)vm;
 	double val = -INFINITY;
 	for (int i = 0; i < argCount; ++i) {
 		if (IS_NUMBER(args[i])) {
@@ -28,8 +29,9 @@ static Value maxNative(int argCount, Value* args)
 }
 
 //min with multiple input
-static Value minNative(int argCount, Value* args)
+static LfxValue minNative(LfxVM* vm, int argCount, LfxValue* args)
 {
+	(void)vm;
 	double val = INFINITY;
 	for (int i = 0; i < argCount; ++i) {
 		if (IS_NUMBER(args[i])) {
@@ -44,12 +46,14 @@ static Value minNative(int argCount, Value* args)
 }
 
 //get a random [0,1)
-static Value randomNative(int argCount, Value* args) {
+static LfxValue randomNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	return NUMBER_VAL(xoshiro256starstar_random(&rng));
 }
 
 //seed it
-static Value seedNative(int argCount, Value* args) {
+static LfxValue seedNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		uint32_t seed = double_to_u32(AS_NUMBER(args[0]));
 		xoshiro256starstar_init(&rng, seed);
@@ -61,16 +65,19 @@ static Value seedNative(int argCount, Value* args) {
 }
 
 COLD_FUNCTION
-static Value isNaNNative(int argCount, Value* args) {
+static LfxValue isNaNNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	return BOOL_VAL(argCount >= 1 && IS_NUMBER(args[0]) && isnan(AS_NUMBER(args[0])));
 }
 
 COLD_FUNCTION
-static Value isFiniteNative(int argCount, Value* args) {
+static LfxValue isFiniteNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	return BOOL_VAL(argCount >= 1 && IS_NUMBER(args[0]) && isfinite(AS_NUMBER(args[0])));
 }
 
-static Value absNative(int argCount, Value* args) {
+static LfxValue absNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		return NUMBER_VAL(fabs(AS_NUMBER(args[0])));
 	}
@@ -79,7 +86,8 @@ static Value absNative(int argCount, Value* args) {
 	}
 }
 
-static Value floorNative(int argCount, Value* args) {
+static LfxValue floorNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		return NUMBER_VAL(floor(AS_NUMBER(args[0])));
 	}
@@ -88,7 +96,8 @@ static Value floorNative(int argCount, Value* args) {
 	}
 }
 
-static Value ceilNative(int argCount, Value* args) {
+static LfxValue ceilNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		return NUMBER_VAL(ceil(AS_NUMBER(args[0])));
 	}
@@ -97,7 +106,8 @@ static Value ceilNative(int argCount, Value* args) {
 	}
 }
 
-static Value roundNative(int argCount, Value* args) {
+static LfxValue roundNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		return NUMBER_VAL(round(AS_NUMBER(args[0])));
 	}
@@ -106,7 +116,8 @@ static Value roundNative(int argCount, Value* args) {
 	}
 }
 
-static Value powNative(int argCount, Value* args) {
+static LfxValue powNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount >= 2 && IS_NUMBER(args[0]) && IS_NUMBER(args[1])) {
 		return NUMBER_VAL(pow(AS_NUMBER(args[0]), AS_NUMBER(args[1])));
 	}
@@ -115,7 +126,8 @@ static Value powNative(int argCount, Value* args) {
 	}
 }
 
-static Value sqrtNative(int argCount, Value* args) {
+static LfxValue sqrtNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		return NUMBER_VAL(sqrt(AS_NUMBER(args[0])));
 	}
@@ -124,7 +136,8 @@ static Value sqrtNative(int argCount, Value* args) {
 	}
 }
 
-static Value sinNative(int argCount, Value* args) {
+static LfxValue sinNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		return NUMBER_VAL(sin(AS_NUMBER(args[0])));
 	}
@@ -133,7 +146,8 @@ static Value sinNative(int argCount, Value* args) {
 	}
 }
 
-static Value asinNative(int argCount, Value* args) {
+static LfxValue asinNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		return NUMBER_VAL(asin(AS_NUMBER(args[0])));
 	}
@@ -142,7 +156,8 @@ static Value asinNative(int argCount, Value* args) {
 	}
 }
 
-static Value cosNative(int argCount, Value* args) {
+static LfxValue cosNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		return NUMBER_VAL(cos(AS_NUMBER(args[0])));
 	}
@@ -151,7 +166,8 @@ static Value cosNative(int argCount, Value* args) {
 	}
 }
 
-static Value acosNative(int argCount, Value* args) {
+static LfxValue acosNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		return NUMBER_VAL(acos(AS_NUMBER(args[0])));
 	}
@@ -160,7 +176,8 @@ static Value acosNative(int argCount, Value* args) {
 	}
 }
 
-static Value tanNative(int argCount, Value* args) {
+static LfxValue tanNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		return NUMBER_VAL(tan(AS_NUMBER(args[0])));
 	}
@@ -169,7 +186,8 @@ static Value tanNative(int argCount, Value* args) {
 	}
 }
 
-static Value atanNative(int argCount, Value* args) {
+static LfxValue atanNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		return NUMBER_VAL(atan(AS_NUMBER(args[0])));
 	}
@@ -178,7 +196,8 @@ static Value atanNative(int argCount, Value* args) {
 	}
 }
 
-static Value logNative(int argCount, Value* args) {
+static LfxValue logNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		return NUMBER_VAL(log(AS_NUMBER(args[0])));
 	}
@@ -187,7 +206,8 @@ static Value logNative(int argCount, Value* args) {
 	}
 }
 
-static Value log2Native(int argCount, Value* args) {
+static LfxValue log2Native(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		return NUMBER_VAL(log2(AS_NUMBER(args[0])));
 	}
@@ -196,7 +216,8 @@ static Value log2Native(int argCount, Value* args) {
 	}
 }
 
-static Value log10Native(int argCount, Value* args) {
+static LfxValue log10Native(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		return NUMBER_VAL(log10(AS_NUMBER(args[0])));
 	}
@@ -205,7 +226,8 @@ static Value log10Native(int argCount, Value* args) {
 	}
 }
 
-static Value expNative(int argCount, Value* args) {
+static LfxValue expNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		return NUMBER_VAL(exp(AS_NUMBER(args[0])));
 	}
@@ -215,47 +237,47 @@ static Value expNative(int argCount, Value* args) {
 }
 
 COLD_FUNCTION
-void importNative_math() {
+void importNative_math(LfxVM* vm) {
 	xoshiro256starstar_init(&rng, get_utc_milliseconds());
 
-	defineNative_math_number("NaN", NAN);
-	defineNative_math_number("Infinity", INFINITY);
-	defineNative_math_number("EPSILON", DBL_EPSILON);
+	defineNative_math_number(vm, "NaN", NAN);
+	defineNative_math_number(vm, "Infinity", INFINITY);
+	defineNative_math_number(vm, "EPSILON", DBL_EPSILON);
 
-	defineNative_math_number("MAX_VALUE", DBL_MAX);
-	defineNative_math_number("MIN_VALUE", DBL_TRUE_MIN);   // C11, 5e-324
-	defineNative_math_number("MAX_SAFE_INTEGER", 9007199254740991.0);   // 2^53 - 1
-	defineNative_math_number("MIN_SAFE_INTEGER", -9007199254740991.0);  // -(2^53 - 1)
+	defineNative_math_number(vm, "MAX_VALUE", DBL_MAX);
+	defineNative_math_number(vm, "MIN_VALUE", DBL_TRUE_MIN);   // C11, 5e-324
+	defineNative_math_number(vm, "MAX_SAFE_INTEGER", 9007199254740991.0);   // 2^53 - 1
+	defineNative_math_number(vm, "MIN_SAFE_INTEGER", -9007199254740991.0);  // -(2^53 - 1)
 
-	defineNative_math_number("E", 2.7182818284590452354);
-	defineNative_math_number("LN2", 0.69314718055994530942);
-	defineNative_math_number("LN10", 2.30258509299404568402);
-	defineNative_math_number("LOG2E", 1.4426950408889634074);
-	defineNative_math_number("LOG10E", 0.43429448190325182765);
-	defineNative_math_number("PI", 3.14159265358979323846);
-	defineNative_math_number("SQRT1_2", 0.70710678118654752440);
-	defineNative_math_number("SQRT2", 1.41421356237309504880);
+	defineNative_math_number(vm, "E", 2.7182818284590452354);
+	defineNative_math_number(vm, "LN2", 0.69314718055994530942);
+	defineNative_math_number(vm, "LN10", 2.30258509299404568402);
+	defineNative_math_number(vm, "LOG2E", 1.4426950408889634074);
+	defineNative_math_number(vm, "LOG10E", 0.43429448190325182765);
+	defineNative_math_number(vm, "PI", 3.14159265358979323846);
+	defineNative_math_number(vm, "SQRT1_2", 0.70710678118654752440);
+	defineNative_math_number(vm, "SQRT2", 1.41421356237309504880);
 
-	defineNative_math("max", maxNative);
-	defineNative_math("min", minNative);
-	defineNative_math("abs", absNative);
-	defineNative_math("floor", floorNative);
-	defineNative_math("ceil", ceilNative);
-	defineNative_math("round", roundNative);
-	defineNative_math("pow", powNative);
-	defineNative_math("sqrt", sqrtNative);
-	defineNative_math("sin", sinNative);
-	defineNative_math("asin", asinNative);
-	defineNative_math("cos", cosNative);
-	defineNative_math("acos", acosNative);
-	defineNative_math("tan", tanNative);
-	defineNative_math("atan", atanNative);
-	defineNative_math("log", logNative);
-	defineNative_math("log2", log2Native);
-	defineNative_math("log10", log10Native);
-	defineNative_math("exp", expNative);
-	defineNative_math("isNaN", isNaNNative);
-	defineNative_math("isFinite", isFiniteNative);
-	defineNative_math("random", randomNative);
-	defineNative_math("seed", seedNative);
+	defineNative_math(vm, "max", maxNative);
+	defineNative_math(vm, "min", minNative);
+	defineNative_math(vm, "abs", absNative);
+	defineNative_math(vm, "floor", floorNative);
+	defineNative_math(vm, "ceil", ceilNative);
+	defineNative_math(vm, "round", roundNative);
+	defineNative_math(vm, "pow", powNative);
+	defineNative_math(vm, "sqrt", sqrtNative);
+	defineNative_math(vm, "sin", sinNative);
+	defineNative_math(vm, "asin", asinNative);
+	defineNative_math(vm, "cos", cosNative);
+	defineNative_math(vm, "acos", acosNative);
+	defineNative_math(vm, "tan", tanNative);
+	defineNative_math(vm, "atan", atanNative);
+	defineNative_math(vm, "log", logNative);
+	defineNative_math(vm, "log2", log2Native);
+	defineNative_math(vm, "log10", log10Native);
+	defineNative_math(vm, "exp", expNative);
+	defineNative_math(vm, "isNaN", isNaNNative);
+	defineNative_math(vm, "isFinite", isFiniteNative);
+	defineNative_math(vm, "random", randomNative);
+	defineNative_math(vm, "seed", seedNative);
 }

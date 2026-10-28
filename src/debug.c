@@ -17,7 +17,7 @@ void debug_setDisasmStream(FILE* stream) {
 	disasmStream = stream;
 }
 
-static void disPrintValue(Value value) {
+static void disPrintValue(LfxValue value) {
 	printValue((disasmStream != NULL) ? disasmStream : stderr, value, false);
 }
 

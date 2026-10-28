@@ -9,10 +9,10 @@
 
 typedef struct {
 	ObjString* key;
-	Value value;
+	LfxValue value;
 } Entry;
 
-//bit-keyed entry: raw 64-bit Value representation -> constant index
+//bit-keyed entry: raw 64-bit LfxValue representation -> constant index
 //numbers compare by bits (NaN-safe), natives by pointer bits (immortal); keep the two in separate tables
 typedef struct {
 	uint64_t binary;//binary info of the key value
@@ -54,10 +54,10 @@ typedef struct {
 void table_init(Table* table);
 void table_free(Table* table);
 
-bool tableGet(Table* table, ObjString* key, Value* value_out);
+bool tableGet(Table* table, ObjString* key, LfxValue* value_out);
 //single-probe: get value and entry pointer in one probe (for inline cache backfill)
-bool tableGetEntry(Table* table, ObjString* key, Value* value_out, Entry** entry_out);
-bool tableSet(Table* table, ObjString* key, Value value);
+bool tableGetEntry(Table* table, ObjString* key, LfxValue* value_out, Entry** entry_out);
+bool tableSet(Table* table, ObjString* key, LfxValue value);
 bool tableDelete(Table* table, ObjString* key);
 void tableAddAll(Table* from, Table* to);
 
@@ -79,7 +79,7 @@ StringEntry* tableGetScriptEntry(StringTable* table, ObjString* key);
 
 void binaryTable_init(BinaryTable* table);
 void binaryTable_free(BinaryTable* table);
-BinaryEntry* tableGetBinaryEntry(BinaryTable* table, Value* value);
+BinaryEntry* tableGetBinaryEntry(BinaryTable* table, LfxValue* value);
 
 // returns false if table is empty
 bool tableGetFirstEntryIndex(Table* table, uint32_t* index_out);

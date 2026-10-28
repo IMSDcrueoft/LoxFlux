@@ -91,7 +91,7 @@ static void adjustCapacity(Table* table, uint32_t capacity) {
 }
 
 HOT_FUNCTION
-bool tableGet(Table* table, ObjString* key, Value* value_out) {
+bool tableGet(Table* table, ObjString* key, LfxValue* value_out) {
 	if (table->count == 0) return false;
 
 	Entry* entry = findEntry(table->entries, table->capacity, key, table->isGlobal);
@@ -102,7 +102,7 @@ bool tableGet(Table* table, ObjString* key, Value* value_out) {
 }
 
 HOT_FUNCTION
-bool tableGetEntry(Table* table, ObjString* key, Value* value_out, Entry** entry_out) {
+bool tableGetEntry(Table* table, ObjString* key, LfxValue* value_out, Entry** entry_out) {
 	if (table->count == 0) return false;
 
 	Entry* entry = findEntry(table->entries, table->capacity, key, table->isGlobal);
@@ -114,7 +114,7 @@ bool tableGetEntry(Table* table, ObjString* key, Value* value_out, Entry** entry
 }
 
 HOT_FUNCTION
-bool tableSet(Table* table, ObjString* key, Value value)
+bool tableSet(Table* table, ObjString* key, LfxValue value)
 {
 	//NOTE: no frozen guard here on purpose: freezing is a property-write concept,
 	//enforced by the instance property paths in vm.c. Generic tables (builtins

@@ -47,7 +47,7 @@
 * other options
 * 
 * NAN_BOXING, value.h
-* COMPILATION_TIME_OPTIMIZATION, compiler.h
-* USE_XXHASH, hash.h
+* LOXFLUX_COMPILATION_TIME_OPTIMIZATION, compiler.h
+* LOXFLUX_USE_XXHASH, hash.h
 * USE_MIMALLOC, allocator.h
 */

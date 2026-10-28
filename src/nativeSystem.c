@@ -27,7 +27,7 @@
 
 //write payload extraction: string/stringBuilder via the safe buffer helper,
 //u8 arrays raw (payload/length). any other value kind is rejected
-static bool getWriteBytes(Value data, const char** bytes, uint64_t* length)
+static bool getWriteBytes(LfxValue data, const char** bytes, uint64_t* length)
 {
 	if (IS_STRING(data)) {
 		ObjString* string = AS_STRING(data);
@@ -54,13 +54,15 @@ static bool getWriteBytes(Value data, const char** bytes, uint64_t* length)
 }
 
 //force do gc
-static Value gcNative(int argCount, Value* args) {
+static LfxValue gcNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	garbageCollect();
 	return NIL_VAL;
 }
 
 //change gc next
-static Value gcNextNative(int argCount, Value* args) {
+static LfxValue gcNextNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount == 1 && IS_NUMBER(args[0])) {
 		double nextGC = AS_NUMBER(args[0]);
 		if (nextGC < KiB16) {
@@ -78,7 +80,8 @@ static Value gcNextNative(int argCount, Value* args) {
 }
 
 //change gc begin
-static Value gcBeginNative(int argCount, Value* args) {
+static LfxValue gcBeginNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount == 1 && IS_NUMBER(args[0])) {
 		double beginGC = AS_NUMBER(args[0]);
 		if (beginGC < KiB16) {
@@ -95,19 +98,20 @@ static Value gcBeginNative(int argCount, Value* args) {
 	}
 }
 
-static Value allocatedBytesNative(int argCount, Value* args) {
-	return NUMBER_VAL((double)vm.bytesAllocated);
+static LfxValue allocatedBytesNative(LfxVM* vm, int argCount, LfxValue* args) {
+	return NUMBER_VAL((double)vm->bytesAllocated);
 }
 
-static Value pinnedBytesNative(int argCount, Value* args) {
+static LfxValue pinnedBytesNative(LfxVM* vm, int argCount, LfxValue* args) {
 	//no_gc book + the interned-string arena: the old heap strings were counted
 	//in the no_gc book too, so they stay inside this number (exact consumption:
 	//the arena is append-only, liveTop = sum of string sizes + alignment slack)
-	return NUMBER_VAL((double)(vm.bytesAllocated_no_gc + arenaBump_used(&vm.stringArena)));
+	return NUMBER_VAL((double)(vm->bytesAllocated_no_gc + arenaBump_used(&vm->stringArena)));
 }
 
 //Print all the parameters
-static Value logNative(int argCount, Value* args) {
+static LfxValue logNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	for (int i = 0; i < argCount;) {
 		printValue(stdout, args[i], true);
 
@@ -121,7 +125,8 @@ static Value logNative(int argCount, Value* args) {
 	return NIL_VAL;
 }
 
-static Value errorNative(int argCount, Value* args) {
+static LfxValue errorNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount >= 1) {
 		if (IS_STRING(args[0])) {
 			ObjString* string = AS_STRING(args[0]);
@@ -136,7 +141,8 @@ static Value errorNative(int argCount, Value* args) {
 	return NIL_VAL;
 }
 
-static Value inputNative(int argCount, Value* args) {
+static LfxValue inputNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	//don't need param
 	ObjArray* stringBuilder = newArray(OBJ_STRING_BUILDER);
 	stack_push(OBJ_VAL(stringBuilder));
@@ -207,7 +213,8 @@ static Value inputNative(int argCount, Value* args) {
 	return OBJ_VAL(stringBuilder);
 }
 
-static Value readFileNative(int argCount, Value* args) {
+static LfxValue readFileNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount < 1) {
 		fprintf(stderr, "readFile expects a path argument.\n");
 		return NIL_VAL;
@@ -260,7 +267,8 @@ static Value readFileNative(int argCount, Value* args) {
 	return OBJ_VAL(stringBuilder);
 }
 
-static Value readBinNative(int argCount, Value* args) {
+static LfxValue readBinNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount < 1) {
 		fprintf(stderr, "readBin expects a path argument.\n");
 		return NIL_VAL;
@@ -310,7 +318,7 @@ static Value readBinNative(int argCount, Value* args) {
 
 //shared write core: data already validated, mode "wb"/"r+b"/"ab", offset
 //applies only to the r+b form (sparse expansion fills the hole with zeros)
-static Value writeFileCore(Value pathValue, Value data, bool useOffset, double offset, C_STR mode)
+static LfxValue writeFileCore(LfxValue pathValue, LfxValue data, bool useOffset, double offset, C_STR mode)
 {
 	C_STR path = getBufferFromStringLike(pathValue);
 	if (path == NULL) {
@@ -349,7 +357,8 @@ static Value writeFileCore(Value pathValue, Value data, bool useOffset, double o
 	return NUMBER_VAL((double)written);
 }
 
-static Value writeFileNative(int argCount, Value* args) {
+static LfxValue writeFileNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount < 2) {
 		fprintf(stderr, "writeFile expects a path and a data argument.\n");
 		return NIL_VAL;
@@ -374,7 +383,8 @@ static Value writeFileNative(int argCount, Value* args) {
 	return writeFileCore(args[0], args[1], false, 0, "wb");
 }
 
-static Value appendFileNative(int argCount, Value* args) {
+static LfxValue appendFileNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount < 2) {
 		fprintf(stderr, "appendFile expects a path and a data argument.\n");
 		return NIL_VAL;
@@ -383,7 +393,8 @@ static Value appendFileNative(int argCount, Value* args) {
 	return writeFileCore(args[0], args[1], false, 0, "ab");
 }
 
-static Value fileExistsNative(int argCount, Value* args) {
+static LfxValue fileExistsNative(LfxVM* vm, int argCount, LfxValue* args) {
+	(void)vm;
 	if (argCount < 1) {
 		fprintf(stderr, "fileExists expects a path argument.\n");
 		return NIL_VAL;
@@ -407,20 +418,20 @@ static Value fileExistsNative(int argCount, Value* args) {
 #undef GiB1
 
 COLD_FUNCTION
-void importNative_system() {
-	defineNative_system("gcRun", gcNative);
-	defineNative_system("gcNext", gcNextNative);
-	defineNative_system("gcBegin", gcBeginNative);
-	defineNative_system("allocatedBytes", allocatedBytesNative);
-	defineNative_system("pinnedBytes", pinnedBytesNative);
+void importNative_system(LfxVM* vm) {
+	defineNative_system(vm, "gcRun", gcNative);
+	defineNative_system(vm, "gcNext", gcNextNative);
+	defineNative_system(vm, "gcBegin", gcBeginNative);
+	defineNative_system(vm, "allocatedBytes", allocatedBytesNative);
+	defineNative_system(vm, "pinnedBytes", pinnedBytesNative);
 
-	defineNative_system("log", logNative);
-	defineNative_system("error", errorNative);
+	defineNative_system(vm, "log", logNative);
+	defineNative_system(vm, "error", errorNative);
 
-	defineNative_system("input", inputNative);
-	defineNative_system("readFile", readFileNative);
-	defineNative_system("readBin", readBinNative);
-	defineNative_system("writeFile", writeFileNative);
-	defineNative_system("appendFile", appendFileNative);
-	defineNative_system("fileExists", fileExistsNative);
+	defineNative_system(vm, "input", inputNative);
+	defineNative_system(vm, "readFile", readFileNative);
+	defineNative_system(vm, "readBin", readBinNative);
+	defineNative_system(vm, "writeFile", writeFileNative);
+	defineNative_system(vm, "appendFile", appendFileNative);
+	defineNative_system(vm, "fileExists", fileExistsNative);
 }

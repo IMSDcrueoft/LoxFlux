@@ -9,8 +9,8 @@
 #include "object.h"
 
 //do optimize
-#ifndef COMPILATION_TIME_OPTIMIZATION
-#define COMPILATION_TIME_OPTIMIZATION 1
+#ifndef LOXFLUX_COMPILATION_TIME_OPTIMIZATION
+#define LOXFLUX_COMPILATION_TIME_OPTIMIZATION 1
 #endif
 
 typedef enum {
