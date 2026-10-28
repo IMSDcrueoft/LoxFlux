@@ -4,11 +4,8 @@
 * See LICENSE file in the root directory for full license text.
 */
 #include "nativeBuiltin.h"
-#include "xoshiro256.h"
 #include "timer.h"
 #include "vm.h"
-
-Xoshiro256StarStar rng;
 
 //Math
 //max with multiple input
@@ -47,16 +44,14 @@ static LfxValue minNative(LfxVM* vm, int argCount, LfxValue* args)
 
 //get a random [0,1)
 static LfxValue randomNative(LfxVM* vm, int argCount, LfxValue* args) {
-	(void)vm;
-	return NUMBER_VAL(xoshiro256starstar_random(&rng));
+	return NUMBER_VAL(xoshiro256starstar_random(&vm->rng));
 }
 
 //seed it
 static LfxValue seedNative(LfxVM* vm, int argCount, LfxValue* args) {
-	(void)vm;
 	if (argCount >= 1 && IS_NUMBER(args[0])) {
 		uint32_t seed = double_to_u32(AS_NUMBER(args[0]));
-		xoshiro256starstar_init(&rng, seed);
+		xoshiro256starstar_init(&vm->rng, seed);
 		return BOOL_VAL(true);
 	}
 	else {
@@ -238,7 +233,7 @@ static LfxValue expNative(LfxVM* vm, int argCount, LfxValue* args) {
 
 COLD_FUNCTION
 void importNative_math(LfxVM* vm) {
-	xoshiro256starstar_init(&rng, get_utc_milliseconds());
+	xoshiro256starstar_init(&vm->rng, get_utc_milliseconds());
 
 	defineNative_math_number(vm, "NaN", NAN);
 	defineNative_math_number(vm, "Infinity", INFINITY);

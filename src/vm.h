@@ -10,6 +10,7 @@
 #include "object.h"
 #include "nativeBuiltin.h"
 #include "arena_bump.h"
+#include "xoshiro256.h"
 
 //the depth of call frames
 #define LOXFLUX_FRAMES_INIT 64
@@ -123,6 +124,9 @@ typedef struct LfxVM {
 	//fixed-base backing storage for the gc gray worklist (VA never moves,
 	//lazy 64KB commits; only touched when the worklist crosses the committed edge)
 	ArenaBumpAllocator grayArena;
+
+	// rng
+	Xoshiro256StarStar rng;
 } LfxVM;
 
 typedef enum {
