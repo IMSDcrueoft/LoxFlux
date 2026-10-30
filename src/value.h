@@ -114,6 +114,7 @@ typedef struct {
 _Static_assert(sizeof(LfxValue) >= 4, "In order to accommodate the reuse holes, the value needs to be at least 4B in size.");
 
 bool valuesEqual(LfxValue a, LfxValue b);
+bool valuesEqual_number(LfxValue a, double b);
 void convert_adaptive_double(double value, char* buffer, uint32_t bufferSize);//ECMAScript type Number; buffer size 40 is enough
 //all rendering goes through this: stream and expansion are explicit at every call site
 void printValue(FILE* stream, LfxValue value, bool isExpand);

@@ -691,6 +691,7 @@ static bool call(LfxVM* vm, ObjClosure* closure, int argCount) {
 	frame->slots = vm->cache.stackTop - argCount - 1;
 	//frame->slotsOffset = (ptrdiff_t)(frame->slots - vm->cache.stack); //unused since the arena stack (fixed base)
 	frame->caches = closure->function->caches;
+	frame->constants = closure->function->constants;
 
 	// clear extra args
 	if (argCount > closure->function->arity) {
@@ -1176,16 +1177,13 @@ static void traceFrameStack(LfxVM* vm, FILE* stream, CallFrame* frame) {
 HOT_FUNCTION
 static InterpretResult run(LfxVM* vm)
 {
-	CallFrame* frame = &vm->cache.frames[vm->cache.frameCount - 1];
+	register CallFrame* frame = &vm->cache.frames[vm->cache.frameCount - 1];
 	register uint8_t* ip = frame->ip;
-	//cached constants base of the current function,refreshed at every frame switch
-	LfxValue* constants = frame->closure->function->constants;
 
 #define UPDATE_FRAME()	\
 	do {				\
 		frame = &vm->cache.frames[vm->cache.frameCount - 1];\
 		ip = frame->ip; \
-		constants = frame->closure->function->constants;	\
 	} while (false)
 
 #if COMPUTE_GOTO
@@ -1319,7 +1317,7 @@ static InterpretResult run(LfxVM* vm)
 #define READ_CONSTANT(index) (vm->constants.values[(index)])
 	//constants in function's own table (number),16bits index
 	//cached as a run(vm) local next to frame/ip,refreshed at every frame switch
-#define READ_LOCAL_CONSTANT(index) (constants[(index)])
+#define READ_LOCAL_CONSTANT(index) (frame->constants[(index)])
 
 	// push(pop() op pop())
 #define BINARY_OP(valueType,op)																		\
@@ -2525,14 +2523,14 @@ static InterpretResult run(LfxVM* vm)
 		label_op_equal_const:
 			//non-number constant,24bits index into vm->constants
 			LfxValue constant = READ_CONSTANT(READ_24bits());
-			vm->cache.stackTop[-1] = BOOL_VAL(valuesEqual(vm->cache.stackTop[-1], constant));
+			vm->cache.stackTop[-1] = BOOL_VAL(valuesEqual_number(vm->cache.stackTop[-1], constant));
 			NEXT_INSTRUCTION;
 		}
 		case OP_NOT_EQUAL_CONST: {
 		label_op_not_equal_const:
 			//non-number constant,24bits index into vm->constants
 			LfxValue constant = READ_CONSTANT(READ_24bits());
-			vm->cache.stackTop[-1] = BOOL_VAL(!valuesEqual(vm->cache.stackTop[-1], constant));
+			vm->cache.stackTop[-1] = BOOL_VAL(!valuesEqual_number(vm->cache.stackTop[-1], constant));
 			NEXT_INSTRUCTION;
 		}
 		case OP_GREATER_CONST: {

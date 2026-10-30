@@ -8,6 +8,7 @@
 
 #define VALUEHOLES_EMPTY UINT32_MAX
 
+HOT_FUNCTION
 bool valuesEqual(LfxValue a, LfxValue b)
 {
 #if NAN_BOXING
@@ -40,6 +41,16 @@ bool valuesEqual(LfxValue a, LfxValue b)
 	default:         return false; // Unreachable.
 	}
 #endif
+}
+
+HOT_FUNCTION
+bool valuesEqual_number(LfxValue a, double b) {
+	if (IS_NUMBER(a)) {
+		return AS_NUMBER(a) == b;
+	}
+	else {
+		return false;
+	}
 }
 
 //append chars with bounds guard (output never truncates with the documented 40-byte buffer, this is defensive)
