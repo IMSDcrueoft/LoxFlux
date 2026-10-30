@@ -47,6 +47,15 @@ _Static_assert(((LOXFLUX_FRAMES_MAX / LOXFLUX_FRAMES_INIT) & ((LOXFLUX_FRAMES_MA
 #define LOXFLUX_GRAY_ARENA_SIZE ((size_t)256 << 20)
 #endif
 
+typedef struct {
+	//runtime --print-bytecode flag: vm-level setting (set once by main,
+	//survives /reset), read by endCompiler to dump the final bytecode
+	bool printBytecode;
+	//runtime --no-optimize flag: when false, emitOpStack/instructionOptimize,
+	//foldBuiltinMember and emitBranchJump all pass through unoptimized
+	bool optimizationEnabled;
+} LfxOptions;
+
 typedef struct LfxVM {
 	// runtime weak ref cache
 	FiberCore cache;
@@ -127,6 +136,9 @@ typedef struct LfxVM {
 
 	// rng
 	Xoshiro256StarStar rng;
+
+	// per vm options
+	LfxOptions options;
 } LfxVM;
 
 typedef enum {
@@ -144,7 +156,10 @@ void vm_free(LfxVM* vm);
 bool vm_isCeding(LfxVM* vm);
 // Must be called when switching fibers or performing GC
 void vm_storeCacheToFiber(LfxVM* vm);
-void vm_registerIcFunction(ObjFunction* function);
+void vm_registerIcFunction(LfxVM* vm, ObjFunction* function);
+
+void vm_setPrintCodeEnabled(LfxVM* vm, bool isEnabled);
+void vm_setOptimizationEnabled(LfxVM* vm, bool isEnabled);
 
 void stack_push(LfxVM* vm, LfxValue value);
 LfxValue stack_pop(LfxVM* vm);

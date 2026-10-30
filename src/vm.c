@@ -69,7 +69,7 @@ static ObjFunction* getCachedScript(LfxVM* vm, STR absolutePath) {
 		//this readFile function never return null
 		STR source = readFile(absolutePath);
 
-		function = compile(source, TYPE_MODULE);
+		function = compile(vm, source, TYPE_MODULE);
 		mem_free(source);
 
 		if (function != NULL) {
@@ -369,6 +369,8 @@ void vm_storeCacheToFiber(LfxVM* vm) {
 COLD_FUNCTION
 void vm_init(LfxVM* vm)
 {
+	vm->options.printBytecode = false;
+	vm->options.optimizationEnabled = true;
 	//zero the accounting books BEFORE any allocation: everything vm_init
 	//allocates from here on must be counted, so the matching vm_free frees net
 	//the counters back to exactly zero
@@ -483,13 +485,23 @@ bool vm_isCeding(LfxVM* vm) {
 }
 
 COLD_FUNCTION
-void vm_registerIcFunction(ObjFunction* function) {
-	if (vm.icFuncCapacity < vm.icFuncCount + 1) {
-		uint32_t capacity = GROW_CAPACITY(vm.icFuncCapacity);
-		vm.icFuncs = GROW_ARRAY_NO_GC(ObjFunction*, vm.icFuncs, vm.icFuncCapacity, capacity);
-		vm.icFuncCapacity = capacity;
+void vm_registerIcFunction(LfxVM* vm, ObjFunction* function) {
+	if (vm->icFuncCapacity < vm->icFuncCount + 1) {
+		uint32_t capacity = GROW_CAPACITY(vm->icFuncCapacity);
+		vm->icFuncs = GROW_ARRAY_NO_GC(ObjFunction*, vm->icFuncs, vm->icFuncCapacity, capacity);
+		vm->icFuncCapacity = capacity;
 	}
-	vm.icFuncs[vm.icFuncCount++] = function;
+	vm->icFuncs[vm->icFuncCount++] = function;
+}
+
+COLD_FUNCTION
+void vm_setPrintCodeEnabled(LfxVM* vm, bool isEnabled) {
+	vm->options.printBytecode = isEnabled;
+}
+
+COLD_FUNCTION
+void vm_setOptimizationEnabled(LfxVM* vm, bool isEnabled) {
+	vm->options.optimizationEnabled = isEnabled;
 }
 
 COLD_FUNCTION
@@ -2829,7 +2841,7 @@ bool interpret_compile(LfxVM* vm, C_STR source)
 	uint64_t time_compile = get_milliseconds();
 #endif
 
-	ObjFunction* function = compile(source, TYPE_SCRIPT);
+	ObjFunction* function = compile(vm, source, TYPE_SCRIPT);
 	if (function == NULL) return false;
 
 #if LOG_COMPILE_TIMING

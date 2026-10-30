@@ -4,7 +4,6 @@
  * See LICENSE file in the root directory for full license text.
 */
 #pragma once
-#include "vm.h"
 #include "scanner.h"
 #include "object.h"
 
@@ -51,7 +50,8 @@ typedef enum {
 	PREC_PRIMARY
 } Precedence;
 
-typedef void (*ParseFn)(bool canAssign);
+struct CompilerContext;
+typedef void (*ParseFn)(struct CompilerContext* cc, bool canAssign);
 
 typedef struct {
 	ParseFn prefix;
@@ -138,13 +138,14 @@ typedef struct ClassCompiler {
 	bool hasSuperclass;
 } ClassCompiler;
 
-ObjFunction* compile(C_STR source, FunctionType compileType);
+typedef struct CompilerContext {
+	LfxVM* vm;
+	Compiler* currentCompiler;
+	ClassCompiler* currentClass;
+	Scanner scanner;
+	Parser parser;
+	bool printBytecode;
+	bool optimizationEnabled;
+} CompilerContext;
 
-//runtime --print-bytecode flag: process-level setting (set once by main,
-//survives /reset), read by endCompiler to dump the final bytecode to stderr
-extern bool vm_printBytecode;
-
-//runtime --no-optimize flag: disables every compile-time optimization pass
-//(peephole fusion, constant folding, builtin member folding, branch-jump
-//fusion); the emitted bytecode stays fully valid, just unoptimized
-extern bool vm_optimizationEnabled;
+ObjFunction* compile(LfxVM* vm, C_STR source, FunctionType compileType);

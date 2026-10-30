@@ -8,7 +8,6 @@
 #include "vm.h"
 #include "file.h"
 #include "allocator.h"
-#include "compiler.h"
 
 static void print_usage(FILE* stream) {
 	fprintf(stream, "Usage: loxFlux [--print-bytecode] [--no-optimize] [script]\n");
@@ -23,15 +22,20 @@ static void print_version() {
 	printf("%s %s\n", LOXFLUX_INTERPRETER_NAME, LOXFLUX_INTERPRETER_VERSION);
 }
 
+//process-level compiler flags: parsed once, re-applied after every vm_init
+//(vm_init resets the context defaults; /reset must not lose the CLI settings)
+static bool flagPrintBytecode = false;
+static bool flagOptimize = true;
+
 int loxFluxMain(int argc, C_STR argv[]) {
 	C_STR script = NULL;
 
 	for (int i = 1; i < argc; i++) {
 		if (strcmp(argv[i], "--print-bytecode") == 0) {
-			vm_printBytecode = true;
+			flagPrintBytecode = true;
 		}
 		else if (strcmp(argv[i], "--no-optimize") == 0) {
-			vm_optimizationEnabled = false;
+			flagOptimize = false;
 		}
 		else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
 			print_usage(stdout);
@@ -138,6 +142,9 @@ void repl(LfxVM* vm) {
 	printf("%s %s  Copyright (C) %s, %s\n", LOXFLUX_INTERPRETER_NAME, LOXFLUX_INTERPRETER_VERSION, LOXFLUX_INTERPRETER_COPYRIGHT, LOXFLUX_INTERPRETER_DEVELOPER);
 
 	vm_init(vm);
+	// must set after vm_init
+	vm_setPrintCodeEnabled(vm, flagPrintBytecode);
+	vm_setOptimizationEnabled(vm, flagOptimize);
 
 	//512 chars max per line (+ '\n' + '\0'),matches the documented limit
 	char line[514];
@@ -201,6 +208,10 @@ void repl(LfxVM* vm) {
 					//vm_free runs the DEBUG leak-accounting check, so every /reset doubles as a health check
 					vm_free(vm);
 					vm_init(vm);
+					// must set after vm_init
+					vm_setPrintCodeEnabled(vm, flagPrintBytecode);
+					vm_setOptimizationEnabled(vm, flagOptimize);
+
 					printf("vm reset: reclaimed %.1f KiB\n", (double)reclaimed / 1024.0);
 					continue;
 				}
@@ -257,6 +268,9 @@ void repl(LfxVM* vm) {
 
 void runFile(LfxVM* vm, C_STR path) {
 	vm_init(vm);
+	// must set after vm_init
+	vm_setPrintCodeEnabled(vm, flagPrintBytecode);
+	vm_setOptimizationEnabled(vm, flagOptimize);
 
 	STR source = readFile(path);
 	bool ok = interpret_compile(vm, source);

@@ -49,6 +49,6 @@ typedef struct {
 	uint32_t line;
 } Token;
 
-void scanner_init(C_STR source);
+void scanner_init(Scanner* scanner, C_STR source);
 
-Token scanToken();
+Token scanToken(Scanner* scanner);
