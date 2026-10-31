@@ -19,7 +19,7 @@ void table_init(Table* table)
 	table->entries = NULL;
 }
 
-void table_free(Table* table)
+void table_free(LfxVM* vm, Table* table)
 {
 	FREE_ARRAY(Entry, table->entries, table->capacity);
 	table_init(table);
@@ -62,7 +62,7 @@ static Entry* findEntry(Entry* entries, uint32_t capacity, ObjString* key, bool 
 	}
 }
 
-static void adjustCapacity(Table* table, uint32_t capacity) {
+static void adjustCapacity(LfxVM* vm, Table* table, uint32_t capacity) {
 	//we need re input, so don't reallocate
 	Entry* entries = ALLOCATE(Entry, capacity);
 
@@ -114,7 +114,7 @@ bool tableGetEntry(Table* table, ObjString* key, LfxValue* value_out, Entry** en
 }
 
 HOT_FUNCTION
-bool tableSet(Table* table, ObjString* key, LfxValue value)
+bool tableSet(LfxVM* vm, Table* table, ObjString* key, LfxValue value)
 {
 	//NOTE: no frozen guard here on purpose: freezing is a property-write concept,
 	//enforced by the instance property paths in vm.c. Generic tables (builtins
@@ -124,7 +124,7 @@ bool tableSet(Table* table, ObjString* key, LfxValue value)
 	//if (table->count + 1 > table->capacity * TABLE_MAX_LOAD) {
 	if ((table->count + 1) > MUL_3_DIV_4((uint64_t)(table->capacity))) {
 		uint32_t capacity = GROW_CAPACITY(table->capacity);
-		adjustCapacity(table, capacity);
+		adjustCapacity(vm, table, capacity);
 	}
 
 	Entry* entry = findEntry(table->entries, table->capacity, key, table->isGlobal);
@@ -153,12 +153,12 @@ bool tableDelete(Table* table, ObjString* key) {
 	return true;
 }
 
-void tableAddAll(Table* from, Table* to)
+void tableAddAll(LfxVM* vm, Table* from, Table* to)
 {
 	for (uint32_t i = 0; i < from->capacity; ++i) {
 		Entry* entry = &from->entries[i];
 		if (entry->key != NULL) {
-			tableSet(to, entry->key, entry->value);
+			tableSet(vm, to, entry->key, entry->value);
 		}
 	}
 }

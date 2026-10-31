@@ -74,7 +74,7 @@ static ObjFunction* getCachedScript(LfxVM* vm, STR absolutePath) {
 
 		if (function != NULL) {
 			// add to pool
-			tableSet_script(&vm->scripts, path, addConstant(OBJ_VAL(function)));
+			tableSet_script(vm, &vm->scripts, path, addConstant(OBJ_VAL(function)));
 		}
 	}
 
@@ -211,7 +211,7 @@ LfxValue stack_pop(LfxVM* vm)
 
 COLD_FUNCTION
 void defineNative_math_number(LfxVM* vm, C_STR name, double value) {
-	tableSet(&vm->builtins[MODULE_MATH].fields,
+	tableSet(vm, &vm->builtins[MODULE_MATH].fields,
 		copyString(vm, name, (uint32_t)strlen(name), false),
 		NUMBER_VAL(value)
 	);
@@ -219,7 +219,7 @@ void defineNative_math_number(LfxVM* vm, C_STR name, double value) {
 
 COLD_FUNCTION
 void defineNative_math(LfxVM* vm, C_STR name, LfxNativeFn function) {
-	tableSet(&vm->builtins[MODULE_MATH].fields,
+	tableSet(vm, &vm->builtins[MODULE_MATH].fields,
 		copyString(vm, name, (uint32_t)strlen(name), false),
 		OBJ_VAL(newNative(vm, function))
 	);
@@ -227,7 +227,7 @@ void defineNative_math(LfxVM* vm, C_STR name, LfxNativeFn function) {
 
 COLD_FUNCTION
 void defineNative_array(LfxVM* vm, C_STR name, LfxNativeFn function) {
-	tableSet(&vm->builtins[MODULE_ARRAY].fields,
+	tableSet(vm, &vm->builtins[MODULE_ARRAY].fields,
 		copyString(vm, name, (uint32_t)strlen(name), false),
 		OBJ_VAL(newNative(vm, function))
 	);
@@ -235,7 +235,7 @@ void defineNative_array(LfxVM* vm, C_STR name, LfxNativeFn function) {
 
 COLD_FUNCTION
 void defineNative_object(LfxVM* vm, C_STR name, LfxNativeFn function) {
-	tableSet(&vm->builtins[MODULE_OBJECT].fields,
+	tableSet(vm, &vm->builtins[MODULE_OBJECT].fields,
 		copyString(vm, name, (uint32_t)strlen(name), false),
 		OBJ_VAL(newNative(vm, function))
 	);
@@ -243,7 +243,7 @@ void defineNative_object(LfxVM* vm, C_STR name, LfxNativeFn function) {
 
 COLD_FUNCTION
 void defineNative_string(LfxVM* vm, C_STR name, LfxNativeFn function) {
-	tableSet(&vm->builtins[MODULE_STRING].fields,
+	tableSet(vm, &vm->builtins[MODULE_STRING].fields,
 		copyString(vm, name, (uint32_t)strlen(name), false),
 		OBJ_VAL(newNative(vm, function))
 	);
@@ -251,7 +251,7 @@ void defineNative_string(LfxVM* vm, C_STR name, LfxNativeFn function) {
 
 COLD_FUNCTION
 void defineNative_time(LfxVM* vm, C_STR name, LfxNativeFn function) {
-	tableSet(&vm->builtins[MODULE_TIME].fields,
+	tableSet(vm, &vm->builtins[MODULE_TIME].fields,
 		copyString(vm, name, (uint32_t)strlen(name), false),
 		OBJ_VAL(newNative(vm, function))
 	);
@@ -259,7 +259,7 @@ void defineNative_time(LfxVM* vm, C_STR name, LfxNativeFn function) {
 
 COLD_FUNCTION
 void defineNative_ctor(LfxVM* vm, C_STR name, LfxNativeFn function) {
-	tableSet(&vm->builtins[MODULE_CTOR].fields,
+	tableSet(vm, &vm->builtins[MODULE_CTOR].fields,
 		copyString(vm, name, (uint32_t)strlen(name), false),
 		OBJ_VAL(newNative(vm, function))
 	);
@@ -267,7 +267,7 @@ void defineNative_ctor(LfxVM* vm, C_STR name, LfxNativeFn function) {
 
 COLD_FUNCTION
 void defineNative_system(LfxVM* vm, C_STR name, LfxNativeFn function) {
-	tableSet(&vm->builtins[MODULE_SYSTEM].fields,
+	tableSet(vm, &vm->builtins[MODULE_SYSTEM].fields,
 		copyString(vm, name, (uint32_t)strlen(name), false),
 		OBJ_VAL(newNative(vm, function))
 	);
@@ -281,7 +281,7 @@ void defineNative_global(LfxVM* vm, C_STR name, LfxNativeFn function) {
 	//stack_pop(vm);
 	//stack_pop(vm);
 
-	tableSet(&vm->globals.fields,
+	tableSet(vm, &vm->globals.fields,
 		copyString(vm, name, (uint32_t)strlen(name), false),
 		OBJ_VAL(newNative(vm, function))
 	);
@@ -318,7 +318,7 @@ static void importBuiltins(LfxVM* vm) {
 COLD_FUNCTION
 static void removeBuiltins(LfxVM* vm) {
 	for (uint32_t i = 0; i < MODULE_COUNT; ++i) {
-		table_free(&vm->builtins[i].fields);
+		table_free(vm, &vm->builtins[i].fields);
 	}
 }
 
@@ -515,11 +515,11 @@ void vm_free(LfxVM* vm)
 	vm->icFuncCapacity = 0;
 
 	valueArray_free(&vm->constants);
-	binaryTable_free(&vm->nativeConstants);
+	binaryTable_free(vm, &vm->nativeConstants);
 
-	table_free(&vm->globals.fields);
-	stringTable_free(&vm->scripts);
-	stringTable_free(&vm->strings);
+	table_free(vm, &vm->globals.fields);
+	stringTable_free(vm, &vm->scripts);
+	stringTable_free(vm, &vm->strings);
 
 	vm->initString = NULL;
 	for (uint32_t i = 0; i < TYPE_STRING_COUNT; ++i) {
@@ -547,7 +547,7 @@ void vm_free(LfxVM* vm)
 
 	removeBuiltins(vm);
 
-	table_free(&vm->defaultClass.methods);
+	table_free(vm, &vm->defaultClass.methods);
 
 	vm->ceding = 0;
 #if DEBUG_MODE
@@ -716,7 +716,7 @@ static inline void defineMethod(LfxVM* vm, ObjString* name) {
 	LfxValue method = vm->cache.stackTop[-1];
 	ObjClass* klass = AS_CLASS(vm->cache.stackTop[-2]);
 
-	tableSet(&klass->methods, name, method);
+	tableSet(vm, &klass->methods, name, method);
 	if (name == vm->initString) {//inline cache
 		assert(IS_CLOSURE(method) && "The initializer must be a closure.");
 
@@ -1061,7 +1061,7 @@ static void icGetPropertySlow(LfxVM* vm, ObjInstance* instance, ObjString* name,
 
 COLD_FUNCTION
 NOINLINE_FUNCTION
-static void icSetPropertySlow(ObjInstance* instance, ObjString* name, LfxValue newValue, uint8_t slot, InlineCacheSlot* icCache) {
+static void icSetPropertySlow(LfxVM* vm, ObjInstance* instance, ObjString* name, LfxValue newValue, uint8_t slot, InlineCacheSlot* icCache) {
 	//frozen instances reject every write/delete; early return keeps the IC
 	//un-backfilled so later writes keep taking this cheap exit
 	if (instance->fields.isFrozen) return;
@@ -1079,7 +1079,7 @@ static void icSetPropertySlow(ObjInstance* instance, ObjString* name, LfxValue n
 		}
 		else {
 			//new field: insert (cold path, may rehash)
-			tableSet(&instance->fields, name, newValue);
+			tableSet(vm, &instance->fields, name, newValue);
 			//shadow check: a NEW field name colliding with a method name poisons this instance
 			//memoized per call site in the slot's spare pointers:the property name is a compile-time
 			//constant,so for one klass the answer never changes (methods are immutable once instances
@@ -1126,7 +1126,7 @@ static void icSetPropertySlow(ObjInstance* instance, ObjString* name, LfxValue n
 		else {
 			//defining a fresh global as nil; defaultClass.methods is empty for
 			//the global object's lifetime, so no method-shadow poisoning applies
-			tableSet(&instance->fields, name, NIL_VAL);
+			tableSet(vm, &instance->fields, name, NIL_VAL);
 		}
 	}
 }
@@ -1490,7 +1490,7 @@ static InterpretResult run(LfxVM* vm)
 			LfxValue superclass = vm->cache.stackTop[-2];
 			if (IS_CLASS(superclass)) {
 				ObjClass* subclass = AS_CLASS(vm->cache.stackTop[-1]);
-				tableAddAll(&AS_CLASS(superclass)->methods, &subclass->methods);
+				tableAddAll(vm, &AS_CLASS(superclass)->methods, &subclass->methods);
 			//inherited constructor:keep the initializer fast path in sync with the copied methods table
 			//(a subclass init declared after this would overwrite it via defineMethod)
 			if (subclass->initializer == NULL) {
@@ -1569,7 +1569,7 @@ static InterpretResult run(LfxVM* vm)
 				}
 			}
 
-			icSetPropertySlow(instance, name, vm->cache.stackTop[-1], slot, icCache);
+			icSetPropertySlow(vm, instance, name, vm->cache.stackTop[-1], slot, icCache);
 			LfxValue value = stack_pop(vm);
 			stack_replace(vm, value);
 			NEXT_INSTRUCTION;
@@ -1601,7 +1601,7 @@ static InterpretResult run(LfxVM* vm)
 				}
 			}
 
-			icSetPropertySlow(instance, name, vm->cache.stackTop[-1], slot, icCache);
+			icSetPropertySlow(vm, instance, name, vm->cache.stackTop[-1], slot, icCache);
 			//pop value and instance
 			vm->cache.stackTop -= 2;
 			NEXT_INSTRUCTION;
@@ -1670,7 +1670,7 @@ static InterpretResult run(LfxVM* vm)
 				}
 			}
 
-			icSetPropertySlow(instance, name, vm->cache.stackTop[-1], slot, icCache);
+			icSetPropertySlow(vm, instance, name, vm->cache.stackTop[-1], slot, icCache);
 			NEXT_INSTRUCTION;
 		}
 		case OP_SET_PROP_LOCAL_POP: {
@@ -1702,7 +1702,7 @@ static InterpretResult run(LfxVM* vm)
 				}
 			}
 
-			icSetPropertySlow(instance, name, vm->cache.stackTop[-1], slot, icCache);
+			icSetPropertySlow(vm, instance, name, vm->cache.stackTop[-1], slot, icCache);
 			vm->cache.stackTop -= 1;
 			NEXT_INSTRUCTION;
 		}
@@ -1869,7 +1869,7 @@ static InterpretResult run(LfxVM* vm)
 					if (!instance->fields.isFrozen) {
 						// you can't delete a global variable,so we don't delete it
 						if (NOT_NIL(value) || instance->fields.isGlobal) {
-							tableSet(&instance->fields, name, value);
+							tableSet(vm, &instance->fields, name, value);
 						}
 						else {
 							tableDelete(&instance->fields, name);
@@ -1893,7 +1893,7 @@ static InterpretResult run(LfxVM* vm)
 			ObjString* name = AS_STRING(constant);
 
 			//it's not a new key,no cache, global can't frozen
-			tableSet(&vm->globals.fields, name, vm->cache.stackTop[-1]);
+			tableSet(vm, &vm->globals.fields, name, vm->cache.stackTop[-1]);
 			vm->cache.stackTop--;//can not dec first,because gc will kill it
 			NEXT_INSTRUCTION;
 		}
@@ -1934,7 +1934,7 @@ static InterpretResult run(LfxVM* vm)
 			}
 
 			// global can't frozen
-			if (tableSet(&vm->globals.fields, name, vm->cache.stackTop[-1])) {
+			if (tableSet(vm, &vm->globals.fields, name, vm->cache.stackTop[-1])) {
 				//lox dont allow setting undefined one
 				tableDelete(&vm->globals.fields, name);
 				RUNTIME_ERROR("Undefined variable '%s'.", name->chars);
@@ -1972,7 +1972,7 @@ static InterpretResult run(LfxVM* vm)
 			LfxValue constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			// this is used to create literal object,so we don't need to check frozen
-			tableSet(&instance->fields, name, vm->cache.stackTop[-1]);
+			tableSet(vm, &instance->fields, name, vm->cache.stackTop[-1]);
 			stack_pop(vm);
 			NEXT_INSTRUCTION;
 		}

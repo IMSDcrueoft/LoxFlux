@@ -52,14 +52,14 @@ typedef struct {
 } StringTable;
 
 void table_init(Table* table);
-void table_free(Table* table);
+void table_free(LfxVM* vm, Table* table);
 
 bool tableGet(Table* table, ObjString* key, LfxValue* value_out);
 //single-probe: get value and entry pointer in one probe (for inline cache backfill)
 bool tableGetEntry(Table* table, ObjString* key, LfxValue* value_out, Entry** entry_out);
-bool tableSet(Table* table, ObjString* key, LfxValue value);
+bool tableSet(LfxVM* vm, Table* table, ObjString* key, LfxValue value);
 bool tableDelete(Table* table, ObjString* key);
-void tableAddAll(Table* from, Table* to);
+void tableAddAll(LfxVM* vm, Table* from, Table* to);
 
 //void tableRemoveWhite(Table* table);
 void markTable(Table* table);
@@ -70,15 +70,19 @@ ObjString* tableFindString(StringTable* table, C_STR chars, uint32_t length, uin
 ObjString* tableFindConcatString(StringTable* table, C_STR charsA, uint32_t lengthA, C_STR charsB, uint32_t lengthB, uint64_t hash);
 
 void stringTable_init(StringTable* table);
-void stringTable_free(StringTable* table);
-bool tableSet_string(StringTable* table, ObjString* key);
+void stringTable_free(LfxVM* vm, StringTable* table);
+bool tableSet_string(LfxVM* vm, StringTable* table, ObjString* key);
 StringEntry* tableGetStringEntry(StringTable* table, ObjString* key);
 
-void tableSet_script(StringTable* table, ObjString* key, uint32_t index);
+void tableSet_script(LfxVM* vm, StringTable* table, ObjString* key, uint32_t index);
 StringEntry* tableGetScriptEntry(StringTable* table, ObjString* key);
 
 void binaryTable_init(BinaryTable* table);
-void binaryTable_free(BinaryTable* table);
+void binaryTable_free(LfxVM* vm, BinaryTable* table);
+bool tableSet_binary(LfxVM* vm, BinaryTable* table, LfxValue* value);
+
+//compile-time owner path for the per-function number pool
+BinaryEntry* tableGetOrInsertBinaryEntry(LfxVM* vm, BinaryTable* table, LfxValue* value);
 BinaryEntry* tableGetBinaryEntry(BinaryTable* table, LfxValue* value);
 
 // returns false if table is empty

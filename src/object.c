@@ -145,6 +145,11 @@ ObjBoundMethod* newBoundMethod(LfxVM* vm, LfxValue receiver, ObjClosure* method)
 ObjNative* newNative(LfxVM* vm, LfxNativeFn function) {
 	ObjNative* native = ALLOCATE_OBJ(vm, ObjNative, OBJ_NATIVE);
 	native->function = function;
+
+	// intern for compiler
+	LfxValue value = OBJ_VAL(native);
+	tableSet_binary(vm, &vm->nativeConstants, &value);
+
 	return native;
 }
 
@@ -298,7 +303,7 @@ ObjString* copyString(LfxVM* vm, C_STR chars, uint32_t length, bool escapeChars)
 			string->symbol = INVALID_OBJ_STRING_SYMBOL;
 
 			//stack_push(OBJ_VAL(string));
-			tableSet_string(&vm->strings, string);
+			tableSet_string(vm, &vm->strings, string);
 			//stack_pop();
 		}
 
@@ -383,7 +388,7 @@ ObjString* copyString(LfxVM* vm, C_STR chars, uint32_t length, bool escapeChars)
 			return interned;
 		}
 
-		tableSet_string(&vm->strings, string);
+		tableSet_string(vm, &vm->strings, string);
 		return string;
 	}
 }
@@ -414,7 +419,7 @@ ObjString* connectString(LfxVM* vm, ObjString* strA, ObjString* strB) {
 	string->hash = hash;
 	string->symbol = INVALID_OBJ_STRING_SYMBOL;
 
-	tableSet_string(&vm->strings, string);
+	tableSet_string(vm, &vm->strings, string);
 	return string;
 }
 
@@ -609,11 +614,6 @@ void printObjectTo(FILE* stream, LfxValue value, bool isExpand) {
 		break;
 	}
 	}
-}
-
-StringEntry* getStringEntryInPool(LfxVM* vm, ObjString* string)
-{
-	return tableGetStringEntry(&vm->strings, string);
 }
 
 //string and stringBuilder both carry raw bytes and every mutator (ctor,

@@ -402,7 +402,7 @@ static void emitReturn(CompilerContext* cc) {
 static uint32_t makeConstant(CompilerContext* cc, LfxValue value) {
 	if (IS_STRING(value)) {
 		//find if string is in constant,because it is in pool
-		StringEntry* entry = getStringEntryInPool(cc->vm, AS_STRING(value));
+		StringEntry* entry = tableGetStringEntry(&cc->vm->strings, AS_STRING(value));
 
 		if (entry != NULL) {
 			if (entry->index == UINT32_MAX) {
@@ -425,20 +425,22 @@ static uint32_t makeConstant(CompilerContext* cc, LfxValue value) {
 		//natives are immortal (gc-excluded),so pointer bits are a stable dedup key
 		BinaryEntry* entry = tableGetBinaryEntry(&cc->vm->nativeConstants, &value);
 
-		if (entry->index == UINT32_MAX) {
-			uint32_t index = addConstant(value);
+		if (entry != NULL) {
+			if (entry->index == UINT32_MAX) {
+				uint32_t index = addConstant(value);
 
-			//never cache a wrapped index: it would silently reference
-			//the wrong constant; report and return the sentinel instead
-			if (index > UINT24_MAX) {
-				error(cc, "Too many constants in chunk.");
-				return UINT32_MAX;
+				//never cache a wrapped index: it would silently reference
+				//the wrong constant; report and return the sentinel instead
+				if (index > UINT24_MAX) {
+					error(cc, "Too many constants in chunk.");
+					return UINT32_MAX;
+				}
+
+				entry->index = index;//set value and return
+				return index;
 			}
-
-			entry->index = index;//set value and return
-			return index;
+			return entry->index;
 		}
-		return entry->index;
 	}
 	return addConstant(value);
 }
@@ -446,8 +448,8 @@ static uint32_t makeConstant(CompilerContext* cc, LfxValue value) {
 //number constants only,16bits index into function's own constants
 static uint32_t makeNumberConstant(CompilerContext* cc, LfxValue value) {
 	Compiler* current = cc->currentCompiler;
-	//deduplicate in per-function pool
-	BinaryEntry* entry = tableGetBinaryEntry(&current->numbers, &value);
+	//deduplicate in per-function pool (compiler-owned: one probe, insert on miss)
+	BinaryEntry* entry = tableGetOrInsertBinaryEntry(cc->vm, &current->numbers, &value);
 
 	if (entry->index == UINT32_MAX) {
 		//OP_CONST_NUMBER encodes a 16bits index: reject before the entry
@@ -663,7 +665,7 @@ static ObjFunction* endCompiler(CompilerContext* cc) {
 	Compiler* current = cc->currentCompiler;
 	emitReturn(cc);
 	opStack_free(currentOpStack(cc));
-	binaryTable_free(&current->numbers);//free every compiler's number pool (nested compilers were leaking)
+	binaryTable_free(cc->vm, &current->numbers);//free every compiler's number pool (nested compilers were leaking)
 
 	//shrink inline caches to exactly cacheCount+1 entries (index 0 = shared sentinel slot)
 	//small functions/lambdas keep no doubling slack; functions without ic sites keep NULL

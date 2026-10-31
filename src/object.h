@@ -395,8 +395,6 @@ int compareStringLike(LfxValue a, LfxValue b);
 //stream-targeted core: renders an object value (class/instance/function/array/...)
 void printObjectTo(FILE* stream, LfxValue value, bool isExpand);
 
-StringEntry* getStringEntryInPool(LfxVM* vm, ObjString* string);
-
 ObjUpvalue* newUpvalue(LfxVM* vm, LfxValue* slot);
 struct Compiler;
 ObjFunction* newFunction(LfxVM* vm, struct Compiler* compiler);
