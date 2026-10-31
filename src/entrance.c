@@ -191,7 +191,7 @@ void repl(LfxVM* vm) {
 					break;
 				}
 				else if (match_string(line, "/mem")) {
-					log_malloc_info();
+					log_malloc_info(vm);
 					continue;
 				}
 				else if (match_string(line, "/help")) {
@@ -261,7 +261,7 @@ void repl(LfxVM* vm) {
 	//final stats only: release delayed-free blocks so mimalloc's "current"
 	//counters do not look like a leak after a complete teardown
 	mem_collect(true);
-	log_malloc_info();
+	log_malloc_info(vm);
 #endif
 #undef match_string
 }
@@ -296,6 +296,6 @@ void runFile(LfxVM* vm, C_STR path) {
 	//final stats only: release delayed-free blocks so mimalloc's "current"
 	//counters do not look like a leak after a complete teardown
 	mem_collect(true);
-	log_malloc_info();
+	log_malloc_info(vm);
 #endif
 }

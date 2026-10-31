@@ -74,7 +74,7 @@ static Obj* allocateObject(LfxVM* vm, size_t size, ObjType type) {
 		break;
 	}
 	default:
-		object = (Obj*)reallocate(NULL, 0, size);
+		object = (Obj*)reallocate(vm, NULL, 0, size);
 		OBJ_PTR_SET_NEXT(object, vm->objects);
 		object->type = type;
 		object->isMarked = !vm->gcMark;
@@ -119,7 +119,7 @@ ObjFunction* newFunction(LfxVM* vm, Compiler* compiler) {
 
 HOT_FUNCTION
 ObjClosure* newClosure(LfxVM* vm, ObjFunction* function) {
-	ObjUpvalue** upvalues = ALLOCATE(ObjUpvalue*, function->upvalueCount);
+	ObjUpvalue** upvalues = ALLOCATE(vm, ObjUpvalue*, function->upvalueCount);
 	for (uint32_t i = 0; i < function->upvalueCount; i++) {
 		upvalues[i] = NULL;
 	}
@@ -181,7 +181,7 @@ ObjInstance* newInstance(LfxVM* vm, ObjClass* klass) {
 
 ObjFiber* newFiber(LfxVM* vm)
 {
-	ObjFiber* fiber = allocFiber();
+	ObjFiber* fiber = allocFiber(vm);
 
 	//allocFiber() may return a recycled fiber, so initialize every execution
 	//field here; the stack arena itself is owned/reused by memory.c
@@ -225,7 +225,6 @@ ObjIterator* newIterator(LfxVM* vm, Obj* target)
 HOT_FUNCTION
 void reserveArray(LfxVM* vm, ObjArray* array, uint64_t size)
 {
-	(void)vm;//load-bearing once reallocate() takes the vm
 	size = (size + 7) & ~7;
 	if (size < array->capacity) return;
 	if (size > ARRAYLIKE_MAX) {
@@ -233,7 +232,7 @@ void reserveArray(LfxVM* vm, ObjArray* array, uint64_t size)
 		exit(1);
 	}
 
-#define GROW_TYPED_ARRAY(type, ptr, size) reallocate(ptr, sizeof(type) * array->capacity, sizeof(type) * size)
+#define GROW_TYPED_ARRAY(type, ptr, sz) reallocate(vm, ptr, sizeof(type) * array->capacity, sizeof(type) * sz)
 	void* newPayload = NULL;
 
 	switch (OBJ_GET_TYPE(array->obj)) {

@@ -21,7 +21,7 @@ void table_init(Table* table)
 
 void table_free(LfxVM* vm, Table* table)
 {
-	FREE_ARRAY(Entry, table->entries, table->capacity);
+	FREE_ARRAY(vm, Entry, table->entries, table->capacity);
 	table_init(table);
 }
 
@@ -64,7 +64,7 @@ static Entry* findEntry(Entry* entries, uint32_t capacity, ObjString* key, bool 
 
 static void adjustCapacity(LfxVM* vm, Table* table, uint32_t capacity) {
 	//we need re input, so don't reallocate
-	Entry* entries = ALLOCATE(Entry, capacity);
+	Entry* entries = ALLOCATE(vm, Entry, capacity);
 
 	for (uint32_t i = 0; i < capacity; ++i) {
 		entries[i].key = NULL;
@@ -84,7 +84,7 @@ static void adjustCapacity(LfxVM* vm, Table* table, uint32_t capacity) {
 		table->count++;
 	}
 
-	FREE_ARRAY(Entry, table->entries, table->capacity);
+	FREE_ARRAY(vm, Entry, table->entries, table->capacity);
 
 	table->entries = entries;
 	table->capacity = capacity;

@@ -342,7 +342,7 @@ static LfxValue stringBuilderNative(LfxVM* vm, int argCount, LfxValue* args) {
 			uint32_t capacity = calculateBuilderCapacity(length);
 			stringBuilder->length = length;
 			stringBuilder->capacity = capacity;
-			stringBuilder->payload = ALLOCATE(char, capacity);
+			stringBuilder->payload = ALLOCATE(vm, char, capacity);
 			memcpy(stringBuilder->payload, stringPtr, length);
 			ARRAY_ELEMENT(stringBuilder, char, stringBuilder->length) = '\0';
 		}
@@ -351,7 +351,7 @@ static LfxValue stringBuilderNative(LfxVM* vm, int argCount, LfxValue* args) {
 	if (stringBuilder->capacity == 0) {
 		stringBuilder->length = 0;
 		stringBuilder->capacity = 16;
-		stringBuilder->payload = ALLOCATE(char, 16);
+		stringBuilder->payload = ALLOCATE(vm, char, 16);
 		ARRAY_ELEMENT(stringBuilder, char, stringBuilder->length) = '\0';
 	}
 

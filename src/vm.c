@@ -535,7 +535,7 @@ void vm_free(LfxVM* vm)
 	vm->cache = (FiberCore){0};
 
 	freeObjects(vm);
-	freeFiberFreeList();
+	freeFiberFreeList(vm);
 
 	//release the string + gray arenas (VA reservations + committed pages)
 	arenaBump_destroy(&vm->stringArena);
