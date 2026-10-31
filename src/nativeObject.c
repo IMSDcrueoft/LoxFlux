@@ -118,9 +118,8 @@ static LfxValue isFrozenNative(LfxVM* vm, int argCount, LfxValue* args) {
 
 COLD_FUNCTION
 static LfxValue keysNative(LfxVM* vm, int argCount, LfxValue* args) {
-	(void)vm;
-	// Create an empty array as result  
-	ObjArray* result = newArray(OBJ_ARRAY);
+	// Create an empty array as result
+	ObjArray* result = newArray(vm, OBJ_ARRAY);
 	stack_push(vm, OBJ_VAL(result));
 
 	// Check argument count  
@@ -141,7 +140,7 @@ static LfxValue keysNative(LfxVM* vm, int argCount, LfxValue* args) {
 
 			if (newSize > result->capacity) {
 				uint64_t newCapacity = max((result->capacity < 64) ? (result->capacity * 2) : ((result->capacity * 3) >> 1), 8);
-				reserveArray(result, newCapacity);
+				reserveArray(vm, result, newCapacity);
 			}
 
 			// Add key to result array  

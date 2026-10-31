@@ -37,14 +37,14 @@ const C_STR objTypeInfo[] = {
 };
 #endif
 
-#define ALLOCATE_OBJ(type, objectType) \
-    (type*)allocateObject(sizeof(type), objectType)
+#define ALLOCATE_OBJ(vm, type, objectType) \
+    (type*)allocateObject(vm, sizeof(type), objectType)
 
-#define ALLOCATE_FLEX_OBJ(type,objectType,byteSize) \
-    (type*)allocateObject(byteSize, objectType)
+#define ALLOCATE_FLEX_OBJ(vm,type,objectType,byteSize) \
+    (type*)allocateObject(vm, byteSize, objectType)
 
 HOT_FUNCTION
-static Obj* allocateObject(size_t size, ObjType type) {
+static Obj* allocateObject(LfxVM* vm, size_t size, ObjType type) {
 	Obj* object = NULL;
 
 	//link the objects
@@ -53,7 +53,7 @@ static Obj* allocateObject(size_t size, ObjType type) {
 		//strings come from the fixed-VA string arena (append-only bump, the
 		//whole arena is released at vm exit); they are NOT linked into the
 		//object lists anymore, the arena owns their lifetime
-		ObjString* string = (ObjString*)arenaBump_alloc(&vm.stringArena, size);
+		ObjString* string = (ObjString*)arenaBump_alloc(&vm->stringArena, size);
 		if (string == NULL) {
 			fprintf(stderr, "Memory reallocation failed!\n");
 			exit(1);
@@ -67,18 +67,18 @@ static Obj* allocateObject(size_t size, ObjType type) {
 	case OBJ_FUNCTION:
 	case OBJ_NATIVE: {
 		object = (Obj*)reallocate_no_gc(NULL, 0, size);
-		OBJ_PTR_SET_NEXT(object, vm.objects_no_gc);
+		OBJ_PTR_SET_NEXT(object, vm->objects_no_gc);
 		object->type = type;
-		object->isMarked = !vm.gcMark;
-		vm.objects_no_gc = object;
+		object->isMarked = !vm->gcMark;
+		vm->objects_no_gc = object;
 		break;
 	}
 	default:
 		object = (Obj*)reallocate(NULL, 0, size);
-		OBJ_PTR_SET_NEXT(object, vm.objects);
+		OBJ_PTR_SET_NEXT(object, vm->objects);
 		object->type = type;
-		object->isMarked = !vm.gcMark;
-		vm.objects = object;
+		object->isMarked = !vm->gcMark;
+		vm->objects = object;
 		break;
 	}
 
@@ -90,9 +90,9 @@ static Obj* allocateObject(size_t size, ObjType type) {
 }
 
 HOT_FUNCTION
-ObjUpvalue* newUpvalue(LfxValue* slot)
+ObjUpvalue* newUpvalue(LfxVM* vm, LfxValue* slot)
 {
-	ObjUpvalue* upvalue = ALLOCATE_OBJ(ObjUpvalue, OBJ_UPVALUE);
+	ObjUpvalue* upvalue = ALLOCATE_OBJ(vm, ObjUpvalue, OBJ_UPVALUE);
 	upvalue->location = slot;
 	//upvalue->location_offset = offset;
 	upvalue->closed = NIL_VAL;
@@ -100,12 +100,12 @@ ObjUpvalue* newUpvalue(LfxValue* slot)
 	return upvalue;
 }
 
-ObjFunction* newFunction(Compiler* compiler) {
+ObjFunction* newFunction(LfxVM* vm, Compiler* compiler) {
 	// materialize the final function from the compiler's embedded state (read-only:
 	// the compiler owns the embedded state and detaches the moved buffers itself)
 	// (ALLOCATE_FLEX_OBJ takes the total size: header + FAM; links into vm.objects_no_gc)
 	uint32_t constantsCount = compiler->constants.count;
-	ObjFunction* function = ALLOCATE_FLEX_OBJ(ObjFunction, OBJ_FUNCTION, sizeof(ObjFunction) + sizeof(LfxValue) * constantsCount);
+	ObjFunction* function = ALLOCATE_FLEX_OBJ(vm, ObjFunction, OBJ_FUNCTION, sizeof(ObjFunction) + sizeof(LfxValue) * constantsCount);
 	Obj header = function->obj;//keep list link/type/mark state set by allocateObject
 	memcpy(function, &compiler->function, sizeof(ObjFunction));//carries id/name/arity/upvalueCount/chunk/caches over
 	function->obj = header;
@@ -118,13 +118,13 @@ ObjFunction* newFunction(Compiler* compiler) {
 }
 
 HOT_FUNCTION
-ObjClosure* newClosure(ObjFunction* function) {
+ObjClosure* newClosure(LfxVM* vm, ObjFunction* function) {
 	ObjUpvalue** upvalues = ALLOCATE(ObjUpvalue*, function->upvalueCount);
 	for (uint32_t i = 0; i < function->upvalueCount; i++) {
 		upvalues[i] = NULL;
 	}
 
-	ObjClosure* closure = ALLOCATE_OBJ(ObjClosure, OBJ_CLOSURE);
+	ObjClosure* closure = ALLOCATE_OBJ(vm, ObjClosure, OBJ_CLOSURE);
 	closure->function = function;
 	closure->upvalues = upvalues;
 	closure->upvalueCount = function->upvalueCount;
@@ -133,24 +133,24 @@ ObjClosure* newClosure(ObjFunction* function) {
 }
 
 HOT_FUNCTION
-ObjBoundMethod* newBoundMethod(LfxValue receiver, ObjClosure* method)
+ObjBoundMethod* newBoundMethod(LfxVM* vm, LfxValue receiver, ObjClosure* method)
 {
-	ObjBoundMethod* bound = ALLOCATE_OBJ(ObjBoundMethod, OBJ_BOUND_METHOD);
+	ObjBoundMethod* bound = ALLOCATE_OBJ(vm, ObjBoundMethod, OBJ_BOUND_METHOD);
 	bound->receiver = receiver;
 	bound->method = method;
 	return bound;
 }
 
 //create native function
-ObjNative* newNative(LfxNativeFn function) {
-	ObjNative* native = ALLOCATE_OBJ(ObjNative, OBJ_NATIVE);
+ObjNative* newNative(LfxVM* vm, LfxNativeFn function) {
+	ObjNative* native = ALLOCATE_OBJ(vm, ObjNative, OBJ_NATIVE);
 	native->function = function;
 	return native;
 }
 
-ObjClass* newClass(ObjString* name)
+ObjClass* newClass(LfxVM* vm, ObjString* name)
 {
-	ObjClass* klass = ALLOCATE_OBJ(ObjClass, OBJ_CLASS);
+	ObjClass* klass = ALLOCATE_OBJ(vm, ObjClass, OBJ_CLASS);
 	klass->name = name;
 	klass->initializer = NULL;
 	klass->methods.isGlobal = false;
@@ -163,8 +163,8 @@ ObjClass* newClass(ObjString* name)
 }
 
 HOT_FUNCTION
-ObjInstance* newInstance(ObjClass* klass) {
-	ObjInstance* instance = ALLOCATE_OBJ(ObjInstance, OBJ_INSTANCE);
+ObjInstance* newInstance(LfxVM* vm, ObjClass* klass) {
+	ObjInstance* instance = ALLOCATE_OBJ(vm, ObjInstance, OBJ_INSTANCE);
 	instance->klass = klass;
 	instance->fields.isGlobal = false;
 	instance->fields.isFrozen = false;
@@ -174,8 +174,9 @@ ObjInstance* newInstance(ObjClass* klass) {
 	return instance;
 }
 
-ObjFiber* newFiber()
+ObjFiber* newFiber(LfxVM* vm)
 {
+	(void)vm;//load-bearing once allocFiber()/frame allocation take the vm
 	ObjFiber* fiber = allocFiber();
 
 	//allocFiber() may return a recycled fiber, so initialize every execution
@@ -198,8 +199,8 @@ ObjFiber* newFiber()
 }
 
 HOT_FUNCTION
-ObjArray* newArray(ObjType type) {
-	ObjArray* array = ALLOCATE_OBJ(ObjArray, type);
+ObjArray* newArray(LfxVM* vm, ObjType type) {
+	ObjArray* array = ALLOCATE_OBJ(vm, ObjArray, type);
 	array->capacity = 0;
 	array->length = 0;
 	array->payload = NULL;
@@ -207,9 +208,9 @@ ObjArray* newArray(ObjType type) {
 }
 
 HOT_FUNCTION
-ObjIterator* newIterator(Obj* target)
+ObjIterator* newIterator(LfxVM* vm, Obj* target)
 {
-	ObjIterator* iterator = ALLOCATE_OBJ(ObjIterator, OBJ_ITERATOR);
+	ObjIterator* iterator = ALLOCATE_OBJ(vm, ObjIterator, OBJ_ITERATOR);
 	iterator->type = OBJ_PTR_GET_TYPE(target);
 	iterator->isDone = false;
 	iterator->index = 0;
@@ -218,8 +219,9 @@ ObjIterator* newIterator(Obj* target)
 }
 
 HOT_FUNCTION
-void reserveArray(ObjArray* array, uint64_t size)
+void reserveArray(LfxVM* vm, ObjArray* array, uint64_t size)
 {
+	(void)vm;//load-bearing once reallocate() takes the vm
 	size = (size + 7) & ~7;
 	if (size < array->capacity) return;
 	if (size > ARRAYLIKE_MAX) {
@@ -269,12 +271,12 @@ void reserveArray(ObjArray* array, uint64_t size)
 }
 
 //If a duplicate is found, return it; otherwise, return null.
-static inline ObjString* deduplicateString(C_STR chars, uint32_t length, uint64_t hash) {
-	return tableFindString(&vm.strings, chars, length, hash);
+static inline ObjString* deduplicateString(LfxVM* vm, C_STR chars, uint32_t length, uint64_t hash) {
+	return tableFindString(&vm->strings, chars, length, hash);
 }
 
 //will check '\\' '\"' '\n' '\t'
-ObjString* copyString(C_STR chars, uint32_t length, bool escapeChars)
+ObjString* copyString(LfxVM* vm, C_STR chars, uint32_t length, bool escapeChars)
 {
 	uint32_t heapSize = sizeof(ObjString) + 1;
 	ObjString* string = NULL;
@@ -282,11 +284,11 @@ ObjString* copyString(C_STR chars, uint32_t length, bool escapeChars)
 
 	if (!escapeChars) {
 		hash = HASH_64bits(chars, length);
-		string = deduplicateString(chars, length, hash);
+		string = deduplicateString(vm, chars, length, hash);
 		if (string == NULL) {
 			//create string
 			heapSize += length;
-			string = ALLOCATE_FLEX_OBJ(ObjString, OBJ_STRING, heapSize);
+			string = ALLOCATE_FLEX_OBJ(vm, ObjString, OBJ_STRING, heapSize);
 
 			memcpy(string->chars, chars, length);
 			string->chars[length] = '\0';
@@ -296,7 +298,7 @@ ObjString* copyString(C_STR chars, uint32_t length, bool escapeChars)
 			string->symbol = INVALID_OBJ_STRING_SYMBOL;
 
 			//stack_push(OBJ_VAL(string));
-			tableSet_string(&vm.strings, string);
+			tableSet_string(&vm->strings, string);
 			//stack_pop();
 		}
 
@@ -362,10 +364,10 @@ ObjString* copyString(C_STR chars, uint32_t length, bool escapeChars)
 
 		//probe the pool with the unescaped content: a hit costs zero allocations
 		const uint64_t escapedHash = HASH_64bits(content, writeIndex);
-		ObjString* interned = deduplicateString(content, writeIndex, escapedHash);
+		ObjString* interned = deduplicateString(vm, content, writeIndex, escapedHash);
 		if (interned == NULL) {
 		//genuinely new content: allocate, copy, intern
-		string = ALLOCATE_FLEX_OBJ(ObjString, OBJ_STRING, sizeof(ObjString) + 1 + writeIndex);
+		string = ALLOCATE_FLEX_OBJ(vm, ObjString, OBJ_STRING, sizeof(ObjString) + 1 + writeIndex);
 		memcpy(string->chars, content, writeIndex);
 			string->chars[writeIndex] = '\0';
 			string->length = writeIndex;
@@ -381,12 +383,12 @@ ObjString* copyString(C_STR chars, uint32_t length, bool escapeChars)
 			return interned;
 		}
 
-		tableSet_string(&vm.strings, string);
+		tableSet_string(&vm->strings, string);
 		return string;
 	}
 }
 
-ObjString* connectString(ObjString* strA, ObjString* strB) {
+ObjString* connectString(LfxVM* vm, ObjString* strA, ObjString* strB) {
 	const uint32_t length = strA->length + strB->length;
 
 	//hash the two segments without materializing the joined content
@@ -397,13 +399,13 @@ ObjString* connectString(ObjString* strA, ObjString* strB) {
 	const uint64_t hash = hashStreamFinalize(&stream);
 
 	//probe first: a dedup hit costs zero allocations and no list surgery
-	ObjString* interned = tableFindConcatString(&vm.strings, strA->chars, strA->length, strB->chars, strB->length, hash);
+	ObjString* interned = tableFindConcatString(&vm->strings, strA->chars, strA->length, strB->chars, strB->length, hash);
 	if (interned != NULL) {
 		return interned;
 	}
 
 	//genuinely new content: allocate, assemble, intern
-	ObjString* string = ALLOCATE_FLEX_OBJ(ObjString, OBJ_STRING, sizeof(ObjString) + length + 1);
+	ObjString* string = ALLOCATE_FLEX_OBJ(vm, ObjString, OBJ_STRING, sizeof(ObjString) + length + 1);
 
 	memcpy(string->chars, strA->chars, strA->length);
 	memcpy(string->chars + strA->length, strB->chars, strB->length);
@@ -412,7 +414,7 @@ ObjString* connectString(ObjString* strA, ObjString* strB) {
 	string->hash = hash;
 	string->symbol = INVALID_OBJ_STRING_SYMBOL;
 
-	tableSet_string(&vm.strings, string);
+	tableSet_string(&vm->strings, string);
 	return string;
 }
 
@@ -609,9 +611,9 @@ void printObjectTo(FILE* stream, LfxValue value, bool isExpand) {
 	}
 }
 
-StringEntry* getStringEntryInPool(ObjString* string)
+StringEntry* getStringEntryInPool(LfxVM* vm, ObjString* string)
 {
-	return tableGetStringEntry(&vm.strings, string);
+	return tableGetStringEntry(&vm->strings, string);
 }
 
 //string and stringBuilder both carry raw bytes and every mutator (ctor,

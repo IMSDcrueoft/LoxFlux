@@ -20,7 +20,6 @@ static LfxValue lengthNative(LfxVM* vm, int argCount, LfxValue* args)
 }
 
 static LfxValue pushNative(LfxVM* vm, int argCount, LfxValue* args) {
-	(void)vm;
 	//don't solve stringBuilder
 	if (argCount == 0 || !isArrayLike(args[0])) {
 		fprintf(stderr, "push() expects a array like as first argument.\n");
@@ -48,7 +47,7 @@ static LfxValue pushNative(LfxVM* vm, int argCount, LfxValue* args) {
 				newSize = max(newSize, (array->capacity * 3) >> 1);
 			}
 
-			reserveArray(array, newSize);
+			reserveArray(vm, array, newSize);
 		}
 
 		if (OBJ_IS_TYPE(array, OBJ_ARRAY)) {
@@ -122,7 +121,6 @@ static LfxValue popNative(LfxVM* vm, int argCount, LfxValue* args) {
 //resize the array,user don't care reserve ,this is not cpp vector
 COLD_FUNCTION
 static LfxValue resizeNative(LfxVM* vm, int argCount, LfxValue* args) {
-	(void)vm;
 	if (argCount < 2 || !isArrayLike(args[0]) || !IS_NUMBER(args[1])) {
 		fprintf(stderr, "resize() expects a array like as first argument and a number as second argument.\n");
 		return NAN_VAL;
@@ -138,7 +136,7 @@ static LfxValue resizeNative(LfxVM* vm, int argCount, LfxValue* args) {
 		length = (uint64_t)size;
 
 		if (length > array->length) {
-			reserveArray(array, length);
+			reserveArray(vm, array, length);
 
 			if (OBJ_IS_TYPE(array, OBJ_ARRAY)) {
 				//no type check,so it's faster
@@ -191,7 +189,6 @@ static LfxValue resizeNative(LfxVM* vm, int argCount, LfxValue* args) {
 }
 
 static LfxValue sliceNative(LfxVM* vm, int argCount, LfxValue* args) {
-	(void)vm;
 	if (argCount == 0 || !isArrayLike(args[0])) {
 		fprintf(stderr, "slice() expects a array like as first argument.\n");
 		return NIL_VAL;
@@ -214,12 +211,12 @@ static LfxValue sliceNative(LfxVM* vm, int argCount, LfxValue* args) {
 	if (start > end) start = end;
 
 	uint32_t newLength = (uint32_t)(end - start);
-	ObjArray* result = newArray(OBJ_GET_TYPE(array->obj));
+	ObjArray* result = newArray(vm, OBJ_GET_TYPE(array->obj));
 	stack_push(vm, OBJ_VAL(result));
 
 	// allocate
 	if (newLength > 0) {
-		reserveArray(result, newLength);
+		reserveArray(vm, result, newLength);
 
 		switch (OBJ_GET_TYPE(array->obj)) {
 		case OBJ_ARRAY:

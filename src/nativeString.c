@@ -75,7 +75,6 @@ static LfxValue UTF8LenNative(LfxVM* vm, int argCount, LfxValue* args) {
 }
 
 static LfxValue charAtNative(LfxVM* vm, int argCount, LfxValue* args) {
-	(void)vm;
 	if (argCount >= 2 && IS_NUMBER(args[1])) {
 		C_STR stringPtr = NULL;
 		uint32_t length = 0;
@@ -100,7 +99,7 @@ static LfxValue charAtNative(LfxVM* vm, int argCount, LfxValue* args) {
 			if (!(indexf >= 0 && indexf < length)) return NIL_VAL;//out of range (NaN included)
 			uint32_t index = (uint32_t)indexf;
 
-			return OBJ_VAL(copyString(stringPtr + index, 1, false));
+			return OBJ_VAL(copyString(vm, stringPtr + index, 1, false));
 		}
 	}
 
@@ -108,7 +107,6 @@ static LfxValue charAtNative(LfxVM* vm, int argCount, LfxValue* args) {
 }
 
 static LfxValue utf8AtNative(LfxVM* vm, int argCount, LfxValue* args) {
-	(void)vm;
 	if (argCount >= 2 && IS_NUMBER(args[1])) {
 		C_STR stringPtr = NULL;
 		uint32_t length = 0;
@@ -154,7 +152,7 @@ static LfxValue utf8AtNative(LfxVM* vm, int argCount, LfxValue* args) {
 				}
 
 				if (char_count == index) {
-					return OBJ_VAL(copyString(stringPtr + start, i - start, false));
+					return OBJ_VAL(copyString(vm, stringPtr + start, i - start, false));
 				}
 			}
 		}
@@ -163,7 +161,7 @@ static LfxValue utf8AtNative(LfxVM* vm, int argCount, LfxValue* args) {
 	return NIL_VAL;
 }
 
-static void growStringBuilder(ObjArray* builder, uint32_t appendLen) {
+static void growStringBuilder(LfxVM* vm, ObjArray* builder, uint32_t appendLen) {
 	uint64_t capacity = (uint64_t)builder->length + appendLen + 1;
 	if (capacity > builder->capacity) {
 		if (capacity > ARRAYLIKE_MAX) {
@@ -171,13 +169,12 @@ static void growStringBuilder(ObjArray* builder, uint32_t appendLen) {
 			exit(1);
 		}
 		capacity = min(ARRAYLIKE_MAX, (capacity * 3) >> 1);
-		reserveArray(builder, capacity);
+		reserveArray(vm, builder, capacity);
 	}
 }
 
 COLD_FUNCTION
 static LfxValue appendNative(LfxVM* vm, int argCount, LfxValue* args) {
-	(void)vm;
 	if (argCount == 0 || !IS_STRING_BUILDER(args[0])) {
 		fprintf(stderr, "append() expects a stringBuilder as first argument.\n");
 		return NIL_VAL;
@@ -193,14 +190,14 @@ static LfxValue appendNative(LfxVM* vm, int argCount, LfxValue* args) {
 			ObjString* string = AS_STRING(args[1]);
 
 			length = string->length;
-			growStringBuilder(stringBuilder, length);
+			growStringBuilder(vm, stringBuilder, length);
 			stringPtr = string->chars;
 		}
 		else if (IS_STRING_BUILDER(args[1])) {
 			ObjArray* string = AS_ARRAY(args[1]);
 
 			length = string->length;
-			growStringBuilder(stringBuilder, length);
+			growStringBuilder(vm, stringBuilder, length);
 			stringPtr = string->payload;//can append self ,this will error
 		}
 		else {
@@ -220,14 +217,13 @@ static LfxValue appendNative(LfxVM* vm, int argCount, LfxValue* args) {
 
 //make and return const string
 static LfxValue internNative(LfxVM* vm, int argCount, LfxValue* args) {
-	(void)vm;
 	if (argCount >= 1) {
 		if (IS_STRING_BUILDER(args[0])) {
 			ObjArray* stringBuilder = AS_ARRAY(args[0]);
 			if (stringBuilder->length > INTERN_STRING_WARN) {
 				fprintf(stderr, "Extra-long intern string of length: %d", stringBuilder->length);
 			}
-			return OBJ_VAL(copyString(stringBuilder->payload, stringBuilder->length, false));
+			return OBJ_VAL(copyString(vm, stringBuilder->payload, stringBuilder->length, false));
 		}
 		else if (IS_STRING(args[0])) {
 			return args[0];
@@ -375,7 +371,6 @@ static LfxValue parseFloatNative(LfxVM* vm, int argCount, LfxValue* args) {
 }
 
 static LfxValue sliceNative(LfxVM* vm, int argCount, LfxValue* args) {
-	(void)vm;
 	if (argCount < 2 || !IS_NUMBER(args[1])) {
 		fprintf(stderr, "slice() expects a string or stringBuilder and at least one number argument.\n");
 		return NIL_VAL;
@@ -416,12 +411,12 @@ static LfxValue sliceNative(LfxVM* vm, int argCount, LfxValue* args) {
 	// calc slice length
 	uint32_t sliceLength = (uint32_t)(endIndex - beginIndex);
 
-	ObjArray* stringBuilder = newArray(OBJ_STRING_BUILDER);
+	ObjArray* stringBuilder = newArray(vm, OBJ_STRING_BUILDER);
 	stack_push(vm, OBJ_VAL(stringBuilder));
 
 	if (sliceLength > 0) {
 		//allocate
-		reserveArray(stringBuilder, sliceLength + 1);
+		reserveArray(vm, stringBuilder, sliceLength + 1);
 
 		// copy
 		memcpy(stringBuilder->payload, stringPtr + beginIndex, sliceLength);

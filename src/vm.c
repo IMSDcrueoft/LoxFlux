@@ -59,7 +59,7 @@ static void stack_reset(LfxVM* vm)
 COLD_FUNCTION
 static ObjFunction* getCachedScript(LfxVM* vm, STR absolutePath) {
 	// only to seek with absolute path
-	ObjString* path = copyString(absolutePath, (uint32_t)strlen(absolutePath), false);
+	ObjString* path = copyString(vm, absolutePath, (uint32_t)strlen(absolutePath), false);
 
 	StringEntry* entry = tableGetScriptEntry(&vm->scripts, path);
 	ObjFunction* function = (entry != NULL) ? AS_FUNCTION(vm->constants.values[entry->index]) : NULL;
@@ -212,7 +212,7 @@ LfxValue stack_pop(LfxVM* vm)
 COLD_FUNCTION
 void defineNative_math_number(LfxVM* vm, C_STR name, double value) {
 	tableSet(&vm->builtins[MODULE_MATH].fields,
-		copyString(name, (uint32_t)strlen(name), false),
+		copyString(vm, name, (uint32_t)strlen(name), false),
 		NUMBER_VAL(value)
 	);
 }
@@ -220,56 +220,56 @@ void defineNative_math_number(LfxVM* vm, C_STR name, double value) {
 COLD_FUNCTION
 void defineNative_math(LfxVM* vm, C_STR name, LfxNativeFn function) {
 	tableSet(&vm->builtins[MODULE_MATH].fields,
-		copyString(name, (uint32_t)strlen(name), false),
-		OBJ_VAL(newNative(function))
+		copyString(vm, name, (uint32_t)strlen(name), false),
+		OBJ_VAL(newNative(vm, function))
 	);
 }
 
 COLD_FUNCTION
 void defineNative_array(LfxVM* vm, C_STR name, LfxNativeFn function) {
 	tableSet(&vm->builtins[MODULE_ARRAY].fields,
-		copyString(name, (uint32_t)strlen(name), false),
-		OBJ_VAL(newNative(function))
+		copyString(vm, name, (uint32_t)strlen(name), false),
+		OBJ_VAL(newNative(vm, function))
 	);
 }
 
 COLD_FUNCTION
 void defineNative_object(LfxVM* vm, C_STR name, LfxNativeFn function) {
 	tableSet(&vm->builtins[MODULE_OBJECT].fields,
-		copyString(name, (uint32_t)strlen(name), false),
-		OBJ_VAL(newNative(function))
+		copyString(vm, name, (uint32_t)strlen(name), false),
+		OBJ_VAL(newNative(vm, function))
 	);
 }
 
 COLD_FUNCTION
 void defineNative_string(LfxVM* vm, C_STR name, LfxNativeFn function) {
 	tableSet(&vm->builtins[MODULE_STRING].fields,
-		copyString(name, (uint32_t)strlen(name), false),
-		OBJ_VAL(newNative(function))
+		copyString(vm, name, (uint32_t)strlen(name), false),
+		OBJ_VAL(newNative(vm, function))
 	);
 }
 
 COLD_FUNCTION
 void defineNative_time(LfxVM* vm, C_STR name, LfxNativeFn function) {
 	tableSet(&vm->builtins[MODULE_TIME].fields,
-		copyString(name, (uint32_t)strlen(name), false),
-		OBJ_VAL(newNative(function))
+		copyString(vm, name, (uint32_t)strlen(name), false),
+		OBJ_VAL(newNative(vm, function))
 	);
 }
 
 COLD_FUNCTION
 void defineNative_ctor(LfxVM* vm, C_STR name, LfxNativeFn function) {
 	tableSet(&vm->builtins[MODULE_CTOR].fields,
-		copyString(name, (uint32_t)strlen(name), false),
-		OBJ_VAL(newNative(function))
+		copyString(vm, name, (uint32_t)strlen(name), false),
+		OBJ_VAL(newNative(vm, function))
 	);
 }
 
 COLD_FUNCTION
 void defineNative_system(LfxVM* vm, C_STR name, LfxNativeFn function) {
 	tableSet(&vm->builtins[MODULE_SYSTEM].fields,
-		copyString(name, (uint32_t)strlen(name), false),
-		OBJ_VAL(newNative(function))
+		copyString(vm, name, (uint32_t)strlen(name), false),
+		OBJ_VAL(newNative(vm, function))
 	);
 }
 
@@ -282,8 +282,8 @@ void defineNative_global(LfxVM* vm, C_STR name, LfxNativeFn function) {
 	//stack_pop(vm);
 
 	tableSet(&vm->globals.fields,
-		copyString(name, (uint32_t)strlen(name), false),
-		OBJ_VAL(newNative(function))
+		copyString(vm, name, (uint32_t)strlen(name), false),
+		OBJ_VAL(newNative(vm, function))
 	);
 }
 
@@ -328,26 +328,26 @@ static void initTypeStrings(LfxVM* vm) {
 		vm->typeStrings[i] = NULL;
 	}
 
-	vm->typeStrings[TYPE_STRING_BOOL] = copyString("boolean", (uint32_t)strlen("boolean"), false);
-	vm->typeStrings[TYPE_STRING_NIL] = copyString("nil", (uint32_t)strlen("nil"), false);
-	vm->typeStrings[TYPE_STRING_NUMBER] = copyString("number", (uint32_t)strlen("number"), false);
-	vm->typeStrings[TYPE_STRING_STRING] = copyString("string", (uint32_t)strlen("string"), false);
-	vm->typeStrings[TYPE_STRING_STRING_BUILDER] = copyString("stringBuilder", (uint32_t)strlen("stringBuilder"), false);
-	vm->typeStrings[TYPE_STRING_FUNCTION] = copyString("function", (uint32_t)strlen("function"), false);
-	vm->typeStrings[TYPE_STRING_NATIVE] = copyString("native", (uint32_t)strlen("native"), false);
-	vm->typeStrings[TYPE_STRING_CLASS] = copyString("class", (uint32_t)strlen("class"), false);
-	vm->typeStrings[TYPE_STRING_OBJECT] = copyString("object", (uint32_t)strlen("object"), false);
-	vm->typeStrings[TYPE_STRING_ITERATOR] = copyString("iterator", (uint32_t)strlen("iterator"), false);
-	vm->typeStrings[TYPE_STRING_FIBER] = copyString("fiber", (uint32_t)strlen("fiber"), false);
-	vm->typeStrings[TYPE_STRING_ARRAY] = copyString("array", (uint32_t)strlen("array"), false);
-	vm->typeStrings[TYPE_STRING_ARRAY_F64] = copyString("array-f64", (uint32_t)strlen("array-f64"), false);
-	vm->typeStrings[TYPE_STRING_ARRAY_F32] = copyString("array-f32", (uint32_t)strlen("array-f32"), false);
-	vm->typeStrings[TYPE_STRING_ARRAY_U32] = copyString("array-u32", (uint32_t)strlen("array-u32"), false);
-	vm->typeStrings[TYPE_STRING_ARRAY_I32] = copyString("array-i32", (uint32_t)strlen("array-i32"), false);
-	vm->typeStrings[TYPE_STRING_ARRAY_U16] = copyString("array-u16", (uint32_t)strlen("array-u16"), false);
-	vm->typeStrings[TYPE_STRING_ARRAY_I16] = copyString("array-i16", (uint32_t)strlen("array-i16"), false);
-	vm->typeStrings[TYPE_STRING_ARRAY_U8] = copyString("array-u8", (uint32_t)strlen("array-u8"), false);
-	vm->typeStrings[TYPE_STRING_ARRAY_I8] = copyString("array-i8", (uint32_t)strlen("array-i8"), false);
+	vm->typeStrings[TYPE_STRING_BOOL] = copyString(vm, "boolean", (uint32_t)strlen("boolean"), false);
+	vm->typeStrings[TYPE_STRING_NIL] = copyString(vm, "nil", (uint32_t)strlen("nil"), false);
+	vm->typeStrings[TYPE_STRING_NUMBER] = copyString(vm, "number", (uint32_t)strlen("number"), false);
+	vm->typeStrings[TYPE_STRING_STRING] = copyString(vm, "string", (uint32_t)strlen("string"), false);
+	vm->typeStrings[TYPE_STRING_STRING_BUILDER] = copyString(vm, "stringBuilder", (uint32_t)strlen("stringBuilder"), false);
+	vm->typeStrings[TYPE_STRING_FUNCTION] = copyString(vm, "function", (uint32_t)strlen("function"), false);
+	vm->typeStrings[TYPE_STRING_NATIVE] = copyString(vm, "native", (uint32_t)strlen("native"), false);
+	vm->typeStrings[TYPE_STRING_CLASS] = copyString(vm, "class", (uint32_t)strlen("class"), false);
+	vm->typeStrings[TYPE_STRING_OBJECT] = copyString(vm, "object", (uint32_t)strlen("object"), false);
+	vm->typeStrings[TYPE_STRING_ITERATOR] = copyString(vm, "iterator", (uint32_t)strlen("iterator"), false);
+	vm->typeStrings[TYPE_STRING_FIBER] = copyString(vm, "fiber", (uint32_t)strlen("fiber"), false);
+	vm->typeStrings[TYPE_STRING_ARRAY] = copyString(vm, "array", (uint32_t)strlen("array"), false);
+	vm->typeStrings[TYPE_STRING_ARRAY_F64] = copyString(vm, "array-f64", (uint32_t)strlen("array-f64"), false);
+	vm->typeStrings[TYPE_STRING_ARRAY_F32] = copyString(vm, "array-f32", (uint32_t)strlen("array-f32"), false);
+	vm->typeStrings[TYPE_STRING_ARRAY_U32] = copyString(vm, "array-u32", (uint32_t)strlen("array-u32"), false);
+	vm->typeStrings[TYPE_STRING_ARRAY_I32] = copyString(vm, "array-i32", (uint32_t)strlen("array-i32"), false);
+	vm->typeStrings[TYPE_STRING_ARRAY_U16] = copyString(vm, "array-u16", (uint32_t)strlen("array-u16"), false);
+	vm->typeStrings[TYPE_STRING_ARRAY_I16] = copyString(vm, "array-i16", (uint32_t)strlen("array-i16"), false);
+	vm->typeStrings[TYPE_STRING_ARRAY_U8] = copyString(vm, "array-u8", (uint32_t)strlen("array-u8"), false);
+	vm->typeStrings[TYPE_STRING_ARRAY_I8] = copyString(vm, "array-i8", (uint32_t)strlen("array-i8"), false);
 }
 
 HOT_FUNCTION
@@ -434,7 +434,7 @@ void vm_init(LfxVM* vm)
 	vm->gcWorking = false;
 
 	//the root fiber owns the main VM stack and the live frame/open-upvalue state
-	vm->currentFiber = newFiber();
+	vm->currentFiber = newFiber(vm);
 
 	//commit the first stack chunk eagerly; later growth is lazy
 	if (!arenaBump_ensureCommitted(&vm->currentFiber->stackArena, vm->currentFiber->stackArena.commitChunkSize)) {
@@ -454,7 +454,7 @@ void vm_init(LfxVM* vm)
 	//points at it, so the klass field is never NULL anywhere in the VM
 	vm->defaultClass = (ObjClass){
 		.obj = stateLess_obj_header(OBJ_CLASS),
-		.name = copyString("<object>", (uint32_t)strlen("<object>"), false),
+		.name = copyString(vm, "<object>", (uint32_t)strlen("<object>"), false),
 		.initializer = NULL,
 		.superclass = NULL
 	};
@@ -470,7 +470,7 @@ void vm_init(LfxVM* vm)
 	importNative_global(vm);
 
 	vm->initString = NULL;
-	vm->initString = copyString("init", (uint32_t)strlen("init"), false);
+	vm->initString = copyString(vm, "init", (uint32_t)strlen("init"), false);
 	initTypeStrings(vm);
 
 	vm->ceding = 0;
@@ -738,7 +738,7 @@ static bool callValue(LfxVM* vm, LfxValue callee, int argCount) {
 		}
 		case OBJ_CLASS: {
 			ObjClass* klass = AS_CLASS(callee);
-			STACK_PEEK(argCount) = OBJ_VAL(newInstance(klass));
+			STACK_PEEK(argCount) = OBJ_VAL(newInstance(vm, klass));
 
 			//call init with fast path
 			if (klass->initializer != NULL) {
@@ -789,7 +789,7 @@ HOT_FUNCTION
 static void bindMethod(LfxVM* vm, ObjClass* klass, ObjString* name) {
 	LfxValue method;
 	if (tableGet(&klass->methods, name, &method)) {
-		ObjBoundMethod* bound = newBoundMethod(vm->cache.stackTop[-1], AS_CLOSURE(method));
+		ObjBoundMethod* bound = newBoundMethod(vm, vm->cache.stackTop[-1], AS_CLOSURE(method));
 		stack_replace(vm, OBJ_VAL(bound));
 	}
 	else {
@@ -815,7 +815,7 @@ static ObjUpvalue* captureUpvalue(LfxVM* vm, LfxValue* local) {
 	}
 
 	//ObjUpvalue* createdUpvalue = newUpvalue(local, (ptrdiff_t)(local - vm->cache.stack)); //offset unused since the arena stack
-	ObjUpvalue* createdUpvalue = newUpvalue(local);
+	ObjUpvalue* createdUpvalue = newUpvalue(vm, local);
 
 	//insert it
 	createdUpvalue->next = upvalue;
@@ -1456,7 +1456,7 @@ static InterpretResult run(LfxVM* vm)
 		label_op_closure:
 			LfxValue constant = READ_CONSTANT(READ_24bits());
 			ObjFunction* function = AS_FUNCTION(constant);
-			ObjClosure* closure = newClosure(function);
+			ObjClosure* closure = newClosure(vm, function);
 			stack_push(vm, OBJ_VAL(closure));
 
 			for (uint32_t i = 0; i < closure->upvalueCount; i++) {
@@ -1475,7 +1475,7 @@ static InterpretResult run(LfxVM* vm)
 		label_op_class:
 			LfxValue constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
-			stack_push(vm, OBJ_VAL(newClass(name)));
+			stack_push(vm, OBJ_VAL(newClass(vm, name)));
 			NEXT_INSTRUCTION;
 		}
 		case OP_METHOD: {
@@ -1944,12 +1944,12 @@ static InterpretResult run(LfxVM* vm)
 		case OP_NEW_ARRAY: {
 		label_op_new_array:
 			uint16_t size = READ_SHORT();
-			ObjArray* array = newArray(OBJ_ARRAY);
+			ObjArray* array = newArray(vm, OBJ_ARRAY);
 			//push to prevent gc
 			stack_push(vm, OBJ_VAL(array));
 
 			if (size > 0) {
-				reserveArray(array, size);//allocate after push stack
+				reserveArray(vm, array, size);//allocate after push stack
 
 				//init the array
 				memcpy(array->payload, vm->cache.stackTop - size - 1, sizeof(LfxValue) * size);
@@ -1963,7 +1963,7 @@ static InterpretResult run(LfxVM* vm)
 		}
 		case OP_NEW_OBJECT: {
 		label_op_new_object:
-			stack_push(vm, OBJ_VAL(newInstance(&vm->defaultClass)));
+			stack_push(vm, OBJ_VAL(newInstance(vm, &vm->defaultClass)));
 			NEXT_INSTRUCTION;
 		}
 		case OP_NEW_PROPERTY: {
@@ -1982,11 +1982,11 @@ static InterpretResult run(LfxVM* vm)
 			ObjIterator* iter = NULL;
 
 			if (isArrayLike(target)) {
-				iter = newIterator(AS_OBJ(target));
+				iter = newIterator(vm, AS_OBJ(target));
 				stack_replace(vm, OBJ_VAL(iter));
 				NEXT_INSTRUCTION;
 			} else if (IS_INSTANCE(target)) {
-				iter = newIterator(AS_OBJ(target));
+				iter = newIterator(vm, AS_OBJ(target));
 				stack_replace(vm, OBJ_VAL(iter));
 				// init iter
 				if (!tableGetFirstEntryIndex(&AS_INSTANCE(target)->fields, &iter->index)) {
@@ -2131,7 +2131,7 @@ static InterpretResult run(LfxVM* vm)
 				NEXT_INSTRUCTION;
 			}
 			else if (IS_STRING(vm->cache.stackTop[-2]) && IS_STRING(vm->cache.stackTop[-1])) {
-				ObjString* result = connectString(AS_STRING(vm->cache.stackTop[-2]), AS_STRING(vm->cache.stackTop[-1]));
+				ObjString* result = connectString(vm, AS_STRING(vm->cache.stackTop[-2]), AS_STRING(vm->cache.stackTop[-1]));
 				vm->cache.stackTop[-2] = OBJ_VAL(result);
 				vm->cache.stackTop--;
 				NEXT_INSTRUCTION;
@@ -2464,7 +2464,7 @@ static InterpretResult run(LfxVM* vm)
 			}
 
 			//same as interpret_compile: create the module closure on top of the stack
-			ObjClosure* closure = newClosure(function);
+			ObjClosure* closure = newClosure(vm, function);
 			stack_replace(vm, OBJ_VAL(closure));
 
 			//call the module
@@ -2585,7 +2585,7 @@ static InterpretResult run(LfxVM* vm)
 				NEXT_INSTRUCTION;
 			}
 			else if (IS_STRING(vm->cache.stackTop[-1]) && IS_STRING(local)) {
-				ObjString* result = connectString(AS_STRING(vm->cache.stackTop[-1]), AS_STRING(local));
+				ObjString* result = connectString(vm, AS_STRING(vm->cache.stackTop[-1]), AS_STRING(local));
 				vm->cache.stackTop[-1] = OBJ_VAL(result);
 				NEXT_INSTRUCTION;
 			}
@@ -2849,7 +2849,7 @@ bool interpret_compile(LfxVM* vm, C_STR source)
 	fprintf(stderr, "[Log] Finished compiling in %g ms.\n", time_compile_f);
 #endif
 
-	ObjClosure* closure = newClosure(function);
+	ObjClosure* closure = newClosure(vm, function);
 	stack_push(vm, OBJ_VAL(closure));
 
 	if (!call(vm, closure, 0)) {

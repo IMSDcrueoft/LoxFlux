@@ -402,7 +402,7 @@ static void emitReturn(CompilerContext* cc) {
 static uint32_t makeConstant(CompilerContext* cc, LfxValue value) {
 	if (IS_STRING(value)) {
 		//find if string is in constant,because it is in pool
-		StringEntry* entry = getStringEntryInPool(AS_STRING(value));
+		StringEntry* entry = getStringEntryInPool(cc->vm, AS_STRING(value));
 
 		if (entry != NULL) {
 			if (entry->index == UINT32_MAX) {
@@ -612,10 +612,10 @@ static void initCompiler(CompilerContext* cc, Compiler* compiler, FunctionType t
 	case TYPE_FUNCTION:
 	case TYPE_METHOD:
 	case TYPE_INITIALIZER:
-		compiler->function.name = copyString(cc->parser.previous.start, cc->parser.previous.length, false);
+		compiler->function.name = copyString(cc->vm, cc->parser.previous.start, cc->parser.previous.length, false);
 		break;
 	case TYPE_LAMBDA:
-		compiler->function.name = copyString("", 0, false);
+		compiler->function.name = copyString(cc->vm, "", 0, false);
 		break;
 	default:
 		break;
@@ -674,7 +674,7 @@ static ObjFunction* endCompiler(CompilerContext* cc) {
 
 	//materialize the final FAM function from the embedded compile-time state
 	//must run BEFORE IC registration: the registry and OP_CLOSURE must hold the final object pointer
-	ObjFunction* function = newFunction(current);
+	ObjFunction* function = newFunction(cc->vm, current);
 
 	//detach the moved buffers from the embedded state: the fresh object owns them now
 	chunk_init(&current->function.chunk);
@@ -820,7 +820,7 @@ static void parsePrecedence(CompilerContext* cc, Precedence precedence) {
 }
 
 static uint32_t identifierConstant(CompilerContext* cc, Token* name) {
-	return makeConstant(cc, OBJ_VAL(copyString(name->start, name->length, false)));
+	return makeConstant(cc, OBJ_VAL(copyString(cc->vm, name->start, name->length, false)));
 }
 
 static void addLocal(CompilerContext* cc, Token name, bool isHidden) {
@@ -2033,10 +2033,10 @@ static void objectLiteral(CompilerContext* cc, bool canAssign) {
 				constant = identifierConstant(cc, &cc->parser.previous);
 			}
 			else if (match(cc, TOKEN_STRING)) {
-				constant = makeConstant(cc, OBJ_VAL(copyString(cc->parser.previous.start + 1, cc->parser.previous.length - 2, false)));
+				constant = makeConstant(cc, OBJ_VAL(copyString(cc->vm, cc->parser.previous.start + 1, cc->parser.previous.length - 2, false)));
 			}
 			else if (match(cc, TOKEN_STRING_ESCAPE)) {
-				constant = makeConstant(cc, OBJ_VAL(copyString(cc->parser.previous.start + 1, cc->parser.previous.length - 2, true)));
+				constant = makeConstant(cc, OBJ_VAL(copyString(cc->vm, cc->parser.previous.start + 1, cc->parser.previous.length - 2, true)));
 			}
 			else {
 				errorAtCurrent(cc, "Expect property name.");
@@ -2236,7 +2236,7 @@ static void or_(CompilerContext* cc, bool canAssign) {
 }
 
 static void string(CompilerContext* cc, bool canAssign) {
-	emitConstant(cc, OBJ_VAL(copyString(cc->parser.previous.start + 1, cc->parser.previous.length - 2, false)));
+	emitConstant(cc, OBJ_VAL(copyString(cc->vm, cc->parser.previous.start + 1, cc->parser.previous.length - 2, false)));
 }
 
 static void namedVariable(CompilerContext* cc, Token name, bool canAssign) {
@@ -2342,7 +2342,7 @@ static void super_(CompilerContext* cc, bool canAssign) {
 }
 
 static void string_escape(CompilerContext* cc, bool canAssign) {
-	emitConstant(cc, OBJ_VAL(copyString(cc->parser.previous.start + 1, cc->parser.previous.length - 2, true)));
+	emitConstant(cc, OBJ_VAL(copyString(cc->vm, cc->parser.previous.start + 1, cc->parser.previous.length - 2, true)));
 }
 
 static void unary(CompilerContext* cc, bool canAssign) {
@@ -2617,7 +2617,7 @@ static void instructionOptimize(CompilerContext* cc) {
 				emitNumberConstant(cc, NUMBER_VAL(val));
 			}
 			else if (IS_STRING(left) && IS_STRING(right)) {
-				ObjString* val = connectString(AS_STRING(left), AS_STRING(right));
+				ObjString* val = connectString(cc->vm, AS_STRING(left), AS_STRING(right));
 				chunk_fallback(chunk, 1 + CONST_SIZE(isLeftConstNumber) + CONST_SIZE(isRightConstNumber));//add + const + const
 				opStack_fallback(opStack, 3);
 				emitConstant(cc, OBJ_VAL(val));

@@ -385,8 +385,8 @@ static inline bool isStringLike(LfxValue value) {
 	return IS_STRING(value) || IS_STRING_BUILDER(value);
 }
 
-ObjString* copyString(C_STR chars, uint32_t length, bool escapeChars);
-ObjString* connectString(ObjString* strA, ObjString* strB);
+ObjString* copyString(LfxVM* vm, C_STR chars, uint32_t length, bool escapeChars);
+ObjString* connectString(LfxVM* vm, ObjString* strA, ObjString* strB);
 
 //memcmp-style three-way ordering for string/stringBuilder pairs (assumes isStringLike on both):
 //byte compare over the common prefix, then the shorter operand is the smaller one
@@ -395,21 +395,21 @@ int compareStringLike(LfxValue a, LfxValue b);
 //stream-targeted core: renders an object value (class/instance/function/array/...)
 void printObjectTo(FILE* stream, LfxValue value, bool isExpand);
 
-StringEntry* getStringEntryInPool(ObjString* string);
+StringEntry* getStringEntryInPool(LfxVM* vm, ObjString* string);
 
-ObjUpvalue* newUpvalue(LfxValue* slot);
+ObjUpvalue* newUpvalue(LfxVM* vm, LfxValue* slot);
 struct Compiler;
-ObjFunction* newFunction(struct Compiler* compiler);
-ObjClosure* newClosure(ObjFunction* function);
-ObjBoundMethod* newBoundMethod(LfxValue receiver, ObjClosure* method);
-ObjNative* newNative(LfxNativeFn function);
-ObjClass* newClass(ObjString* name);
-ObjInstance* newInstance(ObjClass* klass);
-ObjFiber* newFiber();
-ObjArray* newArray(ObjType type);
-ObjIterator* newIterator(Obj* target);
+ObjFunction* newFunction(LfxVM* vm, struct Compiler* compiler);
+ObjClosure* newClosure(LfxVM* vm, ObjFunction* function);
+ObjBoundMethod* newBoundMethod(LfxVM* vm, LfxValue receiver, ObjClosure* method);
+ObjNative* newNative(LfxVM* vm, LfxNativeFn function);
+ObjClass* newClass(LfxVM* vm, ObjString* name);
+ObjInstance* newInstance(LfxVM* vm, ObjClass* klass);
+ObjFiber* newFiber(LfxVM* vm);
+ObjArray* newArray(LfxVM* vm, ObjType type);
+ObjIterator* newIterator(LfxVM* vm, Obj* target);
 
-void reserveArray(ObjArray* array, uint64_t size);
+void reserveArray(LfxVM* vm, ObjArray* array, uint64_t size);
 
 //extracts a NUL-terminated C buffer from a string-like value: strings return
 //their internal chars, stringBuilders return their payload (every mutator

@@ -142,20 +142,19 @@ static LfxValue errorNative(LfxVM* vm, int argCount, LfxValue* args) {
 }
 
 static LfxValue inputNative(LfxVM* vm, int argCount, LfxValue* args) {
-	(void)vm;
 	//don't need param
-	ObjArray* stringBuilder = newArray(OBJ_STRING_BUILDER);
+	ObjArray* stringBuilder = newArray(vm, OBJ_STRING_BUILDER);
 	stack_push(vm, OBJ_VAL(stringBuilder));
 
 	//init size
-	reserveArray(stringBuilder, 16);
+	reserveArray(vm, stringBuilder, 16);
 
 	int c;
 	while ((c = getchar()) != '\n' && c != EOF) {
 		//check capacity
 		if (stringBuilder->length + 1 >= stringBuilder->capacity) {
 			uint64_t newCapacity = min(ARRAYLIKE_MAX, (stringBuilder->capacity * 3) >> 1);
-			reserveArray(stringBuilder, newCapacity);
+			reserveArray(vm, stringBuilder, newCapacity);
 		}
 
 		// append
@@ -165,7 +164,7 @@ static LfxValue inputNative(LfxVM* vm, int argCount, LfxValue* args) {
 
 	if (stringBuilder->length + 1 >= stringBuilder->capacity) {
 		uint64_t newCapacity = min(ARRAYLIKE_MAX, (stringBuilder->capacity * 3) >> 1);
-		reserveArray(stringBuilder, newCapacity);
+		reserveArray(vm, stringBuilder, newCapacity);
 	}
 	//add null
 	ARRAY_ELEMENT(stringBuilder, char, stringBuilder->length) = '\0';
@@ -214,7 +213,6 @@ static LfxValue inputNative(LfxVM* vm, int argCount, LfxValue* args) {
 }
 
 static LfxValue readFileNative(LfxVM* vm, int argCount, LfxValue* args) {
-	(void)vm;
 	if (argCount < 1) {
 		fprintf(stderr, "readFile expects a path argument.\n");
 		return NIL_VAL;
@@ -245,11 +243,11 @@ static LfxValue readFileNative(LfxVM* vm, int argCount, LfxValue* args) {
 		return NIL_VAL;
 	}
 
-	ObjArray* stringBuilder = newArray(OBJ_STRING_BUILDER);
+	ObjArray* stringBuilder = newArray(vm, OBJ_STRING_BUILDER);
 	stack_push(vm, OBJ_VAL(stringBuilder));
 
 	// allocate memory
-	reserveArray(stringBuilder, fileSize + 1);
+	reserveArray(vm, stringBuilder, fileSize + 1);
 
 	// read size
 	uint64_t bytesRead = fread(stringBuilder->payload, sizeof(char), fileSize, file);
@@ -268,7 +266,6 @@ static LfxValue readFileNative(LfxVM* vm, int argCount, LfxValue* args) {
 }
 
 static LfxValue readBinNative(LfxVM* vm, int argCount, LfxValue* args) {
-	(void)vm;
 	if (argCount < 1) {
 		fprintf(stderr, "readBin expects a path argument.\n");
 		return NIL_VAL;
@@ -296,10 +293,10 @@ static LfxValue readBinNative(LfxVM* vm, int argCount, LfxValue* args) {
 		return NIL_VAL;
 	}
 
-	ObjArray* array = newArray(OBJ_ARRAY_U8);
+	ObjArray* array = newArray(vm, OBJ_ARRAY_U8);
 	stack_push(vm, OBJ_VAL(array));
 
-	reserveArray(array, (uint64_t)fileSize);
+	reserveArray(vm, array, (uint64_t)fileSize);
 
 	uint64_t bytesRead = 0;
 	if (fileSize > 0) {
