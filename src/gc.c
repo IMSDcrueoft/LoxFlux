@@ -227,7 +227,7 @@ static void sweep(LfxVM* vm) {
 				vm->objects = object;
 			}
 
-			freeObject(unreached);
+			freeObject(vm, unreached);
 		}
 	}
 }

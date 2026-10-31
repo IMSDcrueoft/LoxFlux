@@ -20,8 +20,7 @@ void stringTable_init(StringTable* table)
 
 void stringTable_free(LfxVM* vm, StringTable* table)
 {
-	(void)vm;//load-bearing once the _NO_GC macros take the vm
-	FREE_ARRAY_NO_GC(StringEntry, table->entries, table->capacity);
+	FREE_ARRAY_NO_GC(vm, StringEntry, table->entries, table->capacity);
 	stringTable_init(table);
 }
 
@@ -44,9 +43,8 @@ static StringEntry* findStringEntry(StringEntry* entries, uint32_t capacity, Obj
 }
 
 static void adjustStringCapacity(LfxVM* vm, StringTable* table, uint32_t capacity) {
-	(void)vm;//load-bearing once the _NO_GC macros take the vm
 	//we need re input, so don't reallocate
-	StringEntry* entries = ALLOCATE_NO_GC(StringEntry, capacity);
+	StringEntry* entries = ALLOCATE_NO_GC(vm, StringEntry, capacity);
 
 	for (uint32_t i = 0; i < capacity; ++i) {
 		entries[i].key = NULL;
@@ -66,7 +64,7 @@ static void adjustStringCapacity(LfxVM* vm, StringTable* table, uint32_t capacit
 		table->count++;
 	}
 
-	FREE_ARRAY_NO_GC(StringEntry, table->entries, table->capacity);
+	FREE_ARRAY_NO_GC(vm, StringEntry, table->entries, table->capacity);
 
 	table->entries = entries;
 	table->capacity = capacity;

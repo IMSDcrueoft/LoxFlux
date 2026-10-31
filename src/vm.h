@@ -168,7 +168,7 @@ void stack_replace(LfxVM* vm, LfxValue val);
 //get the size of constants (including the holes)
 uint32_t getConstantSize(LfxVM* vm);
 //add a constant and get the index of it,i will handle it later
-uint32_t addConstant(LfxValue value);
+uint32_t addConstant(LfxVM* vm, LfxValue value);
 
 //the vm stack cache, interned strings and the gray worklist live in fixed-VA
 //arenas outside the allocator. The current fiber owns its stack arena; its

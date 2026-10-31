@@ -18,9 +18,9 @@ typedef struct {
 } LineArray;
 
 void lineArray_init(LineArray* array);
-void lineArray_write(LineArray* array, uint32_t line, uint32_t offset);
+void lineArray_write(LfxVM* vm, LineArray* array, uint32_t line, uint32_t offset);
 void lineArray_fallback(LineArray* array, uint32_t targetOffset);
-void lineArray_free(LineArray* array);
+void lineArray_free(LfxVM* vm, LineArray* array);
 
 //getLine info by bin search
 uint32_t getLine(LineArray* lines, uint32_t offset);

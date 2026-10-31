@@ -122,9 +122,9 @@ void printValue(FILE* stream, LfxValue value, bool isExpand);
 void valueArray_init(ValueArray* array);
 //returns the index the value was written to: a reusable hole when one exists,
 //appended at the end otherwise (hole logic is fully internal)
-uint32_t valueArray_write(ValueArray* array, LfxValue value);
+uint32_t valueArray_write(LfxVM* vm, ValueArray* array, LfxValue value);
 void valueArray_writeAt(ValueArray* array, LfxValue value, uint32_t index);
-void valueArray_free(ValueArray* array);
+void valueArray_free(LfxVM* vm, ValueArray* array);
 //dig a hole: mark the slot at index as reusable; the slot is treated as raw
 //memory from here on and will be overwritten by the next write
 void valueArray_erase(ValueArray* array, uint32_t index);

@@ -74,7 +74,7 @@ static ObjFunction* getCachedScript(LfxVM* vm, STR absolutePath) {
 
 		if (function != NULL) {
 			// add to pool
-			tableSet_script(vm, &vm->scripts, path, addConstant(OBJ_VAL(function)));
+			tableSet_script(vm, &vm->scripts, path, addConstant(vm, OBJ_VAL(function)));
 		}
 	}
 
@@ -488,7 +488,7 @@ COLD_FUNCTION
 void vm_registerIcFunction(LfxVM* vm, ObjFunction* function) {
 	if (vm->icFuncCapacity < vm->icFuncCount + 1) {
 		uint32_t capacity = GROW_CAPACITY(vm->icFuncCapacity);
-		vm->icFuncs = GROW_ARRAY_NO_GC(ObjFunction*, vm->icFuncs, vm->icFuncCapacity, capacity);
+		vm->icFuncs = GROW_ARRAY_NO_GC(vm, ObjFunction*, vm->icFuncs, vm->icFuncCapacity, capacity);
 		vm->icFuncCapacity = capacity;
 	}
 	vm->icFuncs[vm->icFuncCount++] = function;
@@ -509,12 +509,12 @@ void vm_free(LfxVM* vm)
 {
 	//cache arrays are owned by their ObjFunction and released by freeObject
 
-	FREE_ARRAY_NO_GC(ObjFunction*, vm->icFuncs, vm->icFuncCapacity);
+	FREE_ARRAY_NO_GC(vm, ObjFunction*, vm->icFuncs, vm->icFuncCapacity);
 	vm->icFuncs = NULL;
 	vm->icFuncCount = 0;
 	vm->icFuncCapacity = 0;
 
-	valueArray_free(&vm->constants);
+	valueArray_free(vm, &vm->constants);
 	binaryTable_free(vm, &vm->nativeConstants);
 
 	table_free(vm, &vm->globals.fields);
@@ -534,7 +534,7 @@ void vm_free(LfxVM* vm)
 	vm->currentFiber = NULL;
 	vm->cache = (FiberCore){0};
 
-	freeObjects();
+	freeObjects(vm);
 	freeFiberFreeList();
 
 	//release the string + gray arenas (VA reservations + committed pages)
@@ -570,11 +570,11 @@ uint32_t getConstantSize(LfxVM* vm)
 }
 
 //return the constant index
-uint32_t addConstant(LfxValue value)
+uint32_t addConstant(LfxVM* vm, LfxValue value)
 {
-	stack_push(&vm, value);//prevent GC errors
-	uint32_t index = valueArray_write(&vm.constants, value);
-	stack_pop(&vm);
+	stack_push(vm, value);//prevent GC errors
+	uint32_t index = valueArray_write(vm, &vm->constants, value);
+	stack_pop(vm);
 	return index;
 }
 
@@ -674,7 +674,7 @@ static bool call(LfxVM* vm, ObjClosure* closure, int argCount) {
 		assert((newCapacity <= LOXFLUX_FRAMES_MAX) && "Unexpected frame size overflow.");
 
 		//no-GC accounting: frames are VM bookkeeping, not collectible values
-		vm->cache.frames = GROW_ARRAY_NO_GC(CallFrame, vm->cache.frames, vm->cache.frameCapacity, newCapacity);
+		vm->cache.frames = GROW_ARRAY_NO_GC(vm, CallFrame, vm->cache.frames, vm->cache.frameCapacity, newCapacity);
 		vm->cache.frameCapacity = newCapacity;
 	}
 

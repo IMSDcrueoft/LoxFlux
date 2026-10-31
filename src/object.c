@@ -66,7 +66,7 @@ static Obj* allocateObject(LfxVM* vm, size_t size, ObjType type) {
 	}
 	case OBJ_FUNCTION:
 	case OBJ_NATIVE: {
-		object = (Obj*)reallocate_no_gc(NULL, 0, size);
+		object = (Obj*)reallocate_no_gc(vm, NULL, 0, size);
 		OBJ_PTR_SET_NEXT(object, vm->objects_no_gc);
 		object->type = type;
 		object->isMarked = !vm->gcMark;
@@ -181,7 +181,6 @@ ObjInstance* newInstance(LfxVM* vm, ObjClass* klass) {
 
 ObjFiber* newFiber(LfxVM* vm)
 {
-	(void)vm;//load-bearing once allocFiber()/frame allocation take the vm
 	ObjFiber* fiber = allocFiber();
 
 	//allocFiber() may return a recycled fiber, so initialize every execution
@@ -190,7 +189,7 @@ ObjFiber* newFiber(LfxVM* vm)
 	fiber->core.stackTop = fiber->core.stack;
 	fiber->core.stackBoundary = (LfxValue*)((char*)fiber->stackArena.base + fiber->stackArena.commitTop);
 
-	fiber->core.frames = ALLOCATE_NO_GC(CallFrame, LOXFLUX_FRAMES_INIT);
+	fiber->core.frames = ALLOCATE_NO_GC(vm, CallFrame, LOXFLUX_FRAMES_INIT);
 	fiber->core.frameCount = 0;
 	fiber->core.frameCapacity = LOXFLUX_FRAMES_INIT;
 
@@ -317,7 +316,7 @@ ObjString* copyString(LfxVM* vm, C_STR chars, uint32_t length, bool escapeChars)
 		char* scratch = NULL;
 		char* content = stackScratch;
 		if (length > (uint32_t)sizeof(stackScratch)) {
-			scratch = ALLOCATE_NO_GC(char, length);
+			scratch = ALLOCATE_NO_GC(vm, char, length);
 			content = scratch;
 		}
 
@@ -381,7 +380,7 @@ ObjString* copyString(LfxVM* vm, C_STR chars, uint32_t length, bool escapeChars)
 		}
 
 		if (scratch != NULL) {
-			FREE_ARRAY_NO_GC(char, scratch, length);
+			FREE_ARRAY_NO_GC(vm, char, scratch, length);
 		}
 
 		if (interned != NULL) {

@@ -193,14 +193,14 @@ typedef struct {
 } OPStack;
 
 void chunk_init(Chunk* chunk);
-void chunk_write(Chunk* chunk, uint8_t byte, uint32_t line);
+void chunk_write(LfxVM* vm, Chunk* chunk, uint8_t byte, uint32_t line);
 void chunk_fallback(Chunk* chunk, uint32_t byteCount);
-void chunk_free(Chunk* chunk);
+void chunk_free(LfxVM* vm, Chunk* chunk);
 
 void opStack_init(OPStack* stack);
-void opStack_push(OPStack* stack, uint8_t byte);
+void opStack_push(LfxVM* vm, OPStack* stack, uint8_t byte);
 //we don't know the offset of the code,so we use this to get the opType
 uint8_t opStack_peek(OPStack* stack, uint8_t offset);
 void opStack_fallback(OPStack* stack, uint32_t byteCount);
 void opStack_clear(OPStack* stack);
-void opStack_free(OPStack* stack);
+void opStack_free(LfxVM* vm, OPStack* stack);

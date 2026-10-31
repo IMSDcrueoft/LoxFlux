@@ -43,7 +43,7 @@ static void clearOpStack(CompilerContext* cc) {
 
 //emit and check opStack
 static void emitOpStack(CompilerContext* cc, uint8_t byte, bool doCheck) {
-	opStack_push(currentOpStack(cc), byte);
+	opStack_push(cc->vm, currentOpStack(cc), byte);
 
 #if LOXFLUX_COMPILATION_TIME_OPTIMIZATION
 	if (!doCheck || !cc->optimizationEnabled) return;
@@ -118,7 +118,7 @@ static bool match(CompilerContext* cc, TokenType type) {
 }
 
 static void emitByte(CompilerContext* cc, uint8_t byte) {
-	chunk_write(currentChunk(cc), byte, cc->parser.previous.line);
+	chunk_write(cc->vm, currentChunk(cc), byte, cc->parser.previous.line);
 }
 
 //dynamic args
@@ -172,7 +172,7 @@ static uint8_t emitCacheSlot(CompilerContext* cc) {
 		}
 #endif
 		if (current->cacheCapacity == 0) {//sentinel sites still need array[0] to exist
-			current->function.caches = ALLOCATE_NO_GC(InlineCacheSlot, 1);
+			current->function.caches = ALLOCATE_NO_GC(cc->vm, InlineCacheSlot, 1);
 			current->cacheCapacity = 1;
 			current->function.caches[0].capacity = 0;
 			current->function.caches[0].index = 0;
@@ -185,7 +185,7 @@ static uint8_t emitCacheSlot(CompilerContext* cc) {
 	if (current->cacheCapacity < (uint32_t)current->cacheCount + 2) {//real slot k lives at array index k+1
 		uint32_t capacity = GROW_CAPACITY(current->cacheCapacity);
 		bool firstAlloc = (current->function.caches == NULL);
-		current->function.caches = GROW_ARRAY_NO_GC(InlineCacheSlot, current->function.caches, current->cacheCapacity, capacity);
+		current->function.caches = GROW_ARRAY_NO_GC(cc->vm, InlineCacheSlot, current->function.caches, current->cacheCapacity, capacity);
 		if (firstAlloc) {//malloc memory is not zeroed: init the shared sentinel slot at index 0
 			current->function.caches[0].capacity = 0;
 			current->function.caches[0].index = 0;
@@ -406,7 +406,7 @@ static uint32_t makeConstant(CompilerContext* cc, LfxValue value) {
 
 		if (entry != NULL) {
 			if (entry->index == UINT32_MAX) {
-				uint32_t index = addConstant(value);
+				uint32_t index = addConstant(cc->vm, value);
 
 				//never mask the index: a wrapped value would silently reference
 				//the wrong constant; report and return the sentinel instead
@@ -427,7 +427,7 @@ static uint32_t makeConstant(CompilerContext* cc, LfxValue value) {
 
 		if (entry != NULL) {
 			if (entry->index == UINT32_MAX) {
-				uint32_t index = addConstant(value);
+				uint32_t index = addConstant(cc->vm, value);
 
 				//never cache a wrapped index: it would silently reference
 				//the wrong constant; report and return the sentinel instead
@@ -442,7 +442,7 @@ static uint32_t makeConstant(CompilerContext* cc, LfxValue value) {
 			return entry->index;
 		}
 	}
-	return addConstant(value);
+	return addConstant(cc->vm, value);
 }
 
 //number constants only,16bits index into function's own constants
@@ -460,7 +460,7 @@ static uint32_t makeNumberConstant(CompilerContext* cc, LfxValue value) {
 		}
 
 		ValueArray* constants = &current->constants;
-		entry->index = valueArray_write(constants, value);//set value and return
+		entry->index = valueArray_write(cc->vm, constants, value);//set value and return
 	}
 
 	return entry->index;
@@ -585,7 +585,7 @@ static void initCompiler(CompilerContext* cc, Compiler* compiler, FunctionType t
 
 	compiler->localCount = 0;
 	compiler->scopeDepth = 0;
-	compiler->locals = ALLOCATE_NO_GC(Local, LOCAL_INIT);
+	compiler->locals = ALLOCATE_NO_GC(cc->vm, Local, LOCAL_INIT);
 	compiler->localCapacity = LOCAL_INIT;
 
 	//embedded compile-time function state: no heap allocation, no list linkage
@@ -655,8 +655,8 @@ static void initCompiler(CompilerContext* cc, Compiler* compiler, FunctionType t
 	}
 }
 
-static void freeLocals(Compiler* compiler) {
-	FREE_ARRAY_NO_GC(Local, compiler->locals, compiler->localCapacity);
+static void freeLocals(LfxVM* vm, Compiler* compiler) {
+	FREE_ARRAY_NO_GC(vm, Local, compiler->locals, compiler->localCapacity);
 	compiler->locals = NULL;
 	compiler->localCapacity = 0;
 }
@@ -664,13 +664,13 @@ static void freeLocals(Compiler* compiler) {
 static ObjFunction* endCompiler(CompilerContext* cc) {
 	Compiler* current = cc->currentCompiler;
 	emitReturn(cc);
-	opStack_free(currentOpStack(cc));
+	opStack_free(cc->vm, currentOpStack(cc));
 	binaryTable_free(cc->vm, &current->numbers);//free every compiler's number pool (nested compilers were leaking)
 
 	//shrink inline caches to exactly cacheCount+1 entries (index 0 = shared sentinel slot)
 	//small functions/lambdas keep no doubling slack; functions without ic sites keep NULL
 	if (current->cacheCapacity > (uint32_t)current->cacheCount + 1) {
-		current->function.caches = GROW_ARRAY_NO_GC(InlineCacheSlot, current->function.caches, current->cacheCapacity, (uint32_t)current->cacheCount + 1);
+		current->function.caches = GROW_ARRAY_NO_GC(cc->vm, InlineCacheSlot, current->function.caches, current->cacheCapacity, (uint32_t)current->cacheCount + 1);
 		current->cacheCapacity = (uint32_t)current->cacheCount + 1;
 	}
 
@@ -683,7 +683,7 @@ static ObjFunction* endCompiler(CompilerContext* cc) {
 	current->function.caches = NULL;
 	current->function.constantsCount = 0;
 
-	valueArray_free(&current->constants);
+	valueArray_free(cc->vm, &current->constants);
 
 	//register for gc: invoke cache slots hold ObjClass*/ObjClosure* that must stay marked
 	if (current->cacheCapacity > 0) {
@@ -836,7 +836,7 @@ static void addLocal(CompilerContext* cc, Token name, bool isHidden) {
 		//grow
 		uint32_t oldCapacity = current->localCapacity;
 		current->localCapacity = GROW_CAPACITY(oldCapacity);
-		current->locals = GROW_ARRAY_NO_GC(Local, current->locals, oldCapacity, current->localCapacity);
+		current->locals = GROW_ARRAY_NO_GC(cc->vm, Local, current->locals, oldCapacity, current->localCapacity);
 	}
 
 	Local* local = &current->locals[current->localCount++];
@@ -1074,7 +1074,7 @@ static void function(CompilerContext* cc, FunctionType type) {
 	}
 	clearOpStack(cc);
 
-	freeLocals(&compiler);
+	freeLocals(cc->vm, &compiler);
 }
 
 static void lambda(CompilerContext* cc, bool canAssign) {
@@ -1263,7 +1263,7 @@ static void forStatement(CompilerContext* cc) {
 		.loopType = LOOP_FOR
 	};
 	loop.breakJumpCapacity = 8;
-	loop.breakJumps = ALLOCATE_NO_GC(int32_t, loop.breakJumpCapacity);
+	loop.breakJumps = ALLOCATE_NO_GC(cc->vm, int32_t, loop.breakJumpCapacity);
 	current->currentLoop = &loop;
 
 	statement(cc);
@@ -1278,7 +1278,7 @@ static void forStatement(CompilerContext* cc) {
 		patchJump(cc, loop.breakJumps[--loop.breakJumpCount]);
 	}
 
-	FREE_ARRAY_NO_GC(int32_t, loop.breakJumps, loop.breakJumpCapacity);
+	FREE_ARRAY_NO_GC(cc->vm, int32_t, loop.breakJumps, loop.breakJumpCapacity);
 	current->currentLoop = current->currentLoop->enclosing;
 	//end block
 	endScope(cc);
@@ -1339,7 +1339,7 @@ static void foreachStatement(CompilerContext* cc) {
 		.loopType = LOOP_FOREACH
 	};
 	loop.breakJumpCapacity = 8;
-	loop.breakJumps = ALLOCATE_NO_GC(int32_t, loop.breakJumpCapacity);
+	loop.breakJumps = ALLOCATE_NO_GC(cc->vm, int32_t, loop.breakJumpCapacity);
 	current->currentLoop = &loop;
 
 	//exhaustion jump: patched past the dead endScope cleanup below
@@ -1358,7 +1358,7 @@ static void foreachStatement(CompilerContext* cc) {
 		patchJump(cc, loop.breakJumps[--loop.breakJumpCount]);
 	}
 
-	FREE_ARRAY_NO_GC(int32_t, loop.breakJumps, loop.breakJumpCapacity);
+	FREE_ARRAY_NO_GC(cc->vm, int32_t, loop.breakJumps, loop.breakJumpCapacity);
 	current->currentLoop = current->currentLoop->enclosing;
 }
 
@@ -1519,7 +1519,7 @@ static void whileStatement(CompilerContext* cc) {
 		.loopType = LOOP_WHILE
 	};
 	loop.breakJumpCapacity = 8;
-	loop.breakJumps = ALLOCATE_NO_GC(int32_t, loop.breakJumpCapacity);
+	loop.breakJumps = ALLOCATE_NO_GC(cc->vm, int32_t, loop.breakJumpCapacity);
 	current->currentLoop = &loop;
 
 	statement(cc);
@@ -1534,7 +1534,7 @@ static void whileStatement(CompilerContext* cc) {
 		patchJump(cc, loop.breakJumps[--loop.breakJumpCount]);
 	}
 
-	FREE_ARRAY_NO_GC(int32_t, loop.breakJumps, loop.breakJumpCapacity);
+	FREE_ARRAY_NO_GC(cc->vm, int32_t, loop.breakJumps, loop.breakJumpCapacity);
 	current->currentLoop = current->currentLoop->enclosing;
 }
 
@@ -1553,7 +1553,7 @@ static void doWhileStatement(CompilerContext* cc) {
 		.loopType = LOOP_DO_WHILE
 	};
 	loop.breakJumpCapacity = 8;
-	loop.breakJumps = ALLOCATE_NO_GC(int32_t, loop.breakJumpCapacity);
+	loop.breakJumps = ALLOCATE_NO_GC(cc->vm, int32_t, loop.breakJumpCapacity);
 	current->currentLoop = &loop;
 
 	statement(cc);
@@ -1568,7 +1568,7 @@ static void doWhileStatement(CompilerContext* cc) {
 	while (loop.continueJumpCount > 0) {
 		patchJumpTo(cc, loop.continueJumps[--loop.continueJumpCount], condStart);
 	}
-	FREE_ARRAY_NO_GC(int32_t, loop.continueJumps, loop.continueJumpCapacity);
+	FREE_ARRAY_NO_GC(cc->vm, int32_t, loop.continueJumps, loop.continueJumpCapacity);
 
 	expression(cc);
 	consume(cc, TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
@@ -1583,7 +1583,7 @@ static void doWhileStatement(CompilerContext* cc) {
 	while (loop.breakJumpCount > 0) {
 		patchJump(cc, loop.breakJumps[--loop.breakJumpCount]);
 	}
-	FREE_ARRAY_NO_GC(int32_t, loop.breakJumps, loop.breakJumpCapacity);
+	FREE_ARRAY_NO_GC(cc->vm, int32_t, loop.breakJumps, loop.breakJumpCapacity);
 	current->currentLoop = current->currentLoop->enclosing;
 }
 
@@ -1617,7 +1617,7 @@ static void breakStatement(CompilerContext* cc) {
 		}
 
 		current->currentLoop->breakJumpCapacity = (uint16_t)newCapacity;
-		current->currentLoop->breakJumps = GROW_ARRAY_NO_GC(int32_t, current->currentLoop->breakJumps, oldCapacity, newCapacity);
+		current->currentLoop->breakJumps = GROW_ARRAY_NO_GC(cc->vm, int32_t, current->currentLoop->breakJumps, oldCapacity, newCapacity);
 	}
 
 	current->currentLoop->breakJumps[current->currentLoop->breakJumpCount++] = jump;
@@ -1651,7 +1651,7 @@ static void continueStatement(CompilerContext* cc) {
 			}
 
 			loop->continueJumpCapacity = (uint16_t)newCapacity;
-			loop->continueJumps = GROW_ARRAY_NO_GC(int32_t, loop->continueJumps, oldCapacity, newCapacity);
+			loop->continueJumps = GROW_ARRAY_NO_GC(cc->vm, int32_t, loop->continueJumps, oldCapacity, newCapacity);
 		}
 
 		loop->continueJumps[loop->continueJumpCount++] = emitJump(cc, OP_JUMP);
@@ -2493,7 +2493,7 @@ ObjFunction* compile(LfxVM* vm, C_STR source, FunctionType compileType) {
 	}
 
 	ObjFunction* function = endCompiler(&cc);
-	freeLocals(&compiler);
+	freeLocals(cc.vm, &compiler);
 
 	return cc.parser.hadError ? NULL : function;
 }

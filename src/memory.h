@@ -33,23 +33,23 @@ void* reallocate(void* pointer, size_t oldSize, size_t newSize);
 //used to free flex object
 #define FREE_FLEX(type,pointer,flexType,count) reallocate(pointer, sizeof(type) + sizeof(flexType) * count, 0)
 
-void* reallocate_no_gc(void* pointer, size_t oldSize, size_t newSize);
+void* reallocate_no_gc(LfxVM* vm, void* pointer, size_t oldSize, size_t newSize);
 
-#define GROW_ARRAY_NO_GC(type, pointer, oldCount, newCount) \
-	((type*)reallocate_no_gc(pointer, sizeof(type) * (oldCount), sizeof(type) * (newCount)))
+#define GROW_ARRAY_NO_GC(vm, type, pointer, oldCount, newCount) \
+	((type*)reallocate_no_gc(vm, pointer, sizeof(type) * (oldCount), sizeof(type) * (newCount)))
 
-#define FREE_ARRAY_NO_GC(type, pointer, oldCount) \
-	reallocate_no_gc(pointer, sizeof(type) * (oldCount), 0)
+#define FREE_ARRAY_NO_GC(vm, type, pointer, oldCount) \
+	reallocate_no_gc(vm, pointer, sizeof(type) * (oldCount), 0)
 
-#define ALLOCATE_NO_GC(type, count) \
-	(type*)reallocate_no_gc(NULL, 0, sizeof(type) * (count))
+#define ALLOCATE_NO_GC(vm, type, count) \
+	(type*)reallocate_no_gc(vm, NULL, 0, sizeof(type) * (count))
 
-#define FREE_NO_GC(type, pointer) reallocate_no_gc(pointer, sizeof(type), 0)
+#define FREE_NO_GC(vm, type, pointer) reallocate_no_gc(vm, pointer, sizeof(type), 0)
 
-#define FREE_FLEX_NO_GC(type,pointer,flexType,count) reallocate_no_gc(pointer, sizeof(type) + sizeof(flexType) * count, 0)
+#define FREE_FLEX_NO_GC(vm,type,pointer,flexType,count) reallocate_no_gc(vm, pointer, sizeof(type) + sizeof(flexType) * count, 0)
 
-void freeObject(Obj* object);
-void freeObjects();
+void freeObject(LfxVM* vm, Obj* object);
+void freeObjects(LfxVM* vm);
 
 struct ObjFiber;
 struct ObjFiber* allocFiber();

@@ -13,7 +13,7 @@ void chunk_init(Chunk* chunk) {
 	lineArray_init(&chunk->lines);
 }
 
-void chunk_write(Chunk* chunk, uint8_t byte, uint32_t line) {
+void chunk_write(LfxVM* vm, Chunk* chunk, uint8_t byte, uint32_t line) {
 	if (chunk->capacity < chunk->count + 1) {
 		uint32_t oldCapacity = chunk->capacity;
 
@@ -23,10 +23,10 @@ void chunk_write(Chunk* chunk, uint8_t byte, uint32_t line) {
 		}
 
 		chunk->capacity = GROW_CAPACITY(oldCapacity);
-		chunk->code = GROW_ARRAY_NO_GC(uint8_t, chunk->code, oldCapacity, chunk->capacity);
+		chunk->code = GROW_ARRAY_NO_GC(vm, uint8_t, chunk->code, oldCapacity, chunk->capacity);
 	}
 
-	lineArray_write(&chunk->lines, line, chunk->count);
+	lineArray_write(vm, &chunk->lines, line, chunk->count);
 
 	chunk->code[chunk->count] = byte;
 	chunk->count++;
@@ -43,10 +43,9 @@ void chunk_fallback(Chunk* chunk, uint32_t byteCount)
 	}
 }
 
-COLD_FUNCTION
-void chunk_free(Chunk* chunk) {
-	FREE_ARRAY_NO_GC(uint8_t, chunk->code, chunk->capacity);
-	lineArray_free(&chunk->lines);
+void chunk_free(LfxVM* vm, Chunk* chunk) {
+	FREE_ARRAY_NO_GC(vm, uint8_t, chunk->code, chunk->capacity);
+	lineArray_free(vm, &chunk->lines);
 	chunk_init(chunk);
 }
 
@@ -57,7 +56,7 @@ void opStack_init(OPStack* stack)
 	stack->code = NULL;
 }
 
-void opStack_push(OPStack* stack, uint8_t byte)
+void opStack_push(LfxVM* vm, OPStack* stack, uint8_t byte)
 {
 	if (stack->capacity < stack->count + 1) {
 		uint32_t oldCapacity = stack->capacity;
@@ -68,7 +67,7 @@ void opStack_push(OPStack* stack, uint8_t byte)
 		}
 
 		stack->capacity = GROW_CAPACITY(oldCapacity);
-		stack->code = GROW_ARRAY_NO_GC(uint8_t, stack->code, oldCapacity, stack->capacity);
+		stack->code = GROW_ARRAY_NO_GC(vm, uint8_t, stack->code, oldCapacity, stack->capacity);
 	}
 
 	stack->code[stack->count] = byte;
@@ -103,8 +102,8 @@ void opStack_clear(OPStack* stack)
 	}
 }
 
-void opStack_free(OPStack* stack)
+void opStack_free(LfxVM* vm, OPStack* stack)
 {
-	FREE_ARRAY_NO_GC(uint8_t, stack->code, stack->capacity);
+	FREE_ARRAY_NO_GC(vm, uint8_t, stack->code, stack->capacity);
 	opStack_init(stack);
 }

@@ -19,8 +19,7 @@ void binaryTable_init(BinaryTable* table)
 
 void binaryTable_free(LfxVM* vm, BinaryTable* table)
 {
-	(void)vm;//load-bearing once the _NO_GC macros take the vm
-	FREE_ARRAY_NO_GC(BinaryEntry, table->entries, table->capacity);
+	FREE_ARRAY_NO_GC(vm, BinaryEntry, table->entries, table->capacity);
 	binaryTable_init(table);
 }
 
@@ -43,9 +42,8 @@ static BinaryEntry* findBinaryEntry(BinaryEntry* entries, uint32_t capacity, uin
 }
 
 static void adjustBinaryCapacity(LfxVM* vm, BinaryTable* table, uint32_t capacity) {
-	(void)vm;//load-bearing once the _NO_GC macros take the vm
 	//we need re input, so don't reallocate
-	BinaryEntry* entries = ALLOCATE_NO_GC(BinaryEntry, capacity);
+	BinaryEntry* entries = ALLOCATE_NO_GC(vm, BinaryEntry, capacity);
 
 	for (uint32_t i = 0; i < capacity; ++i) {
 		entries[i].binary = 0;
@@ -69,7 +67,7 @@ static void adjustBinaryCapacity(LfxVM* vm, BinaryTable* table, uint32_t capacit
 		table->count++;
 	}
 
-	FREE_ARRAY_NO_GC(BinaryEntry, table->entries, table->capacity);
+	FREE_ARRAY_NO_GC(vm, BinaryEntry, table->entries, table->capacity);
 
 	table->entries = entries;
 	table->capacity = capacity;

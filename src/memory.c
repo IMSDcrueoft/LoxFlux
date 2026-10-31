@@ -9,9 +9,9 @@
 #include "allocator.h"
 #include "gc.h"
 
-void* reallocate_no_gc(void* pointer, size_t oldSize, size_t newSize)
+void* reallocate_no_gc(LfxVM* vm, void* pointer, size_t oldSize, size_t newSize)
 {
-	vm.bytesAllocated_no_gc += newSize - oldSize;
+	vm->bytesAllocated_no_gc += newSize - oldSize;
 
 	if (newSize == 0) {
 		if (pointer != NULL) {
@@ -76,7 +76,7 @@ void* reallocate(void* pointer, size_t oldSize, size_t newSize)
 	return result;
 }
 
-void freeObject(Obj* object) {
+void freeObject(LfxVM* vm, Obj* object) {
 #if DEBUG_LOG_GC
 	fprintf(stderr, "[gc] %p free (%s)\n", (void*)object, objTypeInfo[object->type]);
 #endif
@@ -84,13 +84,13 @@ void freeObject(Obj* object) {
 	switch (object->type) {
 	case OBJ_CLASS: {
 		ObjClass* klass = (ObjClass*)object;
-		table_free(&vm, &klass->methods);
+		table_free(vm, &klass->methods);
 		FREE(ObjClass, object);
 		break;
 	}
 	case OBJ_INSTANCE: {
 		ObjInstance* instance = (ObjInstance*)object;
-		table_free(&vm, &instance->fields);
+		table_free(vm, &instance->fields);
 		FREE(ObjInstance, object);
 		break;
 	}
@@ -109,15 +109,15 @@ void freeObject(Obj* object) {
 		ObjFiber* fiber = (ObjFiber*)object;
 
 		//frames are ordinary no-GC heap memory and are always released
-		FREE_ARRAY_NO_GC(CallFrame, fiber->core.frames, fiber->core.frameCapacity);
+		FREE_ARRAY_NO_GC(vm, CallFrame, fiber->core.frames, fiber->core.frameCapacity);
 
-		if (vm.fiberFreeCount < LOXFLUX_FIBER_CACHE_MAX) {
-			assert(vm.bytesAllocated >= sizeof(ObjFiber));
-			vm.bytesAllocated -= sizeof(ObjFiber);
+		if (vm->fiberFreeCount < LOXFLUX_FIBER_CACHE_MAX) {
+			assert(vm->bytesAllocated >= sizeof(ObjFiber));
+			vm->bytesAllocated -= sizeof(ObjFiber);
 			//reuse the object header as the free-list link
-			OBJ_PTR_SET_NEXT(&fiber->obj, (Obj*)vm.fiberFreeList);
-			vm.fiberFreeList = fiber;
-			vm.fiberFreeCount++;
+			OBJ_PTR_SET_NEXT(&fiber->obj, (Obj*)vm->fiberFreeList);
+			vm->fiberFreeList = fiber;
+			vm->fiberFreeCount++;
 		}
 		else {
 			arenaBump_destroy(&fiber->stackArena);
@@ -134,18 +134,18 @@ void freeObject(Obj* object) {
 		break;
 	case OBJ_FUNCTION: {
 		ObjFunction* function = (ObjFunction*)object;
-		chunk_free(&function->chunk);
+		chunk_free(vm, &function->chunk);
 		//inline cache slots are owned by the object (post-endCompiler size is exactly cacheCount+1;
 		//FAM-sealed scratch objects arrive with caches == NULL, so they skip this)
 		if (function->caches != NULL) {
-			FREE_ARRAY_NO_GC(InlineCacheSlot, function->caches, (uint32_t)function->cacheCount + 1);
+			FREE_ARRAY_NO_GC(vm, InlineCacheSlot, function->caches, (uint32_t)function->cacheCount + 1);
 			function->caches = NULL;
 		}
-		FREE_FLEX_NO_GC(ObjFunction, function, LfxValue, function->constantsCount);
+		FREE_FLEX_NO_GC(vm, ObjFunction, function, LfxValue, function->constantsCount);
 		break;
 	}
 	case OBJ_NATIVE:
-		FREE_NO_GC(ObjNative, object);
+		FREE_NO_GC(vm, ObjNative, object);
 		break;
 	case OBJ_STRING:
 		//strings are arena-allocated (fixed-VA bump, released at vm exit):
@@ -210,25 +210,25 @@ void freeObject(Obj* object) {
 	}
 }
 
-void freeObjects()
+void freeObjects(LfxVM* vm)
 {
 #if DEBUG_LOG_GC
 	fprintf(stderr, "-- free dynamic objects\n");
 #endif
-	Obj* object = vm.objects;
+	Obj* object = vm->objects;
 	while (object != NULL) {
 		Obj* next = OBJ_PTR_GET_NEXT(object);
-		freeObject(object);
+		freeObject(vm, object);
 		object = next;
 	}
 
 #if DEBUG_LOG_GC
 	fprintf(stderr, "-- free static objects\n");
 #endif
-	Obj* object_no_gc = vm.objects_no_gc;
+	Obj* object_no_gc = vm->objects_no_gc;
 	while (object_no_gc != NULL) {
 		Obj* next = OBJ_PTR_GET_NEXT(object_no_gc);
-		freeObject(object_no_gc);
+		freeObject(vm, object_no_gc);
 		object_no_gc = next;
 	}
 }

@@ -188,7 +188,7 @@ void valueArray_init(ValueArray* array) {
 	array->valueHoleIndex = VALUEHOLES_EMPTY;
 }
 
-uint32_t valueArray_write(ValueArray* array, LfxValue value) {
+uint32_t valueArray_write(LfxVM* vm, ValueArray* array, LfxValue value) {
 	//reuse a hole when one exists: pop the freeList head, which carries the
 	//next hole index stashed as raw bytes inside the slot itself
 	if (array->valueHoleIndex != VALUEHOLES_EMPTY) {
@@ -202,7 +202,7 @@ uint32_t valueArray_write(ValueArray* array, LfxValue value) {
 	if (array->capacity < array->count + 1) {
 		uint32_t oldCapacity = array->capacity;
 		array->capacity = GROW_CAPACITY(oldCapacity);
-		array->values = GROW_ARRAY_NO_GC(LfxValue, array->values, oldCapacity, array->capacity);
+		array->values = GROW_ARRAY_NO_GC(vm, LfxValue, array->values, oldCapacity, array->capacity);
 	}
 
 	array->values[array->count] = value;
@@ -215,8 +215,8 @@ void valueArray_writeAt(ValueArray* array, LfxValue value, uint32_t index)
 	array->values[index] = value;
 }
 
-void valueArray_free(ValueArray* array) {
-	FREE_ARRAY_NO_GC(LfxValue, array->values, array->capacity);
+void valueArray_free(LfxVM* vm, ValueArray* array) {
+	FREE_ARRAY_NO_GC(vm, LfxValue, array->values, array->capacity);
 	valueArray_init(array);
 }
 
