@@ -152,6 +152,26 @@ static void runtimeError(LfxVM* vm, C_STR format, ...) {
 	stack_reset(vm);
 }
 
+NOINLINE_FUNCTION
+static void stack_grow(LfxVM* vm) {
+	//VA reservation exhausted: the last slot was written, the stack is full
+	size_t used = (size_t)((vm->cache.stackTop - vm->cache.stack) * sizeof(LfxValue));
+	if (used >= vm->currentFiber->stackArena.capacity) {
+		runtimeError(vm, "Stack overflow.");
+		return;
+	}
+
+	//commit the next chunk lazily (must advance past stackTop, hence the
+	//extra chunk); failure means the stack cannot grow -> overflow
+	if (!arenaBump_ensureCommitted(&vm->currentFiber->stackArena, used + vm->currentFiber->stackArena.commitChunkSize)) {
+		runtimeError(vm, "Stack overflow.");
+		return;
+	}
+
+	//commitTop is a page-aligned byte offset; a page is a multiple of sizeof(LfxValue)
+	vm->cache.stackBoundary = (LfxValue*)((char*)vm->currentFiber->stackArena.base + vm->currentFiber->stackArena.commitTop);
+}
+
 HOT_FUNCTION
 void stack_push(LfxVM* vm, LfxValue value)
 {
@@ -172,23 +192,7 @@ void stack_push(LfxVM* vm, LfxValue value)
 		//		}
 		//	}
 		//}
-
-		//VA reservation exhausted: the last slot was written, the stack is full
-		size_t used = (size_t)((vm->cache.stackTop - vm->cache.stack) * sizeof(LfxValue));
-		if (used >= vm->currentFiber->stackArena.capacity) {
-			runtimeError(vm, "Stack overflow.");
-			return;
-		}
-
-		//commit the next chunk lazily (must advance past stackTop, hence the
-		//extra chunk); failure means the stack cannot grow -> overflow
-		if (!arenaBump_ensureCommitted(&vm->currentFiber->stackArena, used + vm->currentFiber->stackArena.commitChunkSize)) {
-			runtimeError(vm, "Stack overflow.");
-			return;
-		}
-
-		//commitTop is a page-aligned byte offset; a page is a multiple of sizeof(LfxValue)
-		vm->cache.stackBoundary = (LfxValue*)((char*)vm->currentFiber->stackArena.base + vm->currentFiber->stackArena.commitTop);
+		stack_grow(vm);
 	}
 }
 
