@@ -691,11 +691,11 @@ static bool call(LfxVM* vm, ObjClosure* closure, int argCount) {
 	frame->constants = closure->function->constants;
 
 	// clear extra args
-	if (argCount > closure->function->arity) {
-		for (int32_t i = 0, len = argCount - closure->function->arity; i < len; ++i) {
-			STACK_PEEK(i) = NIL_VAL;
-		}
-	}
+	//if (argCount > closure->function->arity) {
+	//	for (int32_t i = 0, len = argCount - closure->function->arity; i < len; ++i) {
+	//		STACK_PEEK(i) = NIL_VAL;
+	//	}
+	//}
 
 	return true;
 }
