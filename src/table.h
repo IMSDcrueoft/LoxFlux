@@ -32,7 +32,9 @@ typedef struct {
 	bool isEternal;	// cannot be freed by gc and no need to mark it
 	bool isPoisoned;// for inline cache
 
+#if LOXFLUX_BUILD_64BIT
 	uint8_t extendPayload[4];
+#endif
 
 	uint32_t count;
 	uint32_t capacity;
@@ -62,7 +64,7 @@ bool tableDelete(Table* table, ObjString* key);
 void tableAddAll(LfxVM* vm, Table* from, Table* to);
 
 //void tableRemoveWhite(Table* table);
-void markTable(Table* table);
+void markTable(LfxVM* vm, Table* table);
 
 ObjString* tableFindString(StringTable* table, C_STR chars, uint32_t length, uint64_t hash);
 //tableFindString over a not-materialized concat: the target content is

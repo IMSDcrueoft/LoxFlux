@@ -200,12 +200,12 @@ bool tableIterateNext(Table* table, uint32_t* index_inout, Entry** entry_out) {
 //	}
 //}
 
-void markTable(Table* table) {
+void markTable(LfxVM* vm, Table* table) {
 	if (table->isEternal) return;//eternal table don't need mark, live forever and its entries are eternal too
 
 	for (uint32_t i = 0; i < table->capacity; i++) {
 		Entry* entry = &table->entries[i];
 		//markObject((Obj*)entry->key);
-		markValue(entry->value);
+		markValue(vm, entry->value);
 	}
 }

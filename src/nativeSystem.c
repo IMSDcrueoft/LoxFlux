@@ -55,14 +55,12 @@ static bool getWriteBytes(LfxValue data, const char** bytes, uint64_t* length)
 
 //force do gc
 static LfxValue gcNative(LfxVM* vm, int argCount, LfxValue* args) {
-	(void)vm;
-	garbageCollect();
+	garbageCollect(vm);
 	return NIL_VAL;
 }
 
 //change gc next
 static LfxValue gcNextNative(LfxVM* vm, int argCount, LfxValue* args) {
-	(void)vm;
 	if (argCount == 1 && IS_NUMBER(args[0])) {
 		double nextGC = AS_NUMBER(args[0]);
 		if (nextGC < KiB16) {
@@ -71,7 +69,7 @@ static LfxValue gcNextNative(LfxVM* vm, int argCount, LfxValue* args) {
 		else if (nextGC > GiB1) {
 			nextGC = GiB1;
 		}
-		changeNextGC((size_t)nextGC);
+		changeNextGC(vm, (size_t)nextGC);
 		return BOOL_VAL(true);
 	}
 	else {
@@ -81,7 +79,6 @@ static LfxValue gcNextNative(LfxVM* vm, int argCount, LfxValue* args) {
 
 //change gc begin
 static LfxValue gcBeginNative(LfxVM* vm, int argCount, LfxValue* args) {
-	(void)vm;
 	if (argCount == 1 && IS_NUMBER(args[0])) {
 		double beginGC = AS_NUMBER(args[0]);
 		if (beginGC < KiB16) {
@@ -90,7 +87,7 @@ static LfxValue gcBeginNative(LfxVM* vm, int argCount, LfxValue* args) {
 		else if (beginGC > GiB1) {
 			beginGC = GiB1;
 		}
-		changeBeginGC((size_t)beginGC);
+		changeBeginGC(vm, (size_t)beginGC);
 		return BOOL_VAL(true);
 	}
 	else {
