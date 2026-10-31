@@ -17,9 +17,9 @@ void binaryTable_init(BinaryTable* table)
 	table->entries = NULL;
 }
 
-void binaryTable_free(BinaryTable* table)
+void binaryTable_free(LfxVM* vm, BinaryTable* table)
 {
-	FREE_ARRAY_NO_GC(BinaryEntry, table->entries, table->capacity);
+	FREE_ARRAY_NO_GC(vm, BinaryEntry, table->entries, table->capacity);
 	binaryTable_init(table);
 }
 
@@ -41,9 +41,9 @@ static BinaryEntry* findBinaryEntry(BinaryEntry* entries, uint32_t capacity, uin
 	}
 }
 
-static void adjustBinaryCapacity(BinaryTable* table, uint32_t capacity) {
+static void adjustBinaryCapacity(LfxVM* vm, BinaryTable* table, uint32_t capacity) {
 	//we need re input, so don't reallocate
-	BinaryEntry* entries = ALLOCATE_NO_GC(BinaryEntry, capacity);
+	BinaryEntry* entries = ALLOCATE_NO_GC(vm, BinaryEntry, capacity);
 
 	for (uint32_t i = 0; i < capacity; ++i) {
 		entries[i].binary = 0;
@@ -67,19 +67,65 @@ static void adjustBinaryCapacity(BinaryTable* table, uint32_t capacity) {
 		table->count++;
 	}
 
-	FREE_ARRAY_NO_GC(BinaryEntry, table->entries, table->capacity);
+	FREE_ARRAY_NO_GC(vm, BinaryEntry, table->entries, table->capacity);
 
 	table->entries = entries;
 	table->capacity = capacity;
 }
 
 // the key might not be in pool: keys are compared as raw 64-bit binary (NaN as NaN, natives by pointer bits)
-BinaryEntry* tableGetBinaryEntry(BinaryTable* table, Value* value)
+BinaryEntry* tableGetBinaryEntry(BinaryTable* table, LfxValue* value)
 {
-	//if (table->count + 1 > table->capacity * TABLE_MAX_LOAD) {
+	if (table->count == 0) return NULL;//empty pool:capacity - 1 would go out of bounds
+
+	uint64_t binary = AS_BINARY(*value);
+	uint64_t hash = HASH_64bits(&binary, sizeof(uint64_t));
+
+	uint32_t index = hash & (table->capacity - 1);
+
+	while (true) {
+		BinaryEntry* entry = &table->entries[index];
+
+		if (!entry->isValid) {
+			return NULL;
+		}
+		else if (entry->binary == binary) {
+			return entry;
+		}
+
+		index = (index + 1) & (table->capacity - 1);
+	}
+}
+
+BinaryEntry* tableGetOrInsertBinaryEntry(LfxVM* vm, BinaryTable* table, LfxValue* value)
+{
+	(void)vm;//load-bearing once the _NO_GC macros take the vm
 	if ((table->count + 1) > MUL_3_DIV_4((uint64_t)(table->capacity))) {
 		uint32_t capacity = GROW_CAPACITY(table->capacity);
-		adjustBinaryCapacity(table, capacity);
+		adjustBinaryCapacity(vm, table, capacity);
+	}
+
+	uint64_t binary = AS_BINARY(*value);
+	uint64_t hash = HASH_64bits(&binary, sizeof(uint64_t));
+	BinaryEntry* entry = findBinaryEntry(table->entries, table->capacity, binary, hash);
+
+	if (!entry->isValid) {
+		table->count++;
+
+		entry->binary = binary;
+		entry->hash = hash;
+		entry->isValid = true;
+	}
+
+	return entry;
+}
+
+bool tableSet_binary(LfxVM* vm, BinaryTable* table, LfxValue* value)
+{
+	(void)vm;//load-bearing once the _NO_GC macros take the vm
+	if ((table->count + 1) > MUL_3_DIV_4((uint64_t)(table->capacity))) {
+		uint32_t capacity = GROW_CAPACITY(table->capacity);
+		adjustBinaryCapacity(vm, table, capacity);
 	}
 
 	uint64_t binary = AS_BINARY(*value);
@@ -95,5 +141,5 @@ BinaryEntry* tableGetBinaryEntry(BinaryTable* table, Value* value)
 		entry->isValid = true;
 	}
 
-	return entry;
+	return isNewKey;
 }

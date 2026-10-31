@@ -10,9 +10,9 @@
 #include "memory.h"
 #include "timer.h"
 
-void markValue(Value value)
+void markValue(LfxVM* vm, LfxValue value)
 {
-	if (IS_OBJ(value)) markObject(AS_OBJ(value));
+	if (IS_OBJ(value)) markObject(vm, AS_OBJ(value));
 }
 
 //static void markArray(ValueArray* array) {
@@ -24,7 +24,7 @@ void markValue(Value value)
 // static void blackenObject(Obj* object);
 //static void markConstants(ValueArray* array) {
 //	for (uint32_t i = 0; i < array->count; i++) {
-//		Value value = array->values[i];
+//		LfxValue value = array->values[i];
 //		if (IS_OBJ(value)) {
 //			AS_OBJ(value)->isMarked = vm.gcMark;
 //			blackenObject(AS_OBJ(value));
@@ -32,26 +32,26 @@ void markValue(Value value)
 //	}
 //}
 
-static void markArrayAny(ObjArray* array) {
-	Value* arrPtr = (Value*)array->payload;
+static void markArrayAny(LfxVM* vm, ObjArray* array) {
+	LfxValue* arrPtr = (LfxValue*)array->payload;
 
 	for (uint32_t i = 0; i < array->length; ++i) {
-		Value value = arrPtr[i];
+		LfxValue value = arrPtr[i];
 
 		if (IS_OBJ(value)) {
-			markObject(AS_OBJ(value));
+			markObject(vm, AS_OBJ(value));
 		}
 	}
 }
 
-static void markRoots() {
+static void markRoots(LfxVM* vm) {
 	//do not scan the VM execution cache: the current fiber owns the live
 	//stack/frames/open-upvalues, and resumer chains cover suspended callers
-	if (vm.currentFiber != NULL) {
-		markObject((Obj*)vm.currentFiber);
+	if (vm->currentFiber != NULL) {
+		markObject(vm, (Obj*)vm->currentFiber);
 	}
 
-	markTable(&vm.globals.fields);
+	markTable(vm, &vm->globals.fields);
 	//the shared constants don't gc
 	//markConstants(&vm.constants);
 
@@ -63,12 +63,12 @@ static void markRoots() {
 	//markObject((Obj*)vm.initString);
 }
 
-void markObject(Obj* object)
+void markObject(LfxVM* vm, Obj* object)
 {
 	//skip the null and things that don't need mark
 	if (object == NULL) return;
 	//skip marked one
-	if (object->isMarked == vm.gcMark) return;
+	if (object->isMarked == vm->gcMark) return;
 
 	switch (object->type) {
 	case OBJ_FUNCTION:
@@ -84,26 +84,26 @@ void markObject(Obj* object)
 	printValue(stderr, OBJ_VAL(object), false);
 	fprintf(stderr, "\n");
 #endif
-	object->isMarked = vm.gcMark;
+	object->isMarked = vm->gcMark;
 
 	//fixed-VA gray stack, plain count logic (same model as the vm stack): the
 	//hot path is one compare against the committed edge; only crossing it does
 	//a lazy 64KB page commit. No realloc, no heap allocation -> cannot trigger
 	//or nest a GC. Capacity exhausted or commit failure is fatal inside a GC
 	//cycle (need is in bytes: one more pointer slot beyond grayCount)
-	size_t need = (size_t)(vm.grayCount + 1) * sizeof(Obj*);
-	if (need > vm.grayArena.commitTop) {
-		if (need > vm.grayArena.capacity ||
-			!arenaBump_ensureCommitted(&vm.grayArena, need)) {
+	size_t need = (size_t)(vm->grayCount + 1) * sizeof(Obj*);
+	if (need > vm->grayArena.commitTop) {
+		if (need > vm->grayArena.capacity ||
+			!arenaBump_ensureCommitted(&vm->grayArena, need)) {
 			fprintf(stderr, "[gc] gray stack overflow.\n");
 			exit(1);
 		}
 	}
 
-	vm.grayStack[vm.grayCount++] = object;
+	vm->grayStack[vm->grayCount++] = object;
 }
 
-static void blackenObject(Obj* object) {
+static void blackenObject(LfxVM* vm, Obj* object) {
 #if DEBUG_LOG_GC
 	fprintf(stderr, "[gc] %p blacken ", (void*)object);
 	printValue(stderr, OBJ_VAL(object), false);
@@ -113,7 +113,7 @@ static void blackenObject(Obj* object) {
 	switch (object->type) {
 	case OBJ_UPVALUE: {
 		//When an upvalue is closed, it contains a reference to the closed-over value
-		markValue(((ObjUpvalue*)object)->closed);
+		markValue(vm, ((ObjUpvalue*)object)->closed);
 		break;
 	}
 	case OBJ_CLOSURE: {
@@ -122,14 +122,14 @@ static void blackenObject(Obj* object) {
 		//markObject((Obj*)closure->function);
 
 		for (uint32_t i = 0; i < closure->upvalueCount; i++) {
-			markObject((Obj*)closure->upvalues[i]);
+			markObject(vm, (Obj*)closure->upvalues[i]);
 		}
 		break;
 	}
 	case OBJ_BOUND_METHOD: {
 		ObjBoundMethod* bound = (ObjBoundMethod*)object;
-		markValue(bound->receiver);
-		markObject((Obj*)bound->method);
+		markValue(vm, bound->receiver);
+		markObject(vm, (Obj*)bound->method);
 		break;
 	}
 						 // //won't be here
@@ -144,72 +144,74 @@ static void blackenObject(Obj* object) {
 	case OBJ_CLASS: {
 		ObjClass* klass = (ObjClass*)object;
 		//markObject((Obj*)klass->name);
-		markValue(klass->initializer);
-		markTable(&klass->methods);
+		if (klass->initializer != NULL) {
+			markObject(vm, (Obj*)klass->initializer);
+		}
+		markTable(vm, &klass->methods);
 		//the superclass chain must survive as long as the subclass
 		if (klass->superclass != NULL) {
-			markObject((Obj*)klass->superclass);
+			markObject(vm, (Obj*)klass->superclass);
 		}
 		break;
 	}
 	case OBJ_INSTANCE: {
 		ObjInstance* instance = (ObjInstance*)object;
 		//klass is never NULL: class-less instances point at vm.defaultClass
-		markObject((Obj*)instance->klass);
-		markTable(&instance->fields);
+		markObject(vm, (Obj*)instance->klass);
+		markTable(vm, &instance->fields);
 		break;
 	}
 	case OBJ_ITERATOR: {
 		ObjIterator* iterator = (ObjIterator*)object;
-		markObject(iterator->target);
+		markObject(vm, iterator->target);
 		break;
 	}
 	case OBJ_FIBER: {
 		ObjFiber* fiber = (ObjFiber*)object;
 
 		//scan only the live prefix of this fiber's stack
-		for (Value* slot = fiber->core.stack; slot < fiber->core.stackTop; slot++) {
-			markValue(*slot);
+		for (LfxValue* slot = fiber->core.stack; slot < fiber->core.stackTop; slot++) {
+			markValue(vm, *slot);
 		}
 
 		for (uint32_t i = 0; i < fiber->core.frameCount; i++) {
-			markObject((Obj*)fiber->core.frames[i].closure);
+			markObject(vm, (Obj*)fiber->core.frames[i].closure);
 		}
 
 		for (ObjUpvalue* upvalue = fiber->core.openUpvalues; upvalue != NULL; upvalue = upvalue->next) {
-			markObject((Obj*)upvalue);
+			markObject(vm, (Obj*)upvalue);
 		}
 
 		if (fiber->resumer != NULL) {
-			markObject((Obj*)fiber->resumer);
+			markObject(vm, (Obj*)fiber->resumer);
 		}
 
-		markValue(fiber->result);
+		markValue(vm, fiber->result);
 		break;
 	}
 	case OBJ_ARRAY: //only array-any needs gc scan
-		markArrayAny((ObjArray*)object);
+		markArrayAny(vm, (ObjArray*)object);
 		break;
 	}
 }
 
-static void traceReferences() {
+static void traceReferences(LfxVM* vm) {
 	//plain LIFO drain over the gray worklist; blackenObject may push more
 	//entries, grayCount covers that naturally. Committed pages of the gray
 	//arena stay resident and are reused by the next GC cycle (same grow-only
 	//behavior as the old heap stack)
-	while (vm.grayCount > 0) {
-		Obj* object = vm.grayStack[--vm.grayCount];
-		blackenObject(object);
+	while (vm->grayCount > 0) {
+		Obj* object = vm->grayStack[--vm->grayCount];
+		blackenObject(vm, object);
 	}
 }
 
-static void sweep() {
+static void sweep(LfxVM* vm) {
 	Obj* previous = NULL;
-	Obj* object = vm.objects;
+	Obj* object = vm->objects;
 
 	while (object != NULL) {
-		if (object->isMarked == vm.gcMark) {
+		if (object->isMarked == vm->gcMark) {
 			//object->isMarked = false;//clear the mark
 
 			previous = object;
@@ -222,10 +224,10 @@ static void sweep() {
 				OBJ_PTR_SET_NEXT(previous, object);
 			}
 			else {
-				vm.objects = object;
+				vm->objects = object;
 			}
 
-			freeObject(unreached);
+			freeObject(vm, unreached);
 		}
 	}
 }
@@ -233,9 +235,9 @@ static void sweep() {
 //inline caches are weak references: clear any invoke slot whose cached ObjClass*/ObjClosure*
 //did not survive this GC cycle. Runs after tracing (final mark state) and before sweep
 //(so the fast path never compares against freed or reused memory; NULL extraA always misses)
-static void gc_clear_dead_ic_slots() {
-	for (uint32_t i = 0; i < vm.icFuncCount; i++) {
-		ObjFunction* fn = vm.icFuncs[i];
+static void gc_clear_dead_ic_slots(LfxVM* vm) {
+	for (uint32_t i = 0; i < vm->icFuncCount; i++) {
+		ObjFunction* fn = vm->icFuncs[i];
 		if (fn == NULL || fn->caches == NULL) continue;
 
 		for (uint16_t j = 0; j <= fn->cacheCount; j++) {
@@ -244,8 +246,8 @@ static void gc_clear_dead_ic_slots() {
 			Obj* b = (Obj*)c->extraB;
 			if (a == NULL && b == NULL) continue;
 
-			if ((a != NULL && a->isMarked != vm.gcMark) ||
-				(b != NULL && b->isMarked != vm.gcMark)) {
+			if ((a != NULL && a->isMarked != vm->gcMark) ||
+				(b != NULL && b->isMarked != vm->gcMark)) {
 				c->extraA = NULL;
 				c->extraB = NULL;
 			}
@@ -253,7 +255,7 @@ static void gc_clear_dead_ic_slots() {
 	}
 }
 
-void garbageCollect()
+void garbageCollect(LfxVM* vm)
 {
 #if DEBUG_LOG_GC
 	fprintf(stderr, "-- gc begin\n");
@@ -261,27 +263,27 @@ void garbageCollect()
 
 #if DEBUG_LOG_GC || LOG_GC_RESULT
 	uint64_t time_gc = get_nanoseconds();
-	size_t before = vm.bytesAllocated;
+	size_t before = vm->bytesAllocated;
 #endif
 	//mark the state
-	vm.gcWorking = 1;
+	vm->gcWorking = 1;
 
-	vm_storeCacheToFiber();
+	vm_storeCacheToFiber(vm);
 
-	markRoots();
-	traceReferences();
+	markRoots(vm);
+	traceReferences(vm);
 	//inline caches are weak: drop slots that reference objects which are about to die
 	//(must run before sweep so the fast path never compares against freed memory)
-	gc_clear_dead_ic_slots();
+	gc_clear_dead_ic_slots(vm);
 	//tableRemoveWhite(&vm.strings);
-	sweep();
+	sweep(vm);
 
 	//reset the limit
-	vm.nextGC = max(vm.bytesAllocated * GC_HEAP_GROW_FACTOR, vm.beginGC);
+	vm->nextGC = max(vm->bytesAllocated * LOXFLUX_GC_HEAP_GROW_FACTOR, vm->beginGC);
 	//flip the mark
-	vm.gcMark = !vm.gcMark;
+	vm->gcMark = !vm->gcMark;
 	//mark the state
-	vm.gcWorking = 0;
+	vm->gcWorking = 0;
 
 #if DEBUG_LOG_GC
 	fprintf(stderr, "-- gc end\n");
@@ -290,16 +292,16 @@ void garbageCollect()
 #if DEBUG_LOG_GC || LOG_GC_RESULT
 	double time_ms = (get_nanoseconds() - time_gc) * 1e-6;
 	fprintf(stderr, "[gc] collected %zu bytes (from %zu to %zu) next at %zu, in %g ms\n",
-		before - vm.bytesAllocated, before, vm.bytesAllocated, vm.nextGC, time_ms);
+		before - vm->bytesAllocated, before, vm->bytesAllocated, vm->nextGC, time_ms);
 #endif
 }
 
-void changeNextGC(size_t newSize)
+void changeNextGC(LfxVM* vm, size_t newSize)
 {
-	vm.nextGC = newSize;
+	vm->nextGC = newSize;
 }
 
-void changeBeginGC(size_t newSize)
+void changeBeginGC(LfxVM* vm, size_t newSize)
 {
-	vm.beginGC = newSize;
+	vm->beginGC = newSize;
 }

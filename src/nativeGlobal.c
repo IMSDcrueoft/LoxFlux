@@ -7,15 +7,16 @@
 #include "vm.h"
 
 //#include <time.h>
-//static Value clockNative(int argCount, Value* args) {
+//static LfxValue clockNative(int argCount, LfxValue* args) {
 //	return NUMBER_VAL((double)clock() / CLOCKS_PER_SEC);
 //}
 
 //place your function here
 
 COLD_FUNCTION
-void importNative_global()
+void importNative_global(LfxVM* vm)
 {
+	(void)vm;
 	// origion clox function
 	// defineNative_global("clock", clockNative);
 

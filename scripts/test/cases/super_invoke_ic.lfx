@@ -1,0 +1,52 @@
+// super invoke inline cache: hit path, multi-level chain, polymorphic
+// re-declaration thrash (one compiled site, alternating superclasses), GC churn
+// exit: 0
+// out: A.greet
+// out: C->B->A
+// out: A.greet
+// out: Base2.greet
+// out: A.greet
+// out: 3000
+class A {
+	greet() { return "A.greet"; }
+	who() { return "A"; }
+}
+class B < A {
+	greet() { return super.greet(); }
+	who() { return "B->" + super.who(); }
+}
+class C < B {
+	who() { return "C->" + super.who(); }
+}
+
+print B().greet();
+print C().who();
+
+// one compiled D.greet site, alternating superclasses -> guard miss + re-backfill
+class Base2 {
+	greet() { return "Base2.greet"; }
+}
+var Base = A;
+fun make() {
+	class D < Base {
+		greet() { return super.greet(); }
+	}
+	return D;
+}
+var d1 = make();
+Base = Base2;
+var d2 = make();
+
+var i1 = d1();
+var i2 = d2();
+print i1.greet();
+print i2.greet();
+print i1.greet();
+
+// GC churn with hot caches: allocation pressure triggers collections mid-flight
+var sum = 0;
+for (var i = 0; i < 3000; i = i + 1) {
+	sum = sum + 1;
+	C();
+}
+print sum;

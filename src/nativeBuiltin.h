@@ -20,11 +20,11 @@ typedef enum {
 	MODULE_COUNT,//as the size
 } BuiltinMouduleType;
 
-void importNative_math();
-void importNative_array();
-void importNative_object();
-void importNative_string();
-void importNative_time();
-void importNative_ctor();
-void importNative_system();
-void importNative_global();
+void importNative_math(LfxVM* vm);
+void importNative_array(LfxVM* vm);
+void importNative_object(LfxVM* vm);
+void importNative_string(LfxVM* vm);
+void importNative_time(LfxVM* vm);
+void importNative_ctor(LfxVM* vm);
+void importNative_system(LfxVM* vm);
+void importNative_global(LfxVM* vm);

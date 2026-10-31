@@ -7,8 +7,8 @@
 #include "chunk.h"
 #include "object.h"
 
-uint32_t disassembleInstruction(ObjFunction* function, uint32_t offset);
-void disassembleChunk(ObjFunction* function, C_STR name, uint32_t id);
+uint32_t disassembleInstruction(LfxVM* vm, ObjFunction* function, uint32_t offset);
+void disassembleChunk(LfxVM* vm, ObjFunction* function, C_STR name, uint32_t id);
 
 //redirects all disassembly printing to the given stream (NULL = stderr);
 //used by the runtime --print-bytecode flag to keep the script's stdout clean

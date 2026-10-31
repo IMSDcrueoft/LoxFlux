@@ -4,16 +4,16 @@
  * See LICENSE file in the root directory for full license text.
 */
 #pragma once
-//backend toggle; overridable from the build command line (/DUSE_XXHASH=0)
+//backend toggle; overridable from the build command line (/DLOXFLUX_USE_XXHASH=0)
 //for testing the murmur fallback
-#ifndef USE_XXHASH
-#define USE_XXHASH 1
+#ifndef LOXFLUX_USE_XXHASH
+#define LOXFLUX_USE_XXHASH 1
 #endif
 
 #include <stdint.h>
 #include <stddef.h>
 
-#if USE_XXHASH
+#if LOXFLUX_USE_XXHASH
 
 #include <xxh3.h>
 #define HASH_64bits(str,len) XXH3_64bits(str, len)
@@ -59,4 +59,4 @@ uint64_t hashStreamFinalize(HashStream* stream);
 //two-segment split; no-op under NDEBUG
 void hashStreamSelfTest();
 
-#undef USE_XXHASH
+#undef LOXFLUX_USE_XXHASH

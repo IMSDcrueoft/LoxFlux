@@ -17,7 +17,7 @@ void debug_setDisasmStream(FILE* stream) {
 	disasmStream = stream;
 }
 
-static void disPrintValue(Value value) {
+static void disPrintValue(LfxValue value) {
 	printValue((disasmStream != NULL) ? disasmStream : stderr, value, false);
 }
 
@@ -177,24 +177,24 @@ static uint32_t jifLCNumberInstruction(C_STR name, ObjFunction* function, uint32
 
 //fused compare + jump, non-number constant: [op:8][local:16][const:24][offset:16]
 COLD_FUNCTION
-static uint32_t jifLCInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
+static uint32_t jifLCInstruction(LfxVM* vm, C_STR name, Chunk* chunk, uint32_t offset) {
 	uint32_t slot = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8);
 	uint32_t constant = ((uint32_t)chunk->code[offset + 3]) | ((uint32_t)chunk->code[offset + 4] << 8) | ((uint32_t)chunk->code[offset + 5] << 16);
 	uint16_t jump = (uint16_t)(chunk->code[offset + 6] | (chunk->code[offset + 7] << 8));
 
 	DIS_PRINTF("%-16s R:%4d '", name, slot);
-	disPrintValue(vm.constants.values[constant]);
+	disPrintValue(vm->constants.values[constant]);
 	DIS_PRINTF("' %4d -> %d\n", offset, offset + 8 + jump);
 	return offset + 8;
 }
 
 COLD_FUNCTION
-static uint32_t constantInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
+static uint32_t constantInstruction(LfxVM* vm, C_STR name, Chunk* chunk, uint32_t offset) {
 	//24bit index
 	uint32_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8) | ((uint32_t)chunk->code[offset + 3] << 16);
 
 	DIS_PRINTF("%-16s %4d '", name, constant);
-	disPrintValue(vm.constants.values[constant]);
+	disPrintValue(vm->constants.values[constant]);
 	DIS_PRINTF("'\n");
 
 	//OP_CONSTANT 4
@@ -216,43 +216,43 @@ static uint32_t numberConstantInstruction(C_STR name, ObjFunction* function, uin
 }
 
 COLD_FUNCTION
-static uint32_t invokeInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
+static uint32_t invokeInstruction(LfxVM* vm, C_STR name, Chunk* chunk, uint32_t offset) {
 	//24bit index
 	uint32_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8) | ((uint32_t)chunk->code[offset + 3] << 16);
 	uint8_t argCount = chunk->code[offset + 4];
 	uint8_t slot = chunk->code[offset + 5];
 	DIS_PRINTF("%-16s (%d args) %4d '", name, argCount, constant);
-	disPrintValue(vm.constants.values[constant]);
+	disPrintValue(vm->constants.values[constant]);
 	DIS_PRINTF("' (cache %u)\n", slot);
 	return offset + 6;
 }
 
 //property instruction: [op][name u24][cache slot u8]
 COLD_FUNCTION
-static uint32_t cachedPropertyInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
+static uint32_t cachedPropertyInstruction(LfxVM* vm, C_STR name, Chunk* chunk, uint32_t offset) {
 	//24bit index
 	uint32_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8) | ((uint32_t)chunk->code[offset + 3] << 16);
 	uint8_t slot = chunk->code[offset + 4];
 	DIS_PRINTF("%-16s %4d '", name, constant);
-	disPrintValue(vm.constants.values[constant]);
+	disPrintValue(vm->constants.values[constant]);
 	DIS_PRINTF("' (cache %u)\n", slot);
 	return offset + 5;
 }
 
 //fused local property instruction: [op][local u16][name u24][cache slot u8]
 COLD_FUNCTION
-static uint32_t localPropertyInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
+static uint32_t localPropertyInstruction(LfxVM* vm, C_STR name, Chunk* chunk, uint32_t offset) {
 	uint32_t local = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8);
 	uint32_t constant = ((uint32_t)chunk->code[offset + 3]) | ((uint32_t)chunk->code[offset + 4] << 8) | ((uint32_t)chunk->code[offset + 5] << 16);
 	uint8_t slot = chunk->code[offset + 6];
 	DIS_PRINTF("%-16s R:%4d %4d '", name, local, constant);
-	disPrintValue(vm.constants.values[constant]);
+	disPrintValue(vm->constants.values[constant]);
 	DIS_PRINTF("' (cache %u)\n", slot);
 	return offset + 7;
 }
 
 COLD_FUNCTION
-uint32_t disassembleInstruction(ObjFunction* function, uint32_t offset) {
+uint32_t disassembleInstruction(LfxVM* vm, ObjFunction* function, uint32_t offset) {
 	Chunk* chunk = &function->chunk;
 
 	DIS_PRINTF("%04d ", offset);
@@ -270,9 +270,9 @@ uint32_t disassembleInstruction(ObjFunction* function, uint32_t offset) {
 	case OP_CALL:
 		return byteInstruction("OP_CALL", chunk, offset);
 	case OP_INVOKE:
-		return invokeInstruction("OP_INVOKE", chunk, offset);
+		return invokeInstruction(vm, "OP_INVOKE", chunk, offset);
 	case OP_SUPER_INVOKE:
-		return invokeInstruction("OP_SUPER_INVOKE", chunk, offset);
+		return invokeInstruction(vm, "OP_SUPER_INVOKE", chunk, offset);
 	case OP_RETURN:
 		return simpleInstruction("OP_RETURN", offset);
 	case OP_ITERATE:
@@ -300,7 +300,7 @@ uint32_t disassembleInstruction(ObjFunction* function, uint32_t offset) {
 		return simpleInstruction("OP_NEGATE", offset);
 
 	case OP_CONSTANT:
-		return constantInstruction("OP_CONSTANT", chunk, offset);
+		return constantInstruction(vm, "OP_CONSTANT", chunk, offset);
 
 	case OP_CONST_NUMBER:
 		return numberConstantInstruction("OP_CONST_NUMBER", function, offset);
@@ -310,13 +310,13 @@ uint32_t disassembleInstruction(ObjFunction* function, uint32_t offset) {
 		uint32_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8) | ((uint32_t)chunk->code[offset + 3] << 16);
 
 		DIS_PRINTF("%-16s %4d '", "OP_CLOSURE", constant);
-		disPrintValue(vm.constants.values[constant]);
+		disPrintValue(vm->constants.values[constant]);
 		DIS_PRINTF("'\n");
 
 		//OP_CLOSURE 4
 		offset += 4;
 
-		ObjFunction* function = AS_FUNCTION(vm.constants.values[constant]);
+		ObjFunction* function = AS_FUNCTION(vm->constants.values[constant]);
 		for (uint32_t j = 0; j < function->upvalueCount; j++) {
 			int32_t isLocal = chunk->code[offset++];
 			uint16_t index = chunk->code[offset++];
@@ -364,31 +364,31 @@ uint32_t disassembleInstruction(ObjFunction* function, uint32_t offset) {
 		return bitwiseInStruction("OP_BITWISE", chunk, offset);
 
 	case OP_DEFINE_GLOBAL:
-		return constantInstruction("OP_DEFINE_GLOBAL", chunk, offset);
+		return constantInstruction(vm, "OP_DEFINE_GLOBAL", chunk, offset);
 	case OP_GET_GLOBAL:
-		return constantInstruction("OP_GET_GLOBAL", chunk, offset);
+		return constantInstruction(vm, "OP_GET_GLOBAL", chunk, offset);
 	case OP_SET_GLOBAL:
-		return constantInstruction("OP_SET_GLOBAL", chunk, offset);
+		return constantInstruction(vm, "OP_SET_GLOBAL", chunk, offset);
 	case OP_CLASS:
-		return constantInstruction("OP_CLASS", chunk, offset);
+		return constantInstruction(vm, "OP_CLASS", chunk, offset);
 	case OP_INHERIT:
 		return simpleInstruction("OP_INHERIT", offset);
 	case OP_METHOD:
-		return constantInstruction("OP_METHOD", chunk, offset);
+		return constantInstruction(vm, "OP_METHOD", chunk, offset);
 	case OP_GET_SUPER:
-		return constantInstruction("OP_GET_SUPER", chunk, offset);
+		return constantInstruction(vm, "OP_GET_SUPER", chunk, offset);
 	case OP_GET_PROPERTY:
-		return cachedPropertyInstruction("OP_GET_PROPERTY", chunk, offset);
+		return cachedPropertyInstruction(vm, "OP_GET_PROPERTY", chunk, offset);
 	case OP_SET_PROPERTY:
-		return cachedPropertyInstruction("OP_SET_PROPERTY", chunk, offset);
+		return cachedPropertyInstruction(vm, "OP_SET_PROPERTY", chunk, offset);
 	case OP_SET_PROPERTY_POP:
-		return cachedPropertyInstruction("OP_SET_PROPERTY_POP", chunk, offset);
+		return cachedPropertyInstruction(vm, "OP_SET_PROPERTY_POP", chunk, offset);
 	case OP_GET_PROP_LOCAL:
-		return localPropertyInstruction("OP_GET_PROP_LOCAL", chunk, offset);
+		return localPropertyInstruction(vm, "OP_GET_PROP_LOCAL", chunk, offset);
 	case OP_SET_PROP_LOCAL:
-		return localPropertyInstruction("OP_SET_PROP_LOCAL", chunk, offset);
+		return localPropertyInstruction(vm, "OP_SET_PROP_LOCAL", chunk, offset);
 	case OP_SET_PROP_LOCAL_POP:
-		return localPropertyInstruction("OP_SET_PROP_LOCAL_POP", chunk, offset);
+		return localPropertyInstruction(vm, "OP_SET_PROP_LOCAL_POP", chunk, offset);
 	case OP_GET_INDEX:
 		return numberConstantInstruction("OP_GET_INDEX", function, offset);
 	case OP_SET_INDEX:
@@ -402,7 +402,7 @@ uint32_t disassembleInstruction(ObjFunction* function, uint32_t offset) {
 	case OP_NEW_OBJECT:
 		return simpleInstruction("OP_NEW_OBJECT", offset);
 	case OP_NEW_PROPERTY:
-		return constantInstruction("OP_NEW_PROPERTY", chunk, offset);
+		return constantInstruction(vm, "OP_NEW_PROPERTY", chunk, offset);
 	case OP_NEW_ITERATOR:
 		return simpleInstruction("OP_NEW_ITERATOR", offset);
 
@@ -446,9 +446,9 @@ uint32_t disassembleInstruction(ObjFunction* function, uint32_t offset) {
 	case OP_MODULUS_CONST:
 		return numberConstantInstruction("OP_MODULUS_CONST", function, offset);
 	case OP_EQUAL_CONST:
-		return constantInstruction("OP_EQUAL_CONST", chunk, offset);
+		return constantInstruction(vm, "OP_EQUAL_CONST", chunk, offset);
 	case OP_NOT_EQUAL_CONST:
-		return constantInstruction("OP_NOT_EQUAL_CONST", chunk, offset);
+		return constantInstruction(vm, "OP_NOT_EQUAL_CONST", chunk, offset);
 	case OP_GREATER_CONST:
 		return numberConstantInstruction("OP_GREATER_CONST", function, offset);
 	case OP_GREATER_EQUAL_CONST:
@@ -514,9 +514,9 @@ uint32_t disassembleInstruction(ObjFunction* function, uint32_t offset) {
 	case OP_JIF_NOT_EQUAL_LC_NUMBER:
 		return jifLCNumberInstruction("OP_JIF_NOT_EQUAL_LC_NUMBER", function, offset);
 	case OP_JIF_EQUAL_LC:
-		return jifLCInstruction("OP_JIF_EQUAL_LC", chunk, offset);
+		return jifLCInstruction(vm, "OP_JIF_EQUAL_LC", chunk, offset);
 	case OP_JIF_NOT_EQUAL_LC:
-		return jifLCInstruction("OP_JIF_NOT_EQUAL_LC", chunk, offset);
+		return jifLCInstruction(vm, "OP_JIF_NOT_EQUAL_LC", chunk, offset);
 
 	default:
 		DIS_PRINTF("Unknown opcode %d offset = %d\n", instruction, offset);
@@ -525,14 +525,14 @@ uint32_t disassembleInstruction(ObjFunction* function, uint32_t offset) {
 }
 
 COLD_FUNCTION
-void disassembleChunk(ObjFunction* function, C_STR name, uint32_t id) {
+void disassembleChunk(LfxVM* vm, ObjFunction* function, C_STR name, uint32_t id) {
 	Chunk* chunk = &function->chunk;
 
 	DIS_PRINTF("== %s(%d) ==\n", name, id);
 
 	uint32_t offset = 0;
 	while (offset < chunk->count) {
-		offset = disassembleInstruction(function, offset);
+		offset = disassembleInstruction(vm, function, offset);
 	}
 
 	DIS_PRINTF("== %s(%d) end==\n", name, id);

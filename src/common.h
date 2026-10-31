@@ -35,5 +35,7 @@
 typedef char* STR;
 typedef const char* C_STR;
 
+typedef struct LfxVM LfxVM;
+
 #include "options.h"
 #include "optimize.h"

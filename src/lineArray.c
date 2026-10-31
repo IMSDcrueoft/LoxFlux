@@ -12,7 +12,7 @@ void lineArray_init(LineArray* array) {
 	array->index = 0u;
 }
 
-void lineArray_write(LineArray* array, uint32_t line, uint32_t offset) {
+void lineArray_write(LfxVM* vm, LineArray* array, uint32_t line, uint32_t offset) {
 	uint32_t index = array->index;
 
 	if ((index + 1) >= array->capacity) {
@@ -24,7 +24,7 @@ void lineArray_write(LineArray* array, uint32_t line, uint32_t offset) {
 		}
 
 		array->capacity = GROW_CAPACITY(oldCapacity);
-		array->ranges = GROW_ARRAY_NO_GC(RangeLine, array->ranges, oldCapacity, array->capacity);
+		array->ranges = GROW_ARRAY_NO_GC(vm, RangeLine, array->ranges, oldCapacity, array->capacity);
 
 		//init
 		if (oldCapacity == 0) {
@@ -65,8 +65,8 @@ void lineArray_fallback(LineArray* array, uint32_t targetOffset)
 	}
 }
 
-void lineArray_free(LineArray* array) {
-	FREE_ARRAY_NO_GC(RangeLine, array->ranges, array->capacity);
+void lineArray_free(LfxVM* vm, LineArray* array) {
+	FREE_ARRAY_NO_GC(vm, RangeLine, array->ranges, array->capacity);
 	lineArray_init(array);
 }
 

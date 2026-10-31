@@ -18,9 +18,9 @@ void stringTable_init(StringTable* table)
 	table->entries = NULL;
 }
 
-void stringTable_free(StringTable* table)
+void stringTable_free(LfxVM* vm, StringTable* table)
 {
-	FREE_ARRAY_NO_GC(StringEntry, table->entries, table->capacity);
+	FREE_ARRAY_NO_GC(vm, StringEntry, table->entries, table->capacity);
 	stringTable_init(table);
 }
 
@@ -42,9 +42,9 @@ static StringEntry* findStringEntry(StringEntry* entries, uint32_t capacity, Obj
 	}
 }
 
-static void adjustStringCapacity(StringTable* table, uint32_t capacity) {
+static void adjustStringCapacity(LfxVM* vm, StringTable* table, uint32_t capacity) {
 	//we need re input, so don't reallocate
-	StringEntry* entries = ALLOCATE_NO_GC(StringEntry, capacity);
+	StringEntry* entries = ALLOCATE_NO_GC(vm, StringEntry, capacity);
 
 	for (uint32_t i = 0; i < capacity; ++i) {
 		entries[i].key = NULL;
@@ -64,18 +64,18 @@ static void adjustStringCapacity(StringTable* table, uint32_t capacity) {
 		table->count++;
 	}
 
-	FREE_ARRAY_NO_GC(StringEntry, table->entries, table->capacity);
+	FREE_ARRAY_NO_GC(vm, StringEntry, table->entries, table->capacity);
 
 	table->entries = entries;
 	table->capacity = capacity;
 }
 
-bool tableSet_string(StringTable* table, ObjString* key)
+bool tableSet_string(LfxVM* vm, StringTable* table, ObjString* key)
 {
 	//if (table->count + 1 > table->capacity * TABLE_MAX_LOAD) {
 	if ((table->count + 1) > MUL_3_DIV_4((uint64_t)(table->capacity))) {
 		uint32_t capacity = GROW_CAPACITY(table->capacity);
-		adjustStringCapacity(table, capacity);
+		adjustStringCapacity(vm, table, capacity);
 	}
 
 	StringEntry* entry = findStringEntry(table->entries, table->capacity, key);
@@ -111,12 +111,12 @@ StringEntry* tableGetStringEntry(StringTable* table, ObjString* key)
 	}
 }
 
-void tableSet_script(StringTable* table, ObjString* key, uint32_t index)
+void tableSet_script(LfxVM* vm, StringTable* table, ObjString* key, uint32_t index)
 {
 	//if (table->count + 1 > table->capacity * TABLE_MAX_LOAD) {
 	if ((table->count + 1) > MUL_3_DIV_4((uint64_t)(table->capacity))) {
 		uint32_t capacity = GROW_CAPACITY(table->capacity);
-		adjustStringCapacity(table, capacity);
+		adjustStringCapacity(vm, table, capacity);
 	}
 
 	StringEntry* entry = findStringEntry(table->entries, table->capacity, key);

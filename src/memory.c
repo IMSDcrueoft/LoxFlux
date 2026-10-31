@@ -9,9 +9,9 @@
 #include "allocator.h"
 #include "gc.h"
 
-void* reallocate_no_gc(void* pointer, size_t oldSize, size_t newSize)
+void* reallocate_no_gc(LfxVM* vm, void* pointer, size_t oldSize, size_t newSize)
 {
-	vm.bytesAllocated_no_gc += newSize - oldSize;
+	vm->bytesAllocated_no_gc += newSize - oldSize;
 
 	if (newSize == 0) {
 		if (pointer != NULL) {
@@ -38,16 +38,16 @@ void* reallocate_no_gc(void* pointer, size_t oldSize, size_t newSize)
 	return result;
 }
 
-void* reallocate(void* pointer, size_t oldSize, size_t newSize)
+void* reallocate(LfxVM* vm, void* pointer, size_t oldSize, size_t newSize)
 {
-	vm.bytesAllocated += newSize - oldSize;
+	vm->bytesAllocated += newSize - oldSize;
 
 	if (newSize > oldSize) {
 #if DEBUG_STRESS_GC
-		garbageCollect();
+		garbageCollect(vm);
 #endif
-		if (vm.bytesAllocated > vm.nextGC) {
-			garbageCollect();
+		if (vm->bytesAllocated > vm->nextGC) {
+			garbageCollect(vm);
 		}
 	}
 
@@ -76,7 +76,7 @@ void* reallocate(void* pointer, size_t oldSize, size_t newSize)
 	return result;
 }
 
-void freeObject(Obj* object) {
+void freeObject(LfxVM* vm, Obj* object) {
 #if DEBUG_LOG_GC
 	fprintf(stderr, "[gc] %p free (%s)\n", (void*)object, objTypeInfo[object->type]);
 #endif
@@ -84,68 +84,68 @@ void freeObject(Obj* object) {
 	switch (object->type) {
 	case OBJ_CLASS: {
 		ObjClass* klass = (ObjClass*)object;
-		table_free(&klass->methods);
-		FREE(ObjClass, object);
+		table_free(vm, &klass->methods);
+		FREE(vm, ObjClass, object);
 		break;
 	}
 	case OBJ_INSTANCE: {
 		ObjInstance* instance = (ObjInstance*)object;
-		table_free(&instance->fields);
-		FREE(ObjInstance, object);
+		table_free(vm, &instance->fields);
+		FREE(vm, ObjInstance, object);
 		break;
 	}
 	case OBJ_CLOSURE: {
 		ObjClosure* closure = (ObjClosure*)object;
-		FREE_ARRAY(ObjUpvalue*, closure->upvalues, closure->upvalueCount);
+		FREE_ARRAY(vm, ObjUpvalue*, closure->upvalues, closure->upvalueCount);
 
-		FREE(ObjClosure, object);
+		FREE(vm, ObjClosure, object);
 		break;
 	}
 	case OBJ_BOUND_METHOD: {
-		FREE(ObjBoundMethod, object);
+		FREE(vm, ObjBoundMethod, object);
 		break;
 	}
 	case OBJ_FIBER: {
 		ObjFiber* fiber = (ObjFiber*)object;
 
 		//frames are ordinary no-GC heap memory and are always released
-		FREE_ARRAY_NO_GC(CallFrame, fiber->core.frames, fiber->core.frameCapacity);
+		FREE_ARRAY_NO_GC(vm, CallFrame, fiber->core.frames, fiber->core.frameCapacity);
 
-		if (vm.fiberFreeCount < FIBER_CACHE_MAX) {
-			assert(vm.bytesAllocated >= sizeof(ObjFiber));
-			vm.bytesAllocated -= sizeof(ObjFiber);
+		if (vm->fiberFreeCount < LOXFLUX_FIBER_CACHE_MAX) {
+			assert(vm->bytesAllocated >= sizeof(ObjFiber));
+			vm->bytesAllocated -= sizeof(ObjFiber);
 			//reuse the object header as the free-list link
-			OBJ_PTR_SET_NEXT(&fiber->obj, (Obj*)vm.fiberFreeList);
-			vm.fiberFreeList = fiber;
-			vm.fiberFreeCount++;
+			OBJ_PTR_SET_NEXT(&fiber->obj, (Obj*)vm->fiberFreeList);
+			vm->fiberFreeList = fiber;
+			vm->fiberFreeCount++;
 		}
 		else {
 			arenaBump_destroy(&fiber->stackArena);
-			FREE(ObjFiber, fiber);
+			FREE(vm, ObjFiber, fiber);
 		}
 
 		break;
 	}
 	case OBJ_UPVALUE:
-		FREE(ObjUpvalue, object);
+		FREE(vm, ObjUpvalue, object);
 		break;
 	case OBJ_ITERATOR:
-		FREE(ObjIterator, object);
+		FREE(vm, ObjIterator, object);
 		break;
 	case OBJ_FUNCTION: {
 		ObjFunction* function = (ObjFunction*)object;
-		chunk_free(&function->chunk);
+		chunk_free(vm, &function->chunk);
 		//inline cache slots are owned by the object (post-endCompiler size is exactly cacheCount+1;
 		//FAM-sealed scratch objects arrive with caches == NULL, so they skip this)
 		if (function->caches != NULL) {
-			FREE_ARRAY_NO_GC(InlineCacheSlot, function->caches, (uint32_t)function->cacheCount + 1);
+			FREE_ARRAY_NO_GC(vm, InlineCacheSlot, function->caches, (uint32_t)function->cacheCount + 1);
 			function->caches = NULL;
 		}
-		FREE_FLEX_NO_GC(ObjFunction, function, Value, function->constantsCount);
+		FREE_FLEX_NO_GC(vm, ObjFunction, function, LfxValue, function->constantsCount);
 		break;
 	}
 	case OBJ_NATIVE:
-		FREE_NO_GC(ObjNative, object);
+		FREE_NO_GC(vm, ObjNative, object);
 		break;
 	case OBJ_STRING:
 		//strings are arena-allocated (fixed-VA bump, released at vm exit):
@@ -155,21 +155,21 @@ void freeObject(Obj* object) {
 	case OBJ_ARRAY: {
 		//they share the same struct
 		ObjArray* array = (ObjArray*)object;
-		FREE_ARRAY(Value, array->payload, array->capacity);
+		FREE_ARRAY(vm, LfxValue, array->payload, array->capacity);
 #if DEBUG_LOG_GC
-		fprintf(stderr, "[gc] %p free buffer : %zu\n", (void*)array->payload, array->capacity * sizeof(Value));
+		fprintf(stderr, "[gc] %p free buffer : %zu\n", (void*)array->payload, array->capacity * sizeof(LfxValue));
 #endif
-		FREE(ObjArray, object);
+		FREE(vm, ObjArray, object);
 		break;
 	}
 	case OBJ_ARRAY_F64: {
 		//they share the same struct
 		ObjArray* array = (ObjArray*)object;
-		FREE_ARRAY(double, array->payload, array->capacity); //size 8 byte
+		FREE_ARRAY(vm, double, array->payload, array->capacity); //size 8 byte
 #if DEBUG_LOG_GC
 		fprintf(stderr, "[gc] %p free buffer : %zu\n", (void*)array->payload, array->capacity * sizeof(double));
 #endif
-		FREE(ObjArray, object);
+		FREE(vm, ObjArray, object);
 		break;
 	}
 	case OBJ_ARRAY_F32:
@@ -177,22 +177,22 @@ void freeObject(Obj* object) {
 	case OBJ_ARRAY_I32: {
 		//they share the same struct
 		ObjArray* array = (ObjArray*)object;
-		FREE_ARRAY(uint32_t, array->payload, array->capacity); //size 4 byte
+		FREE_ARRAY(vm, uint32_t, array->payload, array->capacity); //size 4 byte
 #if DEBUG_LOG_GC
 		fprintf(stderr, "[gc] %p free buffer : %zu\n", (void*)array->payload, array->capacity * sizeof(uint32_t));
 #endif
-		FREE(ObjArray, object);
+		FREE(vm, ObjArray, object);
 		break;
 	}
 	case OBJ_ARRAY_U16:
 	case OBJ_ARRAY_I16: {
 		//they share the same struct
 		ObjArray* array = (ObjArray*)object;
-		FREE_ARRAY(uint16_t, array->payload, array->capacity); //size 2 byte
+		FREE_ARRAY(vm, uint16_t, array->payload, array->capacity); //size 2 byte
 #if DEBUG_LOG_GC
 		fprintf(stderr, "[gc] %p free buffer : %zu\n", (void*)array->payload, array->capacity * sizeof(uint16_t));
 #endif
-		FREE(ObjArray, object);
+		FREE(vm, ObjArray, object);
 		break;
 	}
 	case OBJ_ARRAY_U8:
@@ -200,75 +200,75 @@ void freeObject(Obj* object) {
 	case OBJ_STRING_BUILDER: {
 		//they share the same struct
 		ObjArray* array = (ObjArray*)object;
-		FREE_ARRAY(uint8_t, array->payload, array->capacity); //size 1 byte
+		FREE_ARRAY(vm, uint8_t, array->payload, array->capacity); //size 1 byte
 #if DEBUG_LOG_GC
 		fprintf(stderr, "[gc] %p free buffer : %zu\n", (void*)array->payload, (size_t)array->capacity);
 #endif
-		FREE(ObjArray, object);
+		FREE(vm, ObjArray, object);
 		break;
 	}
 	}
 }
 
-void freeObjects()
+void freeObjects(LfxVM* vm)
 {
 #if DEBUG_LOG_GC
 	fprintf(stderr, "-- free dynamic objects\n");
 #endif
-	Obj* object = vm.objects;
+	Obj* object = vm->objects;
 	while (object != NULL) {
 		Obj* next = OBJ_PTR_GET_NEXT(object);
-		freeObject(object);
+		freeObject(vm, object);
 		object = next;
 	}
 
 #if DEBUG_LOG_GC
 	fprintf(stderr, "-- free static objects\n");
 #endif
-	Obj* object_no_gc = vm.objects_no_gc;
+	Obj* object_no_gc = vm->objects_no_gc;
 	while (object_no_gc != NULL) {
 		Obj* next = OBJ_PTR_GET_NEXT(object_no_gc);
-		freeObject(object_no_gc);
+		freeObject(vm, object_no_gc);
 		object_no_gc = next;
 	}
 }
 
 //Allocate or recycle the raw ObjFiber storage. This deliberately does not
 //initialize fiber payload state; object.c owns that constructor logic.
-struct ObjFiber* allocFiber()
+struct ObjFiber* allocFiber(LfxVM* vm)
 {
 	ObjFiber* fiber = NULL;
 
-	if (vm.fiberFreeList != NULL) {
+	if (vm->fiberFreeList != NULL) {
 		//cached fibers are linked through the object header; their allocator
 		//memory was removed from GC accounting when they entered the cache
-		fiber = vm.fiberFreeList;
-		vm.fiberFreeList = (ObjFiber*)OBJ_PTR_GET_NEXT((Obj*)fiber);
-		vm.fiberFreeCount--;
+		fiber = vm->fiberFreeList;
+		vm->fiberFreeList = (ObjFiber*)OBJ_PTR_GET_NEXT((Obj*)fiber);
+		vm->fiberFreeCount--;
 
-		vm.bytesAllocated += sizeof(ObjFiber);
+		vm->bytesAllocated += sizeof(ObjFiber);
 
 		//relink the recycled object into the live object list
-		OBJ_PTR_SET_NEXT(&fiber->obj, vm.objects);
-		fiber->obj.isMarked = !vm.gcMark;
-		vm.objects = &fiber->obj;
+		OBJ_PTR_SET_NEXT(&fiber->obj, vm->objects);
+		fiber->obj.isMarked = !vm->gcMark;
+		vm->objects = &fiber->obj;
 	}
 	else {
-		fiber = (ObjFiber*)reallocate(NULL, 0, sizeof(ObjFiber));
+		fiber = (ObjFiber*)reallocate(vm, NULL, 0, sizeof(ObjFiber));
 
 #if DEBUG_LOG_GC
 		fprintf(stderr, "[gc] %p allocate %zu for (%s)\n",
 			(void*)fiber, sizeof(ObjFiber), objTypeInfo[OBJ_FIBER]);
 #endif
 
-		OBJ_PTR_SET_NEXT(&fiber->obj, vm.objects);
+		OBJ_PTR_SET_NEXT(&fiber->obj, vm->objects);
 		fiber->obj.type = OBJ_FIBER;
-		fiber->obj.isMarked = !vm.gcMark;
-		vm.objects = &fiber->obj;
+		fiber->obj.isMarked = !vm->gcMark;
+		vm->objects = &fiber->obj;
 
 		memset(&fiber->stackArena, 0, sizeof(fiber->stackArena));
 
-		if (!arenaBump_init(&fiber->stackArena, STACK_ARENA_SIZE, false, 0, 16 << 10)) {
+		if (!arenaBump_init(&fiber->stackArena, LOXFLUX_STACK_ARENA_SIZE, false, 0, 16 << 10)) {
 			fprintf(stderr, "Failed to reserve the fiber stack arena.\n");
 			exit(1);
 		}
@@ -277,18 +277,18 @@ struct ObjFiber* allocFiber()
 	return fiber;
 }
 
-void freeFiberFreeList()
+void freeFiberFreeList(LfxVM* vm)
 {
-	while (vm.fiberFreeList != NULL) {
-		ObjFiber* fiber = vm.fiberFreeList;
-		vm.fiberFreeList = (ObjFiber*)OBJ_PTR_GET_NEXT((Obj*)fiber);
+	while (vm->fiberFreeList != NULL) {
+		ObjFiber* fiber = vm->fiberFreeList;
+		vm->fiberFreeList = (ObjFiber*)OBJ_PTR_GET_NEXT((Obj*)fiber);
 
 		//cached fibers were already removed from GC accounting when enqueued
 		arenaBump_destroy(&fiber->stackArena);
 		mem_free(fiber);
 	}
 
-	vm.fiberFreeCount = 0;
+	vm->fiberFreeCount = 0;
 }
 
 //format bytes with an auto-scaled unit, mimalloc table style ("64.0 KiB")
@@ -315,20 +315,20 @@ static void formatMemSize(char* buffer, size_t bufferSize, size_t bytes)
 }
 
 COLD_FUNCTION
-void log_malloc_info()
+void log_malloc_info(LfxVM* vm)
 {
 	//the interned strings and the gc gray worklist live in OS VA arenas outside
 	//the allocator, so their bytes never show up in mem_print_stats: report them
 	//in the same table style. Fiber stacks are intentionally not aggregated here.
 	char strCommitted[32];
 	char strReserved[32];
-	formatMemSize(strCommitted, sizeof(strCommitted), vm.stringArena.commitTop);
-	formatMemSize(strReserved, sizeof(strReserved), arenaBump_capacity(&vm.stringArena));
+	formatMemSize(strCommitted, sizeof(strCommitted), vm->stringArena.commitTop);
+	formatMemSize(strReserved, sizeof(strReserved), arenaBump_capacity(&vm->stringArena));
 
 	char grayCommitted[32];
 	char grayReserved[32];
-	formatMemSize(grayCommitted, sizeof(grayCommitted), arenaBump_committed(&vm.grayArena));
-	formatMemSize(grayReserved, sizeof(grayReserved), arenaBump_capacity(&vm.grayArena));
+	formatMemSize(grayCommitted, sizeof(grayCommitted), arenaBump_committed(&vm->grayArena));
+	formatMemSize(grayReserved, sizeof(grayReserved), arenaBump_capacity(&vm->grayArena));
 
 	fprintf(stderr, " gc gray             current\n");
 	fprintf(stderr, "  committed   : %12s\n", grayCommitted);

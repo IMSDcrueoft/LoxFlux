@@ -10,30 +10,31 @@
 #include "object.h"
 #include "nativeBuiltin.h"
 #include "arena_bump.h"
+#include "xoshiro256.h"
 
 //the depth of call frames
-#define FRAMES_INIT 64
-#define FRAMES_MAX 1024
+#define LOXFLUX_FRAMES_INIT 64
+#define LOXFLUX_FRAMES_MAX 1024
 // stack in fiber uses va, avoid syscall too frequently
-#define FIBER_CACHE_MAX 4
+#define LOXFLUX_FIBER_CACHE_MAX 4
 
-_Static_assert(FRAMES_INIT > 0 && FRAMES_INIT <= FRAMES_MAX, "Invalid frame limits.");
-_Static_assert(((FRAMES_MAX / FRAMES_INIT) & ((FRAMES_MAX / FRAMES_INIT) - 1)) == 0, "The frameMax/frameInit ratio must be power of 2.");
+_Static_assert(LOXFLUX_FRAMES_INIT > 0 && LOXFLUX_FRAMES_INIT <= LOXFLUX_FRAMES_MAX, "Invalid frame limits.");
+_Static_assert(((LOXFLUX_FRAMES_MAX / LOXFLUX_FRAMES_INIT) & ((LOXFLUX_FRAMES_MAX / LOXFLUX_FRAMES_INIT) - 1)) == 0, "The frameMax/frameInit ratio must be power of 2.");
 
 //customed vm stack begin size
-//#define STACK_INITIAL_SIZE 4096 //unused since the arena stack: initial footprint is one 64KB commit chunk (= the old 4096 Values)
-#define STACK_MAX_SIZE (FRAMES_MAX * UINT8_COUNT) //the max stack size, if exceed this, we can be sure it's a stack overflow
+//#define LOXFLUX_STACK_INITIAL_SIZE 4096 //unused since the arena stack: initial footprint is one 64KB commit chunk (= the old 4096 Values)
+#define LOXFLUX_STACK_MAX_SIZE (LOXFLUX_FRAMES_MAX * 128ULL) //the max stack size, if exceed this, we can be sure it's a stack overflow
 //vm stack arena: VA reserved once and NEVER moved, so growing the stack never
 //invalidates frame->slots or upvalue->location pointers (no re-fix pass needed);
 //physical memory is committed lazily in ARENA_BUMP_COMMIT_CHUNK steps
-#define STACK_ARENA_SIZE (STACK_MAX_SIZE * sizeof(Value))
+#define LOXFLUX_STACK_ARENA_SIZE (LOXFLUX_STACK_MAX_SIZE * sizeof(LfxValue))
 
 //vm stack arena: same fixed-VA model as the stack arena; 512MiB reservation,
 //committed lazily in 16KB steps (a single oversized string commits more at once)
 #if LOXFLUX_BUILD_64BIT
-#define STRING_ARENA_SIZE ((size_t)512 << 20)
+#define LOXFLUX_STRING_ARENA_SIZE ((size_t)512 << 20)
 #else
-#define STRING_ARENA_SIZE ((size_t)128 << 20)
+#define LOXFLUX_STRING_ARENA_SIZE ((size_t)128 << 20)
 #endif
 
 //gc gray arena: backing storage for the gc gray worklist, same fixed-VA bump
@@ -41,15 +42,23 @@ _Static_assert(((FRAMES_MAX / FRAMES_INIT) & ((FRAMES_MAX / FRAMES_INIT) - 1)) =
 //the reservation never moves (safe for future concurrent tagging). 1GiB on
 //64-bit, 256MiB on 32-bit (UINTPTR_MAX works across MSVC/GCC/Clang)
 #if LOXFLUX_BUILD_64BIT
-#define GRAY_ARENA_SIZE ((size_t)1 << 30)
+#define LOXFLUX_GRAY_ARENA_SIZE ((size_t)1 << 30)
 #else
-#define GRAY_ARENA_SIZE ((size_t)256 << 20)
+#define LOXFLUX_GRAY_ARENA_SIZE ((size_t)256 << 20)
 #endif
 
 typedef struct {
+	//runtime --print-bytecode flag: vm-level setting (set once by main,
+	//survives /reset), read by endCompiler to dump the final bytecode
+	bool printBytecode;
+	//runtime --no-optimize flag: when false, emitOpStack/instructionOptimize,
+	//foldBuiltinMember and emitBranchJump all pass through unoptimized
+	bool optimizationEnabled;
+} LfxOptions;
+
+typedef struct LfxVM {
 	// runtime weak ref cache
 	FiberCore cache;
-
 	//currently executing fiber; owns the real frames/open-upvalue state
 	ObjFiber* currentFiber;
 
@@ -124,7 +133,13 @@ typedef struct {
 	//fixed-base backing storage for the gc gray worklist (VA never moves,
 	//lazy 64KB commits; only touched when the worklist crosses the committed edge)
 	ArenaBumpAllocator grayArena;
-} VM;
+
+	// rng
+	Xoshiro256StarStar rng;
+
+	// per vm options
+	LfxOptions options;
+} LfxVM;
 
 typedef enum {
 	INTERPRET_OK,
@@ -133,24 +148,24 @@ typedef enum {
 	INTERPRET_RUNTIME_ERROR
 } InterpretResult;
 
-//the global shared vm extern to other file
-extern VM vm;
-
-void vm_init();
-void vm_free();
-bool vm_isCeding();
+void vm_init(LfxVM* vm);
+void vm_free(LfxVM* vm);
+bool vm_isCeding(LfxVM* vm);
 // Must be called when switching fibers or performing GC
-void vm_storeCacheToFiber();
-void vm_register_ic_function(ObjFunction* function);
+void vm_storeCacheToFiber(LfxVM* vm);
+void vm_registerIcFunction(LfxVM* vm, ObjFunction* function);
 
-void stack_push(Value value);
-Value stack_pop();
-void stack_replace(Value val);
+void vm_setPrintCodeEnabled(LfxVM* vm, bool isEnabled);
+void vm_setOptimizationEnabled(LfxVM* vm, bool isEnabled);
+
+void stack_push(LfxVM* vm, LfxValue value);
+LfxValue stack_pop(LfxVM* vm);
+void stack_replace(LfxVM* vm, LfxValue val);
 
 //get the size of constants (including the holes)
-uint32_t getConstantSize();
+uint32_t getConstantSize(LfxVM* vm);
 //add a constant and get the index of it,i will handle it later
-uint32_t addConstant(Value value);
+uint32_t addConstant(LfxVM* vm, LfxValue value);
 
 //the vm stack cache, interned strings and the gray worklist live in fixed-VA
 //arenas outside the allocator. The current fiber owns its stack arena; its
@@ -159,19 +174,19 @@ uint32_t addConstant(Value value);
 
 //compile + prepare the top-level frame; on success the VM is ceding and the
 //caller may release the source buffer before calling interpret_execute
-bool interpret_compile(C_STR source);
+bool interpret_compile(LfxVM* vm, C_STR source);
 //run the prepared frame, or continue after INTERPRET_CEDE
-InterpretResult interpret_execute(void);
-InterpretResult interpret_repl(C_STR source);
+InterpretResult interpret_execute(LfxVM* vm);
+InterpretResult interpret_repl(LfxVM* vm, C_STR source);
 
 //for builtin
-void defineNative_math_number(C_STR name, double value);
-void defineNative_math(C_STR name, NativeFn function);
-void defineNative_array(C_STR name, NativeFn function);
-void defineNative_object(C_STR name, NativeFn function);
-void defineNative_string(C_STR name, NativeFn function);
-void defineNative_time(C_STR name, NativeFn function);
-void defineNative_ctor(C_STR name, NativeFn function);
-void defineNative_system(C_STR name, NativeFn function);
+void defineNative_math_number(LfxVM* vm, C_STR name, double value);
+void defineNative_math(LfxVM* vm, C_STR name, LfxNativeFn function);
+void defineNative_array(LfxVM* vm, C_STR name, LfxNativeFn function);
+void defineNative_object(LfxVM* vm, C_STR name, LfxNativeFn function);
+void defineNative_string(LfxVM* vm, C_STR name, LfxNativeFn function);
+void defineNative_time(LfxVM* vm, C_STR name, LfxNativeFn function);
+void defineNative_ctor(LfxVM* vm, C_STR name, LfxNativeFn function);
+void defineNative_system(LfxVM* vm, C_STR name, LfxNativeFn function);
 //for global
-void defineNative_global(C_STR name, NativeFn function);
+void defineNative_global(LfxVM* vm, C_STR name, LfxNativeFn function);

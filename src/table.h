@@ -9,10 +9,10 @@
 
 typedef struct {
 	ObjString* key;
-	Value value;
+	LfxValue value;
 } Entry;
 
-//bit-keyed entry: raw 64-bit Value representation -> constant index
+	//bit-keyed entry: raw 64-bit value representation -> constant index
 //numbers compare by bits (NaN-safe), natives by pointer bits (immortal); keep the two in separate tables
 typedef struct {
 	uint64_t binary;//binary info of the key value
@@ -32,7 +32,9 @@ typedef struct {
 	bool isEternal;	// cannot be freed by gc and no need to mark it
 	bool isPoisoned;// for inline cache
 
+#if LOXFLUX_BUILD_64BIT
 	uint8_t extendPayload[4];
+#endif
 
 	uint32_t count;
 	uint32_t capacity;
@@ -52,17 +54,17 @@ typedef struct {
 } StringTable;
 
 void table_init(Table* table);
-void table_free(Table* table);
+void table_free(LfxVM* vm, Table* table);
 
-bool tableGet(Table* table, ObjString* key, Value* value_out);
+bool tableGet(Table* table, ObjString* key, LfxValue* value_out);
 //single-probe: get value and entry pointer in one probe (for inline cache backfill)
-bool tableGetEntry(Table* table, ObjString* key, Value* value_out, Entry** entry_out);
-bool tableSet(Table* table, ObjString* key, Value value);
+bool tableGetEntry(Table* table, ObjString* key, LfxValue* value_out, Entry** entry_out);
+bool tableSet(LfxVM* vm, Table* table, ObjString* key, LfxValue value);
 bool tableDelete(Table* table, ObjString* key);
-void tableAddAll(Table* from, Table* to);
+void tableAddAll(LfxVM* vm, Table* from, Table* to);
 
 //void tableRemoveWhite(Table* table);
-void markTable(Table* table);
+void markTable(LfxVM* vm, Table* table);
 
 ObjString* tableFindString(StringTable* table, C_STR chars, uint32_t length, uint64_t hash);
 //tableFindString over a not-materialized concat: the target content is
@@ -70,16 +72,20 @@ ObjString* tableFindString(StringTable* table, C_STR chars, uint32_t length, uin
 ObjString* tableFindConcatString(StringTable* table, C_STR charsA, uint32_t lengthA, C_STR charsB, uint32_t lengthB, uint64_t hash);
 
 void stringTable_init(StringTable* table);
-void stringTable_free(StringTable* table);
-bool tableSet_string(StringTable* table, ObjString* key);
+void stringTable_free(LfxVM* vm, StringTable* table);
+bool tableSet_string(LfxVM* vm, StringTable* table, ObjString* key);
 StringEntry* tableGetStringEntry(StringTable* table, ObjString* key);
 
-void tableSet_script(StringTable* table, ObjString* key, uint32_t index);
+void tableSet_script(LfxVM* vm, StringTable* table, ObjString* key, uint32_t index);
 StringEntry* tableGetScriptEntry(StringTable* table, ObjString* key);
 
 void binaryTable_init(BinaryTable* table);
-void binaryTable_free(BinaryTable* table);
-BinaryEntry* tableGetBinaryEntry(BinaryTable* table, Value* value);
+void binaryTable_free(LfxVM* vm, BinaryTable* table);
+bool tableSet_binary(LfxVM* vm, BinaryTable* table, LfxValue* value);
+
+//compile-time owner path for the per-function number pool
+BinaryEntry* tableGetOrInsertBinaryEntry(LfxVM* vm, BinaryTable* table, LfxValue* value);
+BinaryEntry* tableGetBinaryEntry(BinaryTable* table, LfxValue* value);
 
 // returns false if table is empty
 bool tableGetFirstEntryIndex(Table* table, uint32_t* index_out);

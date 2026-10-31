@@ -8,7 +8,6 @@
 #include "vm.h"
 #include "file.h"
 #include "allocator.h"
-#include "compiler.h"
 
 static void print_usage(FILE* stream) {
 	fprintf(stream, "Usage: loxFlux [--print-bytecode] [--no-optimize] [script]\n");
@@ -20,18 +19,24 @@ static void print_usage(FILE* stream) {
 }
 
 static void print_version() {
-	printf("%s %s\n", INTERPRETER_NAME, INTERPRETER_VERSION);
+	printf("%s %s\n", LOXFLUX_INTERPRETER_NAME, LOXFLUX_INTERPRETER_VERSION);
 }
 
+//process-level compiler flags: parsed once, re-applied after every vm_init
+//(vm_init resets the context defaults; /reset must not lose the CLI settings)
+static bool flagPrintBytecode = false;
+static bool flagOptimize = true;
+
 int loxFluxMain(int argc, C_STR argv[]) {
+	LfxVM vm = { 0 };// must clean zero to protect va bump
 	C_STR script = NULL;
 
 	for (int i = 1; i < argc; i++) {
 		if (strcmp(argv[i], "--print-bytecode") == 0) {
-			vm_printBytecode = true;
+			flagPrintBytecode = true;
 		}
 		else if (strcmp(argv[i], "--no-optimize") == 0) {
-			vm_optimizationEnabled = false;
+			flagOptimize = false;
 		}
 		else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
 			print_usage(stdout);
@@ -57,10 +62,10 @@ int loxFluxMain(int argc, C_STR argv[]) {
 	}
 
 	if (script == NULL) {
-		repl();
+		repl(&vm);
 	}
 	else {
-		runFile(script);
+		runFile(&vm, script);
 	}
 	return 0;
 }
@@ -134,10 +139,13 @@ static STR dealWithFilePath(STR line) {
 	return begin;
 }
 
-void repl() {
-	printf("%s %s  Copyright (C) %s, %s\n", INTERPRETER_NAME, INTERPRETER_VERSION, INTERPRETER_COPYRIGHT, INTERPRETER_DEVELOPER);
+void repl(LfxVM* vm) {
+	printf("%s %s  Copyright (C) %s, %s\n", LOXFLUX_INTERPRETER_NAME, LOXFLUX_INTERPRETER_VERSION, LOXFLUX_INTERPRETER_COPYRIGHT, LOXFLUX_INTERPRETER_DEVELOPER);
 
-	vm_init();
+	vm_init(vm);
+	// must set after vm_init
+	vm_setPrintCodeEnabled(vm, flagPrintBytecode);
+	vm_setOptimizationEnabled(vm, flagOptimize);
 
 	//512 chars max per line (+ '\n' + '\0'),matches the documented limit
 	char line[514];
@@ -184,7 +192,7 @@ void repl() {
 					break;
 				}
 				else if (match_string(line, "/mem")) {
-					log_malloc_info();
+					log_malloc_info(vm);
 					continue;
 				}
 				else if (match_string(line, "/help")) {
@@ -196,18 +204,22 @@ void repl() {
 					continue;
 				}
 				else if (match_string(line, "/reset")) {
-					size_t reclaimed = vm.bytesAllocated + vm.bytesAllocated_no_gc;
+					size_t reclaimed = vm->bytesAllocated + vm->bytesAllocated_no_gc;
 					//full teardown + fresh state: used by the REPL /reset command
 					//vm_free runs the DEBUG leak-accounting check, so every /reset doubles as a health check
-					vm_free();
-					vm_init();
+					vm_free(vm);
+					vm_init(vm);
+					// must set after vm_init
+					vm_setPrintCodeEnabled(vm, flagPrintBytecode);
+					vm_setOptimizationEnabled(vm, flagOptimize);
+
 					printf("vm reset: reclaimed %.1f KiB\n", (double)reclaimed / 1024.0);
 					continue;
 				}
 				else if (startsWith_string(line, "/eval ")) {
 					STR path = dealWithFilePath(line + 6);
 					STR source = readFile(path);
-					interpret_repl(source);
+					interpret_repl(vm, source);
 					mem_free(source);
 					continue;
 				}
@@ -236,7 +248,7 @@ void repl() {
 			fprintf(stderr, "CODE TEXT:\n%s\n", fullLine);
 #endif
 
-			interpret_repl(fullLine);
+			interpret_repl(vm, fullLine);
 			fullLine[0] = '\0';
 			fullLineLength = 0;
 		}
@@ -244,27 +256,30 @@ void repl() {
 
 	mem_free(fullLine);
 
-	vm_free();
+	vm_free(vm);
 
 #if LOG_MALLOC_INFO
 	//final stats only: release delayed-free blocks so mimalloc's "current"
 	//counters do not look like a leak after a complete teardown
 	mem_collect(true);
-	log_malloc_info();
+	log_malloc_info(vm);
 #endif
 #undef match_string
 }
 
-void runFile(C_STR path) {
-	vm_init();
+void runFile(LfxVM* vm, C_STR path) {
+	vm_init(vm);
+	// must set after vm_init
+	vm_setPrintCodeEnabled(vm, flagPrintBytecode);
+	vm_setOptimizationEnabled(vm, flagOptimize);
 
 	STR source = readFile(path);
-	bool ok = interpret_compile(source);
+	bool ok = interpret_compile(vm, source);
 	mem_free(source);
 
 	if (!ok) exit(65);
 
-	InterpretResult result = interpret_execute();
+	InterpretResult result = interpret_execute(vm);
 
 	if (result == INTERPRET_CEDE) {
 		fprintf(stderr, "[Cede] execution ceded; no resumer available.\n");
@@ -276,12 +291,12 @@ void runFile(C_STR path) {
 		exit(70);
 	}
 
-	vm_free();
+	vm_free(vm);
 
 #if LOG_MALLOC_INFO
 	//final stats only: release delayed-free blocks so mimalloc's "current"
 	//counters do not look like a leak after a complete teardown
 	mem_collect(true);
-	log_malloc_info();
+	log_malloc_info(vm);
 #endif
 }
