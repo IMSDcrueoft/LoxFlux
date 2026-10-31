@@ -692,7 +692,7 @@ static ObjFunction* endCompiler(CompilerContext* cc) {
 
 #if DEBUG_PRINT_CODE
 	if (!cc->parser.hadError) {
-		disassembleChunk(function, (function->name != NULL)
+		disassembleChunk(cc->vm, function, (function->name != NULL)
 			? ((function->name->length != 0) ? function->name->chars : "<lambda>") : "<script>", function->id);
 	}
 #else
@@ -700,7 +700,7 @@ static ObjFunction* endCompiler(CompilerContext* cc) {
 	//script's own stdout stays clean and pipeable
 	if (cc->printBytecode && !cc->parser.hadError) {
 		debug_setDisasmStream(stderr);
-		disassembleChunk(function, (function->name != NULL)
+		disassembleChunk(cc->vm, function, (function->name != NULL)
 			? ((function->name->length != 0) ? function->name->chars : "<lambda>") : "<script>", function->id);
 		debug_setDisasmStream(NULL);
 	}

@@ -28,6 +28,7 @@ static bool flagPrintBytecode = false;
 static bool flagOptimize = true;
 
 int loxFluxMain(int argc, C_STR argv[]) {
+	LfxVM vm = { 0 };// must clean zero to protect va bump
 	C_STR script = NULL;
 
 	for (int i = 1; i < argc; i++) {

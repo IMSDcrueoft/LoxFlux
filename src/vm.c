@@ -24,9 +24,6 @@
 #pragma warning(disable : 4102)//unreferenced local label
 #endif
 
-//the global shared vm
-LfxVM vm;
-
 static void closeUpvalues(LfxVM* vm, LfxValue* last);
 
 COLD_FUNCTION
@@ -1429,7 +1426,7 @@ static InterpretResult run(LfxVM* vm)
 		traceFrameStack(vm, stderr, frame);
 
 		//current ptr - begin ptr = offset value
-		disassembleInstruction(frame->closure->function, (uint32_t)(ip - frame->closure->function->chunk.code));
+		disassembleInstruction(vm, frame->closure->function, (uint32_t)(ip - frame->closure->function->chunk.code));
 #endif // DEBUG_TRACE_EXECUTION
 
 		uint8_t instruction = READ_BYTE();

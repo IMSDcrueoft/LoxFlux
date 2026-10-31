@@ -148,9 +148,6 @@ typedef enum {
 	INTERPRET_RUNTIME_ERROR
 } InterpretResult;
 
-//the global shared vm extern to other file
-extern LfxVM vm;
-
 void vm_init(LfxVM* vm);
 void vm_free(LfxVM* vm);
 bool vm_isCeding(LfxVM* vm);
