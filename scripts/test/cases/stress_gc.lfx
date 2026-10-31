@@ -1,0 +1,73 @@
+// allocator stress under forced GC: closure/upvalue survivors, linked object
+// graph, churn-to-zero leak checks (exact allocatedBytes comparison), and a
+// small auto-GC threshold to fire collections mid-loop
+// exit: 0
+// out: 10000
+// out: 499500
+// out: true
+// out: 12497500
+class Node {
+	init(v) {
+		this.v = v;
+		this.next = nil;
+	}
+}
+
+//S1: closures + upvalues survive a forced GC
+fun makeAdder(n) {
+	fun adder() { return n * 2 + 1; }
+	return adder;
+}
+var fns = [];
+for (var i = 0; i < 100; i = i + 1) {
+	@array.push(fns, makeAdder(i));
+}
+@sys.gcRun();
+var sum = 0;
+for (var i = 0; i < 100; i = i + 1) {
+	sum = sum + fns[i]();
+}
+print sum;
+
+//S2: survivor object graph stays intact across a forced GC
+fun buildChain(len) {
+	var head = Node(0);
+	var cur = head;
+	for (var i = 1; i < len; i = i + 1) {
+		cur.next = Node(i);
+		cur = cur.next;
+	}
+	return head;
+}
+var chain = buildChain(1000);
+@sys.gcRun();
+var s = 0;
+var cur = chain;
+while (cur != nil) {
+	s = s + cur.v;
+	cur = cur.next;
+}
+print s;
+
+//S3: churn-to-zero: dead objects must reclaim to the exact baseline
+//(a retained junk object or unbalanced free shows up as base != after)
+@sys.gcRun();
+var base = @sys.allocatedBytes();
+for (var round = 0; round < 2; round = round + 1) {
+	for (var i = 0; i < 2000; i = i + 1) {
+		var junk = Node(i);
+		junk.next = Node(i);
+	}
+	@sys.gcRun();
+}
+print base == @sys.allocatedBytes();
+
+//S4: tiny auto-GC threshold so collections fire inside the hot loop
+@sys.gcNext(65536);
+var acc = 0;
+for (var i = 0; i < 5000; i = i + 1) {
+	var t = Node(i);
+	acc = acc + t.v;
+}
+@sys.gcNext(1073741824);
+print acc;

@@ -1,0 +1,38 @@
+// inline caches across forced GC cycles: invoke + super-invoke slots are weak
+// references (gc_clear_dead_ic_slots), so dead pairs must never alias reused
+// memory and live sites must re-backfill correctly after being cleared
+// exit: 0
+// out: 7
+// out: 9
+// out: 7
+// out: 7
+// out: 11
+// out: 7
+
+//S1: invoke IC guard miss + re-backfill around a forced GC
+class P1 { id() { return 7; } }
+class P2 { id() { return 9; } }
+fun callId(o) { return o.id(); }
+print callId(P1());
+@sys.gcRun();
+print callId(P2());
+print callId(P1());
+
+//S2: super invoke IC: one compiled site, polymorphic superclasses via a
+//rebound global, with a forced GC between uses (slot pairs may be cleared,
+//the fast path must stay correct after re-backfill)
+var B1 = P1;
+class B2 { id() { return 11; } }
+fun makeSub() {
+	class Sub < B1 {
+		id() { return super.id(); }
+	}
+	return Sub;
+}
+var S1 = makeSub();
+B1 = B2;
+var S2 = makeSub();
+print S1().id();
+@sys.gcRun();
+print S2().id();
+print S1().id();

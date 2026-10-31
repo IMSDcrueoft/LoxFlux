@@ -1,0 +1,10 @@
+// calling an undefined super method fails at the super invoke site (slow path)
+// exit: 70
+// err: Undefined property
+class A {
+	greet() { return "A.greet"; }
+}
+class B < A {
+	run() { return super.missing(); }
+}
+B().run();
