@@ -754,16 +754,6 @@ static bool callValue(LfxVM* vm, LfxValue callee, int argCount) {
 	return false;
 }
 
-HOT_FUNCTION
-static inline bool invokeFromClass(LfxVM* vm, ObjClass* klass, ObjString* name, int argCount) {
-	LfxValue method;
-	if (!tableGet(&klass->methods, name, &method)) {
-		runtimeError(vm, "Undefined property '%s'.", name->chars);
-		return false;
-	}
-	return call(vm, AS_CLOSURE(method), argCount);
-}
-
 //HOT_FUNCTION
 //static inline bool invoke(ObjString* name, int argCount) {
 //	LfxValue receiver = STACK_PEEK(argCount);
@@ -779,7 +769,7 @@ static inline bool invokeFromClass(LfxVM* vm, ObjClass* klass, ObjString* name, 
 //		return callValue(vm, value, argCount);
 //	}
 //
-//	return invokeFromClass(vm, instance->klass, name, argCount);
+//	return icInvokeSlow(vm, instance, name, argCount, 0, NULL);
 //}
 
 HOT_FUNCTION
@@ -1150,6 +1140,24 @@ static bool icInvokeSlow(LfxVM* vm, ObjInstance* instance, ObjString* method, ui
 	//backfill cache
 	if (slot != 0) {
 		icCache[slot].extraA = instance->klass;
+		icCache[slot].extraB = AS_CLOSURE(methodValue);
+	}
+	return call(vm, AS_CLOSURE(methodValue), argCount);
+}
+
+//super invoke slow path: lookup in superclass->methods, backfill [superclass, closure] pair
+//returns true if a callee was entered,false if a runtime error was reported
+COLD_FUNCTION
+NOINLINE_FUNCTION
+static bool icSuperInvokeSlow(LfxVM* vm, ObjClass* superclass, ObjString* method, uint8_t argCount, uint8_t slot, InlineCacheSlot* icCache) {
+	LfxValue methodValue;
+	if (!tableGet(&superclass->methods, method, &methodValue)) {
+		runtimeError(vm, "Undefined property '%s'.", method->chars);
+		return false;
+	}
+	//backfill cache
+	if (slot != 0) {
+		icCache[slot].extraA = superclass;
 		icCache[slot].extraB = AS_CLOSURE(methodValue);
 	}
 	return call(vm, AS_CLOSURE(methodValue), argCount);
@@ -2356,13 +2364,28 @@ static InterpretResult run(LfxVM* vm)
 		}
 		case OP_SUPER_INVOKE: {
 		label_op_super_invoke:
-			LfxValue constant = READ_CONSTANT(READ_24bits());
-			ObjString* method = AS_STRING(constant);
+			uint32_t constIndex = READ_24bits();
 			uint8_t argCount = READ_BYTE();
+			uint8_t slot = READ_BYTE();
+			InlineCacheSlot* icCache = frame->caches;
 
 			ObjClass* superclass = AS_CLASS(stack_pop(vm));
 			frame->ip = ip;//change before call
-			if (!invokeFromClass(vm, superclass, method, argCount)) {
+
+			//inline cache: [superclass, closure] pointer pair; superclass pointer identity is the guard
+			//(methods tables are immutable once instances can exist, so the cached closure is stable;
+			//re-declaring a class creates a new ObjClass, invalidating stale pairs. super lookup never
+			//consults instance fields, so no poison check applies)
+			if ((ObjClass*)icCache[slot].extraA == superclass) {
+				if (!call(vm, (ObjClosure*)icCache[slot].extraB, argCount)) {
+					return INTERPRET_RUNTIME_ERROR;
+				}
+				UPDATE_FRAME();
+				NEXT_INSTRUCTION;
+			}
+
+			LfxValue constant = READ_CONSTANT(constIndex);
+			if (!icSuperInvokeSlow(vm, superclass, AS_STRING(constant), argCount, slot, icCache)) {
 				return INTERPRET_RUNTIME_ERROR;
 			}
 			UPDATE_FRAME();

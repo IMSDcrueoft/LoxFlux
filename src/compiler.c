@@ -2334,7 +2334,7 @@ static void super_(CompilerContext* cc, bool canAssign) {
 		uint8_t argCount = argumentList(cc);
 		namedVariable(cc, syntheticToken("super"), false);
 		emitConstantCommond(cc, OP_SUPER_INVOKE, name);//super call
-		emitByte(cc, argCount);
+		emitBytes(cc, 2, argCount, emitCacheSlot(cc));
 	}
 	else {
 		namedVariable(cc, syntheticToken("super"), false);//load class

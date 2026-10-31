@@ -23,7 +23,7 @@ _Static_assert(((LOXFLUX_FRAMES_MAX / LOXFLUX_FRAMES_INIT) & ((LOXFLUX_FRAMES_MA
 
 //customed vm stack begin size
 //#define LOXFLUX_STACK_INITIAL_SIZE 4096 //unused since the arena stack: initial footprint is one 64KB commit chunk (= the old 4096 Values)
-#define LOXFLUX_STACK_MAX_SIZE (LOXFLUX_FRAMES_MAX * UINT8_COUNT) //the max stack size, if exceed this, we can be sure it's a stack overflow
+#define LOXFLUX_STACK_MAX_SIZE (LOXFLUX_FRAMES_MAX * 128ULL) //the max stack size, if exceed this, we can be sure it's a stack overflow
 //vm stack arena: VA reserved once and NEVER moved, so growing the stack never
 //invalidates frame->slots or upvalue->location pointers (no re-fix pass needed);
 //physical memory is committed lazily in ARENA_BUMP_COMMIT_CHUNK steps

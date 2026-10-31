@@ -48,7 +48,7 @@ typedef enum {
 	OP_BITWISE,			//& | ~ ^ << >> >>>
 	OP_CALL,			// callFn
 	OP_INVOKE,			// call with xxx.()
-	OP_SUPER_INVOKE,	// call with super.()
+	OP_SUPER_INVOKE,	// call with super.(), 1 + 3 + 1 + 1 byte, name u24 + argCount + ic slot
 	OP_RETURN,          // ret
 
 	OP_GET_PROPERTY,	// get property
