@@ -691,8 +691,11 @@ static bool call(LfxVM* vm, ObjClosure* closure, int argCount) {
 	//-1 is for function itself
 	frame->slots = vm->cache.stackTop - argCount - 1;
 	//frame->slotsOffset = (ptrdiff_t)(frame->slots - vm->cache.stack); //unused since the arena stack (fixed base)
+
+#if LOXFLUX_SPILL_DATA_TO_FRAME
 	frame->caches = closure->function->caches;
 	frame->constants = closure->function->constants;
+#endif
 
 	// clear extra args
 	//if (argCount > closure->function->arity) {
@@ -1189,11 +1192,26 @@ static InterpretResult run(LfxVM* vm)
 	register CallFrame* frame = &vm->cache.frames[vm->cache.frameCount - 1];
 	register uint8_t* ip = frame->ip;
 
+#if !LOXFLUX_SPILL_DATA_TO_FRAME
+	register InlineCacheSlot* icCache = frame->closure->function->caches;
+	register LfxValue* constants = frame->closure->function->constants;
+#endif // !LOXFLUX_SPILL_DATA_TO_FRAME
+
+#if LOXFLUX_SPILL_DATA_TO_FRAME
 #define UPDATE_FRAME()	\
 	do {				\
 		frame = &vm->cache.frames[vm->cache.frameCount - 1];\
 		ip = frame->ip; \
 	} while (false)
+#else
+#define UPDATE_FRAME()	\
+	do {				\
+		frame = &vm->cache.frames[vm->cache.frameCount - 1];\
+		ip = frame->ip; \
+		icCache = frame->closure->function->caches;\
+		constants = frame->closure->function->constants;\
+	} while (false)
+#endif
 
 #if COMPUTE_GOTO
 	static void* label_instructions[] = {
@@ -1326,7 +1344,11 @@ static InterpretResult run(LfxVM* vm)
 #define READ_CONSTANT(index) (vm->constants.values[(index)])
 	//constants in function's own table (number),16bits index
 	//cached as a run(vm) local next to frame/ip,refreshed at every frame switch
+#if LOXFLUX_SPILL_DATA_TO_FRAME
 #define READ_LOCAL_CONSTANT(index) (frame->constants[(index)])
+#else
+#define READ_LOCAL_CONSTANT(index) (constants[(index)])
+#endif
 
 	// push(pop() op pop())
 #define BINARY_OP(valueType,op)																		\
@@ -1532,8 +1554,11 @@ static InterpretResult run(LfxVM* vm)
 			LfxValue constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			uint8_t slot = READ_BYTE();
+
+#if LOXFLUX_SPILL_DATA_TO_FRAME
 			//icCache derived per handler,not a run(vm)-wide local,to keep the dispatch loop's live ranges small
 			InlineCacheSlot* icCache = frame->caches;
+#endif
 
 			//inline cache: validate [capacity, entry index] against the live table
 			//slot 0 = sentinel slot {0,0}: real table capacity is never 0 → miss; idx bound check guards capacity==0 tables
@@ -1561,7 +1586,11 @@ static InterpretResult run(LfxVM* vm)
 			LfxValue constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			uint8_t slot = READ_BYTE();
+
+#if LOXFLUX_SPILL_DATA_TO_FRAME
+			//icCache derived per handler,not a run(vm)-wide local,to keep the dispatch loop's live ranges small
 			InlineCacheSlot* icCache = frame->caches;
+#endif
 
 			//inline cache: direct write only for existing entries with non-nil value (nil means delete)
 			//frozen fields fall through to the slow path, which rejects the write
@@ -1593,7 +1622,11 @@ static InterpretResult run(LfxVM* vm)
 			LfxValue constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			uint8_t slot = READ_BYTE();
+
+#if LOXFLUX_SPILL_DATA_TO_FRAME
+			//icCache derived per handler,not a run(vm)-wide local,to keep the dispatch loop's live ranges small
 			InlineCacheSlot* icCache = frame->caches;
+#endif
 
 			//inline cache: direct write only for existing entries with non-nil value (nil means delete)
 			//frozen fields fall through to the slow path, which rejects the write
@@ -1627,8 +1660,12 @@ static InterpretResult run(LfxVM* vm)
 			LfxValue constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			uint8_t slot = READ_BYTE();
+
+			//icCache derived per handler,not a run(vm)-wide local,to keep the dispatch loop's live ranges small
+#if LOXFLUX_SPILL_DATA_TO_FRAME
 			//icCache derived per handler,not a run(vm)-wide local,to keep the dispatch loop's live ranges small
 			InlineCacheSlot* icCache = frame->caches;
+#endif
 
 			//inline cache: validate [capacity, entry index] against the live table
 			//slot 0 = sentinel slot {0,0}: real table capacity is never 0 → miss; idx bound check guards capacity==0 tables
@@ -1663,7 +1700,11 @@ static InterpretResult run(LfxVM* vm)
 			LfxValue constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			uint8_t slot = READ_BYTE();
+
+#if LOXFLUX_SPILL_DATA_TO_FRAME
+			//icCache derived per handler,not a run(vm)-wide local,to keep the dispatch loop's live ranges small
 			InlineCacheSlot* icCache = frame->caches;
+#endif
 
 			//inline cache: direct write only for existing entries with non-nil value (nil means delete)
 			//frozen fields fall through to the slow path, which rejects the write
@@ -1694,7 +1735,11 @@ static InterpretResult run(LfxVM* vm)
 			LfxValue constant = READ_CONSTANT(READ_24bits());
 			ObjString* name = AS_STRING(constant);
 			uint8_t slot = READ_BYTE();
+
+#if LOXFLUX_SPILL_DATA_TO_FRAME
+			//icCache derived per handler,not a run(vm)-wide local,to keep the dispatch loop's live ranges small
 			InlineCacheSlot* icCache = frame->caches;
+#endif
 
 			//inline cache: direct write only for existing entries with non-nil value (nil means delete)
 			//frozen fields fall through to the slow path, which rejects the write
@@ -2332,7 +2377,11 @@ static InterpretResult run(LfxVM* vm)
 			uint32_t constIndex = READ_24bits();
 			uint8_t argCount = READ_BYTE();
 			uint8_t slot = READ_BYTE();
+
+#if LOXFLUX_SPILL_DATA_TO_FRAME
+			//icCache derived per handler,not a run(vm)-wide local,to keep the dispatch loop's live ranges small
 			InlineCacheSlot* icCache = frame->caches;
+#endif
 
 			LfxValue receiver = STACK_PEEK(argCount);
 			if (!IS_INSTANCE(receiver)) {
@@ -2371,7 +2420,11 @@ static InterpretResult run(LfxVM* vm)
 			uint32_t constIndex = READ_24bits();
 			uint8_t argCount = READ_BYTE();
 			uint8_t slot = READ_BYTE();
+
+#if LOXFLUX_SPILL_DATA_TO_FRAME
+			//icCache derived per handler,not a run(vm)-wide local,to keep the dispatch loop's live ranges small
 			InlineCacheSlot* icCache = frame->caches;
+#endif
 
 			ObjClass* superclass = AS_CLASS(stack_pop(vm));
 			frame->ip = ip;//change before call

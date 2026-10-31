@@ -21,6 +21,11 @@
 #undef LOXFLUX_COMPRESS_OBJ_HEADER
 #endif
 
+// used to avoid register spill(x86 amd64)
+#ifndef LOXFLUX_SPILL_DATA_TO_FRAME
+#define LOXFLUX_SPILL_DATA_TO_FRAME 1
+#endif // !LOXFLUX_SPILL_DATA_TO_FRAME
+
 typedef enum {
 	//objects that don't gc
 	OBJ_STRING,
@@ -244,9 +249,10 @@ typedef struct {
 	LfxValue* slots; //first available slot
 	//ptrdiff_t slotsOffset;// offset of the first slot in the vm stack, not a ptr, so that we can realloc the stack when needed
 	
-	// used to avoid register spill(x86 amd64)
+#if LOXFLUX_SPILL_DATA_TO_FRAME
 	InlineCacheSlot* caches;// IC slots of frame->closure->function, resolved once per call to avoid per-op deref chains
 	LfxValue* constants;//cached constants base of the current function,refreshed at every frame switch
+#endif
 
 	uint8_t* ip; 
 } CallFrame;
