@@ -1,5 +1,5 @@
 # LoxFlux
-![Version](https://img.shields.io/badge/version-0.12.1-blue)
+![Version](https://img.shields.io/badge/version-0.13.0-blue)
 
 LoxFlux is an independent reimplementation of the cLox interpreter described in "Crafting Interpreters"—a stack-based bytecode virtual machine. All code is written from scratch, following the book’s design principles. This project is still actively being developed and improved.
 
@@ -427,6 +427,14 @@ The VM's two hottest regions — the value stack and the interned string pool �
 - **Value stack**: growth is a page commit instead of a realloc — no copy, and no re-fixing of `frame->slots` or open-upvalue pointers, which a movable heap stack would need on every growth. Exhausting the arena is a clean `Stack overflow.` runtime error.
 - **Interned strings**: every string is interned into a single pool and lives until the VM exits, so the lifecycle is exactly "append while running, release wholesale at exit" — the shape a bump allocator is made for. Allocation is a pointer bump (no per-object allocator bookkeeping, no individual free path), interned strings end up physically contiguous, and the dedup probes that hash and compare candidate strings benefit from that locality.
 - The arenas sit outside the allocator's accounting books by design; `@sys.pinnedBytes` folds the interned-string usage back in, and the REPL `/mem` command reports each arena's committed bytes.
+
+---
+
+### Multi-instance VM (Embedding)
+
+All interpreter state lives inside the `LfxVM` structure (`src/vm.h`) — there is no global VM state. The host owns the instance, so several fully isolated interpreters can coexist in one process (each with its own pools, globals, GC accounting, arenas and RNG).
+
+Lifecycle: zero the `LfxVM` instance, then drive it with `vm_init` / `interpret_compile` / `interpret_execute` / `vm_free`, looping on the returned `InterpretResult` (resume while it is `INTERPRET_CEDE`). 
 
 ## Licenses
 The project **loxFlux** is based on `MIT` and uses three third-party projects.
