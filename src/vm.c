@@ -2320,8 +2320,7 @@ static InterpretResult run(LfxVM* vm)
 		}
 		case OP_INVOKE: {
 		label_op_invoke:
-			LfxValue constant = READ_CONSTANT(READ_24bits());
-			ObjString* method = AS_STRING(constant);
+			uint32_t constIndex = READ_24bits();
 			uint8_t argCount = READ_BYTE();
 			uint8_t slot = READ_BYTE();
 			InlineCacheSlot* icCache = frame->caches;
@@ -2346,6 +2345,9 @@ static InterpretResult run(LfxVM* vm)
 					NEXT_INSTRUCTION;
 				}
 			}
+
+			LfxValue constant = READ_CONSTANT(constIndex);
+			ObjString* method = AS_STRING(constant);
 
 			frame->ip = ip;//change before call
 			if (!icInvokeSlow(vm, instance, method, argCount, slot, icCache)) {

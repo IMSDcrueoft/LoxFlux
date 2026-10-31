@@ -240,13 +240,15 @@ typedef struct {
 //benchmarks before trusting hot-loop numbers
 typedef struct {
 	ObjClosure* closure;
-	uint8_t* ip;
+
 	LfxValue* slots; //first available slot
 	//ptrdiff_t slotsOffset;// offset of the first slot in the vm stack, not a ptr, so that we can realloc the stack when needed
 	
 	// used to avoid register spill(x86 amd64)
 	InlineCacheSlot* caches;// IC slots of frame->closure->function, resolved once per call to avoid per-op deref chains
 	LfxValue* constants;//cached constants base of the current function,refreshed at every frame switch
+
+	uint8_t* ip; 
 } CallFrame;
 
 // status of fiber
