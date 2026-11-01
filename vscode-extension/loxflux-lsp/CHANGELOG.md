@@ -6,6 +6,10 @@ All notable changes to the LoxFlux Language Server extension will be documented 
 
 - Add LSP support for the `cede` keyword: lexing, parsing, diagnostics, keyword hover and completion.
 
+## [0.1.6]
+
+- Parse `print expr, expr, expr;` with multiple comma-separated expressions, matching the interpreter; diagnostics now cover every printed expression.
+
 ## [0.1.3]
 
 - Update the `@string` builtin member name from `length` to `byteLen`.

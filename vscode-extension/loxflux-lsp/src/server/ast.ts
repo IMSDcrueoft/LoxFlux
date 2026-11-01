@@ -165,7 +165,7 @@ export type Stmt =
 export interface PrintStmt extends Node {
 	kind: 'Print';
 	printToken: Token;
-	expression: Expr;
+	expressions: Expr[];
 }
 
 export interface ExprStmt extends Node {

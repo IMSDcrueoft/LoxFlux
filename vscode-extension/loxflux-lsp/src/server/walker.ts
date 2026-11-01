@@ -95,7 +95,9 @@ function walkStmt(stmt: Stmt, ctx: WalkContext, handlers: WalkHandlers): void {
 			}
 			break;
 		case 'Print':
-			walkExpr(stmt.expression, ctx, handlers);
+			for (const e of stmt.expressions) {
+				walkExpr(e, ctx, handlers);
+			}
 			break;
 		case 'ExprStmt':
 			walkExpr(stmt.expression, ctx, handlers);
