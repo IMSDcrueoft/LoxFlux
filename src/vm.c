@@ -853,7 +853,7 @@ static uint8_t* bitInstruction(LfxVM* vm, uint8_t bitOpType, uint8_t* ip) {
 #define READ_BYTE() (*(ip)++)
 #define READ_WORD() (ip += 4, (uint32_t)((ip[-4]) | ((uint32_t)ip[-3] << 8) | ((uint32_t)ip[-2] << 16) | ((uint32_t)ip[-1] << 24)))
 
-#define BINARAY_OP_BIT(op)																			\
+#define BINARY_OP_BIT(op)																			\
     do {																							\
 		/* both operands must be numbers */													\
 		if (IS_NUMBER(vm->cache.stackTop[-2]) && IS_NUMBER(vm->cache.stackTop[-1])) {								\
@@ -866,7 +866,7 @@ static uint8_t* bitInstruction(LfxVM* vm, uint8_t bitOpType, uint8_t* ip) {
 		}																							\
 	} while (false)
 
-#define BINARAY_OP_BIT_IMM(op)																\
+#define BINARY_OP_BIT_IMM(op)																\
     do {																					\
 		/* both operands must be numbers */											\
 		if (IS_NUMBER(vm->cache.stackTop[-1])) {													\
@@ -912,17 +912,17 @@ static uint8_t* bitInstruction(LfxVM* vm, uint8_t bitOpType, uint8_t* ip) {
 	}
 	case BIT_OP_AND: {
 	label_bit_and:
-		BINARAY_OP_BIT(&);
+		BINARY_OP_BIT(&);
 		break;
 	}
 	case BIT_OP_OR: {
 	label_bit_or:
-		BINARAY_OP_BIT(| );
+		BINARY_OP_BIT(| );
 		break;
 	}
 	case BIT_OP_XOR: {
 	label_bit_xor:
-		BINARAY_OP_BIT(^);
+		BINARY_OP_BIT(^);
 		break;
 	}
 
@@ -979,17 +979,17 @@ static uint8_t* bitInstruction(LfxVM* vm, uint8_t bitOpType, uint8_t* ip) {
 	}
 	case BIT_OP_ANDI: {
 	label_bit_andi:
-		BINARAY_OP_BIT_IMM(&);
+		BINARY_OP_BIT_IMM(&);
 		break;
 	}
 	case BIT_OP_ORI: {
 	label_bit_ori:
-		BINARAY_OP_BIT_IMM(| );
+		BINARY_OP_BIT_IMM(| );
 		break;
 	}
 	case BIT_OP_XORI: {
 	label_bit_xori:
-		BINARAY_OP_BIT_IMM(^);
+		BINARY_OP_BIT_IMM(^);
 		break;
 	}
 	case BIT_OP_SHLI: {
@@ -1025,8 +1025,8 @@ static uint8_t* bitInstruction(LfxVM* vm, uint8_t bitOpType, uint8_t* ip) {
 	}
 	}
 	return NULL;
-#undef BINARAY_OP_BIT
-#undef BINARAY_OP_BIT_IMM
+#undef BINARY_OP_BIT
+#undef BINARY_OP_BIT_IMM
 #undef READ_BYTE
 #undef READ_WORD
 }
@@ -1364,59 +1364,99 @@ static InterpretResult run(LfxVM* vm)
 #define READ_LOCAL_CONSTANT(index) (constants[(index)])
 #endif
 
-	// push(pop() op pop())
-#define BINARY_OP(valueType,op)																		\
-    do {																							\
-		/* both operands must be numbers */													\
-		if (IS_NUMBER(vm->cache.stackTop[-2]) && IS_NUMBER(vm->cache.stackTop[-1])) {								\
-			/* compute the result in place */									\
-			vm->cache.stackTop[-2] = valueType(AS_NUMBER(vm->cache.stackTop[-2]) op AS_NUMBER(vm->cache.stackTop[-1]));	\
-			vm->cache.stackTop--;																			\
-		} else {														                            \
-			RUNTIME_ERROR("Operands must be numbers.");										\
-		}																							\
+//we need continue/break when debug trace
+#if !COMPUTE_GOTO || DEBUG_TRACE_EXECUTION
+#define NEXT_INSTRUCTION continue
+#else //direct threading code
+#define NEXT_INSTRUCTION goto *label_instructions[READ_BYTE()]
+#endif									
+
+//error inside run(vm): sync the top frame's ip for the stack trace, then raise.
+//error paths are cold, so this store costs nothing and keeps `ip` free of any
+//stack escape (register-resident across the whole dispatch loop)
+#define RUNTIME_ERROR(...)						\
+	do {										\
+		frame->ip = ip;							\
+		runtimeError(vm, __VA_ARGS__);				\
+		return INTERPRET_RUNTIME_ERROR;			\
 	} while (false)
 
-#define BINARY_OP_WITH_RIGHT(valueType,right,op)											\
-    do {																					\
-		/* both operands must be numbers */											\
-		if (IS_NUMBER(vm->cache.stackTop[-1]) && IS_NUMBER(right)) {								\
-			/* compute the result in place */							\
-			vm->cache.stackTop[-1] = valueType(AS_NUMBER(vm->cache.stackTop[-1]) op AS_NUMBER(right));	\
-		} else {																			\
-			RUNTIME_ERROR("Operands must be numbers.");										\
-		}																					\
-	} while (false)
+	// push(pop() op pop())
+	//statement macro on purpose (no do-while wrapper): NEXT_INSTRUCTION expands
+	//to `continue` under switch dispatch and must bind to the interpreter loop,
+	//not to a macro-local do-while (which would fall through to the next case)
+#define BINARY_OP(op)																			\
+	/* both operands must be numbers */														\
+	if (IS_NUMBER(vm->cache.stackTop[-2]) && IS_NUMBER(vm->cache.stackTop[-1])) {						\
+		/* compute the result in place */																\
+		vm->cache.stackTop[-2] = NUMBER_VAL(AS_NUMBER(vm->cache.stackTop[-2]) op AS_NUMBER(vm->cache.stackTop[-1]));\
+		vm->cache.stackTop--;																			\
+		NEXT_INSTRUCTION;																				\
+	} else {																							\
+		RUNTIME_ERROR("Operands must be numbers.");														\
+	}
+
+#define BINARY_WITH_RIGHT(right,op)														\
+	/* both operands must be numbers */														\
+	if (IS_NUMBER(vm->cache.stackTop[-1]) && IS_NUMBER(right)) {								\
+		/* compute the result in place */														\
+		vm->cache.stackTop[-1] = NUMBER_VAL(AS_NUMBER(vm->cache.stackTop[-1]) op AS_NUMBER(right));	\
+		NEXT_INSTRUCTION;																		\
+	} else {																					\
+		RUNTIME_ERROR("Operands must be numbers.");												\
+	}
+
+#define BINARY_WITH_NUMBER(right,op)																\
+	/* right operand is a compile-time-guaranteed number */												\
+	if (IS_NUMBER(vm->cache.stackTop[-1])) {												\
+		/* compute the result in place */														\
+		vm->cache.stackTop[-1] = NUMBER_VAL(AS_NUMBER(vm->cache.stackTop[-1]) op AS_NUMBER(right));	\
+		NEXT_INSTRUCTION;																		\
+	} else {																					\
+		RUNTIME_ERROR("Operands must be numbers.");												\
+	}
 
 	//ordering comparison (< <= > >=): numbers or string/stringBuilder (memcmp order)
-#define COMPARE_OP(op)																		\
-	do {																					\
-		if (IS_NUMBER(vm->cache.stackTop[-2]) && IS_NUMBER(vm->cache.stackTop[-1])) {						\
-			vm->cache.stackTop[-2] = BOOL_VAL(AS_NUMBER(vm->cache.stackTop[-2]) op AS_NUMBER(vm->cache.stackTop[-1]));\
-			vm->cache.stackTop--;																	\
-		}																					\
-		else if (isStringLike(vm->cache.stackTop[-2]) && isStringLike(vm->cache.stackTop[-1])) {			\
-			vm->cache.stackTop[-2] = BOOL_VAL(compareStringLike(vm->cache.stackTop[-2], vm->cache.stackTop[-1]) op 0);\
-			vm->cache.stackTop--;																	\
-		}																					\
-		else {																				\
-			RUNTIME_ERROR("Operands must be two numbers or two strings.");					\
-		}																					\
-	} while (false)
+#define COMPARE_OP(op)																					\
+	if (IS_NUMBER(vm->cache.stackTop[-2]) && IS_NUMBER(vm->cache.stackTop[-1])) {						\
+		vm->cache.stackTop[-2] = BOOL_VAL(AS_NUMBER(vm->cache.stackTop[-2]) op AS_NUMBER(vm->cache.stackTop[-1]));\
+		vm->cache.stackTop--;																			\
+		NEXT_INSTRUCTION;																				\
+	}																									\
+	else if (isStringLike(vm->cache.stackTop[-2]) && isStringLike(vm->cache.stackTop[-1])) {			\
+		vm->cache.stackTop[-2] = BOOL_VAL(compareStringLike(vm->cache.stackTop[-2], vm->cache.stackTop[-1]) op 0);\
+		vm->cache.stackTop--;																			\
+		NEXT_INSTRUCTION;																				\
+	}																									\
+	else {																								\
+		RUNTIME_ERROR("Operands must be two numbers or two strings.");									\
+	}
 
-	//ordering comparison with a non-stack right operand (local or number constant)
-#define COMPARE_OP_WITH_RIGHT(right,op)													\
-	do {																					\
-		if (IS_NUMBER(vm->cache.stackTop[-1]) && IS_NUMBER(right)) {								\
-			vm->cache.stackTop[-1] = BOOL_VAL(AS_NUMBER(vm->cache.stackTop[-1]) op AS_NUMBER(right));		\
-		}																					\
-		else if (isStringLike(vm->cache.stackTop[-1]) && isStringLike(right)) {					\
-			vm->cache.stackTop[-1] = BOOL_VAL(compareStringLike(vm->cache.stackTop[-1], right) op 0);		\
-		}																					\
-		else {																				\
-			RUNTIME_ERROR("Operands must be two numbers or two strings.");					\
-		}																					\
-	} while (false)
+	//ordering comparison with a local-slot right operand (runtime type unknown:
+	//both sides checked, string ordering possible)
+#define COMPARE_OP_WITH_RIGHT(right,op)																\
+	if (IS_NUMBER(vm->cache.stackTop[-1]) && IS_NUMBER(right)) {									\
+		vm->cache.stackTop[-1] = BOOL_VAL(AS_NUMBER(vm->cache.stackTop[-1]) op AS_NUMBER(right));	\
+		NEXT_INSTRUCTION;																			\
+	}																								\
+	else if (isStringLike(vm->cache.stackTop[-1]) && isStringLike(right)) {							\
+		vm->cache.stackTop[-1] = BOOL_VAL(compareStringLike(vm->cache.stackTop[-1], right) op 0);	\
+		NEXT_INSTRUCTION;																			\
+	}																								\
+	else {																							\
+		RUNTIME_ERROR("Operands must be two numbers or two strings.");								\
+	}
+
+	//ordering comparison with a number-constant right operand: the constant rides
+	//the function's own pool (number-only, see makeNumberConstant), so only the
+	//stack side is checked and no string path exists
+#define COMPARE_OP_NUM_STACK_TOP(right,op)															\
+	if (IS_NUMBER(vm->cache.stackTop[-1])) {														\
+		vm->cache.stackTop[-1] = BOOL_VAL(AS_NUMBER(vm->cache.stackTop[-1]) op AS_NUMBER(right));	\
+		NEXT_INSTRUCTION;																			\
+	} else {																						\
+		RUNTIME_ERROR("Operands must be numbers.");													\
+	}
 
 //fused compare + jump-if-false: no stack traffic, jump when compare is false.
 //dual NEXT_INSTRUCTION on purpose: a single-exit form (`if (!cmp) ip += offset`)
@@ -1441,21 +1481,21 @@ static InterpretResult run(LfxVM* vm)
 //fused compare + jump-if-false, number-constant form: the constant operand rides
 //the function's own pool and is compile-time guaranteed number, so only the local
 //side is checked (dual NEXT_INSTRUCTION exits, same reason as JIF_CMP_WITH_RIGHT)
-#define JIF_CMP_NUM_WITH_RIGHT(left,right,offset,op)									\
+#define JIF_CMP_WITH_NUMBER(left,right,offset,op)									\
 	if (IS_NUMBER(left)) {																\
 		if (AS_NUMBER(left) op AS_NUMBER(right)) NEXT_INSTRUCTION;						\
 		ip += offset;																	\
 		NEXT_INSTRUCTION;																\
 	}																					\
 	else {																				\
-		RUNTIME_ERROR("Operands must be two numbers or two strings.");					\
+		RUNTIME_ERROR("Operands must be numbers.");										\
 	}
 
 //stack-operand variants: the left operand is PEEKED from the stack top and only
 //popped AFTER the comparison completes (one pop per exit path) — the slot stays
 //scanned as a gc root while the compare runs, so a collection (concurrent, or
 //triggered by an allocation inside the compare itself) can never lose it
-#define JIF_CMP_NUM_STACK_TOP(right,offset,op)											\
+#define JIF_CMP_STACK_WITH_NUMBER(right,offset,op)											\
 	if (IS_NUMBER(vm->cache.stackTop[-1])) {											\
 		if (AS_NUMBER(vm->cache.stackTop[-1]) op AS_NUMBER(right)) {					\
 			vm->cache.stackTop--;														\
@@ -1466,7 +1506,7 @@ static InterpretResult run(LfxVM* vm)
 		NEXT_INSTRUCTION;																\
 	}																					\
 	else {																				\
-		RUNTIME_ERROR("Operands must be two numbers or two strings.");					\
+		RUNTIME_ERROR("Operands must be numbers.");										\
 	}
 
 #define JIF_CMP_STACK_TOP(right,offset,op)												\
@@ -1491,23 +1531,6 @@ static InterpretResult run(LfxVM* vm)
 	else {																				\
 		RUNTIME_ERROR("Operands must be two numbers or two strings.");					\
 	}
-
-//we need continue/break when debug trace
-#if !COMPUTE_GOTO || DEBUG_TRACE_EXECUTION
-#define NEXT_INSTRUCTION continue
-#else //direct threading code
-#define NEXT_INSTRUCTION goto *label_instructions[READ_BYTE()]
-#endif									
-
-//error inside run(vm): sync the top frame's ip for the stack trace, then raise.
-//error paths are cold, so this store costs nothing and keeps `ip` free of any
-//stack escape (register-resident across the whole dispatch loop)
-#define RUNTIME_ERROR(...)						\
-	do {										\
-		frame->ip = ip;							\
-		runtimeError(vm, __VA_ARGS__);				\
-		return INTERPRET_RUNTIME_ERROR;			\
-	} while (false)
 
 	while (true)
 	{
@@ -2148,22 +2171,18 @@ static InterpretResult run(LfxVM* vm)
 		case OP_GREATER: {
 		label_op_greater:
 			COMPARE_OP(> );
-			NEXT_INSTRUCTION;
 		}
 		case OP_LESS: {
 		label_op_less:
 			COMPARE_OP(< );
-			NEXT_INSTRUCTION;
 		}
 		case OP_GREATER_EQUAL: {
 		label_op_greater_equal:
 			COMPARE_OP(>= );
-			NEXT_INSTRUCTION;
 		}
 		case OP_LESS_EQUAL: {
 		label_op_less_equal:
 			COMPARE_OP(<= );
-			NEXT_INSTRUCTION;
 		}
 		case OP_INSTANCE_OF: {
 		label_op_instance_of:
@@ -2250,18 +2269,15 @@ static InterpretResult run(LfxVM* vm)
 		}
 		case OP_SUBTRACT: {
 		label_op_subtract:
-			BINARY_OP(NUMBER_VAL, -);
-			NEXT_INSTRUCTION;
+			BINARY_OP(-);
 		}
 		case OP_MULTIPLY: {
 		label_op_multiply:
-			BINARY_OP(NUMBER_VAL, *);
-			NEXT_INSTRUCTION;
+			BINARY_OP(*);
 		}
 		case OP_DIVIDE: {
 		label_op_divide:
-			BINARY_OP(NUMBER_VAL, / );
-			NEXT_INSTRUCTION;
+			BINARY_OP(/);
 		}
 		case OP_MODULUS: {
 		label_op_modulus:
@@ -2620,25 +2636,22 @@ static InterpretResult run(LfxVM* vm)
 				NEXT_INSTRUCTION;
 			}
 
-			RUNTIME_ERROR("Operands must be two numbers or two strings.");
+			RUNTIME_ERROR("Operands must be numbers.");
 		}
 		case OP_SUBTRACT_NUMBER: {
 		label_op_subtract_number:
 			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
-			BINARY_OP_WITH_RIGHT(NUMBER_VAL, constant, -);
-			NEXT_INSTRUCTION;
+			BINARY_WITH_NUMBER(constant, -);
 		}
 		case OP_MULTIPLY_NUMBER: {
 		label_op_multiply_number:
 			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
-			BINARY_OP_WITH_RIGHT(NUMBER_VAL, constant, *);
-			NEXT_INSTRUCTION;
+			BINARY_WITH_NUMBER(constant, *);
 		}
 		case OP_DIVIDE_NUMBER: {
 		label_op_divide_number:
 			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
-			BINARY_OP_WITH_RIGHT(NUMBER_VAL, constant, / );
-			NEXT_INSTRUCTION;
+			BINARY_WITH_NUMBER(constant, / );
 		}
 		case OP_MODULUS_NUMBER: {
 		label_op_modulus_number:
@@ -2657,52 +2670,48 @@ static InterpretResult run(LfxVM* vm)
 		label_op_equal_const:
 			//non-number constant,24bits index into vm->constants
 			LfxValue constant = READ_CONSTANT(READ_24bits());
-			vm->cache.stackTop[-1] = BOOL_VAL(valuesEqual_number(vm->cache.stackTop[-1], AS_NUMBER(constant)));
+			vm->cache.stackTop[-1] = BOOL_VAL(valuesEqual(vm->cache.stackTop[-1], constant));
 			NEXT_INSTRUCTION;
 		}
 		case OP_NOT_EQUAL_CONST: {
 		label_op_not_equal_const:
 			//non-number constant,24bits index into vm->constants
 			LfxValue constant = READ_CONSTANT(READ_24bits());
-			vm->cache.stackTop[-1] = BOOL_VAL(!valuesEqual_number(vm->cache.stackTop[-1], AS_NUMBER(constant)));
+			vm->cache.stackTop[-1] = BOOL_VAL(!valuesEqual(vm->cache.stackTop[-1], constant));
 			NEXT_INSTRUCTION;
 		}
 		case OP_GREATER_NUMBER: {
 		label_op_greater_number:
 			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
-			COMPARE_OP_WITH_RIGHT(constant, > );
-			NEXT_INSTRUCTION;
+			COMPARE_OP_NUM_STACK_TOP(constant, > );
 		}
 		case OP_LESS_NUMBER: {
 		label_op_less_number:
 			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
-			COMPARE_OP_WITH_RIGHT(constant, < );
-			NEXT_INSTRUCTION;
+			COMPARE_OP_NUM_STACK_TOP(constant, < );
 		}
 		case OP_GREATER_EQUAL_NUMBER: {
 		label_op_greater_equal_number:
 			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
-			COMPARE_OP_WITH_RIGHT(constant, >= );
-			NEXT_INSTRUCTION;
+			COMPARE_OP_NUM_STACK_TOP(constant, >= );
 		}
 		case OP_LESS_EQUAL_NUMBER: {
 		label_op_less_equal_number:
 			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
-			COMPARE_OP_WITH_RIGHT(constant, <= );
-			NEXT_INSTRUCTION;
+			COMPARE_OP_NUM_STACK_TOP(constant, <= );
 		}
 		case OP_EQUAL_NUMBER: {
 		label_op_equal_number:
 			//number only,16bits index into function's own constants
 			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
-			vm->cache.stackTop[-1] = BOOL_VAL(valuesEqual(vm->cache.stackTop[-1], constant));
+			vm->cache.stackTop[-1] = BOOL_VAL(valuesEqual_number(vm->cache.stackTop[-1], AS_NUMBER(constant)));
 			NEXT_INSTRUCTION;
 		}
 		case OP_NOT_EQUAL_NUMBER: {
 		label_op_not_equal_number:
 			//number only,16bits index into function's own constants
 			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
-			vm->cache.stackTop[-1] = BOOL_VAL(!valuesEqual(vm->cache.stackTop[-1], constant));
+			vm->cache.stackTop[-1] = BOOL_VAL(!valuesEqual_number(vm->cache.stackTop[-1], AS_NUMBER(constant)));
 			NEXT_INSTRUCTION;
 		}
 
@@ -2729,24 +2738,21 @@ static InterpretResult run(LfxVM* vm)
 			uint32_t index = READ_SHORT();
 			LfxValue local = frame->slots[index];
 
-			BINARY_OP_WITH_RIGHT(NUMBER_VAL, local, -);
-			NEXT_INSTRUCTION;
+			BINARY_WITH_RIGHT(local, -);
 		}
 		case OP_MULTIPLY_LOCAL: {
 		label_op_multiply_local:
 			uint32_t index = READ_SHORT();
 			LfxValue local = frame->slots[index];
 
-			BINARY_OP_WITH_RIGHT(NUMBER_VAL, local, *);
-			NEXT_INSTRUCTION;
+			BINARY_WITH_RIGHT(local, *);
 		}
 		case OP_DIVIDE_LOCAL: {
 		label_op_divide_local:
 			uint32_t index = READ_SHORT();
 			LfxValue local = frame->slots[index];
 
-			BINARY_OP_WITH_RIGHT(NUMBER_VAL, local, / );
-			NEXT_INSTRUCTION;
+			BINARY_WITH_RIGHT(local, / );
 		}
 		case OP_MODULUS_LOCAL: {
 		label_op_modulus_local:
@@ -2782,28 +2788,24 @@ static InterpretResult run(LfxVM* vm)
 			uint32_t index = READ_SHORT();
 			LfxValue local = frame->slots[index];
 			COMPARE_OP_WITH_RIGHT(local, > );
-			NEXT_INSTRUCTION;
 		}
 		case OP_LESS_LOCAL: {
 		label_op_less_local:
 			uint32_t index = READ_SHORT();
 			LfxValue local = frame->slots[index];
 			COMPARE_OP_WITH_RIGHT(local, < );
-			NEXT_INSTRUCTION;
 		}
 		case OP_GREATER_EQUAL_LOCAL: {
 		label_op_greater_equal_local:
 			uint32_t index = READ_SHORT();
 			LfxValue local = frame->slots[index];
 			COMPARE_OP_WITH_RIGHT(local, >= );
-			NEXT_INSTRUCTION;
 		}
 		case OP_LESS_EQUAL_LOCAL: {
 		label_op_less_equal_local:
 			uint32_t index = READ_SHORT();
 			LfxValue local = frame->slots[index];
 			COMPARE_OP_WITH_RIGHT(local, <= );
-			NEXT_INSTRUCTION;
 		}
 
 		//fused compare + jump-if-false:[op:8][localA:16][localB:16][offset:16]
@@ -2853,7 +2855,7 @@ static InterpretResult run(LfxVM* vm)
 			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			uint16_t offset = READ_SHORT();
 			LfxValue local = frame->slots[index];
-			JIF_CMP_NUM_WITH_RIGHT(local, constant, offset, < );
+			JIF_CMP_WITH_NUMBER(local, constant, offset, < );
 		}
 		case OP_JIF_LESS_EQUAL_LN: {
 		label_op_jif_less_equal_ln:
@@ -2861,7 +2863,7 @@ static InterpretResult run(LfxVM* vm)
 			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			uint16_t offset = READ_SHORT();
 			LfxValue local = frame->slots[index];
-			JIF_CMP_NUM_WITH_RIGHT(local, constant, offset, <= );
+			JIF_CMP_WITH_NUMBER(local, constant, offset, <= );
 		}
 		case OP_JIF_GREATER_LN: {
 		label_op_jif_greater_ln:
@@ -2869,7 +2871,7 @@ static InterpretResult run(LfxVM* vm)
 			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			uint16_t offset = READ_SHORT();
 			LfxValue local = frame->slots[index];
-			JIF_CMP_NUM_WITH_RIGHT(local, constant, offset, > );
+			JIF_CMP_WITH_NUMBER(local, constant, offset, > );
 		}
 		case OP_JIF_GREATER_EQUAL_LN: {
 		label_op_jif_greater_equal_ln:
@@ -2877,7 +2879,7 @@ static InterpretResult run(LfxVM* vm)
 			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			uint16_t offset = READ_SHORT();
 			LfxValue local = frame->slots[index];
-			JIF_CMP_NUM_WITH_RIGHT(local, constant, offset, >= );
+			JIF_CMP_WITH_NUMBER(local, constant, offset, >= );
 		}
 		case OP_JIF_EQUAL_LN: {
 		label_op_jif_equal_ln:
@@ -2923,25 +2925,25 @@ static InterpretResult run(LfxVM* vm)
 		label_op_jif_less_number:
 			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			uint16_t offset = READ_SHORT();
-			JIF_CMP_NUM_STACK_TOP(constant, offset, < );
+			JIF_CMP_STACK_WITH_NUMBER(constant, offset, < );
 		}
 		case OP_JIF_LESS_EQUAL_NUMBER: {
 		label_op_jif_less_equal_number:
 			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			uint16_t offset = READ_SHORT();
-			JIF_CMP_NUM_STACK_TOP(constant, offset, <= );
+			JIF_CMP_STACK_WITH_NUMBER(constant, offset, <= );
 		}
 		case OP_JIF_GREATER_NUMBER: {
 		label_op_jif_greater_number:
 			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			uint16_t offset = READ_SHORT();
-			JIF_CMP_NUM_STACK_TOP(constant, offset, > );
+			JIF_CMP_STACK_WITH_NUMBER(constant, offset, > );
 		}
 		case OP_JIF_GREATER_EQUAL_NUMBER: {
 		label_op_jif_greater_equal_number:
 			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
 			uint16_t offset = READ_SHORT();
-			JIF_CMP_NUM_STACK_TOP(constant, offset, >= );
+			JIF_CMP_STACK_WITH_NUMBER(constant, offset, >= );
 		}
 		case OP_JIF_EQUAL_NUMBER: {
 		label_op_jif_equal_number:
@@ -3088,12 +3090,14 @@ static InterpretResult run(LfxVM* vm)
 #undef READ_CONSTANT
 #undef READ_LOCAL_CONSTANT
 #undef BINARY_OP
-#undef BINARY_OP_WITH_RIGHT
+#undef BINARY_WITH_RIGHT
+#undef BINARY_WITH_NUMBER
 #undef COMPARE_OP
 #undef COMPARE_OP_WITH_RIGHT
+#undef COMPARE_OP_NUM_STACK_TOP
 #undef JIF_CMP_WITH_RIGHT
-#undef JIF_CMP_NUM_WITH_RIGHT
-#undef JIF_CMP_NUM_STACK_TOP
+#undef JIF_CMP_WITH_NUMBER
+#undef JIF_CMP_STACK_WITH_NUMBER
 #undef JIF_CMP_STACK_TOP
 #undef RUNTIME_ERROR
 }
