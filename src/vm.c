@@ -1434,7 +1434,7 @@ static InterpretResult run(LfxVM* vm)
 
 	//ordering comparison with a local-slot right operand (runtime type unknown:
 	//both sides checked, string ordering possible)
-#define COMPARE_OP_WITH_RIGHT(right,op)																\
+#define COMPARE_WITH_RIGHT(right,op)																\
 	if (IS_NUMBER(vm->cache.stackTop[-1]) && IS_NUMBER(right)) {									\
 		vm->cache.stackTop[-1] = BOOL_VAL(AS_NUMBER(vm->cache.stackTop[-1]) op AS_NUMBER(right));	\
 		NEXT_INSTRUCTION;																			\
@@ -1450,7 +1450,7 @@ static InterpretResult run(LfxVM* vm)
 	//ordering comparison with a number-constant right operand: the constant rides
 	//the function's own pool (number-only, see makeNumberConstant), so only the
 	//stack side is checked and no string path exists
-#define COMPARE_OP_NUM_STACK_TOP(right,op)															\
+#define COMPARE_STACK_WITH_NUMBER(right,op)															\
 	if (IS_NUMBER(vm->cache.stackTop[-1])) {														\
 		vm->cache.stackTop[-1] = BOOL_VAL(AS_NUMBER(vm->cache.stackTop[-1]) op AS_NUMBER(right));	\
 		NEXT_INSTRUCTION;																			\
@@ -2683,22 +2683,22 @@ static InterpretResult run(LfxVM* vm)
 		case OP_GREATER_NUMBER: {
 		label_op_greater_number:
 			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
-			COMPARE_OP_NUM_STACK_TOP(constant, > );
+			COMPARE_STACK_WITH_NUMBER(constant, > );
 		}
 		case OP_LESS_NUMBER: {
 		label_op_less_number:
 			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
-			COMPARE_OP_NUM_STACK_TOP(constant, < );
+			COMPARE_STACK_WITH_NUMBER(constant, < );
 		}
 		case OP_GREATER_EQUAL_NUMBER: {
 		label_op_greater_equal_number:
 			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
-			COMPARE_OP_NUM_STACK_TOP(constant, >= );
+			COMPARE_STACK_WITH_NUMBER(constant, >= );
 		}
 		case OP_LESS_EQUAL_NUMBER: {
 		label_op_less_equal_number:
 			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
-			COMPARE_OP_NUM_STACK_TOP(constant, <= );
+			COMPARE_STACK_WITH_NUMBER(constant, <= );
 		}
 		case OP_EQUAL_NUMBER: {
 		label_op_equal_number:
@@ -2787,25 +2787,25 @@ static InterpretResult run(LfxVM* vm)
 		label_op_greater_local:
 			uint32_t index = READ_SHORT();
 			LfxValue local = frame->slots[index];
-			COMPARE_OP_WITH_RIGHT(local, > );
+			COMPARE_WITH_RIGHT(local, > );
 		}
 		case OP_LESS_LOCAL: {
 		label_op_less_local:
 			uint32_t index = READ_SHORT();
 			LfxValue local = frame->slots[index];
-			COMPARE_OP_WITH_RIGHT(local, < );
+			COMPARE_WITH_RIGHT(local, < );
 		}
 		case OP_GREATER_EQUAL_LOCAL: {
 		label_op_greater_equal_local:
 			uint32_t index = READ_SHORT();
 			LfxValue local = frame->slots[index];
-			COMPARE_OP_WITH_RIGHT(local, >= );
+			COMPARE_WITH_RIGHT(local, >= );
 		}
 		case OP_LESS_EQUAL_LOCAL: {
 		label_op_less_equal_local:
 			uint32_t index = READ_SHORT();
 			LfxValue local = frame->slots[index];
-			COMPARE_OP_WITH_RIGHT(local, <= );
+			COMPARE_WITH_RIGHT(local, <= );
 		}
 
 		//fused compare + jump-if-false:[op:8][localA:16][localB:16][offset:16]
@@ -3093,8 +3093,8 @@ static InterpretResult run(LfxVM* vm)
 #undef BINARY_WITH_RIGHT
 #undef BINARY_WITH_NUMBER
 #undef COMPARE_OP
-#undef COMPARE_OP_WITH_RIGHT
-#undef COMPARE_OP_NUM_STACK_TOP
+#undef COMPARE_WITH_RIGHT
+#undef COMPARE_STACK_WITH_NUMBER
 #undef JIF_CMP_WITH_RIGHT
 #undef JIF_CMP_WITH_NUMBER
 #undef JIF_CMP_STACK_WITH_NUMBER
