@@ -118,7 +118,14 @@ target_link_libraries(loxFluxCore PUBLIC xxhash)
 target_compile_definitions(loxFluxCore PUBLIC
   LOXFLUX_USE_MIMALLOC=$<IF:$<BOOL:${LOXFLUX_ALLOC_MIMALLOC}>,1,0>)
 if(LOXFLUX_ALLOC_MIMALLOC)
-  target_link_libraries(loxFluxCore PUBLIC mimalloc)
+  #MI_BUILD_SHARED=OFF (vendored add_subdirectory) defines only mimalloc-static;
+  #the bare name "mimalloc" would silently become a system-library lookup with
+  #no include path (mimalloc.h not found), so link the real target
+  if(TARGET mimalloc)
+    target_link_libraries(loxFluxCore PUBLIC mimalloc)
+  else()
+    target_link_libraries(loxFluxCore PUBLIC mimalloc-static)
+  endif()
 endif()
 
 # Link-Time Optimization -----------------------------------------------------

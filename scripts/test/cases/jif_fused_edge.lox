@@ -1,0 +1,600 @@
+// exit: 0
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: JIF EDGE OK
+// JIF fused compare+jump super instructions (emitBranchJump):
+// LL = local vs local, LN = local vs number constant, LC = local vs
+// non-number constant, stack forms keep the left operand on the stack.
+// > / >= reuse the LESS forms via slot swap; const-on-left flips direction.
+// Conditions must live in FUNCTIONS: top-level vars are globals and take
+// the stack-operand path. Folded constants and compound (and/or) conditions
+// must never fuse; the guard cases pin that behavior too.
+
+// --- LL forms: OP_JIF_LESS_LL / _LESS_EQUAL_LL / _EQUAL_LL / _NOT_EQUAL_LL ---
+
+fun jif_less_ll(a, b) {
+	var r = 0;
+	if (a < b) { r = 1; }
+	return r == 1;
+}
+
+fun jif_greater_ll(a, b) {
+	var r = 0;
+	if (a > b) { r = 1; }
+	return r == 1;
+}
+
+fun jif_le_ll(a, b) {
+	var r = 0;
+	if (a <= b) { r = 1; }
+	return r == 1;
+}
+
+fun jif_ge_ll(a, b) {
+	var r = 0;
+	if (a >= b) { r = 1; }
+	return r == 1;
+}
+
+fun jif_eq_ll(a, b) {
+	var r = 0;
+	if (a == b) { r = 1; }
+	return r == 1;
+}
+
+fun jif_ne_ll(a, b) {
+	var r = 0;
+	if (a != b) { r = 1; }
+	return r == 1;
+}
+
+fun jif_str_ll(sa, sb) {
+	var r = 0;
+	if (sa < sb) { r = 1; }
+	if (sa > sb) { r = r + 10; }
+	return r == 1 or r == 10;
+}
+
+fun jif_early(a, b) {
+	if (a < b) { return "lt"; }
+	if (a == b) { return "eq"; }
+	return "gt";
+}
+
+// --- LN forms: local vs number constant ---
+
+fun jif_less_ln(x) {
+	var r = 0;
+	if (x < 5) { r = 1; }
+	return r == 1;
+}
+
+fun jif_le_ln(x) {
+	var r = 0;
+	if (x <= 5) { r = 1; }
+	return r == 1;
+}
+
+fun jif_gt_ln(x) {
+	var r = 0;
+	if (x > 5) { r = 1; }
+	return r == 1;
+}
+
+fun jif_ge_ln(x) {
+	var r = 0;
+	if (x >= 5) { r = 1; }
+	return r == 1;
+}
+
+fun jif_eq_ln(x) {
+	var r = 0;
+	if (x == 5) { r = r + 1; }
+	if (x != 5) { r = r + 10; }
+	return r == 1 or r == 10;
+}
+
+fun jif_neg_ln(x) {
+	var r = 0;
+	if (x < -3) { r = 1; }
+	if (x >= -3) { r = r + 10; }
+	return r == 1 or r == 10;
+}
+
+// const on the left: direction flips to GREATER/GREATER_EQUAL (== / != commute)
+
+fun cl_flip_1(x) {
+	var r = 0;
+	if (5 < x) { r = r + 1; }
+	if (5 <= x) { r = r + 10; }
+	return r == 11;
+}
+
+fun cl_flip_2(x) {
+	var r = 0;
+	if (5 > x) { r = r + 1; }
+	if (5 >= x) { r = r + 10; }
+	return r == 11;
+}
+
+fun cl_flip_3(x) {
+	var r = 0;
+	if (5 == x) { r = r + 1; }
+	if (5 != x) { r = r + 10; }
+	return r == 1 or r == 10;
+}
+
+// --- LC forms: equality vs non-number constant (24bit vm.constants) ---
+
+fun jif_eq_lc(s) {
+	var r = 0;
+	if (s == "hit") { r = 1; }
+	return r == 1;
+}
+
+fun jif_eq_lc_mixed(v) {
+	var r = 0;
+	if (v == "hit") { r = 1; }
+	return r == 0;
+}
+
+fun jif_ne_lc(s) {
+	var r = 0;
+	if (s != "hit") { r = 1; }
+	return r == 1;
+}
+
+fun jif_eq_cl(s) {
+	var r = 0;
+	if ("hit" == s) { r = 1; }
+	return r == 1;
+}
+
+fun jif_ne_cl(s) {
+	var r = 0;
+	if ("hit" != s) { r = 1; }
+	return r == 1;
+}
+
+// --- stack-operand NUMBER forms: computed left operand vs number constant ---
+
+fun st_num_lt(a, b) {
+	var r = 0;
+	if (a + b < 10) { r = 1; }
+	return r == 1;
+}
+
+fun st_num_le(a, b) {
+	var r = 0;
+	if (a + b <= 10) { r = 1; }
+	return r == 1;
+}
+
+fun st_num_gt(a, b) {
+	var r = 0;
+	if (a * b > 12) { r = 1; }
+	return r == 1;
+}
+
+fun st_num_ge(a, b) {
+	var r = 0;
+	if (a - b >= 2) { r = 1; }
+	return r == 1;
+}
+
+fun st_num_eq(a, b) {
+	var r = 0;
+	if (a + b == 10) { r = 1; }
+	return r == 1;
+}
+
+fun st_num_ne(a, b) {
+	var r = 0;
+	if (a + b != 10) { r = 1; }
+	return r == 1;
+}
+
+// stack forms with number-constant arithmetic (OP_*_NUMBER feeding the JIF tail)
+
+fun st_arith_sub(x) {
+	var r = 0;
+	if (x - 2 < 10) { r = 1; }
+	return r == 1;
+}
+
+fun st_arith_mul(x) {
+	var r = 0;
+	if (x * 2 == 10) { r = 1; }
+	return r == 1;
+}
+
+fun st_arith_div(x) {
+	var r = 0;
+	if (x / 2 > 3) { r = 1; }
+	return r == 1;
+}
+
+fun st_arith_mod(x) {
+	var r = 0;
+	if (x % 3 == 1) { r = 1; }
+	return r == 1;
+}
+
+// --- stack-operand LOCAL forms: computed left operand vs local slot ---
+
+fun st_loc_lt(a, b, c) {
+	var r = 0;
+	if (a + b < c) { r = 1; }
+	return r == 1;
+}
+
+fun st_loc_le(a, b, c) {
+	var r = 0;
+	if (a + b <= c) { r = 1; }
+	return r == 1;
+}
+
+fun st_loc_gt(a, b, c) {
+	var r = 0;
+	if (a + b > c) { r = 1; }
+	return r == 1;
+}
+
+fun st_loc_ge(a, b, c) {
+	var r = 0;
+	if (a * b >= c) { r = 1; }
+	return r == 1;
+}
+
+fun st_loc_eq(a, b, c) {
+	var r = 0;
+	if (a + b == c) { r = 1; }
+	return r == 1;
+}
+
+fun st_loc_ne(a, b, c) {
+	var r = 0;
+	if (a + b != c) { r = 1; }
+	return r == 1;
+}
+
+// --- stack forms with property / subscript / global / call receivers ---
+
+class Box {
+	init(v) { this.v = v; }
+}
+
+fun st_prop_lt(v) {
+	var obj = Box(v);
+	var r = 0;
+	if (obj.v < 10) { r = 1; }
+	return r == 1;
+}
+
+fun st_prop_ge(v) {
+	var obj = Box(v);
+	var r = 0;
+	if (obj.v >= 10) { r = 1; }
+	return r == 1;
+}
+
+fun st_prop_eq_loc(v, c) {
+	var obj = Box(v);
+	var r = 0;
+	if (obj.v == c) { r = 1; }
+	return r == 1;
+}
+
+fun st_prop_str(s) {
+	var obj = Box(1);
+	obj.tag = s;
+	var r = 0;
+	if (obj.tag == "hit") { r = 1; }
+	if (obj.tag != "hit") { r = r + 10; }
+	return r == 1 or r == 10;
+}
+
+fun st_sub_lt(i) {
+	var arr = [1, 5, 9];
+	var r = 0;
+	if (arr[i] < 5) { r = 1; }
+	return r == 1;
+}
+
+fun st_global_lt() {
+	g = 9;
+	var r = 0;
+	if (g < 5) { r = 1; }
+	g = 2;
+	if (g < 5) { r = r + 10; }
+	return r == 10;
+}
+
+fun two() { return 2; }
+
+fun st_call_eq() {
+	var r = 0;
+	if (two() == 2) { r = 1; }
+	if (two() == 3) { r = r + 10; }
+	return r == 1;
+}
+
+// --- fused conditions in loops (exit jump patched across the back edge) ---
+
+fun loop_while() {
+	var i = 0;
+	while (i < 3) { i = i + 1; }
+	return i == 3;
+}
+
+fun loop_while_ll(n) {
+	var i = 0;
+	var c = 0;
+	while (i < n) { c = c + 1; i = i + 1; }
+	return c == n;
+}
+
+fun loop_dowhile() {
+	var i = 0;
+	do { i = i + 1; } while (i < 3);
+	return i == 3;
+}
+
+fun loop_dowhile_once() {
+	var hits = 0;
+	do { hits = hits + 1; } while (false);
+	return hits == 1;
+}
+
+fun loop_for() {
+	var s = 0;
+	for (var i = 0; i < 3; i = i + 1) { s = s + i; }
+	return s == 3;
+}
+
+// --- guards: folded constants and compound conditions must not fuse ---
+
+fun guard_fold_true() {
+	var r = 0;
+	if (true) { r = 1; } else { r = 10; }
+	if (1 < 2) { r = r + 10; } else { r = r + 100; }
+	return r == 11;
+}
+
+fun guard_fold_false() {
+	var r = 0;
+	if (false) { r = 1; } else { r = 10; }
+	if (2 < 1) { r = r + 1; } else { r = r + 10; }
+	return r == 20;
+}
+
+fun guard_nil_eq(x) {
+	var r = 0;
+	if (x == nil) { r = 1; }
+	return r == 1;
+}
+
+fun guard_or(a, b) {
+	if (a or b) { return 1; }
+	return 0;
+}
+
+fun guard_or_cmp(a, b, c) {
+	if (a or b < c) { return 1; }
+	return 0;
+}
+
+fun guard_and_cmp(a, b, c, d) {
+	if (a < b and c < d) { return 1; }
+	return 0;
+}
+
+fun guard_not(x) {
+	var r = 0;
+	if (!x) { r = 1; }
+	return r == 1;
+}
+
+fun elseif_chain(x) {
+	if (x < 0) { return -1; }
+	else if (x == 0) { return 0; }
+	return 1;
+}
+
+// --- high frame slots: u16 local encoding must survive indices > 255 ---
+
+fun deep_slots(a) {
+	var p0 = 7; var p1 = 7; var p2 = 7; var p3 = 7;
+	var p4 = 7; var p5 = 7; var p6 = 7; var p7 = 7;
+	var p8 = 7; var p9 = 7; var p10 = 7; var p11 = 7;
+	var p12 = 7; var p13 = 7; var p14 = 7; var p15 = 7;
+	var p16 = 7; var p17 = 7; var p18 = 7; var p19 = 7;
+	var p20 = 7; var p21 = 7; var p22 = 7; var p23 = 7;
+	var p24 = 7; var p25 = 7; var p26 = 7; var p27 = 7;
+	var p28 = 7; var p29 = 7; var p30 = 7; var p31 = 7;
+	var p32 = 7; var p33 = 7; var p34 = 7; var p35 = 7;
+	var p36 = 7; var p37 = 7; var p38 = 7; var p39 = 7;
+	var p40 = 7; var p41 = 7; var p42 = 7; var p43 = 7;
+	var p44 = 7; var p45 = 7; var p46 = 7; var p47 = 7;
+	var p48 = 7; var p49 = 7; var p50 = 7; var p51 = 7;
+	var p52 = 7; var p53 = 7; var p54 = 7; var p55 = 7;
+	var p56 = 7; var p57 = 7; var p58 = 7; var p59 = 7;
+	var p60 = 7; var p61 = 7; var p62 = 7; var p63 = 7;
+	var p64 = 7; var p65 = 7; var p66 = 7; var p67 = 7;
+	var p68 = 7; var p69 = 7; var p70 = 7; var p71 = 7;
+	var p72 = 7; var p73 = 7; var p74 = 7; var p75 = 7;
+	var p76 = 7; var p77 = 7; var p78 = 7; var p79 = 7;
+	var p80 = 7; var p81 = 7; var p82 = 7; var p83 = 7;
+	var p84 = 7; var p85 = 7; var p86 = 7; var p87 = 7;
+	var p88 = 7; var p89 = 7; var p90 = 7; var p91 = 7;
+	var p92 = 7; var p93 = 7; var p94 = 7; var p95 = 7;
+	var p96 = 7; var p97 = 7; var p98 = 7; var p99 = 7;
+	var p100 = 7; var p101 = 7; var p102 = 7; var p103 = 7;
+	var p104 = 7; var p105 = 7; var p106 = 7; var p107 = 7;
+	var p108 = 7; var p109 = 7; var p110 = 7; var p111 = 7;
+	var p112 = 7; var p113 = 7; var p114 = 7; var p115 = 7;
+	var p116 = 7; var p117 = 7; var p118 = 7; var p119 = 7;
+	var p120 = 7; var p121 = 7; var p122 = 7; var p123 = 7;
+	var p124 = 7; var p125 = 7; var p126 = 7; var p127 = 7;
+	var p128 = 7; var p129 = 7; var p130 = 7; var p131 = 7;
+	var p132 = 7; var p133 = 7; var p134 = 7; var p135 = 7;
+	var p136 = 7; var p137 = 7; var p138 = 7; var p139 = 7;
+	var p140 = 7; var p141 = 7; var p142 = 7; var p143 = 7;
+	var p144 = 7; var p145 = 7; var p146 = 7; var p147 = 7;
+	var p148 = 7; var p149 = 7; var p150 = 7; var p151 = 7;
+	var p152 = 7; var p153 = 7; var p154 = 7; var p155 = 7;
+	var p156 = 7; var p157 = 7; var p158 = 7; var p159 = 7;
+	var p160 = 7; var p161 = 7; var p162 = 7; var p163 = 7;
+	var p164 = 7; var p165 = 7; var p166 = 7; var p167 = 7;
+	var p168 = 7; var p169 = 7; var p170 = 7; var p171 = 7;
+	var p172 = 7; var p173 = 7; var p174 = 7; var p175 = 7;
+	var p176 = 7; var p177 = 7; var p178 = 7; var p179 = 7;
+	var p180 = 7; var p181 = 7; var p182 = 7; var p183 = 7;
+	var p184 = 7; var p185 = 7; var p186 = 7; var p187 = 7;
+	var p188 = 7; var p189 = 7; var p190 = 7; var p191 = 7;
+	var p192 = 7; var p193 = 7; var p194 = 7; var p195 = 7;
+	var p196 = 7; var p197 = 7; var p198 = 7; var p199 = 7;
+	var p200 = 7; var p201 = 7; var p202 = 7; var p203 = 7;
+	var p204 = 7; var p205 = 7; var p206 = 7; var p207 = 7;
+	var p208 = 7; var p209 = 7; var p210 = 7; var p211 = 7;
+	var p212 = 7; var p213 = 7; var p214 = 7; var p215 = 7;
+	var p216 = 7; var p217 = 7; var p218 = 7; var p219 = 7;
+	var p220 = 7; var p221 = 7; var p222 = 7; var p223 = 7;
+	var p224 = 7; var p225 = 7; var p226 = 7; var p227 = 7;
+	var p228 = 7; var p229 = 7; var p230 = 7; var p231 = 7;
+	var p232 = 7; var p233 = 7; var p234 = 7; var p235 = 7;
+	var p236 = 7; var p237 = 7; var p238 = 7; var p239 = 7;
+	var p240 = 7; var p241 = 7; var p242 = 7; var p243 = 7;
+	var p244 = 7; var p245 = 7; var p246 = 7; var p247 = 7;
+	var p248 = 7; var p249 = 7; var p250 = 7; var p251 = 7;
+	var p252 = 7; var p253 = 7; var p254 = 7; var p255 = 7;
+	var p256 = 7; var p257 = 7; var p258 = 7; var p259 = 7;
+	var p260 = 7; var p261 = 7; var p262 = 7; var p263 = 7;
+	p263 = 9;
+	var r = 0;
+	if (p262 < p263) { r = r + 1; }
+	if (p263 < p262) { r = r + 10; }
+	if (a < p263) { r = r + 100; }
+	if (p253 <= p253) { r = r + 1000; }
+	if (p262 == 7) { r = r + 10000; }
+	if (p262 == "x") { r = r + 100000; }
+	return r == 11101;
+}
+
+var g = 0;
+
+print(jif_less_ll(1, 2) and !jif_less_ll(2, 2) and !jif_less_ll(2, 1));
+print(jif_greater_ll(3, 2) and !jif_greater_ll(2, 2) and !jif_greater_ll(2, 3));
+print(jif_le_ll(1, 2) and jif_le_ll(2, 2) and !jif_le_ll(3, 2));
+print(jif_ge_ll(3, 2) and jif_ge_ll(2, 2) and !jif_ge_ll(1, 2));
+print(jif_eq_ll(2, 2) and !jif_eq_ll(1, 2) and !jif_eq_ll(2, 1));
+print(jif_ne_ll(1, 2) and !jif_ne_ll(2, 2) and jif_ne_ll(2, 1));
+print(jif_str_ll("a", "b") and jif_str_ll("b", "a") and !jif_str_ll("a", "a"));
+print(jif_early(1, 2) == "lt" and jif_early(2, 2) == "eq" and jif_early(3, 2) == "gt");
+print(jif_less_ln(4) and !jif_less_ln(5) and !jif_less_ln(6));
+print(jif_le_ln(4) and jif_le_ln(5) and !jif_le_ln(6));
+print(jif_gt_ln(6) and !jif_gt_ln(5) and !jif_gt_ln(4));
+print(jif_ge_ln(6) and jif_ge_ln(5) and !jif_ge_ln(4));
+print(jif_eq_ln(5) and jif_eq_ln(4) and jif_eq_ln(6));
+print(jif_neg_ln(-4) and jif_neg_ln(-3) and jif_neg_ln(0));
+print(cl_flip_1(6) and !cl_flip_1(5) and !cl_flip_1(4));
+print(cl_flip_2(4) and !cl_flip_2(5) and !cl_flip_2(6));
+print(cl_flip_3(5) and cl_flip_3(4) and cl_flip_3(6));
+print(jif_eq_lc("hit") and !jif_eq_lc("miss") and jif_eq_lc_mixed(1) and jif_eq_lc_mixed(nil));
+print(jif_ne_lc("miss") and !jif_ne_lc("hit") and jif_ne_lc(1) and jif_ne_lc(nil));
+print(jif_eq_cl("hit") and !jif_eq_cl("miss") and !jif_eq_cl(1));
+print(jif_ne_cl("miss") and !jif_ne_cl("hit") and jif_ne_cl(1));
+print(st_num_lt(4, 5) and !st_num_lt(5, 5) and !st_num_lt(6, 5));
+print(st_num_le(4, 5) and st_num_le(5, 5) and !st_num_le(6, 5));
+print(st_num_gt(4, 4) and !st_num_gt(3, 4) and !st_num_gt(2, 4));
+print(st_num_ge(5, 3) and !st_num_ge(5, 4) and !st_num_ge(4, 3));
+print(st_num_eq(4, 6) and !st_num_eq(4, 5) and !st_num_eq(4, 7));
+print(st_num_ne(4, 7) and !st_num_ne(4, 6) and !st_num_ne(5, 5));
+print(st_arith_sub(11) and !st_arith_sub(12) and !st_arith_sub(13));
+print(st_arith_mul(5) and !st_arith_mul(4) and !st_arith_mul(6));
+print(st_arith_div(8) and !st_arith_div(6) and !st_arith_div(5));
+print(st_arith_mod(7) and !st_arith_mod(6) and !st_arith_mod(9));
+print(st_loc_lt(2, 3, 6) and !st_loc_lt(2, 3, 5) and !st_loc_lt(3, 3, 5));
+print(st_loc_le(2, 3, 6) and st_loc_le(2, 3, 5) and !st_loc_le(3, 3, 5));
+print(st_loc_gt(3, 3, 5) and !st_loc_gt(2, 3, 5) and !st_loc_gt(2, 3, 6));
+print(st_loc_ge(3, 3, 8) and st_loc_ge(3, 3, 9) and !st_loc_ge(2, 2, 5));
+print(st_loc_eq(4, 6, 10) and !st_loc_eq(4, 5, 10) and !st_loc_eq(4, 7, 10));
+print(st_loc_ne(4, 7, 10) and !st_loc_ne(4, 6, 10) and !st_loc_ne(5, 5, 10));
+print(st_prop_lt(9) and !st_prop_lt(10) and !st_prop_lt(11));
+print(st_prop_ge(10) and st_prop_ge(11) and !st_prop_ge(9));
+print(st_prop_eq_loc(5, 5) and !st_prop_eq_loc(5, 6) and !st_prop_eq_loc(6, 5));
+print(st_prop_str("hit") and st_prop_str("miss"));
+print(st_sub_lt(0) and !st_sub_lt(1) and !st_sub_lt(2));
+print(st_global_lt());
+print(st_call_eq());
+print(loop_while());
+print(loop_while_ll(3));
+print(loop_dowhile());
+print(loop_dowhile_once());
+print(loop_for());
+print(guard_fold_true());
+print(guard_fold_false());
+print(guard_nil_eq(nil) and !guard_nil_eq(1) and !guard_nil_eq(false));
+print(guard_or(1, 0) == 1 and guard_or(false, 0) == 1 and guard_or(false, nil) == 0 and guard_or(nil, false) == 0);
+print(guard_or_cmp(1, 9, 0) == 1 and guard_or_cmp(false, 1, 2) == 1 and guard_or_cmp(false, 3, 2) == 0 and guard_or_cmp(false, 1, 1) == 0);
+print(guard_and_cmp(1, 2, 3, 4) == 1 and guard_and_cmp(5, 2, 3, 4) == 0 and guard_and_cmp(1, 2, 9, 4) == 0 and guard_and_cmp(2, 3, 3, 4) == 1);
+print(guard_not(false) and guard_not(nil) and !guard_not(1) and !guard_not("s"));
+print(elseif_chain(-5) == -1 and elseif_chain(0) == 0 and elseif_chain(7) == 1);
+print(deep_slots(1));
+print("JIF EDGE OK");
