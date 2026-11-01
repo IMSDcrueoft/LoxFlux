@@ -40,18 +40,18 @@ _(AMD Ryzen7-5800X, Windows 11, Use ClangCL/LLVM 22.1.3 for loxflux & clox (loop
 |program|LoxFlux - [0.13.1]|clox|NodeJS - [24.19.0] - jitless|Cpython3 - [3.14.7]|Lua - [5.5.1]|
 |---|---|---|---|---|---|
 |fib30|45ms|81ms|50ms|121ms|51ms|
-|fib35|497ms|880ms|570ms|1319ms|546ms|
-|fib40|5577ms|10365ms|6131ms|14593ms|6038ms|
-|loop 1e8|421ms (for: 674ms)|1109ms|583ms|2671ms|842ms (for: 213ms)|
+|fib35|486ms|880ms|570ms|1319ms|546ms|
+|fib40|5508ms|10365ms|6131ms|14593ms|6038ms|
+|loop 1e8|417ms (for: 712ms)|1109ms|583ms|2671ms|842ms (for: 213ms)|
 |global loop 1e8|729ms|2694ms|988ms|4462ms|2265ms|
 |binary_trees|853ms|2295ms|517ms|1247ms|2364ms|
 |instantiation|347ms|845ms|226ms|1020ms|1145ms|
 |invocation|143ms|244ms|203ms|312ms|286ms|
 |method_call|82ms|167ms|93ms|160ms|137ms|
-|properties|188ms|373ms|229ms|339ms|329ms|
-|trees|949ms|3884ms|1307ms|2002ms|3116ms|
+|properties|181ms|373ms|229ms|339ms|329ms|
+|trees|1011ms|3884ms|1307ms|2002ms|3116ms|
 |zoo|150ms|288ms|169ms|292ms|251ms|
-|zoo_batch(10sec)|11366batch|5063batch|9049batch|5665batch|6569batch|
+|zoo_batch(10sec)|10763batch|5063batch|9049batch|5665batch|6569batch|
 
 ---
 
