@@ -130,6 +130,10 @@ noneState  ::= "none" ":" statement
 
 ### Bitwise Operations
 
+- **Bitwise NOT (`~`)** (Unary)  
+  Inverts every bit of the operand (one's complement on a 32-bit integer).  
+  **Example**: `~0b1010` evaluates to `-11` (`0b...11110101`, two's-complement result of the inverted bits).  
+
 - **Bitwise AND (`&`)**  
   Performs a logical AND on each pair of corresponding bits. Returns an integer result.  
   **Example**: `0b1010 & 0b1100` evaluates to `0b1000` (decimal `8`).  
