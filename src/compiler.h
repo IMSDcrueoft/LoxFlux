@@ -76,6 +76,8 @@ typedef enum {
 } LoopType;
 
 typedef struct LoopContext {
+	struct LoopContext* enclosing;
+
 	int32_t start;
 	uint32_t enterParamCount;
 	uint16_t breakJumpCount;
@@ -89,7 +91,6 @@ typedef struct LoopContext {
 	LoopType loopType;
 	int32_t* breakJumps;
 	int32_t* continueJumps;
-	struct LoopContext* enclosing;
 } LoopContext;
 
 typedef enum {
