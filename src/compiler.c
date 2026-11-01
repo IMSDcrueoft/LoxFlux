@@ -45,6 +45,14 @@ static void clearOpStack(CompilerContext* cc) {
 	opStack_clear(currentOpStack(cc));
 }
 
+//(re)arm the condRegionValid witness consumed by the stack-operand tail fusion
+//in emitBranchJump (semantics documented on Compiler.condRegionValid)
+static int32_t beginCondition(CompilerContext* cc) {
+	Compiler* current = cc->currentCompiler;
+	current->condRegionValid = true;
+	return currentChunk(cc)->count;
+}
+
 //emit and check opStack
 static void emitOpStack(CompilerContext* cc, uint8_t byte, bool doCheck) {
 	opStack_push(cc->vm, currentOpStack(cc), byte);
@@ -203,8 +211,10 @@ static uint8_t emitCacheSlot(CompilerContext* cc) {
 }
 
 static int32_t emitJump(CompilerContext* cc, uint8_t instruction) {
+	Compiler* current = cc->currentCompiler;
 	emitBytes(cc, 3, instruction, 0xff, 0xff);
 	clearOpStack(cc);
+	current->condRegionValid = false;//a jump inside the condition region kills the tail fusion witness
 	return currentChunk(cc)->count - 2;
 }
 
@@ -222,6 +232,8 @@ static int32_t emitJump(CompilerContext* cc, uint8_t instruction) {
 static int32_t emitBranchJump(CompilerContext* cc, uint8_t instruction, int32_t condStart) {
 #if LOXFLUX_COMPILATION_TIME_OPTIMIZATION
 	if (!cc->optimizationEnabled) return emitJump(cc, instruction);
+
+	Compiler* current = cc->currentCompiler;
 
 	if (instruction == OP_JUMP_IF_FALSE_POP) {
 		Chunk* chunk = currentChunk(cc);
@@ -357,6 +369,36 @@ static int32_t emitBranchJump(CompilerContext* cc, uint8_t instruction, int32_t 
 				return currentChunk(cc)->count - 2;
 			}
 		}
+
+		//4. fused compare + jump with the left operand on the stack top: `top` is
+		//the converted number comparison, its right operand already embedded.
+		//condRegionValid proves no control flow landed inside the condition
+		//region (compound or/and emit jumps -> witness cleared), so the fused
+		//form pops exactly what the comparison would have consumed
+		if (current->condRegionValid) {
+			uint8_t fused = INVALID_OP;
+			switch (top) {
+			case OP_LESS_NUMBER:			fused = OP_JIF_LESS_NUMBER; break;
+			case OP_LESS_EQUAL_NUMBER:		fused = OP_JIF_LESS_EQUAL_NUMBER; break;
+			case OP_GREATER_NUMBER:			fused = OP_JIF_GREATER_NUMBER; break;
+			case OP_GREATER_EQUAL_NUMBER:	fused = OP_JIF_GREATER_EQUAL_NUMBER; break;
+			case OP_EQUAL_NUMBER:			fused = OP_JIF_EQUAL_NUMBER; break;
+			case OP_NOT_EQUAL_NUMBER:		fused = OP_JIF_NOT_EQUAL_NUMBER; break;
+			}
+
+			if (fused != INVALID_OP) {
+				uint32_t constIndex = ((uint32_t)chunk->code[chunk->count - 2]) | ((uint32_t)chunk->code[chunk->count - 1] << 8);
+
+				chunk_fallback(chunk, 3);//rollback the tail comparison
+
+				//[op:8][const:16][offset:16 placeholder]
+				emitBytes(cc, 5, fused,
+					(uint8_t)constIndex, (uint8_t)(constIndex >> 8),
+					0xff, 0xff);
+				clearOpStack(cc);
+				return currentChunk(cc)->count - 2;
+			}
+		}
 	}
 #else
 	(void)condStart;
@@ -365,6 +407,7 @@ static int32_t emitBranchJump(CompilerContext* cc, uint8_t instruction, int32_t 
 }
 
 static void emitLoop(CompilerContext* cc, int32_t loopStart) {
+	Compiler* current = cc->currentCompiler;
 	emitByte(cc, OP_LOOP);
 
 	int32_t offset = currentChunk(cc)->count - loopStart + 2;
@@ -372,6 +415,7 @@ static void emitLoop(CompilerContext* cc, int32_t loopStart) {
 
 	emitBytes(cc, 2, offset & 0xff, (offset >> 8) & 0xff);
 	clearOpStack(cc);
+	current->condRegionValid = false;//a jump inside the condition region kills the tail fusion witness
 }
 
 static void emitReturn(CompilerContext* cc) {
@@ -588,6 +632,8 @@ static void initCompiler(CompilerContext* cc, Compiler* compiler, FunctionType t
 	compiler->cacheCount = 0;
 	compiler->icWarned = false;
 	compiler->cacheCapacity = 0;
+
+	compiler->condRegionValid = false;
 
 	opStack_init(&compiler->stack);
 	binaryTable_init(&compiler->numbers);
@@ -1194,7 +1240,7 @@ static void forStatement(CompilerContext* cc) {
 
 	int32_t exitJump = -1;
 	if (!match(cc, TOKEN_SEMICOLON)) {//for(; here ;)
-		int32_t condStart = currentChunk(cc)->count;
+		int32_t condStart = beginCondition(cc);
 		expression(cc);
 		consume(cc, TOKEN_SEMICOLON, "Expect ';' after loop condition.");
 
@@ -1329,7 +1375,7 @@ static void foreachStatement(CompilerContext* cc) {
 
 static void ifStatement(CompilerContext* cc) {
 	consume(cc, TOKEN_LEFT_PAREN, "Expect '(' after 'if'.");
-	int32_t condStart = currentChunk(cc)->count;
+	int32_t condStart = beginCondition(cc);
 	expression(cc);
 	consume(cc, TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
 
@@ -1345,7 +1391,7 @@ static void ifStatement(CompilerContext* cc) {
 
 static void branchCaseStatementInner(CompilerContext* cc) {
 	if (!match(cc, TOKEN_NONE)) {
-		int32_t condStart = currentChunk(cc)->count;
+		int32_t condStart = beginCondition(cc);
 		expression(cc);
 		int32_t thenJump = emitBranchJump(cc, OP_JUMP_IF_FALSE_POP, condStart);
 		consume(cc, TOKEN_COLON, "Expect ':' after condition.");
@@ -1464,7 +1510,7 @@ static void whileStatement(CompilerContext* cc) {
 	int32_t loopStart = currentChunk(cc)->count;
 
 	consume(cc, TOKEN_LEFT_PAREN, "Expect '(' after 'while'.");
-	int32_t condStart = currentChunk(cc)->count;
+	int32_t condStart = beginCondition(cc);
 	expression(cc);
 	consume(cc, TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
 
@@ -1521,7 +1567,7 @@ static void doWhileStatement(CompilerContext* cc) {
 
 	consume(cc, TOKEN_WHILE, "Expect 'while' after 'do' to form a valid 'do-while'.");
 	consume(cc, TOKEN_LEFT_PAREN, "Expect '(' after 'while'.");
-	int32_t condStart = currentChunk(cc)->count;
+	int32_t condStart = beginCondition(cc);
 
 	//now that the condition position is known, route every 'continue' of this
 	//loop to the condition check (the body start would re-run the body and

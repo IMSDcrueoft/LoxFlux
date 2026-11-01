@@ -175,6 +175,19 @@ static uint32_t jifLNInstruction(C_STR name, ObjFunction* function, uint32_t off
 	return offset + 7;
 }
 
+//fused compare + jump, number constant, stack-top left operand: [op:8][const:16][offset:16]
+COLD_FUNCTION
+static uint32_t jifNumberInstruction(C_STR name, ObjFunction* function, uint32_t offset) {
+	uint32_t constant = ((uint32_t)function->chunk.code[offset + 1]) | ((uint32_t)function->chunk.code[offset + 2] << 8);
+	uint16_t jump = (uint16_t)(function->chunk.code[offset + 3] | (function->chunk.code[offset + 4] << 8));
+
+	DIS_PRINTF("%-16s '", name);
+	assert(constant < function->constantsCount);
+	disPrintValue(function->constants[constant]);
+	DIS_PRINTF("' %4d -> %d\n", offset, offset + 5 + jump);
+	return offset + 5;
+}
+
 //fused compare + jump, non-number constant: [op:8][local:16][const:24][offset:16]
 COLD_FUNCTION
 static uint32_t jifLCInstruction(LfxVM* vm, C_STR name, Chunk* chunk, uint32_t offset) {
@@ -518,6 +531,19 @@ uint32_t disassembleInstruction(LfxVM* vm, ObjFunction* function, uint32_t offse
 	case OP_JIF_NOT_EQUAL_LC:
 		return jifLCInstruction(vm, "OP_JIF_NOT_EQUAL_LC", chunk, offset);
 
+	case OP_JIF_LESS_NUMBER:
+		return jifNumberInstruction("OP_JIF_LESS_NUMBER", function, offset);
+	case OP_JIF_LESS_EQUAL_NUMBER:
+		return jifNumberInstruction("OP_JIF_LESS_EQUAL_NUMBER", function, offset);
+	case OP_JIF_GREATER_NUMBER:
+		return jifNumberInstruction("OP_JIF_GREATER_NUMBER", function, offset);
+	case OP_JIF_GREATER_EQUAL_NUMBER:
+		return jifNumberInstruction("OP_JIF_GREATER_EQUAL_NUMBER", function, offset);
+	case OP_JIF_EQUAL_NUMBER:
+		return jifNumberInstruction("OP_JIF_EQUAL_NUMBER", function, offset);
+	case OP_JIF_NOT_EQUAL_NUMBER:
+		return jifNumberInstruction("OP_JIF_NOT_EQUAL_NUMBER", function, offset);
+
 	default:
 		DIS_PRINTF("Unknown opcode %d offset = %d\n", instruction, offset);
 		return offset + 1;
@@ -616,6 +642,12 @@ void disassembleOpStack(OPStack* opStack) {
 		case OP_JIF_NOT_EQUAL_LN:   DIS_PRINTF("OP_JIF_NOT_EQUAL_LN\n"); break;
 		case OP_JIF_EQUAL_LC:     DIS_PRINTF("OP_JIF_EQUAL_LC\n"); break;
 		case OP_JIF_NOT_EQUAL_LC: DIS_PRINTF("OP_JIF_NOT_EQUAL_LC\n"); break;
+		case OP_JIF_LESS_NUMBER:  DIS_PRINTF("OP_JIF_LESS_NUMBER\n"); break;
+		case OP_JIF_LESS_EQUAL_NUMBER: DIS_PRINTF("OP_JIF_LESS_EQUAL_NUMBER\n"); break;
+		case OP_JIF_GREATER_NUMBER: DIS_PRINTF("OP_JIF_GREATER_NUMBER\n"); break;
+		case OP_JIF_GREATER_EQUAL_NUMBER: DIS_PRINTF("OP_JIF_GREATER_EQUAL_NUMBER\n"); break;
+		case OP_JIF_EQUAL_NUMBER: DIS_PRINTF("OP_JIF_EQUAL_NUMBER\n"); break;
+		case OP_JIF_NOT_EQUAL_NUMBER: DIS_PRINTF("OP_JIF_NOT_EQUAL_NUMBER\n"); break;
 		case OP_SET_INDEX:        DIS_PRINTF("OP_SET_INDEX\n"); break;
 		case OP_GET_INDEX:        DIS_PRINTF("OP_GET_INDEX\n"); break;
 		case OP_GET_SUPER:        DIS_PRINTF("OP_GET_SUPER\n"); break;

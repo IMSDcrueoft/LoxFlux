@@ -121,9 +121,13 @@ typedef struct Compiler {
 	uint16_t scopeDepth;
 	uint32_t localCapacity;
 
+	//stack-operand tail fusion witness (emitBranchJump): true while no jump has
+	//been emitted into this function's chunk since beginCondition(); per-function
+	//so nested compilation never disturbs the enclosing condition's witness
+	bool condRegionValid;
+	bool icWarned; //one-shot exhaustion warning flag (debug builds only)
 	//inline cache slots (capped at UINT8_MAX sites, slot operand is u8)
 	uint16_t cacheCount;
-	bool icWarned; //one-shot exhaustion warning flag (debug builds only)
 	uint32_t cacheCapacity; //allocated InlineCacheSlot capacity of function.caches
 	Local* locals;
 

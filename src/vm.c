@@ -1334,6 +1334,12 @@ static InterpretResult run(LfxVM* vm)
 		[OP_JIF_NOT_EQUAL_LN] = && label_op_jif_not_equal_ln,
 		[OP_JIF_EQUAL_LC] = && label_op_jif_equal_lc,
 		[OP_JIF_NOT_EQUAL_LC] = && label_op_jif_not_equal_lc,
+		[OP_JIF_LESS_NUMBER] = && label_op_jif_less_number,
+		[OP_JIF_LESS_EQUAL_NUMBER] = && label_op_jif_less_equal_number,
+		[OP_JIF_GREATER_NUMBER] = && label_op_jif_greater_number,
+		[OP_JIF_GREATER_EQUAL_NUMBER] = && label_op_jif_greater_equal_number,
+		[OP_JIF_EQUAL_NUMBER] = && label_op_jif_equal_number,
+		[OP_JIF_NOT_EQUAL_NUMBER] = && label_op_jif_not_equal_number,
 		[OP_CEDE] = && label_op_cede,
 	};
 #endif
@@ -2863,6 +2869,59 @@ static InterpretResult run(LfxVM* vm)
 			NEXT_INSTRUCTION;
 		}
 
+		//fused compare + jump-if-false, number constant, left operand on the stack: [op:8][const:16][offset:16]
+		case OP_JIF_LESS_NUMBER: {
+		label_op_jif_less_number:
+			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			uint16_t offset = READ_SHORT();
+			LfxValue left = vm->cache.stackTop[-1];
+			vm->cache.stackTop--;
+			JIF_CMP_NUM_WITH_RIGHT(left, constant, offset, < );
+		}
+		case OP_JIF_LESS_EQUAL_NUMBER: {
+		label_op_jif_less_equal_number:
+			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			uint16_t offset = READ_SHORT();
+			LfxValue left = vm->cache.stackTop[-1];
+			vm->cache.stackTop--;
+			JIF_CMP_NUM_WITH_RIGHT(left, constant, offset, <= );
+		}
+		case OP_JIF_GREATER_NUMBER: {
+		label_op_jif_greater_number:
+			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			uint16_t offset = READ_SHORT();
+			LfxValue left = vm->cache.stackTop[-1];
+			vm->cache.stackTop--;
+			JIF_CMP_NUM_WITH_RIGHT(left, constant, offset, > );
+		}
+		case OP_JIF_GREATER_EQUAL_NUMBER: {
+		label_op_jif_greater_equal_number:
+			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			uint16_t offset = READ_SHORT();
+			LfxValue left = vm->cache.stackTop[-1];
+			vm->cache.stackTop--;
+			JIF_CMP_NUM_WITH_RIGHT(left, constant, offset, >= );
+		}
+		case OP_JIF_EQUAL_NUMBER: {
+		label_op_jif_equal_number:
+			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			uint16_t offset = READ_SHORT();
+			LfxValue left = vm->cache.stackTop[-1];
+			vm->cache.stackTop--;
+			if (valuesEqual(left, constant)) NEXT_INSTRUCTION;
+			ip += offset;
+			NEXT_INSTRUCTION;
+		}
+		case OP_JIF_NOT_EQUAL_NUMBER: {
+		label_op_jif_not_equal_number:
+			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
+			uint16_t offset = READ_SHORT();
+			LfxValue left = vm->cache.stackTop[-1];
+			vm->cache.stackTop--;
+			if (!valuesEqual(left, constant)) NEXT_INSTRUCTION;
+			ip += offset;
+			NEXT_INSTRUCTION;
+		}
 		case OP_NOT_LOCAL: {
 		label_op_not_local:
 			uint32_t index = READ_SHORT();
