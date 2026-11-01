@@ -62,9 +62,7 @@ static void emitOpStack(CompilerContext* cc, uint8_t byte, bool doCheck) {
 }
 
 static void errorAt(CompilerContext* cc, Token* token, C_STR message) {
-	//check the panicMode
 	if (cc->parser.panicMode) return;
-	//set the panicMode
 	cc->parser.panicMode = true;
 
 	fprintf(stderr, "[line %d] Error", token->line);
@@ -125,12 +123,9 @@ static void emitByte(CompilerContext* cc, uint8_t byte) {
 	chunk_write(cc->vm, currentChunk(cc), byte, cc->parser.previous.line);
 }
 
-//dynamic args
 static void emitBytes(CompilerContext* cc, uint32_t count, int byte, ...) {
-	//write the first
 	emitByte(cc, byte);
 
-	// arguments
 	va_list arguments;
 	va_start(arguments, byte);
 
@@ -139,7 +134,6 @@ static void emitBytes(CompilerContext* cc, uint32_t count, int byte, ...) {
 		emitByte(cc, byte);
 	}
 
-	// clear arguments
 	va_end(arguments);
 }
 
@@ -214,20 +208,17 @@ static int32_t emitJump(CompilerContext* cc, uint8_t instruction) {
 	return currentChunk(cc)->count - 2;
 }
 
-//branch-style conditional jump (if/branch/while/do-while only)
-//the condition tail is identified through the opStack tracking instead of raw
-//byte pattern matching: instructionOptimize keeps fused comparison opcodes
-//pushed on the opStack (conversions no longer clear the tracking), so the tail
-//layout is derived from tracked entries and only operand values are read from
-//the chunk at those derived positions
-//regionSize still witnesses that the matched instructions span the whole
-//condition, so compound conditions (e.g. `a || b < c`, whose result must stay
-//on the stack for the outer jump) can never match
-//whole condition is exactly one compile-time constant load:
-//  falsy (OP_FALSE/OP_NIL/nil constant)              -> always taken : rollback cond, emit OP_JUMP (no runtime compare)
-//  truthy (OP_TRUE/number constant/non-nil constant) -> never taken  : rollback cond, no jump, return -1 (no backpatch)
-//truthiness mirrors vm's isTruthy: only nil and false are falsy
-//returns patch offset like emitJump, or -1 when nothing to patch
+//branch-style conditional jump (if/branch/while/do-while only); returns a
+//patch offset like emitJump, or -1 when nothing to patch
+//the condition tail is matched via opStack tracking, not raw byte patterns:
+//instructionOptimize keeps fused comparison opcodes tracked (conversions no
+//longer clear the tracking), so the tail layout is derived from tracked
+//entries and only operand values are read from the chunk; regionSize still
+//proves the match spans the whole condition, so compound conditions (e.g.
+//`a || b < c`) can never match
+//a whole-condition constant load folds at compile time, mirroring isTruthy
+//(only nil and false are falsy): falsy -> unconditional OP_JUMP,
+//truthy -> no jump at all
 static int32_t emitBranchJump(CompilerContext* cc, uint8_t instruction, int32_t condStart) {
 #if LOXFLUX_COMPILATION_TIME_OPTIMIZATION
 	if (!cc->optimizationEnabled) return emitJump(cc, instruction);
@@ -373,7 +364,6 @@ static int32_t emitBranchJump(CompilerContext* cc, uint8_t instruction, int32_t 
 	return emitJump(cc, instruction);
 }
 
-// generate loop
 static void emitLoop(CompilerContext* cc, int32_t loopStart) {
 	emitByte(cc, OP_LOOP);
 
@@ -548,7 +538,6 @@ static void patchJump(CompilerContext* cc, int32_t offset) {
 		error(cc, "Too much code to jump over.");
 	}
 
-	//write low and high
 	currentChunk(cc)->code[offset] = jump & 0xff;
 	currentChunk(cc)->code[offset + 1] = (jump >> 8) & 0xff;
 }
@@ -576,7 +565,6 @@ static void initCompiler(CompilerContext* cc, Compiler* compiler, FunctionType t
 	compiler->enclosing = cc->currentCompiler;
 	cc->currentCompiler = compiler;//must set now
 
-	//init
 	compiler->currentLoop = NULL;
 
 	compiler->type = type;
@@ -597,7 +585,6 @@ static void initCompiler(CompilerContext* cc, Compiler* compiler, FunctionType t
 	compiler->function.constantsCount = 0;//scratch state, constants live in the compiler until sealed
 	compiler->objectNestingDepth = 0;
 
-	//inline cache slots
 	compiler->cacheCount = 0;
 	compiler->icWarned = false;
 	compiler->cacheCapacity = 0;
@@ -607,7 +594,6 @@ static void initCompiler(CompilerContext* cc, Compiler* compiler, FunctionType t
 	// init compile constants, after compile we copy it to FAM objFunction
 	valueArray_init(&compiler->constants);
 
-	//it's a function
 	switch (type) {
 	case TYPE_FUNCTION:
 	case TYPE_METHOD:
@@ -636,7 +622,7 @@ static void initCompiler(CompilerContext* cc, Compiler* compiler, FunctionType t
 		local->name.length = 0;
 	}
 
-	// the module don't work in global scope
+	//top-level script/module starts the nesting count
 	if (compiler->enclosing == NULL) {
 		compiler->nestingDepth = 0;
 	}
@@ -714,7 +700,7 @@ static void beginScope(CompilerContext* cc) {
 
 static void emitPopCount(CompilerContext* cc, uint16_t popCount) {
 	if (popCount == 0) return;
-	if (popCount > 1) { // 16-bit index
+	if (popCount > 1) {
 		emitBytes(cc, 3, OP_POP_N, (uint8_t)popCount, (uint8_t)(popCount >> 8));
 	}
 	else {
@@ -831,7 +817,6 @@ static void addLocal(CompilerContext* cc, Token name, bool isHidden) {
 	}
 
 	if (current->localCount == current->localCapacity) {
-		//grow
 		uint32_t oldCapacity = current->localCapacity;
 		current->localCapacity = GROW_CAPACITY(oldCapacity);
 		current->locals = GROW_ARRAY_NO_GC(cc->vm, Local, current->locals, oldCapacity, current->localCapacity);
@@ -852,7 +837,6 @@ static bool identifiersEqual(Token* a, Token* b) {
 
 static void declareVariableAt(CompilerContext* cc, Token* name) {
 	Compiler* current = cc->currentCompiler;
-	//it is global
 	if (current->scopeDepth == 0) return;
 
 	for (int32_t i = current->localCount - 1; i >= 0; i--) {
@@ -894,14 +878,12 @@ static LocalInfo resolveLocal(CompilerContext* cc, Compiler* compiler, Token* na
 		}
 	}
 
-	//it is a global declared var
 	return (LocalInfo) { .arg = -1, .isConst = false };
 }
 
 static uint32_t addUpvalue(CompilerContext* cc, Compiler* compiler, int32_t index, bool isLocal) {
 	uint32_t upvalueCount = compiler->function.upvalueCount;
 
-	//deduplicate
 	for (uint32_t i = 0; i < upvalueCount; i++) {
 		Upvalue* upvalue = &compiler->upvalues[i];
 		if (upvalue->index == index && upvalue->isLocal == isLocal) {
@@ -922,7 +904,6 @@ static uint32_t addUpvalue(CompilerContext* cc, Compiler* compiler, int32_t inde
 static LocalInfo resolveUpvalue(CompilerContext* cc, Compiler* compiler, Token* name) {
 	if (compiler->enclosing == NULL) return (LocalInfo) { .arg = -1, .isConst = false };
 
-	//local
 	LocalInfo localInfo = resolveLocal(cc, compiler->enclosing, name);
 	if (localInfo.arg != -1) {
 		compiler->enclosing->locals[localInfo.arg].isCaptured = true;//mark it as captured
@@ -930,7 +911,6 @@ static LocalInfo resolveUpvalue(CompilerContext* cc, Compiler* compiler, Token* 
 		return localInfo;
 	}
 
-	//recursion
 	LocalInfo upvalue = resolveUpvalue(cc, compiler->enclosing, name);
 	if (upvalue.arg != -1) {
 		upvalue.arg = addUpvalue(cc, compiler, upvalue.arg, false);
@@ -945,7 +925,6 @@ static uint32_t parseVariable(CompilerContext* cc, C_STR errorMessage) {
 	consume(cc, TOKEN_IDENTIFIER, errorMessage);
 
 	declareVariable(cc);
-	//it is a local one
 	if (current->scopeDepth > 0) return 0;
 
 	return identifierConstant(cc, &cc->parser.previous);
@@ -954,14 +933,12 @@ static uint32_t parseVariable(CompilerContext* cc, C_STR errorMessage) {
 static void markInitialized(CompilerContext* cc, bool isConst) {
 	Compiler* current = cc->currentCompiler;
 	if (current->scopeDepth == 0) return;
-	//only defined local vars could be used
 	current->locals[current->localCount - 1].depth = current->scopeDepth;
 	current->locals[current->localCount - 1].isConst = isConst;
 }
 
 static void defineVariable(CompilerContext* cc, uint32_t global) {
 	Compiler* current = cc->currentCompiler;
-	//it is a local one
 	if (current->scopeDepth > 0) {
 		markInitialized(cc, false);
 		return;
@@ -973,7 +950,6 @@ static void defineVariable(CompilerContext* cc, uint32_t global) {
 
 static void defineConst(CompilerContext* cc, uint32_t global) {
 	Compiler* current = cc->currentCompiler;
-	//it is a local one
 	if (current->scopeDepth > 0) {
 		markInitialized(cc, true);
 		return;
@@ -1027,7 +1003,6 @@ static void function(CompilerContext* cc, FunctionType type) {
 	Compiler* current = cc->currentCompiler;
 	beginScope(cc);
 
-	//check '('
 	consume(cc, TOKEN_LEFT_PAREN, "Expect '(' before function parameters.");
 
 	if (!check(cc, TOKEN_RIGHT_PAREN)) {
@@ -1062,7 +1037,6 @@ static void function(CompilerContext* cc, FunctionType type) {
 
 	ObjFunction* function = endCompiler(cc);
 
-	//create a closure
 	emitConstantCommond(cc, OP_CLOSURE, makeConstant(cc, OBJ_VAL(function)));
 
 	//insert upValue index
@@ -1125,7 +1099,6 @@ static void classDeclaration(CompilerContext* cc) {
 		emitByte(cc, OP_INHERIT);
 		clearOpStack(cc);
 
-		//set flag
 		classCompiler.hasSuperclass = true;
 	}
 
@@ -1144,7 +1117,6 @@ static void classDeclaration(CompilerContext* cc) {
 		endScope(cc);
 	}
 
-	//resume
 	cc->currentClass = cc->currentClass->enclosing;
 }
 
@@ -1207,7 +1179,6 @@ static void forStatement(CompilerContext* cc) {
 	consume(cc, TOKEN_LEFT_PAREN, "Expect '(' after 'for'.");
 
 	if (match(cc, TOKEN_SEMICOLON)) { //like this -> for(;;)
-		// No initializer.
 	}
 	else if (match(cc, TOKEN_VAR)) { //like this -> for(var i = 0;;)
 		varDeclaration(cc);
@@ -1227,13 +1198,14 @@ static void forStatement(CompilerContext* cc) {
 		expression(cc);
 		consume(cc, TOKEN_SEMICOLON, "Expect ';' after loop condition.");
 
-		// Jump out of the loop if the condition is false.
 		exitJump = emitBranchJump(cc, OP_JUMP_IF_FALSE_POP, condStart);
 	}
 
 	//the code is: init,condition,increase,body,loop_to_increase
 	if (!match(cc, TOKEN_RIGHT_PAREN)) { // for(;;here)
-		//we don't do increase first,we go to body first
+		//skip the increase on the first iteration: jump to the body first, run
+		//the increase on every back-edge, and let break/continue patch into the
+		//increment (loopStart moves below)
 		int32_t bodyJump = emitJump(cc, OP_JUMP);
 		int32_t incrementStart = currentChunk(cc)->count;
 		expression(cc);
@@ -1241,15 +1213,11 @@ static void forStatement(CompilerContext* cc) {
 
 		consume(cc, TOKEN_RIGHT_PAREN, "Expect ')' after for clauses.");
 
-		//we go to where the condition is
 		emitLoop(cc, loopStart);
-		//after the body,we go to increase
 		loopStart = incrementStart;
-		//patch the body,first time,we jump to body
 		patchJump(cc, bodyJump);
 	}
 
-	//record the loop
 	LoopContext loop = (LoopContext){
 		.start = loopStart,
 		.enclosing = current->currentLoop,
@@ -1278,7 +1246,6 @@ static void forStatement(CompilerContext* cc) {
 
 	FREE_ARRAY_NO_GC(cc->vm, int32_t, loop.breakJumps, loop.breakJumpCapacity);
 	current->currentLoop = current->currentLoop->enclosing;
-	//end block
 	endScope(cc);
 }
 
@@ -1486,10 +1453,8 @@ static void exportsStatement(CompilerContext* cc) {
 }
 
 static void import_(CompilerContext* cc, bool canAssign) {
-	//parse the module name
 	expression(cc);
 
-	//emit the import command
 	emitByte(cc, OP_IMPORT);
 	clearOpStack(cc);
 }
@@ -1505,7 +1470,6 @@ static void whileStatement(CompilerContext* cc) {
 
 	int32_t exitJump = emitBranchJump(cc, OP_JUMP_IF_FALSE_POP, condStart);
 
-	//record the loop
 	LoopContext loop = (LoopContext){
 		.start = loopStart,
 		.enclosing = current->currentLoop,
@@ -1539,7 +1503,6 @@ static void whileStatement(CompilerContext* cc) {
 static void doWhileStatement(CompilerContext* cc) {
 	Compiler* current = cc->currentCompiler;
 	int32_t loopStart = currentChunk(cc)->count;
-	//record the loop
 	LoopContext loop = (LoopContext){
 		.start = loopStart,
 		.enclosing = current->currentLoop,
@@ -1755,7 +1718,7 @@ static void statement(CompilerContext* cc) {
 }
 
 static void declaration(CompilerContext* cc) {
-	//might went panicMode
+	//recover from panic mode before parsing the next declaration
 	if (cc->parser.panicMode) synchronize(cc);
 
 	if (match(cc, TOKEN_CLASS)) {
@@ -1997,7 +1960,7 @@ static void arrayLiteral(CompilerContext* cc, bool canAssign) {
 	uint32_t elementCount = 0;
 	if (!check(cc, TOKEN_RIGHT_SQUARE_BRACKET) && !check(cc, TOKEN_EOF)) {
 		do {
-			expression(cc); //parse values
+			expression(cc);
 			elementCount++;
 
 			if (cc->parser.panicMode) return;
@@ -2010,7 +1973,7 @@ static void arrayLiteral(CompilerContext* cc, bool canAssign) {
 		return;
 	}
 
-	emitBytes(cc, 3, OP_NEW_ARRAY, (uint8_t)elementCount, (uint8_t)(elementCount >> 8));  //make array
+	emitBytes(cc, 3, OP_NEW_ARRAY, (uint8_t)elementCount, (uint8_t)(elementCount >> 8));
 	clearOpStack(cc);
 }
 
@@ -2043,7 +2006,7 @@ static void objectLiteral(CompilerContext* cc, bool canAssign) {
 			}
 
 			consume(cc, TOKEN_COLON, "Expect ':' after property name.");
-			expression(cc); //get value
+			expression(cc);
 			emitConstantCommond(cc, OP_NEW_PROPERTY, constant);
 			clearOpStack(cc);
 
@@ -2058,7 +2021,8 @@ static void objectLiteral(CompilerContext* cc, bool canAssign) {
 	--current->objectNestingDepth;
 }
 
-//when it is constant index,use this
+//rewrite a constant-index subscript: roll back the constant load and re-emit
+//as the fused index opcodes (OP_GET_INDEX/OP_SET_INDEX or property access)
 static void mergeSubscript(CompilerContext* cc, uint8_t code, bool isAssignment) {
 	Chunk* chunk = currentChunk(cc);
 #define READ_CONSTANT(index) (cc->vm->constants.values[(index)])
@@ -2119,7 +2083,7 @@ static void subscript(CompilerContext* cc, bool canAssign) {
 	expression(cc);
 	consume(cc, TOKEN_RIGHT_SQUARE_BRACKET, "Expect ']' after subscript.");
 
-	// Because of the order of parsing, the index must be processed here
+	//the index load is the last tracked op; peek it to detect a constant-index subscript
 	uint8_t code = opStack_peek(currentOpStack(cc), 0);
 	bool isAssignment = canAssign && match(cc, TOKEN_EQUAL);
 
@@ -2139,7 +2103,6 @@ static void subscript(CompilerContext* cc, bool canAssign) {
 	}
 }
 
-//check builtin
 static void builtinLiteral(CompilerContext* cc, bool canAssign) {
 	uint8_t module = 0;
 	switch (cc->parser.previous.type)
@@ -2228,7 +2191,6 @@ static void number_hex(CompilerContext* cc, bool canAssign) {
 }
 
 static void or_(CompilerContext* cc, bool canAssign) {
-	//if true
 	int32_t ifJump = emitJump(cc, OP_JUMP_IF_TRUE);
 	emitPopCount(cc, 1);
 	parsePrecedence(cc, PREC_OR);
@@ -2251,11 +2213,10 @@ static void namedVariable(CompilerContext* cc, Token name, bool canAssign) {
 				errorAtCurrent(cc, "Assignment to constant variable.");
 				return;
 			}
-			// 16-bit index
 			emitBytes(cc, 3, OP_SET_LOCAL, (uint8_t)arg, (uint8_t)(arg >> 8));
 			emitOpStack(cc, OP_SET_LOCAL, false);
 		}
-		else { // 16-bit index
+		else {
 			emitBytes(cc, 3, OP_GET_LOCAL, (uint8_t)arg, (uint8_t)(arg >> 8));
 			emitOpStack(cc, OP_GET_LOCAL, false);
 		}
@@ -2272,10 +2233,9 @@ static void namedVariable(CompilerContext* cc, Token name, bool canAssign) {
 					errorAtCurrent(cc, "Assignment to constant variable.");
 					return;
 				}
-				// 16-bit index
 				emitBytes(cc, 2, OP_SET_UPVALUE, (uint8_t)arg);
 			}
-			else { // 16-bit index
+			else {
 				emitBytes(cc, 2, OP_GET_UPVALUE, (uint8_t)arg);
 			}
 			clearOpStack(cc);
@@ -2348,10 +2308,8 @@ static void string_escape(CompilerContext* cc, bool canAssign) {
 static void unary(CompilerContext* cc, bool canAssign) {
 	TokenType operatorType = cc->parser.previous.type;
 
-	// Compile the operand.
 	parsePrecedence(cc, PREC_UNARY);
 
-	// Emit the operator instruction.
 	switch (operatorType) {
 	case TOKEN_BANG: {
 		emitByte(cc, OP_NOT);
@@ -2469,7 +2427,6 @@ ObjFunction* compile(LfxVM* vm, C_STR source, FunctionType compileType) {
 		.printBytecode = vm->options.printBytecode,
 		.optimizationEnabled = vm->options.optimizationEnabled,
 		.scanner = { 0 },
-		//init flags
 		.parser = {
 			.current = { 0 },
 			.previous = { 0 },
@@ -2510,7 +2467,6 @@ ObjFunction* compile(LfxVM* vm, C_STR source, FunctionType compileType) {
 * This part uses hard-coded instruction lengths, which needs to be noted
 */
 #if LOXFLUX_COMPILATION_TIME_OPTIMIZATION
-//COLD_FUNCTION
 static void instructionOptimize(CompilerContext* cc) {
 	Compiler* current = cc->currentCompiler;
 	Chunk* chunk = currentChunk(cc);
@@ -2626,6 +2582,9 @@ static void instructionOptimize(CompilerContext* cc) {
 		}														\
 	} while (false)
 
+	//right-operand fusion: number constant -> *_NUMBER (16bit index), local ->
+	//*_LOCAL; a non-number constant fuses for equality only (*_CONST, 24bit),
+	//arithmetic/ordering have no such super instruction and fall through
 	switch (code) {
 	case OP_ADD: {
 		if (isBothConstant) {
@@ -2649,12 +2608,10 @@ static void instructionOptimize(CompilerContext* cc) {
 			}
 		}
 		else if (isRightConstNumber) {
-			//number constant -> super instruction,16bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
 			CHUNK_PEEK(2) = OP_ADD_NUMBER; //convert command
 		}
-		//non-number constant : no super instruction for arithmetic
 		else if (isRightLocal) {
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
@@ -2669,12 +2626,10 @@ static void instructionOptimize(CompilerContext* cc) {
 			BINARY_CALC(left, right, -, CONST_SIZE(isLeftConstNumber), CONST_SIZE(isRightConstNumber));
 		}
 		else if (isRightConstNumber) {
-			//number constant -> super instruction,16bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
 			CHUNK_PEEK(2) = OP_SUBTRACT_NUMBER; //convert command
 		}
-		//non-number constant : no super instruction for arithmetic
 		else if (isRightLocal) {
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
@@ -2689,12 +2644,10 @@ static void instructionOptimize(CompilerContext* cc) {
 			BINARY_CALC(left, right, *, CONST_SIZE(isLeftConstNumber), CONST_SIZE(isRightConstNumber));
 		}
 		else if (isRightConstNumber) {
-			//number constant -> super instruction,16bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
 			CHUNK_PEEK(2) = OP_MULTIPLY_NUMBER; //convert command
 		}
-		//non-number constant : no super instruction for arithmetic
 		else if (isRightLocal) {
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
@@ -2709,12 +2662,10 @@ static void instructionOptimize(CompilerContext* cc) {
 			BINARY_CALC(left, right, / , CONST_SIZE(isLeftConstNumber), CONST_SIZE(isRightConstNumber));
 		}
 		else if (isRightConstNumber) {
-			//number constant -> super instruction,16bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
 			CHUNK_PEEK(2) = OP_DIVIDE_NUMBER; //convert command
 		}
-		//non-number constant : no super instruction for arithmetic
 		else if (isRightLocal) {
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
@@ -2738,12 +2689,10 @@ static void instructionOptimize(CompilerContext* cc) {
 			}
 		}
 		else if (isRightConstNumber) {
-			//number constant -> super instruction,16bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
 			CHUNK_PEEK(2) = OP_MODULUS_NUMBER; //convert command
 		}
-		//non-number constant : no super instruction for arithmetic
 		else if (isRightLocal) {
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
@@ -2794,7 +2743,6 @@ static void instructionOptimize(CompilerContext* cc) {
 			emitNumberConstant(cc, NUMBER_VAL(val));
 		}
 		else if (prevRight == OP_CONSTANT) {
-			//non-number constant
 			error(cc, "Operand must be a number.");
 		}
 		else if (prevRight == OP_FALSE || prevRight == OP_TRUE || prevRight == OP_NIL) {
@@ -2819,11 +2767,9 @@ static void instructionOptimize(CompilerContext* cc) {
 			emitOpStack(cc, val ? OP_TRUE : OP_FALSE, false);
 		}
 		else if (isRightConstNumber) {
-			//number constant -> super instruction,16bits index
 			FUSE_IN_PLACE_2B(OP_EQUAL_NUMBER);
 		}
 		else if (prevRight == OP_CONSTANT) {
-			//non-number constant -> super instruction,24bits index
 			FUSE_IN_PLACE_3B(OP_EQUAL_CONST);
 		}
 		else if (isRightLocal) {
@@ -2843,11 +2789,9 @@ static void instructionOptimize(CompilerContext* cc) {
 			emitOpStack(cc, val ? OP_TRUE : OP_FALSE, false);
 		}
 		else if (isRightConstNumber) {
-			//number constant -> super instruction,16bits index
 			FUSE_IN_PLACE_2B(OP_NOT_EQUAL_NUMBER);
 		}
 		else if (prevRight == OP_CONSTANT) {
-			//non-number constant -> super instruction,24bits index
 			FUSE_IN_PLACE_3B(OP_NOT_EQUAL_CONST);
 		}
 		else if (isRightLocal) {
@@ -2862,10 +2806,8 @@ static void instructionOptimize(CompilerContext* cc) {
 			BINARY_CMP(left, right, > , CONST_SIZE(isLeftConstNumber), CONST_SIZE(isRightConstNumber));
 		}
 		else if (isRightConstNumber) {
-			//number constant -> super instruction,16bits index
 			FUSE_IN_PLACE_2B(OP_GREATER_NUMBER);
 		}
-		//non-number constant : no super instruction for ordering comparisons
 		else if (isRightLocal) {
 			FUSE_IN_PLACE_2B(OP_GREATER_LOCAL);
 		}
@@ -2878,10 +2820,8 @@ static void instructionOptimize(CompilerContext* cc) {
 			BINARY_CMP(left, right, < , CONST_SIZE(isLeftConstNumber), CONST_SIZE(isRightConstNumber));
 		}
 		else if (isRightConstNumber) {
-			//number constant -> super instruction,16bits index
 			FUSE_IN_PLACE_2B(OP_LESS_NUMBER);
 		}
-		//non-number constant : no super instruction for ordering comparisons
 		else if (isRightLocal) {
 			FUSE_IN_PLACE_2B(OP_LESS_LOCAL);
 		}
@@ -2894,10 +2834,8 @@ static void instructionOptimize(CompilerContext* cc) {
 			BINARY_CMP(left, right, <= , CONST_SIZE(isLeftConstNumber), CONST_SIZE(isRightConstNumber));
 		}
 		else if (isRightConstNumber) {
-			//number constant -> super instruction,16bits index
 			FUSE_IN_PLACE_2B(OP_LESS_EQUAL_NUMBER);
 		}
-		//non-number constant : no super instruction for ordering comparisons
 		else if (isRightLocal) {
 			FUSE_IN_PLACE_2B(OP_LESS_EQUAL_LOCAL);
 		}
@@ -2910,10 +2848,8 @@ static void instructionOptimize(CompilerContext* cc) {
 			BINARY_CMP(left, right, >= , CONST_SIZE(isLeftConstNumber), CONST_SIZE(isRightConstNumber));
 		}
 		else if (isRightConstNumber) {
-			//number constant -> super instruction,16bits index
 			FUSE_IN_PLACE_2B(OP_GREATER_EQUAL_NUMBER);
 		}
-		//non-number constant : no super instruction for ordering comparisons
 		else if (isRightLocal) {
 			FUSE_IN_PLACE_2B(OP_GREATER_EQUAL_LOCAL);
 		}
@@ -2927,7 +2863,7 @@ static void instructionOptimize(CompilerContext* cc) {
 				break;
 			}
 
-			uint32_t idx_right = READ_SHORT_INDEX(2); //op
+			uint32_t idx_right = READ_SHORT_INDEX(2);
 			LfxValue right = READ_LOCAL_CONSTANT(idx_right);
 
 			if (!IS_NUMBER(right)) {
@@ -2995,7 +2931,6 @@ static void instructionOptimize(CompilerContext* cc) {
 			}
 		}
 		else if (prevRight == OP_CONSTANT) {
-			//non-number constant
 			error(cc, "Operand of bitwise must be a number.");
 		}
 		break;
