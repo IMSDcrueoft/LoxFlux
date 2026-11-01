@@ -36,6 +36,10 @@ static OPStack* currentOpStack(CompilerContext* cc) {
 	return &current->stack;
 }
 
+static void fallbackOpStack(CompilerContext* cc, uint32_t entryCount) {
+	opStack_fallback(currentOpStack(cc), entryCount);
+}
+
 //for which complex logical/control flows, merge is not used
 static void clearOpStack(CompilerContext* cc) {
 	opStack_clear(currentOpStack(cc));
@@ -211,6 +215,14 @@ static int32_t emitJump(CompilerContext* cc, uint8_t instruction) {
 }
 
 //branch-style conditional jump (if/branch/while/do-while only)
+//the condition tail is identified through the opStack tracking instead of raw
+//byte pattern matching: instructionOptimize keeps fused comparison opcodes
+//pushed on the opStack (conversions no longer clear the tracking), so the tail
+//layout is derived from tracked entries and only operand values are read from
+//the chunk at those derived positions
+//regionSize still witnesses that the matched instructions span the whole
+//condition, so compound conditions (e.g. `a || b < c`, whose result must stay
+//on the stack for the outer jump) can never match
 //whole condition is exactly one compile-time constant load:
 //  falsy (OP_FALSE/OP_NIL/nil constant)              -> always taken : rollback cond, emit OP_JUMP (no runtime compare)
 //  truthy (OP_TRUE/number constant/non-nil constant) -> never taken  : rollback cond, no jump, return -1 (no backpatch)
@@ -222,28 +234,18 @@ static int32_t emitBranchJump(CompilerContext* cc, uint8_t instruction, int32_t 
 
 	if (instruction == OP_JUMP_IF_FALSE_POP) {
 		Chunk* chunk = currentChunk(cc);
+		OPStack* opStack = currentOpStack(cc);
 		uint32_t regionSize = chunk->count - (uint32_t)condStart;
-		uint8_t cond = chunk->code[condStart];
+		//opStack_peek returns UINT8_MAX beyond the tracked window: never a real opcode
+		uint8_t top = opStack_peek(opStack, 0);
+		uint8_t below = opStack_peek(opStack, 1);
 
+		//1. whole condition is one tracked constant load: fold at compile time
 		//1 byte literal / 3 bytes number constant / 4 bytes non-number constant
-		if ((regionSize == 1 && (cond == OP_TRUE || cond == OP_FALSE || cond == OP_NIL))
-			|| (regionSize == 3 && cond == OP_CONST_NUMBER)
-			|| (regionSize == 4 && cond == OP_CONSTANT)) {
-			bool truthy;
-
-			switch (cond) {
-			case OP_FALSE:
-			case OP_NIL: {
-				truthy = false;
-				break;
-			}
-			case OP_TRUE:
-			case OP_CONST_NUMBER:
-			case OP_CONSTANT: {
-				truthy = true;
-				break;
-			}
-			}
+		if (((top == OP_TRUE || top == OP_FALSE || top == OP_NIL) && regionSize == 1)
+			|| (top == OP_CONST_NUMBER && regionSize == 3)
+			|| (top == OP_CONSTANT && regionSize == 4)) {
+			bool truthy = !(top == OP_FALSE || top == OP_NIL);
 
 			chunk_fallback(chunk, regionSize);//rollback the condition bytes
 			clearOpStack(cc);
@@ -254,23 +256,22 @@ static int32_t emitBranchJump(CompilerContext* cc, uint8_t instruction, int32_t 
 			return -1;//never taken
 		}
 
-		//try to fuse [operand load][fused compare] + jump into one OP_JIF_*_LL/LN:
+		//2. try to fuse [operand load][fused compare] + jump into one OP_JIF_*_LL/LN:
 		//pattern A: GET_LOCAL a + <CMP>_LOCAL b   (6 bytes; both slots can swap, so > / >= reuse the LESS forms)
 		//pattern B: GET_LOCAL a + <CMP>_NUMBER c   (6 bytes, number constant on the right)
 		//pattern C: CONST_NUMBER c + <CMP>_LOCAL a (6 bytes, number constant on the left, flip the direction)
-		//anything else falls through to the plain jump
-		if (regionSize == 6 && (cond == OP_GET_LOCAL || cond == OP_CONST_NUMBER)) {
+		//both entries are tracked: `top` is the converted comparison, `below` the operand load
+		if (regionSize == 6 && (below == OP_GET_LOCAL || below == OP_CONST_NUMBER)) {
 			uint32_t indexA = ((uint32_t)chunk->code[condStart + 1]) | ((uint32_t)chunk->code[condStart + 2] << 8);
-			uint8_t cmpOp = chunk->code[condStart + 3];
 			uint32_t indexB = ((uint32_t)chunk->code[condStart + 4]) | ((uint32_t)chunk->code[condStart + 5] << 8);
 
 			uint8_t fused = INVALID_OP;
 			bool swap = false;
 			bool isLL = false;
 
-			if (cond == OP_GET_LOCAL) {
+			if (below == OP_GET_LOCAL) {
 				//local on the left
-				switch (cmpOp) {
+				switch (top) {
 				case OP_LESS_LOCAL:				fused = OP_JIF_LESS_LL; isLL = true; break;
 				case OP_LESS_EQUAL_LOCAL:		fused = OP_JIF_LESS_EQUAL_LL; isLL = true; break;
 				case OP_GREATER_LOCAL:			fused = OP_JIF_LESS_LL; swap = true; isLL = true; break;
@@ -288,7 +289,7 @@ static int32_t emitBranchJump(CompilerContext* cc, uint8_t instruction, int32_t 
 			}
 			else {
 				//number constant on the left: flip the direction (== / != need no flip)
-				switch (cmpOp) {
+				switch (top) {
 				case OP_LESS_LOCAL:				fused = OP_JIF_GREATER_LN; break;
 				case OP_LESS_EQUAL_LOCAL:		fused = OP_JIF_GREATER_EQUAL_LN; break;
 				case OP_GREATER_LOCAL:			fused = OP_JIF_LESS_LN; break;
@@ -312,8 +313,8 @@ static int32_t emitBranchJump(CompilerContext* cc, uint8_t instruction, int32_t 
 				}
 				else {
 					//local left: local=indexA,const=indexB; const left: local=indexB,const=indexA
-					uint32_t localIndex = (cond == OP_GET_LOCAL) ? indexA : indexB;
-					uint32_t constIndex = (cond == OP_GET_LOCAL) ? indexB : indexA;
+					uint32_t localIndex = (below == OP_GET_LOCAL) ? indexA : indexB;
+					uint32_t constIndex = (below == OP_GET_LOCAL) ? indexB : indexA;
 					//[op:8][local:16][const:16][offset:16 placeholder]
 					emitBytes(cc, 7, fused,
 						(uint8_t)localIndex, (uint8_t)(localIndex >> 8),
@@ -325,35 +326,32 @@ static int32_t emitBranchJump(CompilerContext* cc, uint8_t instruction, int32_t 
 			}
 		}
 
-		//fused equality with non-number constants (24bit index into vm.constants):
+		//3. fused equality with non-number constants (24bit index into vm.constants):
 		//pattern D: GET_LOCAL a + OP_EQUAL_CONST/OP_NOT_EQUAL_CONST c  (7 bytes)
 		//pattern E: OP_CONSTANT c + OP_EQUAL_LOCAL/OP_NOT_EQUAL_LOCAL a (7 bytes)
 		//note: ordering comparisons against non-number constants have no super
-		//instruction, so a 7-byte region starting with OP_CONSTANT is only matched
-		//for the equality _LOCAL ops (a 4-byte non-number constant is never treated
+		//instruction, so the OP_CONSTANT-below form is only matched for the
+		//equality _LOCAL ops (a 4-byte non-number constant is never treated
 		//as a 16bit one)
-		if (regionSize == 7 && (cond == OP_GET_LOCAL || cond == OP_CONSTANT)) {
+		if (regionSize == 7 && (below == OP_GET_LOCAL || below == OP_CONSTANT)) {
 			uint32_t localIndex = 0;
 			uint32_t constIndex = 0;
-			uint8_t cmpOp = 0;
 			uint8_t fused = INVALID_OP;
 
-			if (cond == OP_GET_LOCAL) {
+			if (below == OP_GET_LOCAL) {
 				localIndex = ((uint32_t)chunk->code[condStart + 1]) | ((uint32_t)chunk->code[condStart + 2] << 8);
-				cmpOp = chunk->code[condStart + 3];
 				constIndex = ((uint32_t)chunk->code[condStart + 4]) | ((uint32_t)chunk->code[condStart + 5] << 8) | ((uint32_t)chunk->code[condStart + 6] << 16);
 
-				if (cmpOp == OP_EQUAL_CONST) fused = OP_JIF_EQUAL_LC;
-				else if (cmpOp == OP_NOT_EQUAL_CONST) fused = OP_JIF_NOT_EQUAL_LC;
+				if (top == OP_EQUAL_CONST) fused = OP_JIF_EQUAL_LC;
+				else if (top == OP_NOT_EQUAL_CONST) fused = OP_JIF_NOT_EQUAL_LC;
 			}
 			else {
 				constIndex = ((uint32_t)chunk->code[condStart + 1]) | ((uint32_t)chunk->code[condStart + 2] << 8) | ((uint32_t)chunk->code[condStart + 3] << 16);
-				cmpOp = chunk->code[condStart + 4];
 				localIndex = ((uint32_t)chunk->code[condStart + 5]) | ((uint32_t)chunk->code[condStart + 6] << 8);
 
 				//const was on the left: == / != commute, no flip
-				if (cmpOp == OP_EQUAL_LOCAL) fused = OP_JIF_EQUAL_LC;
-				else if (cmpOp == OP_NOT_EQUAL_LOCAL) fused = OP_JIF_NOT_EQUAL_LC;
+				if (top == OP_EQUAL_LOCAL) fused = OP_JIF_EQUAL_LC;
+				else if (top == OP_NOT_EQUAL_LOCAL) fused = OP_JIF_NOT_EQUAL_LC;
 			}
 
 			if (fused != INVALID_OP) {
@@ -2573,6 +2571,28 @@ static void instructionOptimize(CompilerContext* cc) {
 	 ((op) == OP_TRUE)			? TRUE_VAL :	\
 	 ((op) == OP_FALSE)			? FALSE_VAL : NIL_VAL)
 
+//fuse the trailing [right operand][raw op] pair in place: the raw opcode byte
+//is dropped and the absorbed operand instruction is rewritten into `fusedOp`
+//(16bit operand form); the right operand's tracked entry is dropped and the
+//fused opcode is pushed so the fusion stays visible to emitBranchJump's
+//opStack-based tail matching (the left operand's entry is kept tracked)
+#define FUSE_IN_PLACE_2B(fusedOp)						\
+	do {											\
+		chunk_fallback(chunk, 1);					\
+		fallbackOpStack(cc, 2);						\
+		CHUNK_PEEK(2) = (fusedOp);					\
+		opStack_push(cc->vm, opStack, (fusedOp));	\
+	} while (false)
+
+//24bit operand variant (rewrites an absorbed [OP_CONSTANT u24] instruction)
+#define FUSE_IN_PLACE_3B(fusedOp)					\
+	do {											\
+		chunk_fallback(chunk, 1);					\
+		fallbackOpStack(cc, 2);						\
+		CHUNK_PEEK(3) = (fusedOp);					\
+		opStack_push(cc->vm, opStack, (fusedOp));	\
+	} while (false)
+
 #define BINARY_CALC(left,right,op,sizeLeft,sizeRight)			\
 	do {														\
 		if (IS_NUMBER(left) && IS_NUMBER(right)) {				\
@@ -2800,20 +2820,14 @@ static void instructionOptimize(CompilerContext* cc) {
 		}
 		else if (isRightConstNumber) {
 			//number constant -> super instruction,16bits index
-			chunk_fallback(chunk, 1);//op
-			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_EQUAL_NUMBER; //convert command
+			FUSE_IN_PLACE_2B(OP_EQUAL_NUMBER);
 		}
 		else if (prevRight == OP_CONSTANT) {
 			//non-number constant -> super instruction,24bits index
-			chunk_fallback(chunk, 1);//op
-			clearOpStack(cc);
-			CHUNK_PEEK(3) = OP_EQUAL_CONST; //convert command
+			FUSE_IN_PLACE_3B(OP_EQUAL_CONST);
 		}
 		else if (isRightLocal) {
-			chunk_fallback(chunk, 1);//op
-			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_EQUAL_LOCAL; //convert command
+			FUSE_IN_PLACE_2B(OP_EQUAL_LOCAL);
 		}
 		break;
 	}
@@ -2830,20 +2844,14 @@ static void instructionOptimize(CompilerContext* cc) {
 		}
 		else if (isRightConstNumber) {
 			//number constant -> super instruction,16bits index
-			chunk_fallback(chunk, 1);//op
-			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_NOT_EQUAL_NUMBER; //convert command
+			FUSE_IN_PLACE_2B(OP_NOT_EQUAL_NUMBER);
 		}
 		else if (prevRight == OP_CONSTANT) {
 			//non-number constant -> super instruction,24bits index
-			chunk_fallback(chunk, 1);//op
-			clearOpStack(cc);
-			CHUNK_PEEK(3) = OP_NOT_EQUAL_CONST; //convert command
+			FUSE_IN_PLACE_3B(OP_NOT_EQUAL_CONST);
 		}
 		else if (isRightLocal) {
-			chunk_fallback(chunk, 1);//op
-			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_NOT_EQUAL_LOCAL; //convert command
+			FUSE_IN_PLACE_2B(OP_NOT_EQUAL_LOCAL);
 		}
 		break;
 	}
@@ -2855,15 +2863,11 @@ static void instructionOptimize(CompilerContext* cc) {
 		}
 		else if (isRightConstNumber) {
 			//number constant -> super instruction,16bits index
-			chunk_fallback(chunk, 1);//op
-			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_GREATER_NUMBER; //convert command
+			FUSE_IN_PLACE_2B(OP_GREATER_NUMBER);
 		}
 		//non-number constant : no super instruction for ordering comparisons
 		else if (isRightLocal) {
-			chunk_fallback(chunk, 1);//op
-			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_GREATER_LOCAL; //convert command
+			FUSE_IN_PLACE_2B(OP_GREATER_LOCAL);
 		}
 		break;
 	}
@@ -2875,15 +2879,11 @@ static void instructionOptimize(CompilerContext* cc) {
 		}
 		else if (isRightConstNumber) {
 			//number constant -> super instruction,16bits index
-			chunk_fallback(chunk, 1);//op
-			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_LESS_NUMBER; //convert command
+			FUSE_IN_PLACE_2B(OP_LESS_NUMBER);
 		}
 		//non-number constant : no super instruction for ordering comparisons
 		else if (isRightLocal) {
-			chunk_fallback(chunk, 1);//op
-			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_LESS_LOCAL; //convert command
+			FUSE_IN_PLACE_2B(OP_LESS_LOCAL);
 		}
 		break;
 	}
@@ -2895,15 +2895,11 @@ static void instructionOptimize(CompilerContext* cc) {
 		}
 		else if (isRightConstNumber) {
 			//number constant -> super instruction,16bits index
-			chunk_fallback(chunk, 1);//op
-			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_LESS_EQUAL_NUMBER; //convert command
+			FUSE_IN_PLACE_2B(OP_LESS_EQUAL_NUMBER);
 		}
 		//non-number constant : no super instruction for ordering comparisons
 		else if (isRightLocal) {
-			chunk_fallback(chunk, 1);//op
-			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_LESS_EQUAL_LOCAL; //convert command
+			FUSE_IN_PLACE_2B(OP_LESS_EQUAL_LOCAL);
 		}
 		break;
 	}
@@ -2915,15 +2911,11 @@ static void instructionOptimize(CompilerContext* cc) {
 		}
 		else if (isRightConstNumber) {
 			//number constant -> super instruction,16bits index
-			chunk_fallback(chunk, 1);//op
-			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_GREATER_EQUAL_NUMBER; //convert command
+			FUSE_IN_PLACE_2B(OP_GREATER_EQUAL_NUMBER);
 		}
 		//non-number constant : no super instruction for ordering comparisons
 		else if (isRightLocal) {
-			chunk_fallback(chunk, 1);//op
-			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_GREATER_EQUAL_LOCAL; //convert command
+			FUSE_IN_PLACE_2B(OP_GREATER_EQUAL_LOCAL);
 		}
 		break;
 	}
@@ -3059,9 +3051,50 @@ static void instructionOptimize(CompilerContext* cc) {
 		}
 		break;
 	}
-	case OP_SET_LOCAL: {
+	//opcodes that can legitimately sit on the opStack (loads/literals pushed by
+	//the emitters and fused forms pushed by the conversions above): valid
+	//bytecode, nothing left to optimize when examined here
+	case OP_CONSTANT:
+	case OP_CONST_NUMBER:
+	case OP_TRUE:
+	case OP_FALSE:
+	case OP_NIL:
+	case OP_GET_LOCAL:
+	case OP_SET_LOCAL:
+	case OP_MODULE_BUILTIN:
+	case OP_SET_PROPERTY:
+	case OP_SET_PROP_LOCAL:
+	case OP_ADD_NUMBER:
+	case OP_SUBTRACT_NUMBER:
+	case OP_MULTIPLY_NUMBER:
+	case OP_DIVIDE_NUMBER:
+	case OP_MODULUS_NUMBER:
+	case OP_ADD_LOCAL:
+	case OP_SUBTRACT_LOCAL:
+	case OP_MULTIPLY_LOCAL:
+	case OP_DIVIDE_LOCAL:
+	case OP_MODULUS_LOCAL:
+	case OP_NOT_LOCAL:
+	case OP_NEGATE_LOCAL:
+	case OP_EQUAL_NUMBER:
+	case OP_NOT_EQUAL_NUMBER:
+	case OP_EQUAL_CONST:
+	case OP_NOT_EQUAL_CONST:
+	case OP_EQUAL_LOCAL:
+	case OP_NOT_EQUAL_LOCAL:
+	case OP_GREATER_NUMBER:
+	case OP_GREATER_EQUAL_NUMBER:
+	case OP_LESS_NUMBER:
+	case OP_LESS_EQUAL_NUMBER:
+	case OP_GREATER_LOCAL:
+	case OP_GREATER_EQUAL_LOCAL:
+	case OP_LESS_LOCAL:
+	case OP_LESS_EQUAL_LOCAL:
+	case OP_SET_LOCAL_POP:
+	case OP_MOVE_LOCAL:
+	case OP_SET_PROPERTY_POP:
+	case OP_SET_PROP_LOCAL_POP:
 		break;
-	}
 	default: {
 		fprintf(stderr, "Unexpected(%u)\n", code);
 		break;
@@ -3078,6 +3111,8 @@ static void instructionOptimize(CompilerContext* cc) {
 #undef READ_CONST_VALUE
 #undef OPERAND_SIZE
 #undef READ_OPERAND
+#undef FUSE_IN_PLACE_2B
+#undef FUSE_IN_PLACE_3B
 #undef BINARY_CALC
 #undef BINARY_CMP
 }
