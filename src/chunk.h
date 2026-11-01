@@ -122,6 +122,12 @@ typedef enum {
 	OP_NOT_LOCAL,
 	OP_NEGATE_LOCAL,
 
+	//fused local-receiver property forms: [op][local u16][name u24][cache u8]
+	//the receiver is read directly from the frame slot (no stack copy of the local)
+	OP_GET_PROP_LOCAL,
+	OP_SET_PROP_LOCAL,		// the assigned value remains on the stack
+	OP_SET_PROP_LOCAL_POP,	// pop the assigned value
+
 	//branch super command (fused compare + jump if false)
 	//LL forms: both operands are local slots; > / >= reuse the LESS forms via slot swap
 	//format: [op:8][localA:16][localB:16][offset:16]
@@ -157,11 +163,19 @@ typedef enum {
 	OP_JIF_EQUAL_NUMBER,		// stack == const else jump
 	OP_JIF_NOT_EQUAL_NUMBER,	// stack != const else jump
 
-	//fused local-receiver property forms: [op][local u16][name u24][cache u8]
-	//the receiver is read directly from the frame slot (no stack copy of the local)
-	OP_GET_PROP_LOCAL,
-	OP_SET_PROP_LOCAL,		// the assigned value remains on the stack
-	OP_SET_PROP_LOCAL_POP,	// pop the assigned value
+	//stack-operand forms vs a local slot (16bit): ordering + equality
+	//format: [op:8][local:16][offset:16]
+	OP_JIF_LESS_LOCAL,			// stack <  local else jump
+	OP_JIF_LESS_EQUAL_LOCAL,	// stack <= local else jump
+	OP_JIF_GREATER_LOCAL,		// stack >  local else jump
+	OP_JIF_GREATER_EQUAL_LOCAL,	// stack >= local else jump
+	OP_JIF_EQUAL_LOCAL,			// stack == local else jump
+	OP_JIF_NOT_EQUAL_LOCAL,		// stack != local else jump
+
+	//stack-operand equality vs a non-number constant (24bit index into vm.constants)
+	//format: [op:8][const:24][offset:16]
+	OP_JIF_EQUAL_CONST,			// stack == const else jump
+	OP_JIF_NOT_EQUAL_CONST,		// stack != const else jump
 
 	// guard
 	INVALID_OP

@@ -188,6 +188,28 @@ static uint32_t jifNumberInstruction(C_STR name, ObjFunction* function, uint32_t
 	return offset + 5;
 }
 
+//fused compare + jump vs a local slot, stack-top left operand: [op:8][local:16][offset:16]
+COLD_FUNCTION
+static uint32_t jifLocalInstruction(C_STR name, Chunk* chunk, uint32_t offset) {
+	uint32_t slot = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8);
+	uint16_t jump = (uint16_t)(chunk->code[offset + 3] | (chunk->code[offset + 4] << 8));
+
+	DIS_PRINTF("%-16s R:%4d %4d -> %d\n", name, slot, offset, offset + 5 + jump);
+	return offset + 5;
+}
+
+//fused equality + jump vs a non-number constant, stack-top left operand: [op:8][const:24][offset:16]
+COLD_FUNCTION
+static uint32_t jifConstInstruction(LfxVM* vm, C_STR name, Chunk* chunk, uint32_t offset) {
+	uint32_t constant = ((uint32_t)chunk->code[offset + 1]) | ((uint32_t)chunk->code[offset + 2] << 8) | ((uint32_t)chunk->code[offset + 3] << 16);
+	uint16_t jump = (uint16_t)(chunk->code[offset + 4] | (chunk->code[offset + 5] << 8));
+
+	DIS_PRINTF("%-16s '", name);
+	disPrintValue(vm->constants.values[constant]);
+	DIS_PRINTF("' %4d -> %d\n", offset, offset + 6 + jump);
+	return offset + 6;
+}
+
 //fused compare + jump, non-number constant: [op:8][local:16][const:24][offset:16]
 COLD_FUNCTION
 static uint32_t jifLCInstruction(LfxVM* vm, C_STR name, Chunk* chunk, uint32_t offset) {
@@ -544,6 +566,23 @@ uint32_t disassembleInstruction(LfxVM* vm, ObjFunction* function, uint32_t offse
 	case OP_JIF_NOT_EQUAL_NUMBER:
 		return jifNumberInstruction("OP_JIF_NOT_EQUAL_NUMBER", function, offset);
 
+	case OP_JIF_LESS_LOCAL:
+		return jifLocalInstruction("OP_JIF_LESS_LOCAL", chunk, offset);
+	case OP_JIF_LESS_EQUAL_LOCAL:
+		return jifLocalInstruction("OP_JIF_LESS_EQUAL_LOCAL", chunk, offset);
+	case OP_JIF_GREATER_LOCAL:
+		return jifLocalInstruction("OP_JIF_GREATER_LOCAL", chunk, offset);
+	case OP_JIF_GREATER_EQUAL_LOCAL:
+		return jifLocalInstruction("OP_JIF_GREATER_EQUAL_LOCAL", chunk, offset);
+	case OP_JIF_EQUAL_LOCAL:
+		return jifLocalInstruction("OP_JIF_EQUAL_LOCAL", chunk, offset);
+	case OP_JIF_NOT_EQUAL_LOCAL:
+		return jifLocalInstruction("OP_JIF_NOT_EQUAL_LOCAL", chunk, offset);
+	case OP_JIF_EQUAL_CONST:
+		return jifConstInstruction(vm, "OP_JIF_EQUAL_CONST", chunk, offset);
+	case OP_JIF_NOT_EQUAL_CONST:
+		return jifConstInstruction(vm, "OP_JIF_NOT_EQUAL_CONST", chunk, offset);
+
 	default:
 		DIS_PRINTF("Unknown opcode %d offset = %d\n", instruction, offset);
 		return offset + 1;
@@ -648,6 +687,14 @@ void disassembleOpStack(OPStack* opStack) {
 		case OP_JIF_GREATER_EQUAL_NUMBER: DIS_PRINTF("OP_JIF_GREATER_EQUAL_NUMBER\n"); break;
 		case OP_JIF_EQUAL_NUMBER: DIS_PRINTF("OP_JIF_EQUAL_NUMBER\n"); break;
 		case OP_JIF_NOT_EQUAL_NUMBER: DIS_PRINTF("OP_JIF_NOT_EQUAL_NUMBER\n"); break;
+		case OP_JIF_LESS_LOCAL:   DIS_PRINTF("OP_JIF_LESS_LOCAL\n"); break;
+		case OP_JIF_LESS_EQUAL_LOCAL: DIS_PRINTF("OP_JIF_LESS_EQUAL_LOCAL\n"); break;
+		case OP_JIF_GREATER_LOCAL: DIS_PRINTF("OP_JIF_GREATER_LOCAL\n"); break;
+		case OP_JIF_GREATER_EQUAL_LOCAL: DIS_PRINTF("OP_JIF_GREATER_EQUAL_LOCAL\n"); break;
+		case OP_JIF_EQUAL_LOCAL:  DIS_PRINTF("OP_JIF_EQUAL_LOCAL\n"); break;
+		case OP_JIF_NOT_EQUAL_LOCAL: DIS_PRINTF("OP_JIF_NOT_EQUAL_LOCAL\n"); break;
+		case OP_JIF_EQUAL_CONST:  DIS_PRINTF("OP_JIF_EQUAL_CONST\n"); break;
+		case OP_JIF_NOT_EQUAL_CONST: DIS_PRINTF("OP_JIF_NOT_EQUAL_CONST\n"); break;
 		case OP_SET_INDEX:        DIS_PRINTF("OP_SET_INDEX\n"); break;
 		case OP_GET_INDEX:        DIS_PRINTF("OP_GET_INDEX\n"); break;
 		case OP_GET_SUPER:        DIS_PRINTF("OP_GET_SUPER\n"); break;

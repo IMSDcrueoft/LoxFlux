@@ -371,30 +371,54 @@ static int32_t emitBranchJump(CompilerContext* cc, uint8_t instruction, int32_t 
 		}
 
 		//4. fused compare + jump with the left operand on the stack top: `top` is
-		//the converted number comparison, its right operand already embedded.
+		//the converted comparison, its right operand already embedded (number
+		//constant 16bit / local slot 16bit / non-number constant 24bit).
 		//condRegionValid proves no control flow landed inside the condition
 		//region (compound or/and emit jumps -> witness cleared), so the fused
 		//form pops exactly what the comparison would have consumed
 		if (current->condRegionValid) {
 			uint8_t fused = INVALID_OP;
+			uint32_t tailLen = 0;
 			switch (top) {
-			case OP_LESS_NUMBER:			fused = OP_JIF_LESS_NUMBER; break;
-			case OP_LESS_EQUAL_NUMBER:		fused = OP_JIF_LESS_EQUAL_NUMBER; break;
-			case OP_GREATER_NUMBER:			fused = OP_JIF_GREATER_NUMBER; break;
-			case OP_GREATER_EQUAL_NUMBER:	fused = OP_JIF_GREATER_EQUAL_NUMBER; break;
-			case OP_EQUAL_NUMBER:			fused = OP_JIF_EQUAL_NUMBER; break;
-			case OP_NOT_EQUAL_NUMBER:		fused = OP_JIF_NOT_EQUAL_NUMBER; break;
+			//number constants (16bit index into the function's own pool)
+			case OP_LESS_NUMBER:			fused = OP_JIF_LESS_NUMBER; tailLen = 3; break;
+			case OP_LESS_EQUAL_NUMBER:		fused = OP_JIF_LESS_EQUAL_NUMBER; tailLen = 3; break;
+			case OP_GREATER_NUMBER:			fused = OP_JIF_GREATER_NUMBER; tailLen = 3; break;
+			case OP_GREATER_EQUAL_NUMBER:	fused = OP_JIF_GREATER_EQUAL_NUMBER; tailLen = 3; break;
+			case OP_EQUAL_NUMBER:			fused = OP_JIF_EQUAL_NUMBER; tailLen = 3; break;
+			case OP_NOT_EQUAL_NUMBER:		fused = OP_JIF_NOT_EQUAL_NUMBER; tailLen = 3; break;
+			//locals (16bit slot): ordering + equality
+			case OP_LESS_LOCAL:				fused = OP_JIF_LESS_LOCAL; tailLen = 3; break;
+			case OP_LESS_EQUAL_LOCAL:		fused = OP_JIF_LESS_EQUAL_LOCAL; tailLen = 3; break;
+			case OP_GREATER_LOCAL:			fused = OP_JIF_GREATER_LOCAL; tailLen = 3; break;
+			case OP_GREATER_EQUAL_LOCAL:	fused = OP_JIF_GREATER_EQUAL_LOCAL; tailLen = 3; break;
+			case OP_EQUAL_LOCAL:			fused = OP_JIF_EQUAL_LOCAL; tailLen = 3; break;
+			case OP_NOT_EQUAL_LOCAL:		fused = OP_JIF_NOT_EQUAL_LOCAL; tailLen = 3; break;
+			//non-number constants (24bit index into vm.constants), equality only
+			case OP_EQUAL_CONST:			fused = OP_JIF_EQUAL_CONST; tailLen = 4; break;
+			case OP_NOT_EQUAL_CONST:		fused = OP_JIF_NOT_EQUAL_CONST; tailLen = 4; break;
 			}
 
 			if (fused != INVALID_OP) {
-				uint32_t constIndex = ((uint32_t)chunk->code[chunk->count - 2]) | ((uint32_t)chunk->code[chunk->count - 1] << 8);
+				//the embedded right operand rides the tail comparison
+				uint32_t operand = (tailLen == 4)
+					? (((uint32_t)chunk->code[chunk->count - 3]) | ((uint32_t)chunk->code[chunk->count - 2] << 8) | ((uint32_t)chunk->code[chunk->count - 1] << 16))
+					: (((uint32_t)chunk->code[chunk->count - 2]) | ((uint32_t)chunk->code[chunk->count - 1] << 8));
 
-				chunk_fallback(chunk, 3);//rollback the tail comparison
+				chunk_fallback(chunk, tailLen);//rollback the tail comparison
 
-				//[op:8][const:16][offset:16 placeholder]
-				emitBytes(cc, 5, fused,
-					(uint8_t)constIndex, (uint8_t)(constIndex >> 8),
-					0xff, 0xff);
+				if (tailLen == 4) {
+					//[op:8][const:24][offset:16 placeholder]
+					emitBytes(cc, 6, fused,
+						(uint8_t)operand, (uint8_t)(operand >> 8), (uint8_t)(operand >> 16),
+						0xff, 0xff);
+				}
+				else {
+					//[op:8][operand:16][offset:16 placeholder]
+					emitBytes(cc, 5, fused,
+						(uint8_t)operand, (uint8_t)(operand >> 8),
+						0xff, 0xff);
+				}
 				clearOpStack(cc);
 				return currentChunk(cc)->count - 2;
 			}
