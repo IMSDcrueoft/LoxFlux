@@ -1,15 +1,13 @@
 
 {
     var start = @time.milli();
-    for(var i = 0;i<100000000;){
-        i = i+1;
+    for(var i = 0;i<100000000;i = i+1){
     }
     print "forLoop1: ", @time.milli() - start;
 }
 {
     var start = @time.milli();
-    for(var i = 0;i<100000000;){
-        i = 1+i;
+    for(var i = 0;i<100000000;i = 1+i){
     }
     print "forLoop2: ", @time.milli() - start;
 }
