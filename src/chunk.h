@@ -90,19 +90,20 @@ typedef enum {
 	OP_CEDE,
 
 	//super command
-	//OP_*_CONST : 1 + 2 byte, 16bits index into function's own constants (number only)
-	OP_ADD_CONST,
-	OP_SUBTRACT_CONST,
-	OP_MULTIPLY_CONST,
-	OP_DIVIDE_CONST,
-	OP_MODULUS_CONST,
+	//OP_*_NUMBER : 1 + 2 byte, 16bits index into function's own constants (number only)
+	OP_ADD_NUMBER,
+	OP_SUBTRACT_NUMBER,
+	OP_MULTIPLY_NUMBER,
+	OP_DIVIDE_NUMBER,
+	OP_MODULUS_NUMBER,
 
-	OP_GREATER_CONST,		// number only
-	OP_LESS_CONST,			// number only
-	OP_LESS_EQUAL_CONST,	// number only
-	OP_GREATER_EQUAL_CONST,	// number only
-	OP_EQUAL_CONST_NUMBER,		// 1 + 2 byte, 16bits index into function's own constants (number only)
-	OP_NOT_EQUAL_CONST_NUMBER,	// 1 + 2 byte, 16bits index into function's own constants (number only)
+	OP_GREATER_NUMBER,		// number only
+	OP_LESS_NUMBER,			// number only
+	OP_LESS_EQUAL_NUMBER,	// number only
+	OP_GREATER_EQUAL_NUMBER,	// number only
+	OP_EQUAL_NUMBER,		// 1 + 2 byte, 16bits index into function's own constants (number only)
+	OP_NOT_EQUAL_NUMBER,	// 1 + 2 byte, 16bits index into function's own constants (number only)
+
 	OP_EQUAL_CONST,			// 1 + 3 byte, 24bits index into vm.constants (non-number only)
 	OP_NOT_EQUAL_CONST,		// 1 + 3 byte, 24bits index into vm.constants (non-number only)
 
@@ -129,17 +130,17 @@ typedef enum {
 	OP_JIF_EQUAL_LL,		// a == b else jump
 	OP_JIF_NOT_EQUAL_LL,	// a != b else jump
 
-	//LC forms: local slot vs compile-time constant; > / >= cover the const-on-left
+	//LN forms: local slot vs compile-time constant; > / >= cover the const-on-left
 	//cases via direction flip (== / != commute, no flip needed)
 	//number constants (ordering + equality) ride the function's own 16bit pool,
 	//compile-time guaranteed number: no runtime type check on the constant operand
 	//format: [op:8][local:16][const:16][offset:16]
-	OP_JIF_LESS_LC_NUMBER,			// local <  const else jump
-	OP_JIF_LESS_EQUAL_LC_NUMBER,	// local <= const else jump
-	OP_JIF_GREATER_LC_NUMBER,		// local >  const else jump
-	OP_JIF_GREATER_EQUAL_LC_NUMBER,	// local >= const else jump
-	OP_JIF_EQUAL_LC_NUMBER,			// local == const else jump
-	OP_JIF_NOT_EQUAL_LC_NUMBER,		// local != const else jump
+	OP_JIF_LESS_LN,			// local <  const else jump
+	OP_JIF_LESS_EQUAL_LN,	// local <= const else jump
+	OP_JIF_GREATER_LN,		// local >  const else jump
+	OP_JIF_GREATER_EQUAL_LN,	// local >= const else jump
+	OP_JIF_EQUAL_LN,			// local == const else jump
+	OP_JIF_NOT_EQUAL_LN,		// local != const else jump
 
 	//non-number constants (equality only) ride vm.constants with 24bit index
 	//format: [op:8][local:16][const:24][offset:16]

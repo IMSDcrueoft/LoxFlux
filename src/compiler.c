@@ -254,9 +254,9 @@ static int32_t emitBranchJump(CompilerContext* cc, uint8_t instruction, int32_t 
 			return -1;//never taken
 		}
 
-		//try to fuse [operand load][fused compare] + jump into one OP_JIF_*_LL/LC_NUMBER:
+		//try to fuse [operand load][fused compare] + jump into one OP_JIF_*_LL/LN:
 		//pattern A: GET_LOCAL a + <CMP>_LOCAL b   (6 bytes; both slots can swap, so > / >= reuse the LESS forms)
-		//pattern B: GET_LOCAL a + <CMP>_CONST c   (6 bytes, number constant on the right)
+		//pattern B: GET_LOCAL a + <CMP>_NUMBER c   (6 bytes, number constant on the right)
 		//pattern C: CONST_NUMBER c + <CMP>_LOCAL a (6 bytes, number constant on the left, flip the direction)
 		//anything else falls through to the plain jump
 		if (regionSize == 6 && (cond == OP_GET_LOCAL || cond == OP_CONST_NUMBER)) {
@@ -278,23 +278,23 @@ static int32_t emitBranchJump(CompilerContext* cc, uint8_t instruction, int32_t 
 				case OP_EQUAL_LOCAL:			fused = OP_JIF_EQUAL_LL; isLL = true; break;
 				case OP_NOT_EQUAL_LOCAL:		fused = OP_JIF_NOT_EQUAL_LL; isLL = true; break;
 
-				case OP_LESS_CONST:				fused = OP_JIF_LESS_LC_NUMBER; break;
-				case OP_LESS_EQUAL_CONST:		fused = OP_JIF_LESS_EQUAL_LC_NUMBER; break;
-				case OP_GREATER_CONST:			fused = OP_JIF_GREATER_LC_NUMBER; break;
-				case OP_GREATER_EQUAL_CONST:	fused = OP_JIF_GREATER_EQUAL_LC_NUMBER; break;
-				case OP_EQUAL_CONST_NUMBER:		fused = OP_JIF_EQUAL_LC_NUMBER; break;
-				case OP_NOT_EQUAL_CONST_NUMBER:	fused = OP_JIF_NOT_EQUAL_LC_NUMBER; break;
+				case OP_LESS_NUMBER:			fused = OP_JIF_LESS_LN; break;
+				case OP_LESS_EQUAL_NUMBER:		fused = OP_JIF_LESS_EQUAL_LN; break;
+				case OP_GREATER_NUMBER:			fused = OP_JIF_GREATER_LN; break;
+				case OP_GREATER_EQUAL_NUMBER:	fused = OP_JIF_GREATER_EQUAL_LN; break;
+				case OP_EQUAL_NUMBER:			fused = OP_JIF_EQUAL_LN; break;
+				case OP_NOT_EQUAL_NUMBER:		fused = OP_JIF_NOT_EQUAL_LN; break;
 				}
 			}
 			else {
 				//number constant on the left: flip the direction (== / != need no flip)
 				switch (cmpOp) {
-				case OP_LESS_LOCAL:				fused = OP_JIF_GREATER_LC_NUMBER; break;
-				case OP_LESS_EQUAL_LOCAL:		fused = OP_JIF_GREATER_EQUAL_LC_NUMBER; break;
-				case OP_GREATER_LOCAL:			fused = OP_JIF_LESS_LC_NUMBER; break;
-				case OP_GREATER_EQUAL_LOCAL:	fused = OP_JIF_LESS_EQUAL_LC_NUMBER; break;
-				case OP_EQUAL_LOCAL:			fused = OP_JIF_EQUAL_LC_NUMBER; break;
-				case OP_NOT_EQUAL_LOCAL:		fused = OP_JIF_NOT_EQUAL_LC_NUMBER; break;
+				case OP_LESS_LOCAL:				fused = OP_JIF_GREATER_LN; break;
+				case OP_LESS_EQUAL_LOCAL:		fused = OP_JIF_GREATER_EQUAL_LN; break;
+				case OP_GREATER_LOCAL:			fused = OP_JIF_LESS_LN; break;
+				case OP_GREATER_EQUAL_LOCAL:	fused = OP_JIF_LESS_EQUAL_LN; break;
+				case OP_EQUAL_LOCAL:			fused = OP_JIF_EQUAL_LN; break;
+				case OP_NOT_EQUAL_LOCAL:		fused = OP_JIF_NOT_EQUAL_LN; break;
 				}
 			}
 
@@ -2632,7 +2632,7 @@ static void instructionOptimize(CompilerContext* cc) {
 			//number constant -> super instruction,16bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_ADD_CONST; //convert command
+			CHUNK_PEEK(2) = OP_ADD_NUMBER; //convert command
 		}
 		//non-number constant : no super instruction for arithmetic
 		else if (isRightLocal) {
@@ -2652,7 +2652,7 @@ static void instructionOptimize(CompilerContext* cc) {
 			//number constant -> super instruction,16bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_SUBTRACT_CONST; //convert command
+			CHUNK_PEEK(2) = OP_SUBTRACT_NUMBER; //convert command
 		}
 		//non-number constant : no super instruction for arithmetic
 		else if (isRightLocal) {
@@ -2672,7 +2672,7 @@ static void instructionOptimize(CompilerContext* cc) {
 			//number constant -> super instruction,16bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_MULTIPLY_CONST; //convert command
+			CHUNK_PEEK(2) = OP_MULTIPLY_NUMBER; //convert command
 		}
 		//non-number constant : no super instruction for arithmetic
 		else if (isRightLocal) {
@@ -2692,7 +2692,7 @@ static void instructionOptimize(CompilerContext* cc) {
 			//number constant -> super instruction,16bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_DIVIDE_CONST; //convert command
+			CHUNK_PEEK(2) = OP_DIVIDE_NUMBER; //convert command
 		}
 		//non-number constant : no super instruction for arithmetic
 		else if (isRightLocal) {
@@ -2721,7 +2721,7 @@ static void instructionOptimize(CompilerContext* cc) {
 			//number constant -> super instruction,16bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_MODULUS_CONST; //convert command
+			CHUNK_PEEK(2) = OP_MODULUS_NUMBER; //convert command
 		}
 		//non-number constant : no super instruction for arithmetic
 		else if (isRightLocal) {
@@ -2802,7 +2802,7 @@ static void instructionOptimize(CompilerContext* cc) {
 			//number constant -> super instruction,16bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_EQUAL_CONST_NUMBER; //convert command
+			CHUNK_PEEK(2) = OP_EQUAL_NUMBER; //convert command
 		}
 		else if (prevRight == OP_CONSTANT) {
 			//non-number constant -> super instruction,24bits index
@@ -2832,7 +2832,7 @@ static void instructionOptimize(CompilerContext* cc) {
 			//number constant -> super instruction,16bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_NOT_EQUAL_CONST_NUMBER; //convert command
+			CHUNK_PEEK(2) = OP_NOT_EQUAL_NUMBER; //convert command
 		}
 		else if (prevRight == OP_CONSTANT) {
 			//non-number constant -> super instruction,24bits index
@@ -2857,7 +2857,7 @@ static void instructionOptimize(CompilerContext* cc) {
 			//number constant -> super instruction,16bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_GREATER_CONST; //convert command
+			CHUNK_PEEK(2) = OP_GREATER_NUMBER; //convert command
 		}
 		//non-number constant : no super instruction for ordering comparisons
 		else if (isRightLocal) {
@@ -2877,7 +2877,7 @@ static void instructionOptimize(CompilerContext* cc) {
 			//number constant -> super instruction,16bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_LESS_CONST; //convert command
+			CHUNK_PEEK(2) = OP_LESS_NUMBER; //convert command
 		}
 		//non-number constant : no super instruction for ordering comparisons
 		else if (isRightLocal) {
@@ -2897,7 +2897,7 @@ static void instructionOptimize(CompilerContext* cc) {
 			//number constant -> super instruction,16bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_LESS_EQUAL_CONST; //convert command
+			CHUNK_PEEK(2) = OP_LESS_EQUAL_NUMBER; //convert command
 		}
 		//non-number constant : no super instruction for ordering comparisons
 		else if (isRightLocal) {
@@ -2917,7 +2917,7 @@ static void instructionOptimize(CompilerContext* cc) {
 			//number constant -> super instruction,16bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_GREATER_EQUAL_CONST; //convert command
+			CHUNK_PEEK(2) = OP_GREATER_EQUAL_NUMBER; //convert command
 		}
 		//non-number constant : no super instruction for ordering comparisons
 		else if (isRightLocal) {
