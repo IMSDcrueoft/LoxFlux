@@ -407,9 +407,12 @@ export class Parser {
 
 	private printStatement(): Stmt {
 		const printToken = this.previous;
-		const expression = this.expression();
+		const expressions: Expr[] = [this.expression()];
+		while (this.match(TokenType.Comma)) {
+			expressions.push(this.expression());
+		}
 		this.consume(TokenType.Semicolon, "Expect ';' after value.");
-		return { kind: 'Print', start: printToken.start, end: this.previous.end, printToken, expression };
+		return { kind: 'Print', start: printToken.start, end: this.previous.end, printToken, expressions };
 	}
 
 	private throwStatement(): Stmt {

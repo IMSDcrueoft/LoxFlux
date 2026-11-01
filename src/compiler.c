@@ -36,9 +36,21 @@ static OPStack* currentOpStack(CompilerContext* cc) {
 	return &current->stack;
 }
 
+static void fallbackOpStack(CompilerContext* cc, uint32_t entryCount) {
+	opStack_fallback(currentOpStack(cc), entryCount);
+}
+
 //for which complex logical/control flows, merge is not used
 static void clearOpStack(CompilerContext* cc) {
 	opStack_clear(currentOpStack(cc));
+}
+
+//(re)arm the condRegionValid witness consumed by the stack-operand tail fusion
+//in emitBranchJump (semantics documented on Compiler.condRegionValid)
+static int32_t beginCondition(CompilerContext* cc) {
+	Compiler* current = cc->currentCompiler;
+	current->condRegionValid = true;
+	return currentChunk(cc)->count;
 }
 
 //emit and check opStack
@@ -58,9 +70,7 @@ static void emitOpStack(CompilerContext* cc, uint8_t byte, bool doCheck) {
 }
 
 static void errorAt(CompilerContext* cc, Token* token, C_STR message) {
-	//check the panicMode
 	if (cc->parser.panicMode) return;
-	//set the panicMode
 	cc->parser.panicMode = true;
 
 	fprintf(stderr, "[line %d] Error", token->line);
@@ -121,12 +131,9 @@ static void emitByte(CompilerContext* cc, uint8_t byte) {
 	chunk_write(cc->vm, currentChunk(cc), byte, cc->parser.previous.line);
 }
 
-//dynamic args
 static void emitBytes(CompilerContext* cc, uint32_t count, int byte, ...) {
-	//write the first
 	emitByte(cc, byte);
 
-	// arguments
 	va_list arguments;
 	va_start(arguments, byte);
 
@@ -135,7 +142,6 @@ static void emitBytes(CompilerContext* cc, uint32_t count, int byte, ...) {
 		emitByte(cc, byte);
 	}
 
-	// clear arguments
 	va_end(arguments);
 }
 
@@ -205,45 +211,44 @@ static uint8_t emitCacheSlot(CompilerContext* cc) {
 }
 
 static int32_t emitJump(CompilerContext* cc, uint8_t instruction) {
+	Compiler* current = cc->currentCompiler;
 	emitBytes(cc, 3, instruction, 0xff, 0xff);
 	clearOpStack(cc);
+	current->condRegionValid = false;//a jump inside the condition region kills the tail fusion witness
 	return currentChunk(cc)->count - 2;
 }
 
-//branch-style conditional jump (if/branch/while/do-while only)
-//whole condition is exactly one compile-time constant load:
-//  falsy (OP_FALSE/OP_NIL/nil constant)              -> always taken : rollback cond, emit OP_JUMP (no runtime compare)
-//  truthy (OP_TRUE/number constant/non-nil constant) -> never taken  : rollback cond, no jump, return -1 (no backpatch)
-//truthiness mirrors vm's isTruthy: only nil and false are falsy
-//returns patch offset like emitJump, or -1 when nothing to patch
+//branch-style conditional jump (if/branch/while/do-while only); returns a
+//patch offset like emitJump, or -1 when nothing to patch
+//the condition tail is matched via opStack tracking, not raw byte patterns:
+//instructionOptimize keeps fused comparison opcodes tracked (conversions no
+//longer clear the tracking), so the tail layout is derived from tracked
+//entries and only operand values are read from the chunk; regionSize still
+//proves the match spans the whole condition, so compound conditions (e.g.
+//`a || b < c`) can never match
+//a whole-condition constant load folds at compile time, mirroring isTruthy
+//(only nil and false are falsy): falsy -> unconditional OP_JUMP,
+//truthy -> no jump at all
 static int32_t emitBranchJump(CompilerContext* cc, uint8_t instruction, int32_t condStart) {
 #if LOXFLUX_COMPILATION_TIME_OPTIMIZATION
 	if (!cc->optimizationEnabled) return emitJump(cc, instruction);
 
+	Compiler* current = cc->currentCompiler;
+
 	if (instruction == OP_JUMP_IF_FALSE_POP) {
 		Chunk* chunk = currentChunk(cc);
+		OPStack* opStack = currentOpStack(cc);
 		uint32_t regionSize = chunk->count - (uint32_t)condStart;
-		uint8_t cond = chunk->code[condStart];
+		//opStack_peek returns UINT8_MAX beyond the tracked window: never a real opcode
+		uint8_t top = opStack_peek(opStack, 0);
+		uint8_t below = opStack_peek(opStack, 1);
 
+		//1. whole condition is one tracked constant load: fold at compile time
 		//1 byte literal / 3 bytes number constant / 4 bytes non-number constant
-		if ((regionSize == 1 && (cond == OP_TRUE || cond == OP_FALSE || cond == OP_NIL))
-			|| (regionSize == 3 && cond == OP_CONST_NUMBER)
-			|| (regionSize == 4 && cond == OP_CONSTANT)) {
-			bool truthy;
-
-			switch (cond) {
-			case OP_FALSE:
-			case OP_NIL: {
-				truthy = false;
-				break;
-			}
-			case OP_TRUE:
-			case OP_CONST_NUMBER:
-			case OP_CONSTANT: {
-				truthy = true;
-				break;
-			}
-			}
+		if (((top == OP_TRUE || top == OP_FALSE || top == OP_NIL) && regionSize == 1)
+			|| (top == OP_CONST_NUMBER && regionSize == 3)
+			|| (top == OP_CONSTANT && regionSize == 4)) {
+			bool truthy = !(top == OP_FALSE || top == OP_NIL);
 
 			chunk_fallback(chunk, regionSize);//rollback the condition bytes
 			clearOpStack(cc);
@@ -254,23 +259,22 @@ static int32_t emitBranchJump(CompilerContext* cc, uint8_t instruction, int32_t 
 			return -1;//never taken
 		}
 
-		//try to fuse [operand load][fused compare] + jump into one OP_JIF_*_LL/LC_NUMBER:
+		//2. try to fuse [operand load][fused compare] + jump into one OP_JIF_*_LL/LN:
 		//pattern A: GET_LOCAL a + <CMP>_LOCAL b   (6 bytes; both slots can swap, so > / >= reuse the LESS forms)
-		//pattern B: GET_LOCAL a + <CMP>_CONST c   (6 bytes, number constant on the right)
+		//pattern B: GET_LOCAL a + <CMP>_NUMBER c   (6 bytes, number constant on the right)
 		//pattern C: CONST_NUMBER c + <CMP>_LOCAL a (6 bytes, number constant on the left, flip the direction)
-		//anything else falls through to the plain jump
-		if (regionSize == 6 && (cond == OP_GET_LOCAL || cond == OP_CONST_NUMBER)) {
+		//both entries are tracked: `top` is the converted comparison, `below` the operand load
+		if (regionSize == 6 && (below == OP_GET_LOCAL || below == OP_CONST_NUMBER)) {
 			uint32_t indexA = ((uint32_t)chunk->code[condStart + 1]) | ((uint32_t)chunk->code[condStart + 2] << 8);
-			uint8_t cmpOp = chunk->code[condStart + 3];
 			uint32_t indexB = ((uint32_t)chunk->code[condStart + 4]) | ((uint32_t)chunk->code[condStart + 5] << 8);
 
 			uint8_t fused = INVALID_OP;
 			bool swap = false;
 			bool isLL = false;
 
-			if (cond == OP_GET_LOCAL) {
+			if (below == OP_GET_LOCAL) {
 				//local on the left
-				switch (cmpOp) {
+				switch (top) {
 				case OP_LESS_LOCAL:				fused = OP_JIF_LESS_LL; isLL = true; break;
 				case OP_LESS_EQUAL_LOCAL:		fused = OP_JIF_LESS_EQUAL_LL; isLL = true; break;
 				case OP_GREATER_LOCAL:			fused = OP_JIF_LESS_LL; swap = true; isLL = true; break;
@@ -278,23 +282,23 @@ static int32_t emitBranchJump(CompilerContext* cc, uint8_t instruction, int32_t 
 				case OP_EQUAL_LOCAL:			fused = OP_JIF_EQUAL_LL; isLL = true; break;
 				case OP_NOT_EQUAL_LOCAL:		fused = OP_JIF_NOT_EQUAL_LL; isLL = true; break;
 
-				case OP_LESS_CONST:				fused = OP_JIF_LESS_LC_NUMBER; break;
-				case OP_LESS_EQUAL_CONST:		fused = OP_JIF_LESS_EQUAL_LC_NUMBER; break;
-				case OP_GREATER_CONST:			fused = OP_JIF_GREATER_LC_NUMBER; break;
-				case OP_GREATER_EQUAL_CONST:	fused = OP_JIF_GREATER_EQUAL_LC_NUMBER; break;
-				case OP_EQUAL_CONST_NUMBER:		fused = OP_JIF_EQUAL_LC_NUMBER; break;
-				case OP_NOT_EQUAL_CONST_NUMBER:	fused = OP_JIF_NOT_EQUAL_LC_NUMBER; break;
+				case OP_LESS_NUMBER:			fused = OP_JIF_LESS_LN; break;
+				case OP_LESS_EQUAL_NUMBER:		fused = OP_JIF_LESS_EQUAL_LN; break;
+				case OP_GREATER_NUMBER:			fused = OP_JIF_GREATER_LN; break;
+				case OP_GREATER_EQUAL_NUMBER:	fused = OP_JIF_GREATER_EQUAL_LN; break;
+				case OP_EQUAL_NUMBER:			fused = OP_JIF_EQUAL_LN; break;
+				case OP_NOT_EQUAL_NUMBER:		fused = OP_JIF_NOT_EQUAL_LN; break;
 				}
 			}
 			else {
 				//number constant on the left: flip the direction (== / != need no flip)
-				switch (cmpOp) {
-				case OP_LESS_LOCAL:				fused = OP_JIF_GREATER_LC_NUMBER; break;
-				case OP_LESS_EQUAL_LOCAL:		fused = OP_JIF_GREATER_EQUAL_LC_NUMBER; break;
-				case OP_GREATER_LOCAL:			fused = OP_JIF_LESS_LC_NUMBER; break;
-				case OP_GREATER_EQUAL_LOCAL:	fused = OP_JIF_LESS_EQUAL_LC_NUMBER; break;
-				case OP_EQUAL_LOCAL:			fused = OP_JIF_EQUAL_LC_NUMBER; break;
-				case OP_NOT_EQUAL_LOCAL:		fused = OP_JIF_NOT_EQUAL_LC_NUMBER; break;
+				switch (top) {
+				case OP_LESS_LOCAL:				fused = OP_JIF_GREATER_LN; break;
+				case OP_LESS_EQUAL_LOCAL:		fused = OP_JIF_GREATER_EQUAL_LN; break;
+				case OP_GREATER_LOCAL:			fused = OP_JIF_LESS_LN; break;
+				case OP_GREATER_EQUAL_LOCAL:	fused = OP_JIF_LESS_EQUAL_LN; break;
+				case OP_EQUAL_LOCAL:			fused = OP_JIF_EQUAL_LN; break;
+				case OP_NOT_EQUAL_LOCAL:		fused = OP_JIF_NOT_EQUAL_LN; break;
 				}
 			}
 
@@ -312,8 +316,8 @@ static int32_t emitBranchJump(CompilerContext* cc, uint8_t instruction, int32_t 
 				}
 				else {
 					//local left: local=indexA,const=indexB; const left: local=indexB,const=indexA
-					uint32_t localIndex = (cond == OP_GET_LOCAL) ? indexA : indexB;
-					uint32_t constIndex = (cond == OP_GET_LOCAL) ? indexB : indexA;
+					uint32_t localIndex = (below == OP_GET_LOCAL) ? indexA : indexB;
+					uint32_t constIndex = (below == OP_GET_LOCAL) ? indexB : indexA;
 					//[op:8][local:16][const:16][offset:16 placeholder]
 					emitBytes(cc, 7, fused,
 						(uint8_t)localIndex, (uint8_t)(localIndex >> 8),
@@ -325,35 +329,32 @@ static int32_t emitBranchJump(CompilerContext* cc, uint8_t instruction, int32_t 
 			}
 		}
 
-		//fused equality with non-number constants (24bit index into vm.constants):
+		//3. fused equality with non-number constants (24bit index into vm.constants):
 		//pattern D: GET_LOCAL a + OP_EQUAL_CONST/OP_NOT_EQUAL_CONST c  (7 bytes)
 		//pattern E: OP_CONSTANT c + OP_EQUAL_LOCAL/OP_NOT_EQUAL_LOCAL a (7 bytes)
 		//note: ordering comparisons against non-number constants have no super
-		//instruction, so a 7-byte region starting with OP_CONSTANT is only matched
-		//for the equality _LOCAL ops (a 4-byte non-number constant is never treated
+		//instruction, so the OP_CONSTANT-below form is only matched for the
+		//equality _LOCAL ops (a 4-byte non-number constant is never treated
 		//as a 16bit one)
-		if (regionSize == 7 && (cond == OP_GET_LOCAL || cond == OP_CONSTANT)) {
+		if (regionSize == 7 && (below == OP_GET_LOCAL || below == OP_CONSTANT)) {
 			uint32_t localIndex = 0;
 			uint32_t constIndex = 0;
-			uint8_t cmpOp = 0;
 			uint8_t fused = INVALID_OP;
 
-			if (cond == OP_GET_LOCAL) {
+			if (below == OP_GET_LOCAL) {
 				localIndex = ((uint32_t)chunk->code[condStart + 1]) | ((uint32_t)chunk->code[condStart + 2] << 8);
-				cmpOp = chunk->code[condStart + 3];
 				constIndex = ((uint32_t)chunk->code[condStart + 4]) | ((uint32_t)chunk->code[condStart + 5] << 8) | ((uint32_t)chunk->code[condStart + 6] << 16);
 
-				if (cmpOp == OP_EQUAL_CONST) fused = OP_JIF_EQUAL_LC;
-				else if (cmpOp == OP_NOT_EQUAL_CONST) fused = OP_JIF_NOT_EQUAL_LC;
+				if (top == OP_EQUAL_CONST) fused = OP_JIF_EQUAL_LC;
+				else if (top == OP_NOT_EQUAL_CONST) fused = OP_JIF_NOT_EQUAL_LC;
 			}
 			else {
 				constIndex = ((uint32_t)chunk->code[condStart + 1]) | ((uint32_t)chunk->code[condStart + 2] << 8) | ((uint32_t)chunk->code[condStart + 3] << 16);
-				cmpOp = chunk->code[condStart + 4];
 				localIndex = ((uint32_t)chunk->code[condStart + 5]) | ((uint32_t)chunk->code[condStart + 6] << 8);
 
 				//const was on the left: == / != commute, no flip
-				if (cmpOp == OP_EQUAL_LOCAL) fused = OP_JIF_EQUAL_LC;
-				else if (cmpOp == OP_NOT_EQUAL_LOCAL) fused = OP_JIF_NOT_EQUAL_LC;
+				if (top == OP_EQUAL_LOCAL) fused = OP_JIF_EQUAL_LC;
+				else if (top == OP_NOT_EQUAL_LOCAL) fused = OP_JIF_NOT_EQUAL_LC;
 			}
 
 			if (fused != INVALID_OP) {
@@ -368,6 +369,60 @@ static int32_t emitBranchJump(CompilerContext* cc, uint8_t instruction, int32_t 
 				return currentChunk(cc)->count - 2;
 			}
 		}
+
+		//4. fused compare + jump with the left operand on the stack top: `top` is
+		//the converted comparison, its right operand already embedded (number
+		//constant 16bit / local slot 16bit / non-number constant 24bit).
+		//condRegionValid proves no control flow landed inside the condition
+		//region (compound or/and emit jumps -> witness cleared), so the fused
+		//form pops exactly what the comparison would have consumed
+		if (current->condRegionValid) {
+			uint8_t fused = INVALID_OP;
+			uint32_t tailLen = 0;
+			switch (top) {
+			//number constants (16bit index into the function's own pool)
+			case OP_LESS_NUMBER:			fused = OP_JIF_LESS_NUMBER; tailLen = 3; break;
+			case OP_LESS_EQUAL_NUMBER:		fused = OP_JIF_LESS_EQUAL_NUMBER; tailLen = 3; break;
+			case OP_GREATER_NUMBER:			fused = OP_JIF_GREATER_NUMBER; tailLen = 3; break;
+			case OP_GREATER_EQUAL_NUMBER:	fused = OP_JIF_GREATER_EQUAL_NUMBER; tailLen = 3; break;
+			case OP_EQUAL_NUMBER:			fused = OP_JIF_EQUAL_NUMBER; tailLen = 3; break;
+			case OP_NOT_EQUAL_NUMBER:		fused = OP_JIF_NOT_EQUAL_NUMBER; tailLen = 3; break;
+			//locals (16bit slot): ordering + equality
+			case OP_LESS_LOCAL:				fused = OP_JIF_LESS_LOCAL; tailLen = 3; break;
+			case OP_LESS_EQUAL_LOCAL:		fused = OP_JIF_LESS_EQUAL_LOCAL; tailLen = 3; break;
+			case OP_GREATER_LOCAL:			fused = OP_JIF_GREATER_LOCAL; tailLen = 3; break;
+			case OP_GREATER_EQUAL_LOCAL:	fused = OP_JIF_GREATER_EQUAL_LOCAL; tailLen = 3; break;
+			case OP_EQUAL_LOCAL:			fused = OP_JIF_EQUAL_LOCAL; tailLen = 3; break;
+			case OP_NOT_EQUAL_LOCAL:		fused = OP_JIF_NOT_EQUAL_LOCAL; tailLen = 3; break;
+			//non-number constants (24bit index into vm.constants), equality only
+			case OP_EQUAL_CONST:			fused = OP_JIF_EQUAL_CONST; tailLen = 4; break;
+			case OP_NOT_EQUAL_CONST:		fused = OP_JIF_NOT_EQUAL_CONST; tailLen = 4; break;
+			}
+
+			if (fused != INVALID_OP) {
+				//the embedded right operand rides the tail comparison
+				uint32_t operand = (tailLen == 4)
+					? (((uint32_t)chunk->code[chunk->count - 3]) | ((uint32_t)chunk->code[chunk->count - 2] << 8) | ((uint32_t)chunk->code[chunk->count - 1] << 16))
+					: (((uint32_t)chunk->code[chunk->count - 2]) | ((uint32_t)chunk->code[chunk->count - 1] << 8));
+
+				chunk_fallback(chunk, tailLen);//rollback the tail comparison
+
+				if (tailLen == 4) {
+					//[op:8][const:24][offset:16 placeholder]
+					emitBytes(cc, 6, fused,
+						(uint8_t)operand, (uint8_t)(operand >> 8), (uint8_t)(operand >> 16),
+						0xff, 0xff);
+				}
+				else {
+					//[op:8][operand:16][offset:16 placeholder]
+					emitBytes(cc, 5, fused,
+						(uint8_t)operand, (uint8_t)(operand >> 8),
+						0xff, 0xff);
+				}
+				clearOpStack(cc);
+				return currentChunk(cc)->count - 2;
+			}
+		}
 	}
 #else
 	(void)condStart;
@@ -375,8 +430,8 @@ static int32_t emitBranchJump(CompilerContext* cc, uint8_t instruction, int32_t 
 	return emitJump(cc, instruction);
 }
 
-// generate loop
 static void emitLoop(CompilerContext* cc, int32_t loopStart) {
+	Compiler* current = cc->currentCompiler;
 	emitByte(cc, OP_LOOP);
 
 	int32_t offset = currentChunk(cc)->count - loopStart + 2;
@@ -384,6 +439,7 @@ static void emitLoop(CompilerContext* cc, int32_t loopStart) {
 
 	emitBytes(cc, 2, offset & 0xff, (offset >> 8) & 0xff);
 	clearOpStack(cc);
+	current->condRegionValid = false;//a jump inside the condition region kills the tail fusion witness
 }
 
 static void emitReturn(CompilerContext* cc) {
@@ -550,7 +606,6 @@ static void patchJump(CompilerContext* cc, int32_t offset) {
 		error(cc, "Too much code to jump over.");
 	}
 
-	//write low and high
 	currentChunk(cc)->code[offset] = jump & 0xff;
 	currentChunk(cc)->code[offset + 1] = (jump >> 8) & 0xff;
 }
@@ -578,7 +633,6 @@ static void initCompiler(CompilerContext* cc, Compiler* compiler, FunctionType t
 	compiler->enclosing = cc->currentCompiler;
 	cc->currentCompiler = compiler;//must set now
 
-	//init
 	compiler->currentLoop = NULL;
 
 	compiler->type = type;
@@ -599,17 +653,17 @@ static void initCompiler(CompilerContext* cc, Compiler* compiler, FunctionType t
 	compiler->function.constantsCount = 0;//scratch state, constants live in the compiler until sealed
 	compiler->objectNestingDepth = 0;
 
-	//inline cache slots
 	compiler->cacheCount = 0;
 	compiler->icWarned = false;
 	compiler->cacheCapacity = 0;
+
+	compiler->condRegionValid = false;
 
 	opStack_init(&compiler->stack);
 	binaryTable_init(&compiler->numbers);
 	// init compile constants, after compile we copy it to FAM objFunction
 	valueArray_init(&compiler->constants);
 
-	//it's a function
 	switch (type) {
 	case TYPE_FUNCTION:
 	case TYPE_METHOD:
@@ -638,7 +692,7 @@ static void initCompiler(CompilerContext* cc, Compiler* compiler, FunctionType t
 		local->name.length = 0;
 	}
 
-	// the module don't work in global scope
+	//top-level script/module starts the nesting count
 	if (compiler->enclosing == NULL) {
 		compiler->nestingDepth = 0;
 	}
@@ -716,7 +770,7 @@ static void beginScope(CompilerContext* cc) {
 
 static void emitPopCount(CompilerContext* cc, uint16_t popCount) {
 	if (popCount == 0) return;
-	if (popCount > 1) { // 16-bit index
+	if (popCount > 1) {
 		emitBytes(cc, 3, OP_POP_N, (uint8_t)popCount, (uint8_t)(popCount >> 8));
 	}
 	else {
@@ -833,7 +887,6 @@ static void addLocal(CompilerContext* cc, Token name, bool isHidden) {
 	}
 
 	if (current->localCount == current->localCapacity) {
-		//grow
 		uint32_t oldCapacity = current->localCapacity;
 		current->localCapacity = GROW_CAPACITY(oldCapacity);
 		current->locals = GROW_ARRAY_NO_GC(cc->vm, Local, current->locals, oldCapacity, current->localCapacity);
@@ -854,7 +907,6 @@ static bool identifiersEqual(Token* a, Token* b) {
 
 static void declareVariableAt(CompilerContext* cc, Token* name) {
 	Compiler* current = cc->currentCompiler;
-	//it is global
 	if (current->scopeDepth == 0) return;
 
 	for (int32_t i = current->localCount - 1; i >= 0; i--) {
@@ -896,14 +948,12 @@ static LocalInfo resolveLocal(CompilerContext* cc, Compiler* compiler, Token* na
 		}
 	}
 
-	//it is a global declared var
 	return (LocalInfo) { .arg = -1, .isConst = false };
 }
 
 static uint32_t addUpvalue(CompilerContext* cc, Compiler* compiler, int32_t index, bool isLocal) {
 	uint32_t upvalueCount = compiler->function.upvalueCount;
 
-	//deduplicate
 	for (uint32_t i = 0; i < upvalueCount; i++) {
 		Upvalue* upvalue = &compiler->upvalues[i];
 		if (upvalue->index == index && upvalue->isLocal == isLocal) {
@@ -924,7 +974,6 @@ static uint32_t addUpvalue(CompilerContext* cc, Compiler* compiler, int32_t inde
 static LocalInfo resolveUpvalue(CompilerContext* cc, Compiler* compiler, Token* name) {
 	if (compiler->enclosing == NULL) return (LocalInfo) { .arg = -1, .isConst = false };
 
-	//local
 	LocalInfo localInfo = resolveLocal(cc, compiler->enclosing, name);
 	if (localInfo.arg != -1) {
 		compiler->enclosing->locals[localInfo.arg].isCaptured = true;//mark it as captured
@@ -932,7 +981,6 @@ static LocalInfo resolveUpvalue(CompilerContext* cc, Compiler* compiler, Token* 
 		return localInfo;
 	}
 
-	//recursion
 	LocalInfo upvalue = resolveUpvalue(cc, compiler->enclosing, name);
 	if (upvalue.arg != -1) {
 		upvalue.arg = addUpvalue(cc, compiler, upvalue.arg, false);
@@ -947,7 +995,6 @@ static uint32_t parseVariable(CompilerContext* cc, C_STR errorMessage) {
 	consume(cc, TOKEN_IDENTIFIER, errorMessage);
 
 	declareVariable(cc);
-	//it is a local one
 	if (current->scopeDepth > 0) return 0;
 
 	return identifierConstant(cc, &cc->parser.previous);
@@ -956,14 +1003,12 @@ static uint32_t parseVariable(CompilerContext* cc, C_STR errorMessage) {
 static void markInitialized(CompilerContext* cc, bool isConst) {
 	Compiler* current = cc->currentCompiler;
 	if (current->scopeDepth == 0) return;
-	//only defined local vars could be used
 	current->locals[current->localCount - 1].depth = current->scopeDepth;
 	current->locals[current->localCount - 1].isConst = isConst;
 }
 
 static void defineVariable(CompilerContext* cc, uint32_t global) {
 	Compiler* current = cc->currentCompiler;
-	//it is a local one
 	if (current->scopeDepth > 0) {
 		markInitialized(cc, false);
 		return;
@@ -975,7 +1020,6 @@ static void defineVariable(CompilerContext* cc, uint32_t global) {
 
 static void defineConst(CompilerContext* cc, uint32_t global) {
 	Compiler* current = cc->currentCompiler;
-	//it is a local one
 	if (current->scopeDepth > 0) {
 		markInitialized(cc, true);
 		return;
@@ -1029,7 +1073,6 @@ static void function(CompilerContext* cc, FunctionType type) {
 	Compiler* current = cc->currentCompiler;
 	beginScope(cc);
 
-	//check '('
 	consume(cc, TOKEN_LEFT_PAREN, "Expect '(' before function parameters.");
 
 	if (!check(cc, TOKEN_RIGHT_PAREN)) {
@@ -1064,7 +1107,6 @@ static void function(CompilerContext* cc, FunctionType type) {
 
 	ObjFunction* function = endCompiler(cc);
 
-	//create a closure
 	emitConstantCommond(cc, OP_CLOSURE, makeConstant(cc, OBJ_VAL(function)));
 
 	//insert upValue index
@@ -1127,7 +1169,6 @@ static void classDeclaration(CompilerContext* cc) {
 		emitByte(cc, OP_INHERIT);
 		clearOpStack(cc);
 
-		//set flag
 		classCompiler.hasSuperclass = true;
 	}
 
@@ -1146,7 +1187,6 @@ static void classDeclaration(CompilerContext* cc) {
 		endScope(cc);
 	}
 
-	//resume
 	cc->currentClass = cc->currentClass->enclosing;
 }
 
@@ -1209,7 +1249,6 @@ static void forStatement(CompilerContext* cc) {
 	consume(cc, TOKEN_LEFT_PAREN, "Expect '(' after 'for'.");
 
 	if (match(cc, TOKEN_SEMICOLON)) { //like this -> for(;;)
-		// No initializer.
 	}
 	else if (match(cc, TOKEN_VAR)) { //like this -> for(var i = 0;;)
 		varDeclaration(cc);
@@ -1225,17 +1264,18 @@ static void forStatement(CompilerContext* cc) {
 
 	int32_t exitJump = -1;
 	if (!match(cc, TOKEN_SEMICOLON)) {//for(; here ;)
-		int32_t condStart = currentChunk(cc)->count;
+		int32_t condStart = beginCondition(cc);
 		expression(cc);
 		consume(cc, TOKEN_SEMICOLON, "Expect ';' after loop condition.");
 
-		// Jump out of the loop if the condition is false.
 		exitJump = emitBranchJump(cc, OP_JUMP_IF_FALSE_POP, condStart);
 	}
 
 	//the code is: init,condition,increase,body,loop_to_increase
 	if (!match(cc, TOKEN_RIGHT_PAREN)) { // for(;;here)
-		//we don't do increase first,we go to body first
+		//skip the increase on the first iteration: jump to the body first, run
+		//the increase on every back-edge, and let break/continue patch into the
+		//increment (loopStart moves below)
 		int32_t bodyJump = emitJump(cc, OP_JUMP);
 		int32_t incrementStart = currentChunk(cc)->count;
 		expression(cc);
@@ -1243,15 +1283,11 @@ static void forStatement(CompilerContext* cc) {
 
 		consume(cc, TOKEN_RIGHT_PAREN, "Expect ')' after for clauses.");
 
-		//we go to where the condition is
 		emitLoop(cc, loopStart);
-		//after the body,we go to increase
 		loopStart = incrementStart;
-		//patch the body,first time,we jump to body
 		patchJump(cc, bodyJump);
 	}
 
-	//record the loop
 	LoopContext loop = (LoopContext){
 		.start = loopStart,
 		.enclosing = current->currentLoop,
@@ -1280,7 +1316,6 @@ static void forStatement(CompilerContext* cc) {
 
 	FREE_ARRAY_NO_GC(cc->vm, int32_t, loop.breakJumps, loop.breakJumpCapacity);
 	current->currentLoop = current->currentLoop->enclosing;
-	//end block
 	endScope(cc);
 }
 
@@ -1364,7 +1399,7 @@ static void foreachStatement(CompilerContext* cc) {
 
 static void ifStatement(CompilerContext* cc) {
 	consume(cc, TOKEN_LEFT_PAREN, "Expect '(' after 'if'.");
-	int32_t condStart = currentChunk(cc)->count;
+	int32_t condStart = beginCondition(cc);
 	expression(cc);
 	consume(cc, TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
 
@@ -1380,7 +1415,7 @@ static void ifStatement(CompilerContext* cc) {
 
 static void branchCaseStatementInner(CompilerContext* cc) {
 	if (!match(cc, TOKEN_NONE)) {
-		int32_t condStart = currentChunk(cc)->count;
+		int32_t condStart = beginCondition(cc);
 		expression(cc);
 		int32_t thenJump = emitBranchJump(cc, OP_JUMP_IF_FALSE_POP, condStart);
 		consume(cc, TOKEN_COLON, "Expect ':' after condition.");
@@ -1488,10 +1523,8 @@ static void exportsStatement(CompilerContext* cc) {
 }
 
 static void import_(CompilerContext* cc, bool canAssign) {
-	//parse the module name
 	expression(cc);
 
-	//emit the import command
 	emitByte(cc, OP_IMPORT);
 	clearOpStack(cc);
 }
@@ -1501,13 +1534,12 @@ static void whileStatement(CompilerContext* cc) {
 	int32_t loopStart = currentChunk(cc)->count;
 
 	consume(cc, TOKEN_LEFT_PAREN, "Expect '(' after 'while'.");
-	int32_t condStart = currentChunk(cc)->count;
+	int32_t condStart = beginCondition(cc);
 	expression(cc);
 	consume(cc, TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
 
 	int32_t exitJump = emitBranchJump(cc, OP_JUMP_IF_FALSE_POP, condStart);
 
-	//record the loop
 	LoopContext loop = (LoopContext){
 		.start = loopStart,
 		.enclosing = current->currentLoop,
@@ -1541,7 +1573,6 @@ static void whileStatement(CompilerContext* cc) {
 static void doWhileStatement(CompilerContext* cc) {
 	Compiler* current = cc->currentCompiler;
 	int32_t loopStart = currentChunk(cc)->count;
-	//record the loop
 	LoopContext loop = (LoopContext){
 		.start = loopStart,
 		.enclosing = current->currentLoop,
@@ -1560,7 +1591,7 @@ static void doWhileStatement(CompilerContext* cc) {
 
 	consume(cc, TOKEN_WHILE, "Expect 'while' after 'do' to form a valid 'do-while'.");
 	consume(cc, TOKEN_LEFT_PAREN, "Expect '(' after 'while'.");
-	int32_t condStart = currentChunk(cc)->count;
+	int32_t condStart = beginCondition(cc);
 
 	//now that the condition position is known, route every 'continue' of this
 	//loop to the condition check (the body start would re-run the body and
@@ -1757,7 +1788,7 @@ static void statement(CompilerContext* cc) {
 }
 
 static void declaration(CompilerContext* cc) {
-	//might went panicMode
+	//recover from panic mode before parsing the next declaration
 	if (cc->parser.panicMode) synchronize(cc);
 
 	if (match(cc, TOKEN_CLASS)) {
@@ -1999,7 +2030,7 @@ static void arrayLiteral(CompilerContext* cc, bool canAssign) {
 	uint32_t elementCount = 0;
 	if (!check(cc, TOKEN_RIGHT_SQUARE_BRACKET) && !check(cc, TOKEN_EOF)) {
 		do {
-			expression(cc); //parse values
+			expression(cc);
 			elementCount++;
 
 			if (cc->parser.panicMode) return;
@@ -2012,7 +2043,7 @@ static void arrayLiteral(CompilerContext* cc, bool canAssign) {
 		return;
 	}
 
-	emitBytes(cc, 3, OP_NEW_ARRAY, (uint8_t)elementCount, (uint8_t)(elementCount >> 8));  //make array
+	emitBytes(cc, 3, OP_NEW_ARRAY, (uint8_t)elementCount, (uint8_t)(elementCount >> 8));
 	clearOpStack(cc);
 }
 
@@ -2045,7 +2076,7 @@ static void objectLiteral(CompilerContext* cc, bool canAssign) {
 			}
 
 			consume(cc, TOKEN_COLON, "Expect ':' after property name.");
-			expression(cc); //get value
+			expression(cc);
 			emitConstantCommond(cc, OP_NEW_PROPERTY, constant);
 			clearOpStack(cc);
 
@@ -2060,7 +2091,8 @@ static void objectLiteral(CompilerContext* cc, bool canAssign) {
 	--current->objectNestingDepth;
 }
 
-//when it is constant index,use this
+//rewrite a constant-index subscript: roll back the constant load and re-emit
+//as the fused index opcodes (OP_GET_INDEX/OP_SET_INDEX or property access)
 static void mergeSubscript(CompilerContext* cc, uint8_t code, bool isAssignment) {
 	Chunk* chunk = currentChunk(cc);
 #define READ_CONSTANT(index) (cc->vm->constants.values[(index)])
@@ -2121,7 +2153,7 @@ static void subscript(CompilerContext* cc, bool canAssign) {
 	expression(cc);
 	consume(cc, TOKEN_RIGHT_SQUARE_BRACKET, "Expect ']' after subscript.");
 
-	// Because of the order of parsing, the index must be processed here
+	//the index load is the last tracked op; peek it to detect a constant-index subscript
 	uint8_t code = opStack_peek(currentOpStack(cc), 0);
 	bool isAssignment = canAssign && match(cc, TOKEN_EQUAL);
 
@@ -2141,7 +2173,6 @@ static void subscript(CompilerContext* cc, bool canAssign) {
 	}
 }
 
-//check builtin
 static void builtinLiteral(CompilerContext* cc, bool canAssign) {
 	uint8_t module = 0;
 	switch (cc->parser.previous.type)
@@ -2230,7 +2261,6 @@ static void number_hex(CompilerContext* cc, bool canAssign) {
 }
 
 static void or_(CompilerContext* cc, bool canAssign) {
-	//if true
 	int32_t ifJump = emitJump(cc, OP_JUMP_IF_TRUE);
 	emitPopCount(cc, 1);
 	parsePrecedence(cc, PREC_OR);
@@ -2253,11 +2283,10 @@ static void namedVariable(CompilerContext* cc, Token name, bool canAssign) {
 				errorAtCurrent(cc, "Assignment to constant variable.");
 				return;
 			}
-			// 16-bit index
 			emitBytes(cc, 3, OP_SET_LOCAL, (uint8_t)arg, (uint8_t)(arg >> 8));
 			emitOpStack(cc, OP_SET_LOCAL, false);
 		}
-		else { // 16-bit index
+		else {
 			emitBytes(cc, 3, OP_GET_LOCAL, (uint8_t)arg, (uint8_t)(arg >> 8));
 			emitOpStack(cc, OP_GET_LOCAL, false);
 		}
@@ -2274,10 +2303,9 @@ static void namedVariable(CompilerContext* cc, Token name, bool canAssign) {
 					errorAtCurrent(cc, "Assignment to constant variable.");
 					return;
 				}
-				// 16-bit index
 				emitBytes(cc, 2, OP_SET_UPVALUE, (uint8_t)arg);
 			}
-			else { // 16-bit index
+			else {
 				emitBytes(cc, 2, OP_GET_UPVALUE, (uint8_t)arg);
 			}
 			clearOpStack(cc);
@@ -2350,10 +2378,8 @@ static void string_escape(CompilerContext* cc, bool canAssign) {
 static void unary(CompilerContext* cc, bool canAssign) {
 	TokenType operatorType = cc->parser.previous.type;
 
-	// Compile the operand.
 	parsePrecedence(cc, PREC_UNARY);
 
-	// Emit the operator instruction.
 	switch (operatorType) {
 	case TOKEN_BANG: {
 		emitByte(cc, OP_NOT);
@@ -2471,7 +2497,6 @@ ObjFunction* compile(LfxVM* vm, C_STR source, FunctionType compileType) {
 		.printBytecode = vm->options.printBytecode,
 		.optimizationEnabled = vm->options.optimizationEnabled,
 		.scanner = { 0 },
-		//init flags
 		.parser = {
 			.current = { 0 },
 			.previous = { 0 },
@@ -2512,7 +2537,6 @@ ObjFunction* compile(LfxVM* vm, C_STR source, FunctionType compileType) {
 * This part uses hard-coded instruction lengths, which needs to be noted
 */
 #if LOXFLUX_COMPILATION_TIME_OPTIMIZATION
-//COLD_FUNCTION
 static void instructionOptimize(CompilerContext* cc) {
 	Compiler* current = cc->currentCompiler;
 	Chunk* chunk = currentChunk(cc);
@@ -2573,6 +2597,28 @@ static void instructionOptimize(CompilerContext* cc) {
 	 ((op) == OP_TRUE)			? TRUE_VAL :	\
 	 ((op) == OP_FALSE)			? FALSE_VAL : NIL_VAL)
 
+//fuse the trailing [right operand][raw op] pair in place: the raw opcode byte
+//is dropped and the absorbed operand instruction is rewritten into `fusedOp`
+//(16bit operand form); the right operand's tracked entry is dropped and the
+//fused opcode is pushed so the fusion stays visible to emitBranchJump's
+//opStack-based tail matching (the left operand's entry is kept tracked)
+#define FUSE_IN_PLACE_2B(fusedOp)						\
+	do {											\
+		chunk_fallback(chunk, 1);					\
+		fallbackOpStack(cc, 2);						\
+		CHUNK_PEEK(2) = (fusedOp);					\
+		opStack_push(cc->vm, opStack, (fusedOp));	\
+	} while (false)
+
+//24bit operand variant (rewrites an absorbed [OP_CONSTANT u24] instruction)
+#define FUSE_IN_PLACE_3B(fusedOp)					\
+	do {											\
+		chunk_fallback(chunk, 1);					\
+		fallbackOpStack(cc, 2);						\
+		CHUNK_PEEK(3) = (fusedOp);					\
+		opStack_push(cc->vm, opStack, (fusedOp));	\
+	} while (false)
+
 #define BINARY_CALC(left,right,op,sizeLeft,sizeRight)			\
 	do {														\
 		if (IS_NUMBER(left) && IS_NUMBER(right)) {				\
@@ -2606,6 +2652,9 @@ static void instructionOptimize(CompilerContext* cc) {
 		}														\
 	} while (false)
 
+	//right-operand fusion: number constant -> *_NUMBER (16bit index), local ->
+	//*_LOCAL; a non-number constant fuses for equality only (*_CONST, 24bit),
+	//arithmetic/ordering have no such super instruction and fall through
 	switch (code) {
 	case OP_ADD: {
 		if (isBothConstant) {
@@ -2629,12 +2678,10 @@ static void instructionOptimize(CompilerContext* cc) {
 			}
 		}
 		else if (isRightConstNumber) {
-			//number constant -> super instruction,16bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_ADD_CONST; //convert command
+			CHUNK_PEEK(2) = OP_ADD_NUMBER; //convert command
 		}
-		//non-number constant : no super instruction for arithmetic
 		else if (isRightLocal) {
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
@@ -2649,12 +2696,10 @@ static void instructionOptimize(CompilerContext* cc) {
 			BINARY_CALC(left, right, -, CONST_SIZE(isLeftConstNumber), CONST_SIZE(isRightConstNumber));
 		}
 		else if (isRightConstNumber) {
-			//number constant -> super instruction,16bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_SUBTRACT_CONST; //convert command
+			CHUNK_PEEK(2) = OP_SUBTRACT_NUMBER; //convert command
 		}
-		//non-number constant : no super instruction for arithmetic
 		else if (isRightLocal) {
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
@@ -2669,12 +2714,10 @@ static void instructionOptimize(CompilerContext* cc) {
 			BINARY_CALC(left, right, *, CONST_SIZE(isLeftConstNumber), CONST_SIZE(isRightConstNumber));
 		}
 		else if (isRightConstNumber) {
-			//number constant -> super instruction,16bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_MULTIPLY_CONST; //convert command
+			CHUNK_PEEK(2) = OP_MULTIPLY_NUMBER; //convert command
 		}
-		//non-number constant : no super instruction for arithmetic
 		else if (isRightLocal) {
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
@@ -2689,12 +2732,10 @@ static void instructionOptimize(CompilerContext* cc) {
 			BINARY_CALC(left, right, / , CONST_SIZE(isLeftConstNumber), CONST_SIZE(isRightConstNumber));
 		}
 		else if (isRightConstNumber) {
-			//number constant -> super instruction,16bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_DIVIDE_CONST; //convert command
+			CHUNK_PEEK(2) = OP_DIVIDE_NUMBER; //convert command
 		}
-		//non-number constant : no super instruction for arithmetic
 		else if (isRightLocal) {
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
@@ -2718,12 +2759,10 @@ static void instructionOptimize(CompilerContext* cc) {
 			}
 		}
 		else if (isRightConstNumber) {
-			//number constant -> super instruction,16bits index
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_MODULUS_CONST; //convert command
+			CHUNK_PEEK(2) = OP_MODULUS_NUMBER; //convert command
 		}
-		//non-number constant : no super instruction for arithmetic
 		else if (isRightLocal) {
 			chunk_fallback(chunk, 1);//op
 			clearOpStack(cc);
@@ -2774,7 +2813,6 @@ static void instructionOptimize(CompilerContext* cc) {
 			emitNumberConstant(cc, NUMBER_VAL(val));
 		}
 		else if (prevRight == OP_CONSTANT) {
-			//non-number constant
 			error(cc, "Operand must be a number.");
 		}
 		else if (prevRight == OP_FALSE || prevRight == OP_TRUE || prevRight == OP_NIL) {
@@ -2799,21 +2837,13 @@ static void instructionOptimize(CompilerContext* cc) {
 			emitOpStack(cc, val ? OP_TRUE : OP_FALSE, false);
 		}
 		else if (isRightConstNumber) {
-			//number constant -> super instruction,16bits index
-			chunk_fallback(chunk, 1);//op
-			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_EQUAL_CONST_NUMBER; //convert command
+			FUSE_IN_PLACE_2B(OP_EQUAL_NUMBER);
 		}
 		else if (prevRight == OP_CONSTANT) {
-			//non-number constant -> super instruction,24bits index
-			chunk_fallback(chunk, 1);//op
-			clearOpStack(cc);
-			CHUNK_PEEK(3) = OP_EQUAL_CONST; //convert command
+			FUSE_IN_PLACE_3B(OP_EQUAL_CONST);
 		}
 		else if (isRightLocal) {
-			chunk_fallback(chunk, 1);//op
-			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_EQUAL_LOCAL; //convert command
+			FUSE_IN_PLACE_2B(OP_EQUAL_LOCAL);
 		}
 		break;
 	}
@@ -2829,21 +2859,13 @@ static void instructionOptimize(CompilerContext* cc) {
 			emitOpStack(cc, val ? OP_TRUE : OP_FALSE, false);
 		}
 		else if (isRightConstNumber) {
-			//number constant -> super instruction,16bits index
-			chunk_fallback(chunk, 1);//op
-			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_NOT_EQUAL_CONST_NUMBER; //convert command
+			FUSE_IN_PLACE_2B(OP_NOT_EQUAL_NUMBER);
 		}
 		else if (prevRight == OP_CONSTANT) {
-			//non-number constant -> super instruction,24bits index
-			chunk_fallback(chunk, 1);//op
-			clearOpStack(cc);
-			CHUNK_PEEK(3) = OP_NOT_EQUAL_CONST; //convert command
+			FUSE_IN_PLACE_3B(OP_NOT_EQUAL_CONST);
 		}
 		else if (isRightLocal) {
-			chunk_fallback(chunk, 1);//op
-			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_NOT_EQUAL_LOCAL; //convert command
+			FUSE_IN_PLACE_2B(OP_NOT_EQUAL_LOCAL);
 		}
 		break;
 	}
@@ -2854,16 +2876,10 @@ static void instructionOptimize(CompilerContext* cc) {
 			BINARY_CMP(left, right, > , CONST_SIZE(isLeftConstNumber), CONST_SIZE(isRightConstNumber));
 		}
 		else if (isRightConstNumber) {
-			//number constant -> super instruction,16bits index
-			chunk_fallback(chunk, 1);//op
-			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_GREATER_CONST; //convert command
+			FUSE_IN_PLACE_2B(OP_GREATER_NUMBER);
 		}
-		//non-number constant : no super instruction for ordering comparisons
 		else if (isRightLocal) {
-			chunk_fallback(chunk, 1);//op
-			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_GREATER_LOCAL; //convert command
+			FUSE_IN_PLACE_2B(OP_GREATER_LOCAL);
 		}
 		break;
 	}
@@ -2874,16 +2890,10 @@ static void instructionOptimize(CompilerContext* cc) {
 			BINARY_CMP(left, right, < , CONST_SIZE(isLeftConstNumber), CONST_SIZE(isRightConstNumber));
 		}
 		else if (isRightConstNumber) {
-			//number constant -> super instruction,16bits index
-			chunk_fallback(chunk, 1);//op
-			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_LESS_CONST; //convert command
+			FUSE_IN_PLACE_2B(OP_LESS_NUMBER);
 		}
-		//non-number constant : no super instruction for ordering comparisons
 		else if (isRightLocal) {
-			chunk_fallback(chunk, 1);//op
-			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_LESS_LOCAL; //convert command
+			FUSE_IN_PLACE_2B(OP_LESS_LOCAL);
 		}
 		break;
 	}
@@ -2894,16 +2904,10 @@ static void instructionOptimize(CompilerContext* cc) {
 			BINARY_CMP(left, right, <= , CONST_SIZE(isLeftConstNumber), CONST_SIZE(isRightConstNumber));
 		}
 		else if (isRightConstNumber) {
-			//number constant -> super instruction,16bits index
-			chunk_fallback(chunk, 1);//op
-			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_LESS_EQUAL_CONST; //convert command
+			FUSE_IN_PLACE_2B(OP_LESS_EQUAL_NUMBER);
 		}
-		//non-number constant : no super instruction for ordering comparisons
 		else if (isRightLocal) {
-			chunk_fallback(chunk, 1);//op
-			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_LESS_EQUAL_LOCAL; //convert command
+			FUSE_IN_PLACE_2B(OP_LESS_EQUAL_LOCAL);
 		}
 		break;
 	}
@@ -2914,16 +2918,10 @@ static void instructionOptimize(CompilerContext* cc) {
 			BINARY_CMP(left, right, >= , CONST_SIZE(isLeftConstNumber), CONST_SIZE(isRightConstNumber));
 		}
 		else if (isRightConstNumber) {
-			//number constant -> super instruction,16bits index
-			chunk_fallback(chunk, 1);//op
-			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_GREATER_EQUAL_CONST; //convert command
+			FUSE_IN_PLACE_2B(OP_GREATER_EQUAL_NUMBER);
 		}
-		//non-number constant : no super instruction for ordering comparisons
 		else if (isRightLocal) {
-			chunk_fallback(chunk, 1);//op
-			clearOpStack(cc);
-			CHUNK_PEEK(2) = OP_GREATER_EQUAL_LOCAL; //convert command
+			FUSE_IN_PLACE_2B(OP_GREATER_EQUAL_LOCAL);
 		}
 		break;
 	}
@@ -2935,7 +2933,7 @@ static void instructionOptimize(CompilerContext* cc) {
 				break;
 			}
 
-			uint32_t idx_right = READ_SHORT_INDEX(2); //op
+			uint32_t idx_right = READ_SHORT_INDEX(2);
 			LfxValue right = READ_LOCAL_CONSTANT(idx_right);
 
 			if (!IS_NUMBER(right)) {
@@ -3003,7 +3001,6 @@ static void instructionOptimize(CompilerContext* cc) {
 			}
 		}
 		else if (prevRight == OP_CONSTANT) {
-			//non-number constant
 			error(cc, "Operand of bitwise must be a number.");
 		}
 		break;
@@ -3059,9 +3056,50 @@ static void instructionOptimize(CompilerContext* cc) {
 		}
 		break;
 	}
-	case OP_SET_LOCAL: {
+	//opcodes that can legitimately sit on the opStack (loads/literals pushed by
+	//the emitters and fused forms pushed by the conversions above): valid
+	//bytecode, nothing left to optimize when examined here
+	case OP_CONSTANT:
+	case OP_CONST_NUMBER:
+	case OP_TRUE:
+	case OP_FALSE:
+	case OP_NIL:
+	case OP_GET_LOCAL:
+	case OP_SET_LOCAL:
+	case OP_MODULE_BUILTIN:
+	case OP_SET_PROPERTY:
+	case OP_SET_PROP_LOCAL:
+	case OP_ADD_NUMBER:
+	case OP_SUBTRACT_NUMBER:
+	case OP_MULTIPLY_NUMBER:
+	case OP_DIVIDE_NUMBER:
+	case OP_MODULUS_NUMBER:
+	case OP_ADD_LOCAL:
+	case OP_SUBTRACT_LOCAL:
+	case OP_MULTIPLY_LOCAL:
+	case OP_DIVIDE_LOCAL:
+	case OP_MODULUS_LOCAL:
+	case OP_NOT_LOCAL:
+	case OP_NEGATE_LOCAL:
+	case OP_EQUAL_NUMBER:
+	case OP_NOT_EQUAL_NUMBER:
+	case OP_EQUAL_CONST:
+	case OP_NOT_EQUAL_CONST:
+	case OP_EQUAL_LOCAL:
+	case OP_NOT_EQUAL_LOCAL:
+	case OP_GREATER_NUMBER:
+	case OP_GREATER_EQUAL_NUMBER:
+	case OP_LESS_NUMBER:
+	case OP_LESS_EQUAL_NUMBER:
+	case OP_GREATER_LOCAL:
+	case OP_GREATER_EQUAL_LOCAL:
+	case OP_LESS_LOCAL:
+	case OP_LESS_EQUAL_LOCAL:
+	case OP_SET_LOCAL_POP:
+	case OP_MOVE_LOCAL:
+	case OP_SET_PROPERTY_POP:
+	case OP_SET_PROP_LOCAL_POP:
 		break;
-	}
 	default: {
 		fprintf(stderr, "Unexpected(%u)\n", code);
 		break;
@@ -3078,6 +3116,8 @@ static void instructionOptimize(CompilerContext* cc) {
 #undef READ_CONST_VALUE
 #undef OPERAND_SIZE
 #undef READ_OPERAND
+#undef FUSE_IN_PLACE_2B
+#undef FUSE_IN_PLACE_3B
 #undef BINARY_CALC
 #undef BINARY_CMP
 }

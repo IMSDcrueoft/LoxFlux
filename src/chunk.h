@@ -90,19 +90,20 @@ typedef enum {
 	OP_CEDE,
 
 	//super command
-	//OP_*_CONST : 1 + 2 byte, 16bits index into function's own constants (number only)
-	OP_ADD_CONST,
-	OP_SUBTRACT_CONST,
-	OP_MULTIPLY_CONST,
-	OP_DIVIDE_CONST,
-	OP_MODULUS_CONST,
+	//OP_*_NUMBER : 1 + 2 byte, 16bits index into function's own constants (number only)
+	OP_ADD_NUMBER,
+	OP_SUBTRACT_NUMBER,
+	OP_MULTIPLY_NUMBER,
+	OP_DIVIDE_NUMBER,
+	OP_MODULUS_NUMBER,
 
-	OP_GREATER_CONST,		// number only
-	OP_LESS_CONST,			// number only
-	OP_LESS_EQUAL_CONST,	// number only
-	OP_GREATER_EQUAL_CONST,	// number only
-	OP_EQUAL_CONST_NUMBER,		// 1 + 2 byte, 16bits index into function's own constants (number only)
-	OP_NOT_EQUAL_CONST_NUMBER,	// 1 + 2 byte, 16bits index into function's own constants (number only)
+	OP_GREATER_NUMBER,		// number only
+	OP_LESS_NUMBER,			// number only
+	OP_LESS_EQUAL_NUMBER,	// number only
+	OP_GREATER_EQUAL_NUMBER,	// number only
+	OP_EQUAL_NUMBER,		// 1 + 2 byte, 16bits index into function's own constants (number only)
+	OP_NOT_EQUAL_NUMBER,	// 1 + 2 byte, 16bits index into function's own constants (number only)
+
 	OP_EQUAL_CONST,			// 1 + 3 byte, 24bits index into vm.constants (non-number only)
 	OP_NOT_EQUAL_CONST,		// 1 + 3 byte, 24bits index into vm.constants (non-number only)
 
@@ -121,6 +122,12 @@ typedef enum {
 	OP_NOT_LOCAL,
 	OP_NEGATE_LOCAL,
 
+	//fused local-receiver property forms: [op][local u16][name u24][cache u8]
+	//the receiver is read directly from the frame slot (no stack copy of the local)
+	OP_GET_PROP_LOCAL,
+	OP_SET_PROP_LOCAL,		// the assigned value remains on the stack
+	OP_SET_PROP_LOCAL_POP,	// pop the assigned value
+
 	//branch super command (fused compare + jump if false)
 	//LL forms: both operands are local slots; > / >= reuse the LESS forms via slot swap
 	//format: [op:8][localA:16][localB:16][offset:16]
@@ -129,28 +136,46 @@ typedef enum {
 	OP_JIF_EQUAL_LL,		// a == b else jump
 	OP_JIF_NOT_EQUAL_LL,	// a != b else jump
 
-	//LC forms: local slot vs compile-time constant; > / >= cover the const-on-left
+	//LN forms: local slot vs compile-time constant; > / >= cover the const-on-left
 	//cases via direction flip (== / != commute, no flip needed)
 	//number constants (ordering + equality) ride the function's own 16bit pool,
 	//compile-time guaranteed number: no runtime type check on the constant operand
 	//format: [op:8][local:16][const:16][offset:16]
-	OP_JIF_LESS_LC_NUMBER,			// local <  const else jump
-	OP_JIF_LESS_EQUAL_LC_NUMBER,	// local <= const else jump
-	OP_JIF_GREATER_LC_NUMBER,		// local >  const else jump
-	OP_JIF_GREATER_EQUAL_LC_NUMBER,	// local >= const else jump
-	OP_JIF_EQUAL_LC_NUMBER,			// local == const else jump
-	OP_JIF_NOT_EQUAL_LC_NUMBER,		// local != const else jump
+	OP_JIF_LESS_LN,			// local <  const else jump
+	OP_JIF_LESS_EQUAL_LN,	// local <= const else jump
+	OP_JIF_GREATER_LN,		// local >  const else jump
+	OP_JIF_GREATER_EQUAL_LN,	// local >= const else jump
+	OP_JIF_EQUAL_LN,			// local == const else jump
+	OP_JIF_NOT_EQUAL_LN,		// local != const else jump
 
 	//non-number constants (equality only) ride vm.constants with 24bit index
 	//format: [op:8][local:16][const:24][offset:16]
 	OP_JIF_EQUAL_LC,		// local == const else jump
 	OP_JIF_NOT_EQUAL_LC,	// local != const else jump
 
-	//fused local-receiver property forms: [op][local u16][name u24][cache u8]
-	//the receiver is read directly from the frame slot (no stack copy of the local)
-	OP_GET_PROP_LOCAL,
-	OP_SET_PROP_LOCAL,		// the assigned value remains on the stack
-	OP_SET_PROP_LOCAL_POP,	// pop the assigned value
+	//stack-operand forms: the left operand is the value on top of the stack (the
+	//preceding condition's result), the right operand is a 16bit number constant
+	//format: [op:8][const:16][offset:16]
+	OP_JIF_LESS_NUMBER,			// stack <  const else jump
+	OP_JIF_LESS_EQUAL_NUMBER,	// stack <= const else jump
+	OP_JIF_GREATER_NUMBER,		// stack >  const else jump
+	OP_JIF_GREATER_EQUAL_NUMBER,	// stack >= const else jump
+	OP_JIF_EQUAL_NUMBER,		// stack == const else jump
+	OP_JIF_NOT_EQUAL_NUMBER,	// stack != const else jump
+
+	//stack-operand forms vs a local slot (16bit): ordering + equality
+	//format: [op:8][local:16][offset:16]
+	OP_JIF_LESS_LOCAL,			// stack <  local else jump
+	OP_JIF_LESS_EQUAL_LOCAL,	// stack <= local else jump
+	OP_JIF_GREATER_LOCAL,		// stack >  local else jump
+	OP_JIF_GREATER_EQUAL_LOCAL,	// stack >= local else jump
+	OP_JIF_EQUAL_LOCAL,			// stack == local else jump
+	OP_JIF_NOT_EQUAL_LOCAL,		// stack != local else jump
+
+	//stack-operand equality vs a non-number constant (24bit index into vm.constants)
+	//format: [op:8][const:24][offset:16]
+	OP_JIF_EQUAL_CONST,			// stack == const else jump
+	OP_JIF_NOT_EQUAL_CONST,		// stack != const else jump
 
 	// guard
 	INVALID_OP

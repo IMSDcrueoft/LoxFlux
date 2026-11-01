@@ -29,7 +29,7 @@
 // ---- C3: infinity ----
 {
     var big = 1e308;
-    var inf = big * 10;                    // local * const -> OP_MULTIPLY_CONST, not folded
+    var inf = big * 10;                    // local * const -> OP_MULTIPLY_NUMBER, not folded
     if (inf > 1e308) { print "C3a ok"; } else { print "C3a wrong"; } // inf > 1e308 true
     if (inf < 1e308) { print "C3b wrong"; } else { print "C3b ok"; }
     var c = 0;

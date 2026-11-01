@@ -1,0 +1,133 @@
+// and/or inside branch-style conditions must never be tail-fused: the operand
+// value has to survive for the outer JUMP_IF_FALSE_POP, and or/and emit jumps
+// whose targets fall where a fused compare+jump would sit. A wrong fusion
+// leaks/corrupts the value stack — the hot loops below (whose conditions end
+// in a comparison tail, i.e. prime fusion candidates) turn any regression into
+// a crash or a wrong count, and the short-circuit checks pin the semantics.
+//
+// exit: 0
+// out: 1
+// out: 2
+// out: 3
+// out: 4
+// out: 2
+// out: v1
+// out: v2
+// out: false
+// out: v5
+// out: nil
+// out: 0
+// out: 2
+// out: 5
+// out: 6
+// out: 7
+// out: 8
+// out: 9
+// out: 10
+// out: 11
+// out: 12
+// out: 13
+// out: 14
+// out: 15
+// out: 16
+// out: 17
+// out: 20000
+// out: 10000
+// out: 4999
+// out: 6
+// out: 5
+// out: 18
+// out: 20
+// out: 21
+// out: 3
+
+var hits = 0;
+
+fun tick() {
+  hits = hits + 1;
+  return true;
+}
+
+var a = 1;
+var b = 2;
+
+// --- short-circuit: the right side must not run when the left decides ---
+if (false and tick()) print "no"; else print "1";
+if (true or tick()) print "2"; else print "no";
+if (true and tick()) print "3"; else print "no";
+if (false or tick()) print "4"; else print "no";
+print hits;
+
+// --- value semantics: and/or yield the deciding operand (only nil/false falsy) ---
+print nil or "v1";
+print "v2" or nil;
+print false and nil;
+print "v4" and "v5";
+print nil and "v6";
+print 0 or "zero";
+print 1 and 2;
+
+// --- comparison tail on the RIGHT of or/and (fusion candidate shapes) ---
+if (a > 0 or b < 10) print "5"; else print "no";
+if (a > 0 and b < 10) print "6"; else print "no";
+if (a > 5 or b < 10) print "7"; else print "no";
+if (a > 5 and b < 10) print "no"; else print "8";
+if (b < 10 or a > 5) print "9"; else print "no";
+if (b < 10 and a > 5) print "no"; else print "10";
+if (a == 1 or b == 99) print "11"; else print "no";
+if (a == 99 and b == 2) print "no"; else print "12";
+if (a == 99 or b == 2) print "13"; else print "no";
+
+// --- comparison on the LEFT of or/and (converted before the or/and jump) ---
+if (a < b or tick()) print "14"; else print "no";
+if (a < b and tick()) print "15"; else print "no";
+
+// --- nested precedence ---
+if (a > 0 or b < 0 and a < 0) print "16"; else print "no";
+if ((a > 0 or b < 0) and b > 0) print "17"; else print "no";
+
+// --- while: condition ends in a comparison tail after `or` (hot stack check) ---
+var n = 0;
+var i = 0;
+while (i < 10000 or n > 999999) {
+  if (i < 999999 or b == 99) n = n + 1;
+  if (a > 0 and i < 99999) n = n + 1;
+  i = i + 1;
+}
+print n;
+print i;
+
+// --- for: condition ends in a comparison tail after `and` ---
+var m = 0;
+for (var j = 0; j < 5000 and m < 4999; j = j + 1) {
+  m = m + 1;
+}
+print m;
+
+// --- do-while: or tail + continue routed to the condition ---
+var d = 0;
+var k = 0;
+do {
+  k = k + 1;
+  if (k == 2) continue;
+  d = d + 1;
+} while (k < 6 or d > 100);
+print k;
+print d;
+
+// --- branch cases with and/or conditions ---
+branch {
+  a > 5 or b < 10: print "18";
+  a == 1 and b == 2: print "19";
+  none: print "no";
+}
+branch {
+  a == 99 and b == 2: print "no";
+  a == 1: print "20";
+  none: print "no";
+}
+
+// --- chained comparison feeding or (daisy shape) ---
+if ((a < b) == true or a > 5) print "21"; else print "no";
+
+print hits;

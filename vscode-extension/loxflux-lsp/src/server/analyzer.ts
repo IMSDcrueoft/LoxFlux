@@ -560,7 +560,9 @@ export class Analyzer {
 				}
 				break;
 			case 'Print':
-				this.walkExpr(stmt.expression);
+				for (const e of stmt.expressions) {
+					this.walkExpr(e);
+				}
 				break;
 			case 'ExprStmt':
 				this.walkExpr(stmt.expression);

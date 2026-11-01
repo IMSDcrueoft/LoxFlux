@@ -165,6 +165,12 @@ test('flags undefined variables', () => {
 	assert.strictEqual(undeclared.length, 1);
 });
 
+test('parses multi-expression print like the VM', () => {
+	const { analysis } = analyzeOf('print 1, undefinedThing, "x";');
+	assert.strictEqual(analysis.diagnostics.length, 1); // only the undeclared name, no parse errors
+	assert.strictEqual(analysis.diagnostics[0].code, 'undeclared');
+});
+
 test('flags assignment to const', () => {
 	const { analysis } = analyzeOf('const K = 1;\nK = 2;');
 	const errors = analysis.diagnostics.filter((d) => d.code === 'assign-to-const');
