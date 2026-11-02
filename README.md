@@ -440,6 +440,33 @@ All interpreter state lives inside the `LfxVM` structure (`src/vm.h`) — there 
 
 Lifecycle: zero the `LfxVM` instance, then drive it with `vm_init` / `interpret_compile` / `interpret_execute` / `vm_free`, looping on the returned `InterpretResult` (resume while it is `INTERPRET_CEDE`). 
 
+## Build configuration notes
+
+Several performance-relevant behaviours are compile-time switches rather than
+runtime flags (see the "other options" list in `src/options.h`), for example:
+
+- `LOXFLUX_FRAME_CACHED_BASES` (`src/object.h`)
+- `LOXFLUX_COMPRESS_OBJ_HEADER` (`src/object.h`)
+- `NAN_BOXING` (`src/value.h`)
+- `LOXFLUX_COMPILATION_TIME_OPTIMIZATION` (`src/compiler.h`)
+- `LOXFLUX_USE_XXHASH` (`src/hash.h`)
+- `LOXFLUX_USE_MIMALLOC` (`src/allocator.h`)
+
+Their benefit depends heavily on the compiler, compiler version and the
+OS/CPU target, so **the default build configuration is not guaranteed to be
+the fastest on your machine**. Either change the macro default in its header or
+override it at build time, and benchmark on the target toolchain:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_C_FLAGS="-DLOXFLUX_FRAME_CACHED_BASES=0"
+```
+
+There are significant differences between compilers: under the same settings, 
+on a test machine with an M1 processor Mac Mini, 
+GCC 16 is faster than Apple Clang 21 in every benchmark. 
+The difference in object-intensive tests is even as high as 90%.
+
 ## Licenses
 The project **loxFlux** is based on `MIT` and uses three third-party projects.
   - Copyright (c) 2025-2026 IMSDCrueoft

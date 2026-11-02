@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.21)
 
 # ---------------------------------------------------------------------------
 # loxFlux - a Lox dialect interpreter (VM)
@@ -16,7 +16,26 @@ set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Options -------------------------------------------------------------------
-option(LOXFLUX_BUILD_SHARED "Build shared library" OFF)
+option(LOXFLUX_ENABLE_LTO "Enable link-time optimization in release builds" ON)
+set(LOXFLUX_LTO_MODE "thin" CACHE STRING
+  "Clang LTO mode: thin or full (GCC uses full -flto=auto where supported)")
+set_property(CACHE LOXFLUX_LTO_MODE PROPERTY STRINGS thin full)
+string(TOLOWER "${LOXFLUX_LTO_MODE}" _loxflux_lto_mode)
+if(NOT _loxflux_lto_mode MATCHES "^(thin|full)$")
+  message(FATAL_ERROR "LOXFLUX_LTO_MODE must be 'thin' or 'full' (got '${LOXFLUX_LTO_MODE}')")
+endif()
+set(LOXFLUX_LTO_MODE "${_loxflux_lto_mode}" CACHE STRING
+  "Clang LTO mode: thin or full (GCC uses full -flto=auto where supported)" FORCE)
+
+set(LOXFLUX_STACK_PROTECTOR "STRONG" CACHE STRING
+  "Stack protector: STRONG (default), ON (-fstack-protector) or OFF")
+set_property(CACHE LOXFLUX_STACK_PROTECTOR PROPERTY STRINGS OFF ON STRONG)
+string(TOUPPER "${LOXFLUX_STACK_PROTECTOR}" _loxflux_stack_protector)
+if(NOT _loxflux_stack_protector MATCHES "^(OFF|ON|STRONG)$")
+  message(FATAL_ERROR "LOXFLUX_STACK_PROTECTOR must be OFF, ON, or STRONG (got '${LOXFLUX_STACK_PROTECTOR}')")
+endif()
+set(LOXFLUX_STACK_PROTECTOR "${_loxflux_stack_protector}" CACHE STRING
+  "Stack protector: STRONG (default), ON (-fstack-protector) or OFF" FORCE)
 
 # Compiler flag selection ---------------------------------------------------
 # Mimics the flags used in loxFlux.vcxproj so CMake builds behave like the
@@ -26,11 +45,31 @@ if(MSVC)
   # C and C++ are handled separately so no conflicting /EH flags remain.
   add_compile_options($<$<COMPILE_LANGUAGE:C>:/EHs-c->)
   add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/EH->)
-  # AdvancedVectorExtensions2 == /arch:AVX2 (matches loxFlux.vcxproj; MSVC
-  # does not know an /arch:SSE4.2 value - it was silently ignored with D9002)
-  add_compile_options(/arch:AVX2)
 else()
   add_compile_options(-fno-exceptions)
+endif()
+
+# Stack protector / stack checking ------------------------------------------
+# Apple Clang defaults to -fstack-protector/-fstack-check; GCC to neither.
+# Make the choice explicit so builds are comparable. -fno-stack-check is always
+# added because the two compilers' stack checks are not equivalent hardening.
+if(MSVC)
+  if(LOXFLUX_STACK_PROTECTOR STREQUAL "OFF")
+    add_compile_options(/GS-)
+  else()
+    add_compile_options(/GS)
+  endif()
+else()
+  if(LOXFLUX_STACK_PROTECTOR STREQUAL "OFF")
+    add_compile_options(-fno-stack-protector)
+  elseif(LOXFLUX_STACK_PROTECTOR STREQUAL "STRONG")
+    add_compile_options(-fstack-protector-strong)
+  else()
+    add_compile_options(-fstack-protector)
+  endif()
+  if(CMAKE_C_COMPILER_ID MATCHES "Clang")
+    add_compile_options(-fno-stack-check)
+  endif()
 endif()
 
 # Warnings (keep parity with WarningLevel Level3)
@@ -50,7 +89,44 @@ endif()
 
 # xxHash is header-only (XXH_INLINE_ALL) -------------------------------------
 add_library(xxhash INTERFACE)
-target_include_directories(xxhash INTERFACE ${CMAKE_SOURCE_DIR}/third-party/xxHash)
+target_include_directories(xxhash INTERFACE ${PROJECT_SOURCE_DIR}/third-party/xxHash)
+
+# Link-Time Optimization -----------------------------------------------------
+# IPO variables must be set before targets are created (CMake initializes the
+# target property at creation). Set them after mimalloc so the vendored
+# allocator stays non-LTO: no measurable gain and interposition risk with
+# MI_OVERRIDE.
+set(LOXFLUX_LTO_EFFECTIVE OFF)
+if(LOXFLUX_ENABLE_LTO)
+  if(APPLE AND CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    # Apple ld cannot load GCC's LTO plugin; it would copy __GNU_LTO sections
+    # into the output without optimizing.
+    message(STATUS "LTO: effective OFF (GCC on macOS; Apple ld cannot process GCC LTO objects)")
+  else()
+    if(LOXFLUX_LTO_MODE STREQUAL "full" AND CMAKE_C_COMPILER_ID MATCHES "Clang")
+      # Force full LTO so Clang matches GCC's -flto=auto.
+      set(CMAKE_C_COMPILE_OPTIONS_IPO "-flto")
+      set(CMAKE_C_LINK_OPTIONS_IPO "-flto")
+      set(CMAKE_CXX_COMPILE_OPTIONS_IPO "-flto")
+      set(CMAKE_CXX_LINK_OPTIONS_IPO "-flto")
+    endif()
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT _loxflux_ipo_supported OUTPUT loxflux_ipo_output
+      LANGUAGES C)
+    if(_loxflux_ipo_supported)
+      set(LOXFLUX_LTO_EFFECTIVE ON)
+      set(_loxflux_lto_mode "${LOXFLUX_LTO_MODE}")
+      if(NOT CMAKE_C_COMPILER_ID MATCHES "Clang")
+        set(_loxflux_lto_mode "full")
+      endif()
+      message(STATUS "LTO: effective ON for Release/RelWithDebInfo (mode: ${_loxflux_lto_mode}; mimalloc excluded)")
+    else()
+      message(STATUS "LTO: effective OFF (toolchain does not support IPO: ${loxflux_ipo_output})")
+    endif()
+  endif()
+else()
+  message(STATUS "LTO: effective OFF (LOXFLUX_ENABLE_LTO=OFF)")
+endif()
 
 # mimalloc -------------------------------------------------------------------
 # Vendored from source (third-party/mimalloc) and built through its own
@@ -68,6 +144,12 @@ if(LOXFLUX_USE_MIMALLOC)
   message(STATUS "mimalloc: building vendored source -> using mimalloc allocator")
 else()
   message(STATUS "mimalloc disabled by LOXFLUX_USE_MIMALLOC=OFF -> using the standard library allocator")
+endif()
+
+# IPO for our own targets; mimalloc was created above and stays non-LTO.
+if(LOXFLUX_LTO_EFFECTIVE)
+  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
+  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO ON)
 endif()
 
 # Core library --------------------------------------------------------------
@@ -105,41 +187,21 @@ set(LOXFLUX_CORE_SOURCES
 
 add_library(loxFluxCore STATIC ${LOXFLUX_CORE_SOURCES})
 target_include_directories(loxFluxCore PUBLIC
-  ${CMAKE_SOURCE_DIR}/src
-  ${CMAKE_SOURCE_DIR}/third-party/xxHash
-  ${CMAKE_SOURCE_DIR}/third-party/memAllocator
+  ${PROJECT_SOURCE_DIR}/src
+  ${PROJECT_SOURCE_DIR}/third-party/xxHash
+  ${PROJECT_SOURCE_DIR}/third-party/memAllocator
 )
 target_link_libraries(loxFluxCore PUBLIC xxhash)
 
-# Always define LOXFLUX_USE_MIMALLOC (1/0) so allocator.h selects the same
-# allocator the build system configured, regardless of the platform default.
-# Based on LOXFLUX_ALLOC_MIMALLOC (mimalloc actually found and enabled), not
-# the user option alone, so the macro matches what gets linked.
+# Keep allocator.h's macro in sync with the allocator actually linked.
 target_compile_definitions(loxFluxCore PUBLIC
   LOXFLUX_USE_MIMALLOC=$<IF:$<BOOL:${LOXFLUX_ALLOC_MIMALLOC}>,1,0>)
 if(LOXFLUX_ALLOC_MIMALLOC)
-  #MI_BUILD_SHARED=OFF (vendored add_subdirectory) defines only mimalloc-static;
-  #the bare name "mimalloc" would silently become a system-library lookup with
-  #no include path (mimalloc.h not found), so link the real target
+  # With MI_BUILD_SHARED=OFF only mimalloc-static exists.
   if(TARGET mimalloc)
     target_link_libraries(loxFluxCore PUBLIC mimalloc)
   else()
     target_link_libraries(loxFluxCore PUBLIC mimalloc-static)
-  endif()
-endif()
-
-# Link-Time Optimization -----------------------------------------------------
-# Enabled for Release/RelWithDebInfo only; MSVC uses /LTCG, Clang/GCC use -flto.
-option(LOXFLUX_ENABLE_LTO "Enable link-time optimization in release builds" ON)
-if(LOXFLUX_ENABLE_LTO)
-  include(CheckIPOSupported)
-  check_ipo_supported(RESULT loxflux_ipo_supported OUTPUT loxflux_ipo_output)
-  if(loxflux_ipo_supported)
-    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
-    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO ON)
-    message(STATUS "LTO: enabled for Release/RelWithDebInfo")
-  else()
-    message(STATUS "LTO: not supported by this toolchain -> disabled (${loxflux_ipo_output})")
   endif()
 endif()
 
@@ -149,11 +211,20 @@ target_link_libraries(loxFlux PRIVATE loxFluxCore)
 
 # Release symbol stripping ---------------------------------------------------
 # Keep function names out of the shipped binary: MSVC gets /DEBUG:NONE (no
-# PDB, no COFF symbol table), GCC/Clang get a post-build `strip --strip-all`.
+# PDB, no COFF symbol table); GNU strip uses --strip-all; Apple's strip does
+# not know --strip-all and uses -x (drop local symbols) instead.
 if(MSVC)
   target_link_options(loxFlux PRIVATE $<$<CONFIG:Release>:/DEBUG:NONE>)
+elseif(APPLE)
+  add_custom_command(TARGET loxFlux POST_BUILD
+    COMMAND $<$<CONFIG:Release>:${CMAKE_STRIP}>
+            $<$<CONFIG:Release>:-x>
+            $<$<CONFIG:Release>:$<TARGET_FILE:loxFlux>>
+    COMMENT "$<$<CONFIG:Release>:Stripping release symbols>")
 else()
   add_custom_command(TARGET loxFlux POST_BUILD
-    COMMAND $<$<CONFIG:Release>:${CMAKE_STRIP}> --strip-all $<TARGET_FILE:loxFlux>
-    COMMENT "Stripping release binary")
+    COMMAND $<$<CONFIG:Release>:${CMAKE_STRIP}>
+            $<$<CONFIG:Release>:--strip-all>
+            $<$<CONFIG:Release>:$<TARGET_FILE:loxFlux>>
+    COMMENT "$<$<CONFIG:Release>:Stripping release binary>")
 endif()
