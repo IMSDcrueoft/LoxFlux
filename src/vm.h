@@ -111,11 +111,11 @@ typedef struct LfxVM {
 	uint8_t gcMark;
 	//mark if the gc is running
 	uint8_t gcWorking;
+	// current generation, 0 means Gen0, 1 means Gen1 and so on
+	uint8_t gcGeneration;
 
 	// 1 = execution control has been ceded to the host
 	uint8_t ceding;
-	//pad
-	uint8_t padding[1];
 	//id for compiled functions
 	uint32_t functionID;
 
@@ -161,22 +161,22 @@ typedef enum {
 
 // flip mark
 static inline void vm_markObject(LfxVM* vm, Obj* object) {
-	object->isMarked = vm->gcMark;
+	OBJ_SET_MARK(object, vm->gcMark);
 }
 
 // mark as white
 static inline void vm_unmarkObject(LfxVM* vm, Obj* object) {
-	object->isMarked = vm->gcMark ^ 0b1;
+	OBJ_SET_MARK(object, vm->gcMark ^ 0b1);
 }
 
 // check mark
 static inline bool vm_isObjectMarked(LfxVM* vm, Obj* object) {
-	return object->isMarked == vm->gcMark;
+	return OBJ_GET_MARK(object) == vm->gcMark;
 }
 
 // flip mark
-static inline void vm_flipedMark(LfxVM* vm, uint8_t generation) {
-	(void)generation;// currently, there is no generation
+static inline void vm_flipedMark(LfxVM* vm) {
+	// only gen0 for now, so just flip the lowest bit
 	vm->gcMark = vm->gcMark ^ 0b1;
 }
 

@@ -95,10 +95,10 @@ struct Obj {
 		struct
 		{
 			uint8_t type;
-			uint8_t isMarked;
+			uint8_t meta;
 			uint8_t padding[6]; //high 48bits for ptr low48bits
 		};
-		uintptr_t boxedNext;	//gc list next ptr, stored in the upper 48 bits (nextPtr << 16); the low 16 bits hold type + isMarked
+		uintptr_t boxedNext;	//gc list next ptr, stored in the upper 48 bits (nextPtr << 16); the low 16 bits hold type + meta
 	};
 };
 
@@ -112,7 +112,7 @@ static inline Obj* object_get_next(Obj* obj) {
 
 static inline Obj stateLess_obj_header(ObjType objType) {
 	Obj o = { .boxedNext = (uintptr_t)NULL << 16 };
-	o.isMarked = 1;
+	o.meta = 0;
 	o.type = objType;
 	return o;
 }
@@ -122,7 +122,7 @@ struct Obj {
 	struct
 	{
 		uint8_t type;
-		uint8_t isMarked;
+		uint8_t meta;
 	};
 	struct Obj* next;
 };
@@ -136,10 +136,15 @@ static inline Obj* object_get_next(Obj* obj) {
 }
 
 static inline Obj stateLess_obj_header(ObjType objType) {
-	return (Obj) { .next = NULL, .isMarked = 1, .type = objType };
+	return (Obj) { .next = NULL, .meta = 0, .type = objType };
 }
 
 #endif
+
+// 2bits for mark: gen0 and gen1
+#define OBJ_MARK_MASK 0b11
+#define OBJ_GET_MARK(obj) ((obj)->meta & OBJ_MARK_MASK)
+#define OBJ_SET_MARK(obj, mark) ((obj)->meta = ((obj)->meta & ~OBJ_MARK_MASK) | (mark) & OBJ_MARK_MASK)
 
 //inline cache slot: cached probe position of a table entry
 //capacity==0 means "never filled" (a real table capacity is never 0) → guaranteed slow path

@@ -26,7 +26,7 @@ void markValue(LfxVM* vm, LfxValue value)
 //	for (uint32_t i = 0; i < array->count; i++) {
 //		LfxValue value = array->values[i];
 //		if (IS_OBJ(value)) {
-//			AS_OBJ(value)->isMarked = vm.gcMark;
+//			AS_OBJ(value)->meta = vm.gcMark;
 //			blackenObject(AS_OBJ(value));
 //		}
 //	}
@@ -75,7 +75,7 @@ void markObject(LfxVM* vm, Obj* object)
 	case OBJ_NATIVE:
 	case OBJ_STRING:
 		//don't join gc
-		//object->isMarked = true;
+		//object->meta = true;
 		return;
 	}
 
@@ -212,7 +212,7 @@ static void sweep(LfxVM* vm) {
 
 	while (object != NULL) {
 		if (vm_isObjectMarked(vm, object)) {
-			//object->isMarked = false;//clear the mark
+			//object->meta = false;//clear the mark
 
 			previous = object;
 			object = object_get_next(object);
@@ -267,6 +267,7 @@ void garbageCollect(LfxVM* vm)
 #endif
 	//mark the state
 	vm->gcWorking = 1;
+	vm->gcGeneration = 0;// currently unused
 
 	vm_storeCacheToFiber(vm);
 
@@ -281,7 +282,7 @@ void garbageCollect(LfxVM* vm)
 	//reset the limit
 	vm->nextGC = max(vm->bytesAllocated * LOXFLUX_GC_HEAP_GROW_FACTOR, vm->beginGC);
 	//flip the mark
-	vm_flipedMark(vm, 0);
+	vm_flipedMark(vm);
 	//mark the state
 	vm->gcWorking = 0;
 
