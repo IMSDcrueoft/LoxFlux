@@ -431,8 +431,8 @@ void vm_init(LfxVM* vm)
 	vm->functionID = 0;
 	vm->nextGC = LOXFLUX_GC_HEAP_BEGIN;
 	vm->beginGC = LOXFLUX_GC_HEAP_BEGIN;
-	vm->gcMark = true;
-	vm->gcWorking = false;
+	vm->gcMark = 1;
+	vm->gcWorking = 0;
 
 	//the root fiber owns the main VM stack and the live frame/open-upvalue state
 	vm->currentFiber = newFiber(vm);

@@ -101,8 +101,14 @@ struct Obj {
 		uintptr_t boxedNext;	//gc list next ptr, stored in the upper 48 bits (nextPtr << 16); the low 16 bits hold type + isMarked
 	};
 };
-#define OBJ_PTR_SET_NEXT(obj,nextPtr)	((obj)->boxedNext = ((obj)->boxedNext & UINT16_MAX) | ((uintptr_t)nextPtr << 16))
-#define OBJ_PTR_GET_NEXT(obj)			(Obj*)((obj)->boxedNext >> 16)
+
+static inline void object_set_next(Obj* obj, Obj* next) {
+	obj->boxedNext = (obj->boxedNext & UINT16_MAX) | ((uintptr_t)next << 16);
+}
+
+static inline Obj* object_get_next(Obj* obj) {
+	return (Obj*)(obj->boxedNext >> 16);
+}
 
 static inline Obj stateLess_obj_header(ObjType objType) {
 	Obj o = { .boxedNext = (uintptr_t)NULL << 16 };
@@ -120,8 +126,14 @@ struct Obj {
 	};
 	struct Obj* next;
 };
-#define OBJ_PTR_SET_NEXT(obj,nextPtr)	((obj)->next = nextPtr)
-#define OBJ_PTR_GET_NEXT(obj)			((obj)->next)
+
+static inline void object_set_next(Obj* obj, Obj* next) {
+	obj->next = next;
+}
+
+static inline Obj* object_get_next(Obj* obj) {
+	return obj->next;
+}
 
 static inline Obj stateLess_obj_header(ObjType objType) {
 	return (Obj) { .next = NULL, .isMarked = 1, .type = objType };

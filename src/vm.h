@@ -103,7 +103,11 @@ typedef struct LfxVM {
 	Obj** grayStack;   //arena base (never moves)
 	size_t grayCount;
 
-	//Flip tagging, is more suitable for concurrent tagging
+	// Flip tagging, is more suitable for concurrent tagging
+	// When divided into N generations (including age counting), 
+	// the mark always uses N-bit Mark, but the checking logic checks 1 bit for Gen0, 
+	// 2 bits for Gen1, 3 bits for Gen2, and so on. The flipping logic is also based on GenN;
+	// for Gen0, only the lowest bit is flipped, and for Gen1, the lowest 2 bits are flipped.
 	uint8_t gcMark;
 	//mark if the gc is running
 	uint8_t gcWorking;
@@ -147,6 +151,34 @@ typedef enum {
 	INTERPRET_COMPILE_ERROR,
 	INTERPRET_RUNTIME_ERROR
 } InterpretResult;
+
+// Currently, there is no generational mark, so when marking is toggled, mark = !mark.
+// 
+// To be implemented: When divided into N generations (including age counting), 
+// the mark always uses N-bit Mark, but the checking logic checks 1 bit for Gen0, 
+// 2 bits for Gen1, 3 bits for Gen2, and so on. The flipping logic is also based on GenN;
+// for Gen0, only the lowest bit is flipped, and for Gen1, the lowest 2 bits are flipped.
+
+// flip mark
+static inline void vm_markObject(LfxVM* vm, Obj* object) {
+	object->isMarked = vm->gcMark;
+}
+
+// mark as white
+static inline void vm_unmarkObject(LfxVM* vm, Obj* object) {
+	object->isMarked = vm->gcMark ^ 0b1;
+}
+
+// check mark
+static inline bool vm_isObjectMarked(LfxVM* vm, Obj* object) {
+	return object->isMarked == vm->gcMark;
+}
+
+// flip mark
+static inline void vm_flipedMark(LfxVM* vm, uint8_t generation) {
+	(void)generation;// currently, there is no generation
+	vm->gcMark = vm->gcMark ^ 0b1;
+}
 
 void vm_init(LfxVM* vm);
 void vm_free(LfxVM* vm);

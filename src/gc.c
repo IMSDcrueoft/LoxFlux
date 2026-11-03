@@ -68,7 +68,7 @@ void markObject(LfxVM* vm, Obj* object)
 	//skip the null and things that don't need mark
 	if (object == NULL) return;
 	//skip marked one
-	if (object->isMarked == vm->gcMark) return;
+	if (vm_isObjectMarked(vm, object)) return;
 
 	switch (object->type) {
 	case OBJ_FUNCTION:
@@ -84,7 +84,7 @@ void markObject(LfxVM* vm, Obj* object)
 	printValue(stderr, OBJ_VAL(object), false);
 	fprintf(stderr, "\n");
 #endif
-	object->isMarked = vm->gcMark;
+	vm_markObject(vm, object);
 
 	//fixed-VA gray stack, plain count logic (same model as the vm stack): the
 	//hot path is one compare against the committed edge; only crossing it does
@@ -211,17 +211,17 @@ static void sweep(LfxVM* vm) {
 	Obj* object = vm->objects;
 
 	while (object != NULL) {
-		if (object->isMarked == vm->gcMark) {
+		if (vm_isObjectMarked(vm, object)) {
 			//object->isMarked = false;//clear the mark
 
 			previous = object;
-			object = OBJ_PTR_GET_NEXT(object);
+			object = object_get_next(object);
 		}
 		else {
 			Obj* unreached = object;
-			object = OBJ_PTR_GET_NEXT(object);
+			object = object_get_next(object);
 			if (previous != NULL) {
-				OBJ_PTR_SET_NEXT(previous, object);
+				object_set_next(previous, object);
 			}
 			else {
 				vm->objects = object;
@@ -246,8 +246,8 @@ static void gc_clear_dead_ic_slots(LfxVM* vm) {
 			Obj* b = (Obj*)c->extraB;
 			if (a == NULL && b == NULL) continue;
 
-			if ((a != NULL && a->isMarked != vm->gcMark) ||
-				(b != NULL && b->isMarked != vm->gcMark)) {
+			if ((a != NULL && !vm_isObjectMarked(vm, a)) ||
+				(b != NULL && !vm_isObjectMarked(vm, b))) {
 				c->extraA = NULL;
 				c->extraB = NULL;
 			}
@@ -281,7 +281,7 @@ void garbageCollect(LfxVM* vm)
 	//reset the limit
 	vm->nextGC = max(vm->bytesAllocated * LOXFLUX_GC_HEAP_GROW_FACTOR, vm->beginGC);
 	//flip the mark
-	vm->gcMark = !vm->gcMark;
+	vm_flipedMark(vm, 0);
 	//mark the state
 	vm->gcWorking = 0;
 

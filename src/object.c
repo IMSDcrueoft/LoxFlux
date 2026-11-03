@@ -67,17 +67,17 @@ static Obj* allocateObject(LfxVM* vm, size_t size, ObjType type) {
 	case OBJ_FUNCTION:
 	case OBJ_NATIVE: {
 		object = (Obj*)reallocate_no_gc(vm, NULL, 0, size);
-		OBJ_PTR_SET_NEXT(object, vm->objects_no_gc);
+		object_set_next(object, vm->objects_no_gc);
 		object->type = type;
-		object->isMarked = !vm->gcMark;
+		vm_unmarkObject(vm, object);
 		vm->objects_no_gc = object;
 		break;
 	}
 	default:
 		object = (Obj*)reallocate(vm, NULL, 0, size);
-		OBJ_PTR_SET_NEXT(object, vm->objects);
+		object_set_next(object, vm->objects);
 		object->type = type;
-		object->isMarked = !vm->gcMark;
+		vm_unmarkObject(vm, object);
 		vm->objects = object;
 		break;
 	}
