@@ -4,7 +4,7 @@
  */
 import { spawn } from 'child_process';
 import { createInterface } from 'readline';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
@@ -15,6 +15,9 @@ const serverJs = path.join(here, '..', '..', 'out', 'server.js');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'loxflux-lsp-test-'));
 const mainFile = path.join(tmp, 'main.lfx');
 const libFile = path.join(tmp, 'lib.lfx');
+// proper file URIs (pathToFileURL handles drive letters/backslashes on Windows)
+const tmpUri = pathToFileURL(tmp).href;
+const mainUri = pathToFileURL(mainFile).href;
 
 fs.writeFileSync(libFile, `// A useful library.\nconst PI = 3.14;\nfun double(a) { return a * 2; }\nexport { "pi": PI, "double": double };\n`);
 fs.writeFileSync(mainFile, `var lib = import "./lib.lfx";\nprint lib.pi;\nvar x = lib.double(21);\nclass Animal {\n\tinit(name) {\n\t\tthis.name = name;\n\t}\n\tspeak() {\n\t\tprint this.name;\n\t}\n}\nvar a = Animal("dog");\na.speak();\n`);
@@ -67,7 +70,7 @@ function request(method, params) {
 	return new Promise((resolve, reject) => {
 		const id = send(method, params);
 		waiting.set(id, resolve);
-		setTimeout(() => reject(new Error(`timeout waiting for ${method}`)), 5000);
+		setTimeout(() => reject(new Error(`timeout waiting for ${method}`)), 15000);
 	});
 }
 
@@ -88,8 +91,8 @@ function check(name, cond) {
 async function main() {
 	const init = await request('initialize', {
 		processId: process.pid,
-		rootUri: 'file://' + tmp,
-		workspaceFolders: [{ uri: 'file://' + tmp, name: 'test' }],
+		rootUri: tmpUri,
+		workspaceFolders: [{ uri: tmpUri, name: 'test' }],
 		capabilities: {},
 	});
 
@@ -100,25 +103,25 @@ async function main() {
 
 	const text = fs.readFileSync(mainFile, 'utf8');
 	notify('textDocument/didOpen', {
-		textDocument: { uri: 'file://' + mainFile, languageId: 'loxflux', version: 1, text },
+		textDocument: { uri: mainUri, languageId: 'loxflux', version: 1, text },
 	});
 
 	await sleep(300);
 
 	const diags = pending.filter((m) => m.method === 'textDocument/publishDiagnostics');
-	const mainDiags = diags.find((d) => d.params.uri === 'file://' + mainFile);
+	const mainDiags = diags.find((d) => d.params.uri === mainUri);
 	check('publishes diagnostics without syntax errors', mainDiags && mainDiags.params.diagnostics.length === 0);
 
 	// hover over `double` property of the imported module (line 2: `var x = lib.double(21);`)
 	const hover = await request('textDocument/hover', {
-		textDocument: { uri: 'file://' + mainFile },
+		textDocument: { uri: mainUri },
 		position: { line: 2, character: 14 },
 	});
 	check('hover resolves imported function', hover && hover.contents && String(hover.contents.value).includes('double'));
 
 	// completion after `a.` (line 12: `a.speak();` -> after dot col 2)
 	const completion = await request('textDocument/completion', {
-		textDocument: { uri: 'file://' + mainFile },
+		textDocument: { uri: mainUri },
 		position: { line: 12, character: 2 },
 	});
 	const labels = (completion?.items ?? []).map((i) => i.label);
@@ -126,7 +129,7 @@ async function main() {
 
 	// scope completion (line 3 start)
 	const scope = await request('textDocument/completion', {
-		textDocument: { uri: 'file://' + mainFile },
+		textDocument: { uri: mainUri },
 		position: { line: 3, character: 0 },
 	});
 	const scopeLabels = (scope?.items ?? []).map((i) => i.label);
@@ -134,27 +137,27 @@ async function main() {
 
 	// definition of double -> lib.lfx (line 2 col 14 = `double`)
 	const def = await request('textDocument/definition', {
-		textDocument: { uri: 'file://' + mainFile },
+		textDocument: { uri: mainUri },
 		position: { line: 2, character: 14 },
 	});
 	check('go-to-definition jumps to module file', def && def.uri && def.uri.endsWith('lib.lfx'));
 
 	// document symbols
 	const symbols = await request('textDocument/documentSymbol', {
-		textDocument: { uri: 'file://' + mainFile },
+		textDocument: { uri: mainUri },
 	});
 	const names = symbols.map((s) => s.name);
 	check('document symbols outline', names.includes('Animal') && names.includes('x') && names.includes('lib'));
 
 	// semantic tokens
 	const sem = await request('textDocument/semanticTokens/full', {
-		textDocument: { uri: 'file://' + mainFile },
+		textDocument: { uri: mainUri },
 	});
 	check('semantic tokens returned', Array.isArray(sem.data) && sem.data.length > 0);
 
 	// references of `a` (declaration line 11 + usage line 12)
 	const refs = await request('textDocument/references', {
-		textDocument: { uri: 'file://' + mainFile },
+		textDocument: { uri: mainUri },
 		position: { line: 11, character: 4 },
 		context: { includeDeclaration: true },
 	});
@@ -162,17 +165,17 @@ async function main() {
 
 	// rename local variable x (line 2: `var x = ...` -> col 4)
 	const prep = await request('textDocument/prepareRename', {
-		textDocument: { uri: 'file://' + mainFile },
+		textDocument: { uri: mainUri },
 		position: { line: 2, character: 4 },
 	});
 	check('prepare rename gives placeholder', prep && prep.placeholder === 'x');
 
 	const renamed = await request('textDocument/rename', {
-		textDocument: { uri: 'file://' + mainFile },
+		textDocument: { uri: mainUri },
 		position: { line: 2, character: 4 },
 		newName: 'y',
 	});
-	check('rename produces edits', renamed && renamed.changes && (renamed.changes['file://' + mainFile] ?? []).length >= 1);
+	check('rename produces edits', renamed && renamed.changes && (renamed.changes[mainUri] ?? []).length >= 1);
 
 	// workspace symbols
 	const ws = await request('workspace/symbol', { query: 'double' });

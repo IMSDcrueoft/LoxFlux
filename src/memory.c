@@ -11,7 +11,7 @@
 
 void* reallocate_no_gc(LfxVM* vm, void* pointer, size_t oldSize, size_t newSize)
 {
-	vm->bytesAllocated_no_gc += newSize - oldSize;
+	vm->pinnedBytes += newSize - oldSize;
 
 	if (newSize == 0) {
 		if (pointer != NULL) {
@@ -40,13 +40,13 @@ void* reallocate_no_gc(LfxVM* vm, void* pointer, size_t oldSize, size_t newSize)
 
 void* reallocate(LfxVM* vm, void* pointer, size_t oldSize, size_t newSize)
 {
-	vm->bytesAllocated += newSize - oldSize;
+	vm->allocatedBytes += newSize - oldSize;
 
 	if (newSize > oldSize) {
 #if DEBUG_STRESS_GC
 		garbageCollect(vm);
 #endif
-		if (vm->bytesAllocated > vm->nextGC) {
+		if (vm->allocatedBytes > vm->nextGC && vm->options.garbageCollectionEnabled) {
 			garbageCollect(vm);
 		}
 	}
@@ -112,10 +112,10 @@ void freeObject(LfxVM* vm, Obj* object) {
 		FREE_ARRAY_NO_GC(vm, CallFrame, fiber->core.frames, fiber->core.frameCapacity);
 
 		if (vm->fiberFreeCount < LOXFLUX_FIBER_CACHE_MAX) {
-			assert(vm->bytesAllocated >= sizeof(ObjFiber));
-			vm->bytesAllocated -= sizeof(ObjFiber);
+			assert(vm->allocatedBytes >= sizeof(ObjFiber));
+			vm->allocatedBytes -= sizeof(ObjFiber);
 			//reuse the object header as the free-list link
-			OBJ_PTR_SET_NEXT(&fiber->obj, (Obj*)vm->fiberFreeList);
+			object_set_next(&fiber->obj, (Obj*)vm->fiberFreeList);
 			vm->fiberFreeList = fiber;
 			vm->fiberFreeCount++;
 		}
@@ -217,7 +217,7 @@ void freeObjects(LfxVM* vm)
 #endif
 	Obj* object = vm->objects;
 	while (object != NULL) {
-		Obj* next = OBJ_PTR_GET_NEXT(object);
+		Obj* next = object_get_next(object);
 		freeObject(vm, object);
 		object = next;
 	}
@@ -227,7 +227,7 @@ void freeObjects(LfxVM* vm)
 #endif
 	Obj* object_no_gc = vm->objects_no_gc;
 	while (object_no_gc != NULL) {
-		Obj* next = OBJ_PTR_GET_NEXT(object_no_gc);
+		Obj* next = object_get_next(object_no_gc);
 		freeObject(vm, object_no_gc);
 		object_no_gc = next;
 	}
@@ -243,14 +243,14 @@ struct ObjFiber* allocFiber(LfxVM* vm)
 		//cached fibers are linked through the object header; their allocator
 		//memory was removed from GC accounting when they entered the cache
 		fiber = vm->fiberFreeList;
-		vm->fiberFreeList = (ObjFiber*)OBJ_PTR_GET_NEXT((Obj*)fiber);
+		vm->fiberFreeList = (ObjFiber*)object_get_next((Obj*)fiber);
 		vm->fiberFreeCount--;
 
-		vm->bytesAllocated += sizeof(ObjFiber);
+		vm->allocatedBytes += sizeof(ObjFiber);
 
 		//relink the recycled object into the live object list
-		OBJ_PTR_SET_NEXT(&fiber->obj, vm->objects);
-		fiber->obj.isMarked = !vm->gcMark;
+		object_set_next(&fiber->obj, vm->objects);
+		vm_unmarkObject(vm, &fiber->obj);
 		vm->objects = &fiber->obj;
 	}
 	else {
@@ -261,9 +261,9 @@ struct ObjFiber* allocFiber(LfxVM* vm)
 			(void*)fiber, sizeof(ObjFiber), objTypeInfo[OBJ_FIBER]);
 #endif
 
-		OBJ_PTR_SET_NEXT(&fiber->obj, vm->objects);
+		object_set_next(&fiber->obj, vm->objects);
 		fiber->obj.type = OBJ_FIBER;
-		fiber->obj.isMarked = !vm->gcMark;
+		vm_unmarkObject(vm, &fiber->obj);
 		vm->objects = &fiber->obj;
 
 		memset(&fiber->stackArena, 0, sizeof(fiber->stackArena));
@@ -281,7 +281,7 @@ void freeFiberFreeList(LfxVM* vm)
 {
 	while (vm->fiberFreeList != NULL) {
 		ObjFiber* fiber = vm->fiberFreeList;
-		vm->fiberFreeList = (ObjFiber*)OBJ_PTR_GET_NEXT((Obj*)fiber);
+		vm->fiberFreeList = (ObjFiber*)object_get_next((Obj*)fiber);
 
 		//cached fibers were already removed from GC accounting when enqueued
 		arenaBump_destroy(&fiber->stackArena);

@@ -372,13 +372,15 @@ void vm_init(LfxVM* vm)
 {
 	vm->options.printBytecode = false;
 	vm->options.optimizationEnabled = true;
+	// this option is prepared for the host to control the garbage collection behavior of the VM.
+	vm->options.garbageCollectionEnabled = true;
 	//zero the accounting books BEFORE any allocation: everything vm_init
 	//allocates from here on must be counted, so the matching vm_free frees net
 	//the counters back to exactly zero
 	//(each fiber stack and the interned strings live in fixed OS VA arenas
 	//outside the allocator, like the grayStack)
-	vm->bytesAllocated = 0;
-	vm->bytesAllocated_no_gc = 0;
+	vm->allocatedBytes = 0;
+	vm->pinnedBytes = 0;
 
 	vm->currentFiber = NULL;
 	vm->fiberFreeList = NULL;
@@ -429,10 +431,20 @@ void vm_init(LfxVM* vm)
 	vm->objects_no_gc = NULL;
 
 	vm->functionID = 0;
+	//gc trigger: survival-adaptive headroom above the live heap. live == 0
+	//here, so the first trigger is the headroom floor (== LOXFLUX_GC_HEAP_BEGIN)
+	vm->headroomPolicy = (LfxHeadroomPolicy){
+		.ratio = LOXFLUX_GC_HEADROOM_RATIO,
+		.minRatio = LOXFLUX_GC_MIN_HEADROOM_RATIO,
+		.maxRatio = LOXFLUX_GC_MAX_HEADROOM_RATIO,
+		.minBytes = LOXFLUX_GC_HEAP_BEGIN,
+		.slackBudgetBytes = LOXFLUX_GC_SLACK_BUDGET
+	};
+
 	vm->nextGC = LOXFLUX_GC_HEAP_BEGIN;
-	vm->beginGC = LOXFLUX_GC_HEAP_BEGIN;
-	vm->gcMark = true;
-	vm->gcWorking = false;
+	vm->gcMark = OBJ_MARK_MASK;// start with all bits set
+	vm->gcWorking = 0;
+	vm->gcGeneration = 0;
 
 	//the root fiber owns the main VM stack and the live frame/open-upvalue state
 	vm->currentFiber = newFiber(vm);
@@ -506,6 +518,11 @@ void vm_setOptimizationEnabled(LfxVM* vm, bool isEnabled) {
 }
 
 COLD_FUNCTION
+void vm_setGarbageCollectionEnabled(LfxVM* vm, bool isEnabled) {
+	vm->options.garbageCollectionEnabled = isEnabled;
+}
+
+COLD_FUNCTION
 void vm_free(LfxVM* vm)
 {
 	//cache arrays are owned by their ObjFunction and released by freeObject
@@ -558,9 +575,9 @@ void vm_free(LfxVM* vm)
 	//(direct mem_alloc/mem_free users: readFile buffers, REPL line buffer,
 	//fiber stack arenas, are uncounted on BOTH sides and therefore never
 	//show up here)
-	if (vm->bytesAllocated != 0 || vm->bytesAllocated_no_gc != 0) {
-		fprintf(stderr, "[mem] LEAK: bytesAllocated=%zu bytesAllocated_no_gc=%zu (both must be 0)\n",
-			vm->bytesAllocated, vm->bytesAllocated_no_gc);
+	if (vm->allocatedBytes != 0 || vm->pinnedBytes != 0) {
+		fprintf(stderr, "[mem] LEAK: allocatedBytes=%zu pinnedBytes=%zu (both must be 0)\n",
+			vm->allocatedBytes, vm->pinnedBytes);
 	}
 #endif
 }
@@ -692,7 +709,7 @@ static bool call(LfxVM* vm, ObjClosure* closure, int argCount) {
 	frame->slots = vm->cache.stackTop - argCount - 1;
 	//frame->slotsOffset = (ptrdiff_t)(frame->slots - vm->cache.stack); //unused since the arena stack (fixed base)
 
-#if LOXFLUX_SPILL_DATA_TO_FRAME
+#if LOXFLUX_FRAME_CACHED_BASES
 	frame->caches = closure->function->caches;
 	frame->constants = closure->function->constants;
 #endif
@@ -1192,12 +1209,12 @@ static InterpretResult run(LfxVM* vm)
 	register CallFrame* frame = &vm->cache.frames[vm->cache.frameCount - 1];
 	register uint8_t* ip = frame->ip;
 
-#if !LOXFLUX_SPILL_DATA_TO_FRAME
+#if !LOXFLUX_FRAME_CACHED_BASES
 	register InlineCacheSlot* icCache = frame->closure->function->caches;
 	register LfxValue* constants = frame->closure->function->constants;
-#endif // !LOXFLUX_SPILL_DATA_TO_FRAME
+#endif // !LOXFLUX_FRAME_CACHED_BASES
 
-#if LOXFLUX_SPILL_DATA_TO_FRAME
+#if LOXFLUX_FRAME_CACHED_BASES
 #define UPDATE_FRAME()	\
 	do {				\
 		frame = &vm->cache.frames[vm->cache.frameCount - 1];\
@@ -1358,7 +1375,7 @@ static InterpretResult run(LfxVM* vm)
 #define READ_CONSTANT(index) (vm->constants.values[(index)])
 	//constants in function's own table (number),16bits index
 	//cached as a run(vm) local next to frame/ip,refreshed at every frame switch
-#if LOXFLUX_SPILL_DATA_TO_FRAME
+#if LOXFLUX_FRAME_CACHED_BASES
 #define READ_LOCAL_CONSTANT(index) (frame->constants[(index)])
 #else
 #define READ_LOCAL_CONSTANT(index) (constants[(index)])
@@ -1633,7 +1650,7 @@ static InterpretResult run(LfxVM* vm)
 			ObjString* name = AS_STRING(constant);
 			uint8_t slot = READ_BYTE();
 
-#if LOXFLUX_SPILL_DATA_TO_FRAME
+#if LOXFLUX_FRAME_CACHED_BASES
 			//icCache derived per handler,not a run(vm)-wide local,to keep the dispatch loop's live ranges small
 			InlineCacheSlot* icCache = frame->caches;
 #endif
@@ -1665,7 +1682,7 @@ static InterpretResult run(LfxVM* vm)
 			ObjString* name = AS_STRING(constant);
 			uint8_t slot = READ_BYTE();
 
-#if LOXFLUX_SPILL_DATA_TO_FRAME
+#if LOXFLUX_FRAME_CACHED_BASES
 			//icCache derived per handler,not a run(vm)-wide local,to keep the dispatch loop's live ranges small
 			InlineCacheSlot* icCache = frame->caches;
 #endif
@@ -1701,7 +1718,7 @@ static InterpretResult run(LfxVM* vm)
 			ObjString* name = AS_STRING(constant);
 			uint8_t slot = READ_BYTE();
 
-#if LOXFLUX_SPILL_DATA_TO_FRAME
+#if LOXFLUX_FRAME_CACHED_BASES
 			//icCache derived per handler,not a run(vm)-wide local,to keep the dispatch loop's live ranges small
 			InlineCacheSlot* icCache = frame->caches;
 #endif
@@ -1740,7 +1757,7 @@ static InterpretResult run(LfxVM* vm)
 			uint8_t slot = READ_BYTE();
 
 			//icCache derived per handler,not a run(vm)-wide local,to keep the dispatch loop's live ranges small
-#if LOXFLUX_SPILL_DATA_TO_FRAME
+#if LOXFLUX_FRAME_CACHED_BASES
 			//icCache derived per handler,not a run(vm)-wide local,to keep the dispatch loop's live ranges small
 			InlineCacheSlot* icCache = frame->caches;
 #endif
@@ -1779,7 +1796,7 @@ static InterpretResult run(LfxVM* vm)
 			ObjString* name = AS_STRING(constant);
 			uint8_t slot = READ_BYTE();
 
-#if LOXFLUX_SPILL_DATA_TO_FRAME
+#if LOXFLUX_FRAME_CACHED_BASES
 			//icCache derived per handler,not a run(vm)-wide local,to keep the dispatch loop's live ranges small
 			InlineCacheSlot* icCache = frame->caches;
 #endif
@@ -1814,7 +1831,7 @@ static InterpretResult run(LfxVM* vm)
 			ObjString* name = AS_STRING(constant);
 			uint8_t slot = READ_BYTE();
 
-#if LOXFLUX_SPILL_DATA_TO_FRAME
+#if LOXFLUX_FRAME_CACHED_BASES
 			//icCache derived per handler,not a run(vm)-wide local,to keep the dispatch loop's live ranges small
 			InlineCacheSlot* icCache = frame->caches;
 #endif
@@ -2449,7 +2466,7 @@ static InterpretResult run(LfxVM* vm)
 			uint8_t argCount = READ_BYTE();
 			uint8_t slot = READ_BYTE();
 
-#if LOXFLUX_SPILL_DATA_TO_FRAME
+#if LOXFLUX_FRAME_CACHED_BASES
 			//icCache derived per handler,not a run(vm)-wide local,to keep the dispatch loop's live ranges small
 			InlineCacheSlot* icCache = frame->caches;
 #endif
@@ -2492,7 +2509,7 @@ static InterpretResult run(LfxVM* vm)
 			uint8_t argCount = READ_BYTE();
 			uint8_t slot = READ_BYTE();
 
-#if LOXFLUX_SPILL_DATA_TO_FRAME
+#if LOXFLUX_FRAME_CACHED_BASES
 			//icCache derived per handler,not a run(vm)-wide local,to keep the dispatch loop's live ranges small
 			InlineCacheSlot* icCache = frame->caches;
 #endif

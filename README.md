@@ -1,5 +1,5 @@
 # LoxFlux
-![Version](https://img.shields.io/badge/version-0.13.1-blue)
+![Version](https://img.shields.io/badge/version-0.13.2-blue)
 
 LoxFlux is an independent reimplementation of the cLox interpreter described in "Crafting Interpreters"—a stack-based bytecode virtual machine. All code is written from scratch, following the book’s design principles. This project is still actively being developed and improved.
 
@@ -29,6 +29,7 @@ Lox is a programming language designed for learning purposes. It is conceived as
 - **Inline caching for properties & methods**: Every property access and method call site embeds a cache slot. Field reads/writes cache the hash-table probe position(guarded by table capacity + interned key pointer); method invokes cache the resolved class & closure pair(guarded by class pointer identity). Instances whose fields shadow method names are poisoned and skip the method cache. Cached class/closure references are weak: the GC clears slots holding dying objects, so caches never extend object lifetimes.
 - **Flip-up GC marking**: Flipping tags can avoid reverting to the write of tags during the recycling process, and favor concurrent tags (if actually implemented).
 - **Detached static and dynamic objects**: Static objects such as strings/functions, they don't usually bloat very much, so I think it's a viable option not to recycle them.
+- **Adaptive GC trigger**: Auto collections fire at `live + headroom`, where the headroom adapts to the survival rate of recent cycles: churn phases keep the classic "double at 2x live" behavior, growing phases widen the headroom (up to 3x live) to avoid re-scanning a legitimately expanding heap, and a 64 MiB slack budget caps the headroom on large heaps so per-cycle garbage stays bounded. Tunables are compile-time macros in `src/gc.h` (`LOXFLUX_GC_*`).
 - **Compilation-time optimizations**: Provides basic constant folding, super instruction, and builtin module member folding: frozen builtin members compile to constants — number members become immediate constants (e.g. `@math.PI`), native members are loaded directly, and `@module.member(args)` call sites collapse into a direct call without the module access or method dispatch.
 - **Instruction Dispatching**: Use `direct threading code` instead of `switch case` in compilers that support compute goto(clang & gcc).
 
@@ -37,21 +38,21 @@ Lox is a programming language designed for learning purposes. It is conceived as
 #### Performance test
 
 _(AMD Ryzen7-5800X, Windows 11, Use ClangCL/LLVM 22.1.3 for loxflux & clox (loop 1e8: LLVM 19, see note) & Lua 5.5.1; LoxFlux benchmarks in `scripts/benchmark/lfx`, CPython in `scripts/benchmark/py`, Lua in `scripts/benchmark/lua`)_
-|program|LoxFlux - [0.13.1]|clox|NodeJS - [24.19.0] - jitless|Cpython3 - [3.14.7]|Lua - [5.5.1]|
+|program|LoxFlux - [0.13.2]|clox|NodeJS - [24.19.0] - jitless|Cpython3 - [3.14.7]|Lua - [5.5.1]|
 |---|---|---|---|---|---|
-|fib30|45ms|81ms|50ms|121ms|51ms|
-|fib35|486ms|880ms|570ms|1319ms|546ms|
-|fib40|5508ms|10365ms|6131ms|14593ms|6038ms|
-|loop 1e8|417ms (for: 712ms)|1109ms|583ms|2671ms|842ms (for: 213ms)|
-|global loop 1e8|729ms|2694ms|988ms|4462ms|2265ms|
-|binary_trees|853ms|2295ms|517ms|1247ms|2364ms|
-|instantiation|347ms|845ms|226ms|1020ms|1145ms|
-|invocation|143ms|244ms|203ms|312ms|286ms|
+|fib30|44ms|81ms|50ms|121ms|51ms|
+|fib35|487ms|880ms|570ms|1319ms|546ms|
+|fib40|5415ms|10365ms|6131ms|14593ms|6038ms|
+|loop 1e8|421ms (for: 685ms)|1109ms|583ms|2671ms|842ms (for: 213ms)|
+|global loop 1e8|717ms|2694ms|988ms|4462ms|2265ms|
+|binary_trees|902ms|2295ms|517ms|1247ms|2364ms|
+|instantiation|335ms|845ms|226ms|1020ms|1145ms|
+|invocation|140ms|244ms|203ms|312ms|286ms|
 |method_call|82ms|167ms|93ms|160ms|137ms|
-|properties|181ms|373ms|229ms|339ms|329ms|
-|trees|1011ms|3884ms|1307ms|2002ms|3116ms|
-|zoo|150ms|288ms|169ms|292ms|251ms|
-|zoo_batch(10sec)|10763batch|5063batch|9049batch|5665batch|6569batch|
+|properties|180ms|373ms|229ms|339ms|329ms|
+|trees|958ms|3884ms|1307ms|2002ms|3116ms|
+|zoo|145ms|288ms|169ms|292ms|251ms|
+|zoo_batch(10sec)|11266batch|5063batch|9049batch|5665batch|6569batch|
 
 ---
 
@@ -387,8 +388,6 @@ The `@sys` module offers low-level system utilities, primarily focused on file I
 
 - **Garbage Collection**:
   - `gcRun`: Triggers a full garbage collection cycle.
-  - `gcNext`: Configure the heap memory usage to be used for the next GC trigger.
-  - `gcBegin`: Configure the limits of the initial GC.
 
 - **Memory Statistics**:
   - `allocatedBytes`: Returns the total number of bytes currently allocated in the dynamic memory pool(includes built-in objects and deduplication pools).
@@ -439,6 +438,35 @@ The VM's two hottest regions — the value stack and the interned string pool �
 All interpreter state lives inside the `LfxVM` structure (`src/vm.h`) — there is no global VM state. The host owns the instance, so several fully isolated interpreters can coexist in one process (each with its own pools, globals, GC accounting, arenas and RNG).
 
 Lifecycle: zero the `LfxVM` instance, then drive it with `vm_init` / `interpret_compile` / `interpret_execute` / `vm_free`, looping on the returned `InterpretResult` (resume while it is `INTERPRET_CEDE`). 
+
+Hosts can suspend automatic collection with `vm_setGarbageCollectionEnabled(vm, false)` — explicit `@sys.gcRun()` calls still work, and the pending collection fires on the first allocation after re-enabling.
+
+## Build configuration notes
+
+Several performance-relevant behaviours are compile-time switches rather than
+runtime flags (see the "other options" list in `src/options.h`), for example:
+
+- `LOXFLUX_FRAME_CACHED_BASES` (`src/object.h`)
+- `LOXFLUX_COMPRESS_OBJ_HEADER` (`src/object.h`)
+- `NAN_BOXING` (`src/value.h`)
+- `LOXFLUX_COMPILATION_TIME_OPTIMIZATION` (`src/compiler.h`)
+- `LOXFLUX_USE_XXHASH` (`src/hash.h`)
+- `LOXFLUX_USE_MIMALLOC` (`src/allocator.h`)
+
+Their benefit depends heavily on the compiler, compiler version and the
+OS/CPU target, so **the default build configuration is not guaranteed to be
+the fastest on your machine**. Either change the macro default in its header or
+override it at build time, and benchmark on the target toolchain:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_C_FLAGS="-DLOXFLUX_FRAME_CACHED_BASES=0"
+```
+
+There are significant differences between compilers: under the same settings, 
+on a test machine with an M1 processor Mac Mini, 
+GCC 16 is faster than Apple Clang 21 in every benchmark. 
+The difference in object-intensive tests is even as high as 90%.
 
 ## Licenses
 The project **loxFlux** is based on `MIT` and uses three third-party projects.

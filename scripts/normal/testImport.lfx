@@ -1,0 +1,2 @@
+var module = import "./module.m.lfx";
+print module.pi;

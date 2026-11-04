@@ -194,7 +194,7 @@ bool tableIterateNext(Table* table, uint32_t* index_inout, Entry** entry_out) {
 //{
 //	for (uint32_t i = 0; i < table->capacity; i++) {
 //		Entry* entry = &table->entries[i];
-//		if (entry->key != NULL && !entry->key->obj.isMarked) {
+//		if (entry->key != NULL && !entry->key->obj.meta) {
 //			tableDelete(table, entry->key);
 //		}
 //	}

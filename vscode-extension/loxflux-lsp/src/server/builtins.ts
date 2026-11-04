@@ -163,8 +163,6 @@ export const BUILTIN_MODULES: Record<string, BuiltinModule> = {
 			fn('appendFile', 'path, data', 'Appends a string, stringBuilder or u8 array to a file, creating it when missing. Returns the number of bytes written, or nil on failure.'),
 			fn('fileExists', 'path', 'Returns true when the given path exists.'),
 			fn('gcRun', '', 'Triggers a full garbage collection cycle.'),
-			fn('gcNext', 'bytes', 'Configures the heap memory usage to be used for the next GC trigger.'),
-			fn('gcBegin', 'bytes', 'Configures the limits of the initial GC.'),
 			fn('allocatedBytes', '', 'Returns the total number of bytes currently allocated in the dynamic memory pool.'),
 			fn('pinnedBytes', '', 'Returns the total number of bytes allocated for static objects (e.g. strings, functions).'),
 		],

@@ -11,6 +11,7 @@
 #include "nativeBuiltin.h"
 #include "arena_bump.h"
 #include "xoshiro256.h"
+#include "gc.h"
 
 //the depth of call frames
 #define LOXFLUX_FRAMES_INIT 64
@@ -54,6 +55,10 @@ typedef struct {
 	//runtime --no-optimize flag: when false, emitOpStack/instructionOptimize,
 	//foldBuiltinMember and emitBranchJump all pass through unoptimized
 	bool optimizationEnabled;
+	//note! This is a runtime option, not a compile-time option. 
+	//It is used to disable the garbage collection of the VM.
+	//When set to false, the garbage collection will be disabled
+	bool garbageCollectionEnabled;
 } LfxOptions;
 
 typedef struct LfxVM {
@@ -91,11 +96,12 @@ typedef struct LfxVM {
 	//Excludes space used by stacks/constants/compilations
 	//size_t (not uint64_t): matches the platform word size, so the 32-bit
 	//build does all gc-threshold arithmetic in native-width registers
-	size_t bytesAllocated_no_gc;
-	size_t bytesAllocated;
+	size_t pinnedBytes;
+	size_t allocatedBytes;
 
-	size_t beginGC;
 	size_t nextGC;
+	//gc trigger policy: survival-adaptive headroom above the live heap
+	LfxHeadroomPolicy headroomPolicy;
 
 	//gc gray worklist: plain count over the gray arena - same model as the vm
 	//stack: the hot push path is one bounds compare against the committed edge,
@@ -103,15 +109,19 @@ typedef struct LfxVM {
 	Obj** grayStack;   //arena base (never moves)
 	size_t grayCount;
 
-	//Flip tagging, is more suitable for concurrent tagging
+	// Flip tagging, is more suitable for concurrent tagging
+	// When divided into N generations (including age counting), 
+	// the mark always uses N-bit Mark, but the checking logic checks 1 bit for Gen0, 
+	// 2 bits for Gen1, 3 bits for Gen2, and so on. The flipping logic is also based on GenN;
+	// for Gen0, only the lowest bit is flipped, and for Gen1, the lowest 2 bits are flipped.
 	uint8_t gcMark;
 	//mark if the gc is running
 	uint8_t gcWorking;
+	// current generation, 0 means Gen0, 1 means Gen1 and so on
+	uint8_t gcGeneration;
 
 	// 1 = execution control has been ceded to the host
 	uint8_t ceding;
-	//pad
-	uint8_t padding[1];
 	//id for compiled functions
 	uint32_t functionID;
 
@@ -148,6 +158,34 @@ typedef enum {
 	INTERPRET_RUNTIME_ERROR
 } InterpretResult;
 
+// Currently, there is no generational mark, so when marking is toggled, mark = !mark.
+// 
+// To be implemented: When divided into N generations (including age counting), 
+// the mark always uses N-bit Mark, but the checking logic checks 1 bit for Gen0, 
+// 2 bits for Gen1, 3 bits for Gen2, and so on. The flipping logic is also based on GenN;
+// for Gen0, only the lowest bit is flipped, and for Gen1, the lowest 2 bits are flipped.
+
+// flip mark
+static inline void vm_markObject(LfxVM* vm, Obj* object) {
+	OBJ_SET_MARK(object, vm->gcMark);
+}
+
+// mark as white
+static inline void vm_unmarkObject(LfxVM* vm, Obj* object) {
+	OBJ_SET_MARK(object, vm->gcMark ^ 0b1);
+}
+
+// check mark
+static inline bool vm_isObjectMarked(LfxVM* vm, Obj* object) {
+	return OBJ_GET_MARK(object) == vm->gcMark;
+}
+
+// flip mark
+static inline void vm_flipedMark(LfxVM* vm) {
+	// only gen0 for now, so just flip the lowest bit
+	vm->gcMark = vm->gcMark ^ 0b1;
+}
+
 void vm_init(LfxVM* vm);
 void vm_free(LfxVM* vm);
 bool vm_isCeding(LfxVM* vm);
@@ -157,6 +195,7 @@ void vm_registerIcFunction(LfxVM* vm, ObjFunction* function);
 
 void vm_setPrintCodeEnabled(LfxVM* vm, bool isEnabled);
 void vm_setOptimizationEnabled(LfxVM* vm, bool isEnabled);
+void vm_setGarbageCollectionEnabled(LfxVM* vm, bool isEnabled);
 
 void stack_push(LfxVM* vm, LfxValue value);
 LfxValue stack_pop(LfxVM* vm);
