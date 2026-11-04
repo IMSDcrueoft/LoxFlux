@@ -8,9 +8,6 @@
 #include "object.h"
 #include "gc.h"
 #include "allocator.h"
-//System
-#define KiB16 (16 * 1024)
-#define GiB1 (1024 * 1024 * 1024)
 
 //64-bit file offsets: the plain ftell/fseek use a 32-bit long on Windows,
 //which misreports everything past 2GB
@@ -59,51 +56,15 @@ static LfxValue gcNative(LfxVM* vm, int argCount, LfxValue* args) {
 	return NIL_VAL;
 }
 
-//change gc next
-static LfxValue gcNextNative(LfxVM* vm, int argCount, LfxValue* args) {
-	if (argCount == 1 && IS_NUMBER(args[0])) {
-		double nextGC = AS_NUMBER(args[0]);
-		if (nextGC < KiB16) {
-			nextGC = KiB16;
-		}
-		else if (nextGC > GiB1) {
-			nextGC = GiB1;
-		}
-		changeNextGC(vm, (size_t)nextGC);
-		return BOOL_VAL(true);
-	}
-	else {
-		return BOOL_VAL(false);
-	}
-}
-
-//change gc begin
-static LfxValue gcBeginNative(LfxVM* vm, int argCount, LfxValue* args) {
-	if (argCount == 1 && IS_NUMBER(args[0])) {
-		double beginGC = AS_NUMBER(args[0]);
-		if (beginGC < KiB16) {
-			beginGC = KiB16;
-		}
-		else if (beginGC > GiB1) {
-			beginGC = GiB1;
-		}
-		changeBeginGC(vm, (size_t)beginGC);
-		return BOOL_VAL(true);
-	}
-	else {
-		return BOOL_VAL(false);
-	}
-}
-
 static LfxValue allocatedBytesNative(LfxVM* vm, int argCount, LfxValue* args) {
-	return NUMBER_VAL((double)vm->bytesAllocated);
+	return NUMBER_VAL((double)vm->allocatedBytes);
 }
 
 static LfxValue pinnedBytesNative(LfxVM* vm, int argCount, LfxValue* args) {
 	//no_gc book + the interned-string arena: the old heap strings were counted
 	//in the no_gc book too, so they stay inside this number (exact consumption:
 	//the arena is append-only, liveTop = sum of string sizes + alignment slack)
-	return NUMBER_VAL((double)(vm->bytesAllocated_no_gc + arenaBump_used(&vm->stringArena)));
+	return NUMBER_VAL((double)(vm->pinnedBytes + arenaBump_used(&vm->stringArena)));
 }
 
 //Print all the parameters
@@ -408,14 +369,9 @@ static LfxValue fileExistsNative(LfxVM* vm, int argCount, LfxValue* args) {
 	return BOOL_VAL(file != NULL);
 }
 
-#undef KiB16
-#undef GiB1
-
 COLD_FUNCTION
 void importNative_system(LfxVM* vm) {
 	defineNative_system(vm, "gcRun", gcNative);
-	defineNative_system(vm, "gcNext", gcNextNative);
-	defineNative_system(vm, "gcBegin", gcBeginNative);
 	defineNative_system(vm, "allocatedBytes", allocatedBytesNative);
 	defineNative_system(vm, "pinnedBytes", pinnedBytesNative);
 

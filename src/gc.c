@@ -263,7 +263,7 @@ void garbageCollect(LfxVM* vm)
 
 #if DEBUG_LOG_GC || LOG_GC_RESULT
 	uint64_t time_gc = get_nanoseconds();
-	size_t before = vm->bytesAllocated;
+	size_t before = vm->allocatedBytes;
 #endif
 	//mark the state
 	vm->gcWorking = 1;
@@ -280,7 +280,7 @@ void garbageCollect(LfxVM* vm)
 	sweep(vm);
 
 	//reset the limit
-	vm->nextGC = max(vm->bytesAllocated * LOXFLUX_GC_HEAP_GROW_FACTOR, vm->beginGC);
+	vm->nextGC = max(vm->allocatedBytes * LOXFLUX_GC_HEAP_GROW_FACTOR, vm->beginGC);
 	//flip the mark
 	vm_flipedMark(vm);
 	//mark the state
@@ -293,16 +293,6 @@ void garbageCollect(LfxVM* vm)
 #if DEBUG_LOG_GC || LOG_GC_RESULT
 	double time_ms = (get_nanoseconds() - time_gc) * 1e-6;
 	fprintf(stderr, "[gc] collected %zu bytes (from %zu to %zu) next at %zu, in %g ms\n",
-		before - vm->bytesAllocated, before, vm->bytesAllocated, vm->nextGC, time_ms);
+		before - vm->allocatedBytes, before, vm->allocatedBytes, vm->nextGC, time_ms);
 #endif
-}
-
-void changeNextGC(LfxVM* vm, size_t newSize)
-{
-	vm->nextGC = newSize;
-}
-
-void changeBeginGC(LfxVM* vm, size_t newSize)
-{
-	vm->beginGC = newSize;
 }

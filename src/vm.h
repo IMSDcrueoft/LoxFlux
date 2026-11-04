@@ -91,8 +91,8 @@ typedef struct LfxVM {
 	//Excludes space used by stacks/constants/compilations
 	//size_t (not uint64_t): matches the platform word size, so the 32-bit
 	//build does all gc-threshold arithmetic in native-width registers
-	size_t bytesAllocated_no_gc;
-	size_t bytesAllocated;
+	size_t pinnedBytes;
+	size_t allocatedBytes;
 
 	size_t beginGC;
 	size_t nextGC;

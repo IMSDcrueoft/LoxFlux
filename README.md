@@ -387,8 +387,6 @@ The `@sys` module offers low-level system utilities, primarily focused on file I
 
 - **Garbage Collection**:
   - `gcRun`: Triggers a full garbage collection cycle.
-  - `gcNext`: Configure the heap memory usage to be used for the next GC trigger.
-  - `gcBegin`: Configure the limits of the initial GC.
 
 - **Memory Statistics**:
   - `allocatedBytes`: Returns the total number of bytes currently allocated in the dynamic memory pool(includes built-in objects and deduplication pools).

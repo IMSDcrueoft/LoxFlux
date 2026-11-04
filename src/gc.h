@@ -13,6 +13,3 @@
 void markObject(LfxVM* vm, Obj* object);
 void markValue(LfxVM* vm, LfxValue value);
 void garbageCollect(LfxVM* vm);
-//callers clamp the native fn argument to [16KiB, 1GiB], so size_t is safe
-void changeNextGC(LfxVM* vm, size_t newSize);
-void changeBeginGC(LfxVM* vm, size_t newSize);

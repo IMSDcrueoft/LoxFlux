@@ -204,7 +204,7 @@ void repl(LfxVM* vm) {
 					continue;
 				}
 				else if (match_string(line, "/reset")) {
-					size_t reclaimed = vm->bytesAllocated + vm->bytesAllocated_no_gc;
+					size_t reclaimed = vm->allocatedBytes + vm->pinnedBytes;
 					//full teardown + fresh state: used by the REPL /reset command
 					//vm_free runs the DEBUG leak-accounting check, so every /reset doubles as a health check
 					vm_free(vm);

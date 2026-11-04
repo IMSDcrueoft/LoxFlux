@@ -377,8 +377,8 @@ void vm_init(LfxVM* vm)
 	//the counters back to exactly zero
 	//(each fiber stack and the interned strings live in fixed OS VA arenas
 	//outside the allocator, like the grayStack)
-	vm->bytesAllocated = 0;
-	vm->bytesAllocated_no_gc = 0;
+	vm->allocatedBytes = 0;
+	vm->pinnedBytes = 0;
 
 	vm->currentFiber = NULL;
 	vm->fiberFreeList = NULL;
@@ -559,9 +559,9 @@ void vm_free(LfxVM* vm)
 	//(direct mem_alloc/mem_free users: readFile buffers, REPL line buffer,
 	//fiber stack arenas, are uncounted on BOTH sides and therefore never
 	//show up here)
-	if (vm->bytesAllocated != 0 || vm->bytesAllocated_no_gc != 0) {
-		fprintf(stderr, "[mem] LEAK: bytesAllocated=%zu bytesAllocated_no_gc=%zu (both must be 0)\n",
-			vm->bytesAllocated, vm->bytesAllocated_no_gc);
+	if (vm->allocatedBytes != 0 || vm->pinnedBytes != 0) {
+		fprintf(stderr, "[mem] LEAK: allocatedBytes=%zu pinnedBytes=%zu (both must be 0)\n",
+			vm->allocatedBytes, vm->pinnedBytes);
 	}
 #endif
 }

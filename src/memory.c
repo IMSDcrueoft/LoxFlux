@@ -11,7 +11,7 @@
 
 void* reallocate_no_gc(LfxVM* vm, void* pointer, size_t oldSize, size_t newSize)
 {
-	vm->bytesAllocated_no_gc += newSize - oldSize;
+	vm->pinnedBytes += newSize - oldSize;
 
 	if (newSize == 0) {
 		if (pointer != NULL) {
@@ -40,13 +40,13 @@ void* reallocate_no_gc(LfxVM* vm, void* pointer, size_t oldSize, size_t newSize)
 
 void* reallocate(LfxVM* vm, void* pointer, size_t oldSize, size_t newSize)
 {
-	vm->bytesAllocated += newSize - oldSize;
+	vm->allocatedBytes += newSize - oldSize;
 
 	if (newSize > oldSize) {
 #if DEBUG_STRESS_GC
 		garbageCollect(vm);
 #endif
-		if (vm->bytesAllocated > vm->nextGC) {
+		if (vm->allocatedBytes > vm->nextGC) {
 			garbageCollect(vm);
 		}
 	}
@@ -112,8 +112,8 @@ void freeObject(LfxVM* vm, Obj* object) {
 		FREE_ARRAY_NO_GC(vm, CallFrame, fiber->core.frames, fiber->core.frameCapacity);
 
 		if (vm->fiberFreeCount < LOXFLUX_FIBER_CACHE_MAX) {
-			assert(vm->bytesAllocated >= sizeof(ObjFiber));
-			vm->bytesAllocated -= sizeof(ObjFiber);
+			assert(vm->allocatedBytes >= sizeof(ObjFiber));
+			vm->allocatedBytes -= sizeof(ObjFiber);
 			//reuse the object header as the free-list link
 			object_set_next(&fiber->obj, (Obj*)vm->fiberFreeList);
 			vm->fiberFreeList = fiber;
@@ -246,7 +246,7 @@ struct ObjFiber* allocFiber(LfxVM* vm)
 		vm->fiberFreeList = (ObjFiber*)object_get_next((Obj*)fiber);
 		vm->fiberFreeCount--;
 
-		vm->bytesAllocated += sizeof(ObjFiber);
+		vm->allocatedBytes += sizeof(ObjFiber);
 
 		//relink the recycled object into the live object list
 		object_set_next(&fiber->obj, vm->objects);
