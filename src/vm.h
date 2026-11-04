@@ -11,6 +11,7 @@
 #include "nativeBuiltin.h"
 #include "arena_bump.h"
 #include "xoshiro256.h"
+#include "gc.h"
 
 //the depth of call frames
 #define LOXFLUX_FRAMES_INIT 64
@@ -54,6 +55,10 @@ typedef struct {
 	//runtime --no-optimize flag: when false, emitOpStack/instructionOptimize,
 	//foldBuiltinMember and emitBranchJump all pass through unoptimized
 	bool optimizationEnabled;
+	//note! This is a runtime option, not a compile-time option. 
+	//It is used to disable the garbage collection of the VM.
+	//When set to false, the garbage collection will be disabled
+	bool garbageCollectionEnabled;
 } LfxOptions;
 
 typedef struct LfxVM {
@@ -94,8 +99,9 @@ typedef struct LfxVM {
 	size_t pinnedBytes;
 	size_t allocatedBytes;
 
-	size_t beginGC;
 	size_t nextGC;
+	//gc trigger policy: survival-adaptive headroom above the live heap
+	LfxHeadroomPolicy headroomPolicy;
 
 	//gc gray worklist: plain count over the gray arena - same model as the vm
 	//stack: the hot push path is one bounds compare against the committed edge,
@@ -189,6 +195,7 @@ void vm_registerIcFunction(LfxVM* vm, ObjFunction* function);
 
 void vm_setPrintCodeEnabled(LfxVM* vm, bool isEnabled);
 void vm_setOptimizationEnabled(LfxVM* vm, bool isEnabled);
+void vm_setGarbageCollectionEnabled(LfxVM* vm, bool isEnabled);
 
 void stack_push(LfxVM* vm, LfxValue value);
 LfxValue stack_pop(LfxVM* vm);

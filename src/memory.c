@@ -46,7 +46,7 @@ void* reallocate(LfxVM* vm, void* pointer, size_t oldSize, size_t newSize)
 #if DEBUG_STRESS_GC
 		garbageCollect(vm);
 #endif
-		if (vm->allocatedBytes > vm->nextGC) {
+		if (vm->allocatedBytes > vm->nextGC && vm->options.garbageCollectionEnabled) {
 			garbageCollect(vm);
 		}
 	}

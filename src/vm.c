@@ -372,6 +372,8 @@ void vm_init(LfxVM* vm)
 {
 	vm->options.printBytecode = false;
 	vm->options.optimizationEnabled = true;
+	// this option is prepared for the host to control the garbage collection behavior of the VM.
+	vm->options.garbageCollectionEnabled = true;
 	//zero the accounting books BEFORE any allocation: everything vm_init
 	//allocates from here on must be counted, so the matching vm_free frees net
 	//the counters back to exactly zero
@@ -429,8 +431,17 @@ void vm_init(LfxVM* vm)
 	vm->objects_no_gc = NULL;
 
 	vm->functionID = 0;
+	//gc trigger: survival-adaptive headroom above the live heap. live == 0
+	//here, so the first trigger is the headroom floor (== LOXFLUX_GC_HEAP_BEGIN)
+	vm->headroomPolicy = (LfxHeadroomPolicy){
+		.ratio = LOXFLUX_GC_HEADROOM_RATIO,
+		.minRatio = LOXFLUX_GC_MIN_HEADROOM_RATIO,
+		.maxRatio = LOXFLUX_GC_MAX_HEADROOM_RATIO,
+		.minBytes = LOXFLUX_GC_HEAP_BEGIN,
+		.slackBudgetBytes = LOXFLUX_GC_SLACK_BUDGET
+	};
+
 	vm->nextGC = LOXFLUX_GC_HEAP_BEGIN;
-	vm->beginGC = LOXFLUX_GC_HEAP_BEGIN;
 	vm->gcMark = OBJ_MARK_MASK;// start with all bits set
 	vm->gcWorking = 0;
 	vm->gcGeneration = 0;
@@ -504,6 +515,11 @@ void vm_setPrintCodeEnabled(LfxVM* vm, bool isEnabled) {
 COLD_FUNCTION
 void vm_setOptimizationEnabled(LfxVM* vm, bool isEnabled) {
 	vm->options.optimizationEnabled = isEnabled;
+}
+
+COLD_FUNCTION
+void vm_setGarbageCollectionEnabled(LfxVM* vm, bool isEnabled) {
+	vm->options.garbageCollectionEnabled = isEnabled;
 }
 
 COLD_FUNCTION

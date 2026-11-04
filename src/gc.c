@@ -10,6 +10,75 @@
 #include "memory.h"
 #include "timer.h"
 
+size_t headroomPolicy_update(LfxHeadroomPolicy* policy, size_t liveBytes, size_t allocatedBytes)
+{
+	const double smoothingWeight = 0.25;	//~4 collections, filter constant
+	const double liveValue = (double)liveBytes;
+
+	double survivalRatio = policy->survivalRatio;
+	double floorRatio;
+	double floorBytes;
+	double targetBytes;
+	double ceilingBytes;
+	double headroomBytes;
+
+	//--- 1. survival ---
+	if (allocatedBytes > 0) {
+		double liveGrowthBytes = (liveBytes >= policy->previousLiveBytes)
+			? (double)(liveBytes - policy->previousLiveBytes)
+			: 0.0;
+		double sampledSurvivalRatio = liveGrowthBytes / (double)allocatedBytes;
+
+		survivalRatio = (1.0 - smoothingWeight) * survivalRatio
+			+ smoothingWeight * sampledSurvivalRatio;
+
+		if (!(survivalRatio <= 1.0))	//also catches NaN
+			survivalRatio = 1.0;
+		if (!(survivalRatio >= 0.0))
+			survivalRatio = 0.0;
+	}
+
+	policy->survivalRatio = survivalRatio;
+	policy->previousLiveBytes = liveBytes;
+
+	//--- 2. headroom ---
+	//explicit branch: never divides by zero
+	floorRatio = (survivalRatio >= 1.0)
+		? policy->maxRatio
+		: policy->minRatio / (1.0 - survivalRatio);
+
+	if (floorRatio > policy->maxRatio)
+		floorRatio = policy->maxRatio;
+
+	floorBytes = floorRatio * liveValue;
+	if (floorBytes < (double)policy->minBytes)
+		floorBytes = (double)policy->minBytes;
+
+	targetBytes = policy->ratio * liveValue;
+
+	ceilingBytes = (double)policy->slackBudgetBytes;
+	if (ceilingBytes < floorBytes)
+		ceilingBytes = floorBytes;	//progress wins over footprint
+
+	headroomBytes = targetBytes < floorBytes ? floorBytes : targetBytes;
+	if (headroomBytes > ceilingBytes)
+		headroomBytes = ceilingBytes;
+
+	if (headroomBytes < 1.0)
+		headroomBytes = 1.0;	//never hand back a zero watermark
+
+	if (headroomBytes >= (double)(SIZE_MAX - liveBytes))
+		return SIZE_MAX - liveBytes;
+
+	return (size_t)headroomBytes;
+}
+
+size_t headroomPolicy_updateFromHeap(LfxHeadroomPolicy* policy, size_t heapBefore, size_t heapAfter)
+{
+	size_t allocatedBytes = (heapBefore >= policy->previousLiveBytes) ? heapBefore - policy->previousLiveBytes : 0;
+	return headroomPolicy_update(policy, heapAfter, allocatedBytes);
+}
+
 void markValue(LfxVM* vm, LfxValue value)
 {
 	if (IS_OBJ(value)) markObject(vm, AS_OBJ(value));
@@ -261,9 +330,10 @@ void garbageCollect(LfxVM* vm)
 	fprintf(stderr, "-- gc begin\n");
 #endif
 
+	size_t before = vm->allocatedBytes;
+
 #if DEBUG_LOG_GC || LOG_GC_RESULT
 	uint64_t time_gc = get_nanoseconds();
-	size_t before = vm->allocatedBytes;
 #endif
 	//mark the state
 	vm->gcWorking = 1;
@@ -279,8 +349,8 @@ void garbageCollect(LfxVM* vm)
 	//tableRemoveWhite(&vm.strings);
 	sweep(vm);
 
-	//reset the limit
-	vm->nextGC = max(vm->allocatedBytes * LOXFLUX_GC_HEAP_GROW_FACTOR, vm->beginGC);
+	//reset the limit: live + survival-adaptive headroom
+	vm->nextGC = vm->allocatedBytes + headroomPolicy_updateFromHeap(&vm->headroomPolicy, before, vm->allocatedBytes);
 	//flip the mark
 	vm_flipedMark(vm);
 	//mark the state

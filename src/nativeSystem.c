@@ -52,6 +52,7 @@ static bool getWriteBytes(LfxValue data, const char** bytes, uint64_t* length)
 
 //force do gc
 static LfxValue gcNative(LfxVM* vm, int argCount, LfxValue* args) {
+	// ignored vm->options.garbageCollectionEnabled
 	garbageCollect(vm);
 	return NIL_VAL;
 }
@@ -138,10 +139,10 @@ static LfxValue inputNative(LfxVM* vm, int argCount, LfxValue* args) {
 				readPos++;
 
 				switch (input[readPos]) {
-				case '\\': 
+				case '\\':
 					input[writePos++] = '\\';
 					break;
-				case '\"': 
+				case '\"':
 					input[writePos++] = '\"';
 					break;
 				case 'n':
@@ -195,7 +196,7 @@ static LfxValue readFileNative(LfxVM* vm, int argCount, LfxValue* args) {
 	rewind(file);
 
 	// check file size
-	if (fileSize < 0 || fileSize > (int64_t)(ARRAYLIKE_MAX - 1)) { // left 1 byte for null terminator
+	if (fileSize < 0 || fileSize >(int64_t)(ARRAYLIKE_MAX - 1)) { // left 1 byte for null terminator
 		fclose(file);
 		fprintf(stderr, "File size exceeds maximum StringBuilder capacity.\n");
 		return NIL_VAL;
@@ -245,7 +246,7 @@ static LfxValue readBinNative(LfxVM* vm, int argCount, LfxValue* args) {
 	int64_t fileSize = LOXFLUX_FTELL_64(file);
 	rewind(file);
 
-	if (fileSize < 0 || fileSize > (int64_t)ARRAYLIKE_MAX) {
+	if (fileSize < 0 || fileSize >(int64_t)ARRAYLIKE_MAX) {
 		fclose(file);
 		fprintf(stderr, "File size exceeds maximum U8Array capacity.\n");
 		return NIL_VAL;
