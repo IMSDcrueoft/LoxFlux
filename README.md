@@ -1,5 +1,5 @@
 # LoxFlux
-![Version](https://img.shields.io/badge/version-0.13.1-blue)
+![Version](https://img.shields.io/badge/version-0.13.2-blue)
 
 LoxFlux is an independent reimplementation of the cLox interpreter described in "Crafting Interpreters"—a stack-based bytecode virtual machine. All code is written from scratch, following the book’s design principles. This project is still actively being developed and improved.
 
@@ -29,6 +29,7 @@ Lox is a programming language designed for learning purposes. It is conceived as
 - **Inline caching for properties & methods**: Every property access and method call site embeds a cache slot. Field reads/writes cache the hash-table probe position(guarded by table capacity + interned key pointer); method invokes cache the resolved class & closure pair(guarded by class pointer identity). Instances whose fields shadow method names are poisoned and skip the method cache. Cached class/closure references are weak: the GC clears slots holding dying objects, so caches never extend object lifetimes.
 - **Flip-up GC marking**: Flipping tags can avoid reverting to the write of tags during the recycling process, and favor concurrent tags (if actually implemented).
 - **Detached static and dynamic objects**: Static objects such as strings/functions, they don't usually bloat very much, so I think it's a viable option not to recycle them.
+- **Adaptive GC trigger**: Auto collections fire at `live + headroom`, where the headroom adapts to the survival rate of recent cycles: churn phases keep the classic "double at 2x live" behavior, growing phases widen the headroom (up to 3x live) to avoid re-scanning a legitimately expanding heap, and a 64 MiB slack budget caps the headroom on large heaps so per-cycle garbage stays bounded. Tunables are compile-time macros in `src/gc.h` (`LOXFLUX_GC_*`).
 - **Compilation-time optimizations**: Provides basic constant folding, super instruction, and builtin module member folding: frozen builtin members compile to constants — number members become immediate constants (e.g. `@math.PI`), native members are loaded directly, and `@module.member(args)` call sites collapse into a direct call without the module access or method dispatch.
 - **Instruction Dispatching**: Use `direct threading code` instead of `switch case` in compilers that support compute goto(clang & gcc).
 
@@ -437,6 +438,8 @@ The VM's two hottest regions — the value stack and the interned string pool �
 All interpreter state lives inside the `LfxVM` structure (`src/vm.h`) — there is no global VM state. The host owns the instance, so several fully isolated interpreters can coexist in one process (each with its own pools, globals, GC accounting, arenas and RNG).
 
 Lifecycle: zero the `LfxVM` instance, then drive it with `vm_init` / `interpret_compile` / `interpret_execute` / `vm_free`, looping on the returned `InterpretResult` (resume while it is `INTERPRET_CEDE`). 
+
+Hosts can suspend automatic collection with `vm_setGarbageCollectionEnabled(vm, false)` — explicit `@sys.gcRun()` calls still work, and the pending collection fires on the first allocation after re-enabling.
 
 ## Build configuration notes
 
