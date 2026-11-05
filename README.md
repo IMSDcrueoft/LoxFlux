@@ -439,8 +439,6 @@ All interpreter state lives inside the `LfxVM` structure (`src/vm.h`) — there 
 
 Lifecycle: zero the `LfxVM` instance, then drive it with `vm_init` / `interpret_compile` / `interpret_execute` / `vm_free`, looping on the returned `InterpretResult` (resume while it is `INTERPRET_CEDE`). 
 
-Hosts can suspend automatic collection with `vm_setGarbageCollectionEnabled(vm, false)` — explicit `@sys.gcRun()` calls still work, and the pending collection fires on the first allocation after re-enabling.
-
 ## Build configuration notes
 
 Several performance-relevant behaviours are compile-time switches rather than

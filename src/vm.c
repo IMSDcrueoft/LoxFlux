@@ -372,8 +372,6 @@ void vm_init(LfxVM* vm)
 {
 	vm->options.printBytecode = false;
 	vm->options.optimizationEnabled = true;
-	// this option is prepared for the host to control the garbage collection behavior of the VM.
-	vm->options.garbageCollectionEnabled = true;
 	//zero the accounting books BEFORE any allocation: everything vm_init
 	//allocates from here on must be counted, so the matching vm_free frees net
 	//the counters back to exactly zero
@@ -515,11 +513,6 @@ void vm_setPrintCodeEnabled(LfxVM* vm, bool isEnabled) {
 COLD_FUNCTION
 void vm_setOptimizationEnabled(LfxVM* vm, bool isEnabled) {
 	vm->options.optimizationEnabled = isEnabled;
-}
-
-COLD_FUNCTION
-void vm_setGarbageCollectionEnabled(LfxVM* vm, bool isEnabled) {
-	vm->options.garbageCollectionEnabled = isEnabled;
 }
 
 COLD_FUNCTION

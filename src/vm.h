@@ -55,10 +55,6 @@ typedef struct {
 	//runtime --no-optimize flag: when false, emitOpStack/instructionOptimize,
 	//foldBuiltinMember and emitBranchJump all pass through unoptimized
 	bool optimizationEnabled;
-	//note! This is a runtime option, not a compile-time option. 
-	//It is used to disable the garbage collection of the VM.
-	//When set to false, the garbage collection will be disabled
-	bool garbageCollectionEnabled;
 } LfxOptions;
 
 typedef struct LfxVM {
@@ -195,7 +191,6 @@ void vm_registerIcFunction(LfxVM* vm, ObjFunction* function);
 
 void vm_setPrintCodeEnabled(LfxVM* vm, bool isEnabled);
 void vm_setOptimizationEnabled(LfxVM* vm, bool isEnabled);
-void vm_setGarbageCollectionEnabled(LfxVM* vm, bool isEnabled);
 
 void stack_push(LfxVM* vm, LfxValue value);
 LfxValue stack_pop(LfxVM* vm);

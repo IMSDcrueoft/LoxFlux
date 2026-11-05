@@ -52,7 +52,6 @@ static bool getWriteBytes(LfxValue data, const char** bytes, uint64_t* length)
 
 //force do gc
 static LfxValue gcNative(LfxVM* vm, int argCount, LfxValue* args) {
-	// ignored vm->options.garbageCollectionEnabled
 	garbageCollect(vm);
 	return NIL_VAL;
 }
