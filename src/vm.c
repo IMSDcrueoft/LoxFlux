@@ -381,10 +381,9 @@ void vm_init(LfxVM* vm)
 	vm->pinnedBytes = 0;
 
 	vm->currentFiber = NULL;
-	vm->fiberFreeList = NULL;
 	vm->fiberFreeCount = 0;
 
-	vm->cache = (FiberCore){0};
+	vm->cache = (FiberCore){ 0 };
 
 	//init global
 	valueArray_init(&vm->constants);
@@ -543,10 +542,14 @@ void vm_free(LfxVM* vm)
 	//with a stale frames pointer would double-free the old block
 	vm_storeCacheToFiber(vm);
 	vm->currentFiber = NULL;
-	vm->cache = (FiberCore){0};
+	vm->cache = (FiberCore){ 0 };
 
 	freeObjects(vm);
-	freeFiberFreeList(vm);
+	removeBuiltins(vm);
+	for (size_t i = 0; i < vm->fiberFreeCount; ++i) {
+		arenaBump_destroy(&vm->fiberFreeArenas[i]);
+	}
+	vm->fiberFreeCount = 0;
 
 	//release the string + gray arenas (VA reservations + committed pages)
 	arenaBump_destroy(&vm->stringArena);
@@ -555,8 +558,6 @@ void vm_free(LfxVM* vm)
 	assert(arenaBump_liveSegments() == 0);
 	vm->grayStack = NULL;
 	vm->grayCount = 0;
-
-	removeBuiltins(vm);
 
 	table_free(vm, &vm->defaultClass.methods);
 

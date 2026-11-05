@@ -112,17 +112,13 @@ void freeObject(LfxVM* vm, Obj* object) {
 		FREE_ARRAY_NO_GC(vm, CallFrame, fiber->core.frames, fiber->core.frameCapacity);
 
 		if (vm->fiberFreeCount < LOXFLUX_FIBER_CACHE_MAX) {
-			assert(vm->allocatedBytes >= sizeof(ObjFiber));
-			vm->allocatedBytes -= sizeof(ObjFiber);
-			//reuse the object header as the free-list link
-			object_set_next(&fiber->obj, (Obj*)vm->fiberFreeList);
-			vm->fiberFreeList = fiber;
-			vm->fiberFreeCount++;
+			vm->fiberFreeArenas[vm->fiberFreeCount++] = fiber->stackArena;
 		}
 		else {
 			arenaBump_destroy(&fiber->stackArena);
-			FREE(vm, ObjFiber, fiber);
 		}
+
+		FREE(vm, ObjFiber, fiber);
 
 		break;
 	}
@@ -233,39 +229,26 @@ void freeObjects(LfxVM* vm)
 	}
 }
 
-//Allocate or recycle the raw ObjFiber storage. This deliberately does not
-//initialize fiber payload state; object.c owns that constructor logic.
+//Allocate the raw ObjFiber storage and recycle the stack arena when one is
+//cached. This deliberately does not initialize fiber execution state; object.c
+//owns that constructor logic (newFiber).
 struct ObjFiber* allocFiber(LfxVM* vm)
 {
-	ObjFiber* fiber = NULL;
-
-	if (vm->fiberFreeList != NULL) {
-		//cached fibers are linked through the object header; their allocator
-		//memory was removed from GC accounting when they entered the cache
-		fiber = vm->fiberFreeList;
-		vm->fiberFreeList = (ObjFiber*)object_get_next((Obj*)fiber);
-		vm->fiberFreeCount--;
-
-		vm->allocatedBytes += sizeof(ObjFiber);
-
-		//relink the recycled object into the live object list
-		object_set_next(&fiber->obj, vm->objects);
-		vm_unmarkObject(vm, &fiber->obj);
-		vm->objects = &fiber->obj;
-	}
-	else {
-		fiber = (ObjFiber*)reallocate(vm, NULL, 0, sizeof(ObjFiber));
-
+	ObjFiber* fiber = (ObjFiber*)reallocate(vm, NULL, 0, sizeof(ObjFiber));
 #if DEBUG_LOG_GC
-		fprintf(stderr, "[gc] %p allocate %zu for (%s)\n",
-			(void*)fiber, sizeof(ObjFiber), objTypeInfo[OBJ_FIBER]);
+	fprintf(stderr, "[gc] %p allocate %zu for (%s)\n",
+		(void*)fiber, sizeof(ObjFiber), objTypeInfo[OBJ_FIBER]);
 #endif
 
-		object_set_next(&fiber->obj, vm->objects);
-		fiber->obj.type = OBJ_FIBER;
-		vm_unmarkObject(vm, &fiber->obj);
-		vm->objects = &fiber->obj;
+	object_set_next(&fiber->obj, vm->objects);
+	fiber->obj.type = OBJ_FIBER;
+	vm_unmarkObject(vm, &fiber->obj);
+	vm->objects = &fiber->obj;
 
+	if (vm->fiberFreeCount > 0) {
+		fiber->stackArena = vm->fiberFreeArenas[--vm->fiberFreeCount];
+	}
+	else {
 		memset(&fiber->stackArena, 0, sizeof(fiber->stackArena));
 
 		if (!arenaBump_init(&fiber->stackArena, LOXFLUX_STACK_ARENA_SIZE, false, 0, 16 << 10)) {
@@ -275,20 +258,6 @@ struct ObjFiber* allocFiber(LfxVM* vm)
 	}
 
 	return fiber;
-}
-
-void freeFiberFreeList(LfxVM* vm)
-{
-	while (vm->fiberFreeList != NULL) {
-		ObjFiber* fiber = vm->fiberFreeList;
-		vm->fiberFreeList = (ObjFiber*)object_get_next((Obj*)fiber);
-
-		//cached fibers were already removed from GC accounting when enqueued
-		arenaBump_destroy(&fiber->stackArena);
-		mem_free(fiber);
-	}
-
-	vm->fiberFreeCount = 0;
 }
 
 //format bytes with an auto-scaled unit, mimalloc table style ("64.0 KiB")

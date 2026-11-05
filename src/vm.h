@@ -85,10 +85,6 @@ typedef struct LfxVM {
 	uint32_t icFuncCount;
 	uint32_t icFuncCapacity;
 
-	//free ObjFiber cache; linked through the object header and not gc-scanned
-	ObjFiber* fiberFreeList;
-	size_t fiberFreeCount;
-
 	//Excludes space used by stacks/constants/compilations
 	//size_t (not uint64_t): matches the platform word size, so the 32-bit
 	//build does all gc-threshold arithmetic in native-width registers
@@ -139,6 +135,12 @@ typedef struct LfxVM {
 	//fixed-base backing storage for the gc gray worklist (VA never moves,
 	//lazy 64KB commits; only touched when the worklist crosses the committed edge)
 	ArenaBumpAllocator grayArena;
+
+	//fiber stack arena cache: only the arenas are recycled (their VA reservation
+	//+ committed pages survive); ObjFiber structs themselves go straight back to
+	//the allocator, so no object ever lingers outside the object list
+	size_t fiberFreeCount;
+	ArenaBumpAllocator fiberFreeArenas[LOXFLUX_FIBER_CACHE_MAX];
 
 	// rng
 	Xoshiro256StarStar rng;

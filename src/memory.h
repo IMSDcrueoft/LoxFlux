@@ -54,6 +54,4 @@ void freeObjects(LfxVM* vm);
 struct ObjFiber;
 struct ObjFiber* allocFiber(LfxVM* vm);
 
-void freeFiberFreeList(LfxVM* vm);
-
 void log_malloc_info(LfxVM* vm);
