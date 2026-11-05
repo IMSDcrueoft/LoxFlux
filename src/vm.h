@@ -142,6 +142,14 @@ typedef struct LfxVM {
 	size_t fiberFreeCount;
 	ArenaBumpAllocator fiberFreeArenas[LOXFLUX_FIBER_CACHE_MAX];
 
+#if LOG_MODE
+	//LOG_MODE-only totals over every non-destroyed fiber stack arena (live +
+	//cached); cache insert/pop are counter-neutral, and the eager first-chunk
+	//commit is counted in vm_init. Printed by log_malloc_info (/mem).
+	size_t fiberStackCommittedBytes;
+	size_t fiberStackReservedBytes;
+#endif
+
 	// rng
 	Xoshiro256StarStar rng;
 

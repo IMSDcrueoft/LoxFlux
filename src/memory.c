@@ -115,6 +115,10 @@ void freeObject(LfxVM* vm, Obj* object) {
 			vm->fiberFreeArenas[vm->fiberFreeCount++] = fiber->stackArena;
 		}
 		else {
+#if LOG_MODE
+			vm->fiberStackCommittedBytes -= fiber->stackArena.commitTop;
+			vm->fiberStackReservedBytes -= fiber->stackArena.capacity;
+#endif
 			arenaBump_destroy(&fiber->stackArena);
 		}
 
@@ -255,6 +259,11 @@ struct ObjFiber* allocFiber(LfxVM* vm)
 			fprintf(stderr, "Failed to reserve the fiber stack arena.\n");
 			exit(1);
 		}
+
+#if LOG_MODE
+		vm->fiberStackCommittedBytes += fiber->stackArena.commitTop;
+		vm->fiberStackReservedBytes += fiber->stackArena.capacity;
+#endif
 	}
 
 	return fiber;
@@ -288,7 +297,8 @@ void log_malloc_info(LfxVM* vm)
 {
 	//the interned strings and the gc gray worklist live in OS VA arenas outside
 	//the allocator, so their bytes never show up in mem_print_stats: report them
-	//in the same table style. Fiber stacks are intentionally not aggregated here.
+	//in the same table style. Fiber stack arenas are outside mimalloc's books
+	//too; their totals come from the LOG_MODE counters below.
 	char strCommitted[32];
 	char strReserved[32];
 	formatMemSize(strCommitted, sizeof(strCommitted), vm->stringArena.commitTop);
@@ -307,6 +317,18 @@ void log_malloc_info(LfxVM* vm)
 	fprintf(stderr, "  committed   : %12s\n", strCommitted);
 	fprintf(stderr, "  reserved    : %12s\n", strReserved);
 	fprintf(stderr, "\n");
+
+#if LOG_MODE
+	char fiberStackCommitted[32];
+	char fiberStackReserved[32];
+	formatMemSize(fiberStackCommitted, sizeof(fiberStackCommitted), vm->fiberStackCommittedBytes);
+	formatMemSize(fiberStackReserved, sizeof(fiberStackReserved), vm->fiberStackReservedBytes);
+
+	fprintf(stderr, " vm fiberStack       current\n");
+	fprintf(stderr, "  committed   : %12s\n", fiberStackCommitted);
+	fprintf(stderr, "  reserved    : %12s\n", fiberStackReserved);
+	fprintf(stderr, "\n");
+#endif
 
 	mem_print_stats(stderr);
 }

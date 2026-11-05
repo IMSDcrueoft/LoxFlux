@@ -161,6 +161,10 @@ static void stack_grow(LfxVM* vm) {
 		return;
 	}
 
+#if LOG_MODE
+	size_t before = vm->currentFiber->stackArena.commitTop;
+#endif
+
 	//commit the next chunk lazily (must advance past stackTop, hence the
 	//extra chunk); failure means the stack cannot grow -> overflow
 	if (!arenaBump_ensureCommitted(&vm->currentFiber->stackArena, used + vm->currentFiber->stackArena.commitChunkSize)) {
@@ -170,6 +174,10 @@ static void stack_grow(LfxVM* vm) {
 
 	//commitTop is a page-aligned byte offset; a page is a multiple of sizeof(LfxValue)
 	vm->cache.stackBoundary = (LfxValue*)((char*)vm->currentFiber->stackArena.base + vm->currentFiber->stackArena.commitTop);
+
+#if LOG_MODE
+	vm->fiberStackCommittedBytes += vm->currentFiber->stackArena.commitTop - before;
+#endif
 }
 
 HOT_FUNCTION
@@ -382,6 +390,10 @@ void vm_init(LfxVM* vm)
 
 	vm->currentFiber = NULL;
 	vm->fiberFreeCount = 0;
+#if LOG_MODE
+	vm->fiberStackCommittedBytes = 0;
+	vm->fiberStackReservedBytes = 0;
+#endif
 
 	vm->cache = (FiberCore){ 0 };
 
@@ -452,6 +464,10 @@ void vm_init(LfxVM* vm)
 		exit(1);
 	}
 
+#if LOG_MODE
+	vm->fiberStackCommittedBytes += vm->currentFiber->stackArena.commitTop; //commitTop was 0: delta == commitChunkSize
+#endif
+
 	//the fiber's persistent stack cache must be initialized before the hot cache
 	//loads it; stack_reset(vm) persists the reset state back into the fiber
 	vm->currentFiber->core.stackBoundary = (LfxValue*)((char*)vm->currentFiber->stackArena.base + vm->currentFiber->stackArena.commitTop);
@@ -505,6 +521,18 @@ void vm_registerIcFunction(LfxVM* vm, ObjFunction* function) {
 }
 
 COLD_FUNCTION
+static void freeFiberFreeArenas(LfxVM* vm) {
+	for (size_t i = 0; i < vm->fiberFreeCount; ++i) {
+#if LOG_MODE
+		vm->fiberStackCommittedBytes -= vm->fiberFreeArenas[i].commitTop;
+		vm->fiberStackReservedBytes -= vm->fiberFreeArenas[i].capacity;
+#endif
+		arenaBump_destroy(&vm->fiberFreeArenas[i]);
+	}
+	vm->fiberFreeCount = 0;
+}
+
+COLD_FUNCTION
 void vm_setPrintCodeEnabled(LfxVM* vm, bool isEnabled) {
 	vm->options.printBytecode = isEnabled;
 }
@@ -546,10 +574,7 @@ void vm_free(LfxVM* vm)
 
 	freeObjects(vm);
 	removeBuiltins(vm);
-	for (size_t i = 0; i < vm->fiberFreeCount; ++i) {
-		arenaBump_destroy(&vm->fiberFreeArenas[i]);
-	}
-	vm->fiberFreeCount = 0;
+	freeFiberFreeArenas(vm);
 
 	//release the string + gray arenas (VA reservations + committed pages)
 	arenaBump_destroy(&vm->stringArena);
