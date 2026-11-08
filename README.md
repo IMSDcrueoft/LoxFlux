@@ -1,5 +1,5 @@
 # LoxFlux
-![Version](https://img.shields.io/badge/version-0.13.2-blue)
+![Version](https://img.shields.io/badge/version-0.13.3-blue)
 
 LoxFlux is an independent reimplementation of the cLox interpreter described in "Crafting Interpreters"—a stack-based bytecode virtual machine. All code is written from scratch, following the book’s design principles. This project is still actively being developed and improved.
 
@@ -438,8 +438,6 @@ The VM's two hottest regions — the value stack and the interned string pool �
 All interpreter state lives inside the `LfxVM` structure (`src/vm.h`) — there is no global VM state. The host owns the instance, so several fully isolated interpreters can coexist in one process (each with its own pools, globals, GC accounting, arenas and RNG).
 
 Lifecycle: zero the `LfxVM` instance, then drive it with `vm_init` / `interpret_compile` / `interpret_execute` / `vm_free`, looping on the returned `InterpretResult` (resume while it is `INTERPRET_CEDE`). 
-
-Hosts can suspend automatic collection with `vm_setGarbageCollectionEnabled(vm, false)` — explicit `@sys.gcRun()` calls still work, and the pending collection fires on the first allocation after re-enabling.
 
 ## Build configuration notes
 

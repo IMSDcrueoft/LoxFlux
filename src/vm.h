@@ -55,10 +55,6 @@ typedef struct {
 	//runtime --no-optimize flag: when false, emitOpStack/instructionOptimize,
 	//foldBuiltinMember and emitBranchJump all pass through unoptimized
 	bool optimizationEnabled;
-	//note! This is a runtime option, not a compile-time option. 
-	//It is used to disable the garbage collection of the VM.
-	//When set to false, the garbage collection will be disabled
-	bool garbageCollectionEnabled;
 } LfxOptions;
 
 typedef struct LfxVM {
@@ -88,10 +84,6 @@ typedef struct LfxVM {
 	ObjFunction** icFuncs;
 	uint32_t icFuncCount;
 	uint32_t icFuncCapacity;
-
-	//free ObjFiber cache; linked through the object header and not gc-scanned
-	ObjFiber* fiberFreeList;
-	size_t fiberFreeCount;
 
 	//Excludes space used by stacks/constants/compilations
 	//size_t (not uint64_t): matches the platform word size, so the 32-bit
@@ -144,6 +136,20 @@ typedef struct LfxVM {
 	//lazy 64KB commits; only touched when the worklist crosses the committed edge)
 	ArenaBumpAllocator grayArena;
 
+	//fiber stack arena cache: only the arenas are recycled (their VA reservation
+	//+ committed pages survive); ObjFiber structs themselves go straight back to
+	//the allocator, so no object ever lingers outside the object list
+	size_t fiberFreeCount;
+	ArenaBumpAllocator fiberFreeArenas[LOXFLUX_FIBER_CACHE_MAX];
+
+#if LOG_MODE
+	//LOG_MODE-only totals over every non-destroyed fiber stack arena (live +
+	//cached); cache insert/pop are counter-neutral, and the eager first-chunk
+	//commit is counted in vm_init. Printed by log_malloc_info (/mem).
+	size_t fiberStackCommittedBytes;
+	size_t fiberStackReservedBytes;
+#endif
+
 	// rng
 	Xoshiro256StarStar rng;
 
@@ -195,7 +201,6 @@ void vm_registerIcFunction(LfxVM* vm, ObjFunction* function);
 
 void vm_setPrintCodeEnabled(LfxVM* vm, bool isEnabled);
 void vm_setOptimizationEnabled(LfxVM* vm, bool isEnabled);
-void vm_setGarbageCollectionEnabled(LfxVM* vm, bool isEnabled);
 
 void stack_push(LfxVM* vm, LfxValue value);
 LfxValue stack_pop(LfxVM* vm);

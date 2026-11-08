@@ -46,7 +46,7 @@ void* reallocate(LfxVM* vm, void* pointer, size_t oldSize, size_t newSize)
 #if DEBUG_STRESS_GC
 		garbageCollect(vm);
 #endif
-		if (vm->allocatedBytes > vm->nextGC && vm->options.garbageCollectionEnabled) {
+		if (vm->allocatedBytes > vm->nextGC) {
 			garbageCollect(vm);
 		}
 	}
@@ -107,23 +107,8 @@ void freeObject(LfxVM* vm, Obj* object) {
 	}
 	case OBJ_FIBER: {
 		ObjFiber* fiber = (ObjFiber*)object;
-
-		//frames are ordinary no-GC heap memory and are always released
-		FREE_ARRAY_NO_GC(vm, CallFrame, fiber->core.frames, fiber->core.frameCapacity);
-
-		if (vm->fiberFreeCount < LOXFLUX_FIBER_CACHE_MAX) {
-			assert(vm->allocatedBytes >= sizeof(ObjFiber));
-			vm->allocatedBytes -= sizeof(ObjFiber);
-			//reuse the object header as the free-list link
-			object_set_next(&fiber->obj, (Obj*)vm->fiberFreeList);
-			vm->fiberFreeList = fiber;
-			vm->fiberFreeCount++;
-		}
-		else {
-			arenaBump_destroy(&fiber->stackArena);
-			FREE(vm, ObjFiber, fiber);
-		}
-
+		sealFiber(vm, fiber);
+		FREE(vm, ObjFiber, fiber);
 		break;
 	}
 	case OBJ_UPVALUE:
@@ -233,62 +218,84 @@ void freeObjects(LfxVM* vm)
 	}
 }
 
-//Allocate or recycle the raw ObjFiber storage. This deliberately does not
-//initialize fiber payload state; object.c owns that constructor logic.
+//Allocate the raw ObjFiber storage and recycle the stack arena when one is
+//cached. This deliberately does not initialize fiber execution state; object.c
+//owns that constructor logic (newFiber).
 struct ObjFiber* allocFiber(LfxVM* vm)
 {
-	ObjFiber* fiber = NULL;
-
-	if (vm->fiberFreeList != NULL) {
-		//cached fibers are linked through the object header; their allocator
-		//memory was removed from GC accounting when they entered the cache
-		fiber = vm->fiberFreeList;
-		vm->fiberFreeList = (ObjFiber*)object_get_next((Obj*)fiber);
-		vm->fiberFreeCount--;
-
-		vm->allocatedBytes += sizeof(ObjFiber);
-
-		//relink the recycled object into the live object list
-		object_set_next(&fiber->obj, vm->objects);
-		vm_unmarkObject(vm, &fiber->obj);
-		vm->objects = &fiber->obj;
-	}
-	else {
-		fiber = (ObjFiber*)reallocate(vm, NULL, 0, sizeof(ObjFiber));
-
+	ObjFiber* fiber = (ObjFiber*)reallocate(vm, NULL, 0, sizeof(ObjFiber));
 #if DEBUG_LOG_GC
-		fprintf(stderr, "[gc] %p allocate %zu for (%s)\n",
-			(void*)fiber, sizeof(ObjFiber), objTypeInfo[OBJ_FIBER]);
+	fprintf(stderr, "[gc] %p allocate %zu for (%s)\n",
+		(void*)fiber, sizeof(ObjFiber), objTypeInfo[OBJ_FIBER]);
 #endif
 
-		object_set_next(&fiber->obj, vm->objects);
-		fiber->obj.type = OBJ_FIBER;
-		vm_unmarkObject(vm, &fiber->obj);
-		vm->objects = &fiber->obj;
+	object_set_next(&fiber->obj, vm->objects);
+	fiber->obj.type = OBJ_FIBER;
+	vm_unmarkObject(vm, &fiber->obj);
+	vm->objects = &fiber->obj;
 
+	if (vm->fiberFreeCount > 0) {
+		fiber->stackArena = vm->fiberFreeArenas[--vm->fiberFreeCount];
+	}
+	else {
 		memset(&fiber->stackArena, 0, sizeof(fiber->stackArena));
 
 		if (!arenaBump_init(&fiber->stackArena, LOXFLUX_STACK_ARENA_SIZE, false, 0, 16 << 10)) {
 			fprintf(stderr, "Failed to reserve the fiber stack arena.\n");
 			exit(1);
 		}
+
+#if LOG_MODE
+		vm->fiberStackCommittedBytes += fiber->stackArena.commitTop;
+		vm->fiberStackReservedBytes += fiber->stackArena.capacity;
+#endif
 	}
 
 	return fiber;
 }
 
-void freeFiberFreeList(LfxVM* vm)
-{
-	while (vm->fiberFreeList != NULL) {
-		ObjFiber* fiber = vm->fiberFreeList;
-		vm->fiberFreeList = (ObjFiber*)object_get_next((Obj*)fiber);
+void sealFiber(LfxVM* vm, struct ObjFiber* fiber) {
+	//close upvalues still open on this stack BEFORE the arena goes away:
+	//a closure that escaped the fiber (stored in a global, held by another
+	//fiber) can outlive it while keeping its upvalue open; the location
+	//would otherwise dangle into the recycled/destroyed arena below
+	ObjUpvalue* upvalue = fiber->core.openUpvalues;
+	while (upvalue != NULL) {
+		ObjUpvalue* next = upvalue->next;
 
-		//cached fibers were already removed from GC accounting when enqueued
-		arenaBump_destroy(&fiber->stackArena);
-		mem_free(fiber);
+		upvalue->closed = *upvalue->location;
+		upvalue->location = &upvalue->closed;
+		upvalue->next = NULL;
+
+		upvalue = next;
 	}
 
-	vm->fiberFreeCount = 0;
+	//a sealed fiber never runs again, so its frames are unreachable
+	if (fiber->core.frames != NULL) {
+		FREE_ARRAY_NO_GC(vm, CallFrame, fiber->core.frames, fiber->core.frameCapacity);
+	}
+
+	if (fiber->core.stack != NULL) {
+		if (vm->fiberFreeCount < LOXFLUX_FIBER_CACHE_MAX) {
+			vm->fiberFreeArenas[vm->fiberFreeCount++] = fiber->stackArena;
+		}
+		else {
+#if LOG_MODE
+			vm->fiberStackCommittedBytes -= fiber->stackArena.commitTop;
+			vm->fiberStackReservedBytes -= fiber->stackArena.capacity;
+#endif
+			arenaBump_destroy(&fiber->stackArena);
+		}
+	}
+
+	//the object survives sealing and is still traced by the gc: once the arena
+	//has been handed to another fiber or released, a stale stack range would
+	//be scanned as this fiber's own (or hit unmapped pages). Zero the core so
+	//tracing becomes a no-op and any stray resume fails loudly instead of
+	//silently reading recycled pages
+	if (fiber->core.frames != NULL || fiber->core.stack != NULL) {
+		fiber->core = (FiberCore){ 0 };
+	}
 }
 
 //format bytes with an auto-scaled unit, mimalloc table style ("64.0 KiB")
@@ -319,7 +326,8 @@ void log_malloc_info(LfxVM* vm)
 {
 	//the interned strings and the gc gray worklist live in OS VA arenas outside
 	//the allocator, so their bytes never show up in mem_print_stats: report them
-	//in the same table style. Fiber stacks are intentionally not aggregated here.
+	//in the same table style. Fiber stack arenas are outside mimalloc's books
+	//too; their totals come from the LOG_MODE counters below.
 	char strCommitted[32];
 	char strReserved[32];
 	formatMemSize(strCommitted, sizeof(strCommitted), vm->stringArena.commitTop);
@@ -338,6 +346,18 @@ void log_malloc_info(LfxVM* vm)
 	fprintf(stderr, "  committed   : %12s\n", strCommitted);
 	fprintf(stderr, "  reserved    : %12s\n", strReserved);
 	fprintf(stderr, "\n");
+
+#if LOG_MODE
+	char fiberStackCommitted[32];
+	char fiberStackReserved[32];
+	formatMemSize(fiberStackCommitted, sizeof(fiberStackCommitted), vm->fiberStackCommittedBytes);
+	formatMemSize(fiberStackReserved, sizeof(fiberStackReserved), vm->fiberStackReservedBytes);
+
+	fprintf(stderr, " vm fiberStack       current\n");
+	fprintf(stderr, "  committed   : %12s\n", fiberStackCommitted);
+	fprintf(stderr, "  reserved    : %12s\n", fiberStackReserved);
+	fprintf(stderr, "\n");
+#endif
 
 	mem_print_stats(stderr);
 }
