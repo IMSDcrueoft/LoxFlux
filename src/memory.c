@@ -107,23 +107,8 @@ void freeObject(LfxVM* vm, Obj* object) {
 	}
 	case OBJ_FIBER: {
 		ObjFiber* fiber = (ObjFiber*)object;
-
-		//frames are ordinary no-GC heap memory and are always released
-		FREE_ARRAY_NO_GC(vm, CallFrame, fiber->core.frames, fiber->core.frameCapacity);
-
-		if (vm->fiberFreeCount < LOXFLUX_FIBER_CACHE_MAX) {
-			vm->fiberFreeArenas[vm->fiberFreeCount++] = fiber->stackArena;
-		}
-		else {
-#if LOG_MODE
-			vm->fiberStackCommittedBytes -= fiber->stackArena.commitTop;
-			vm->fiberStackReservedBytes -= fiber->stackArena.capacity;
-#endif
-			arenaBump_destroy(&fiber->stackArena);
-		}
-
+		sealFiber(vm, fiber);
 		FREE(vm, ObjFiber, fiber);
-
 		break;
 	}
 	case OBJ_UPVALUE:
@@ -267,6 +252,50 @@ struct ObjFiber* allocFiber(LfxVM* vm)
 	}
 
 	return fiber;
+}
+
+void sealFiber(LfxVM* vm, struct ObjFiber* fiber) {
+	//close upvalues still open on this stack BEFORE the arena goes away:
+	//a closure that escaped the fiber (stored in a global, held by another
+	//fiber) can outlive it while keeping its upvalue open; the location
+	//would otherwise dangle into the recycled/destroyed arena below
+	ObjUpvalue* upvalue = fiber->core.openUpvalues;
+	while (upvalue != NULL) {
+		ObjUpvalue* next = upvalue->next;
+
+		upvalue->closed = *upvalue->location;
+		upvalue->location = &upvalue->closed;
+		upvalue->next = NULL;
+
+		upvalue = next;
+	}
+
+	//a sealed fiber never runs again, so its frames are unreachable
+	if (fiber->core.frames != NULL) {
+		FREE_ARRAY_NO_GC(vm, CallFrame, fiber->core.frames, fiber->core.frameCapacity);
+	}
+
+	if (fiber->core.stack != NULL) {
+		if (vm->fiberFreeCount < LOXFLUX_FIBER_CACHE_MAX) {
+			vm->fiberFreeArenas[vm->fiberFreeCount++] = fiber->stackArena;
+		}
+		else {
+#if LOG_MODE
+			vm->fiberStackCommittedBytes -= fiber->stackArena.commitTop;
+			vm->fiberStackReservedBytes -= fiber->stackArena.capacity;
+#endif
+			arenaBump_destroy(&fiber->stackArena);
+		}
+	}
+
+	//the object survives sealing and is still traced by the gc: once the arena
+	//has been handed to another fiber or released, a stale stack range would
+	//be scanned as this fiber's own (or hit unmapped pages). Zero the core so
+	//tracing becomes a no-op and any stray resume fails loudly instead of
+	//silently reading recycled pages
+	if (fiber->core.frames != NULL || fiber->core.stack != NULL) {
+		fiber->core = (FiberCore){ 0 };
+	}
 }
 
 //format bytes with an auto-scaled unit, mimalloc table style ("64.0 KiB")

@@ -53,5 +53,10 @@ void freeObjects(LfxVM* vm);
 
 struct ObjFiber;
 struct ObjFiber* allocFiber(LfxVM* vm);
+// Seal a finalized fiber: free frames + stack arena (large VA). Zero the
+// core -- GC still traces sealed fibers, and a reused arena would expose a
+// stale stack range. Idempotent. Not while vm->currentFiber; switch the
+// hot cache away first.
+void sealFiber(LfxVM* vm, struct ObjFiber* fiber);
 
 void log_malloc_info(LfxVM* vm);
