@@ -25,6 +25,7 @@
 #endif
 
 static void closeUpvalues(LfxVM* vm, LfxValue* last);
+static void vm_loadFiberToCache(LfxVM* vm);
 
 COLD_FUNCTION
 static void stack_reset(LfxVM* vm)
@@ -79,46 +80,6 @@ static ObjFunction* getCachedScript(LfxVM* vm, STR absolutePath) {
 }
 
 COLD_FUNCTION
-static bool throwError(LfxVM* vm, LfxValue error, C_STR format, ...) {
-	fprintf(stderr, "[RuntimeError] ");
-
-	va_list args;
-	va_start(args, format);
-	vfprintf(stderr, format, args);
-	va_end(args);
-	fputs("\n", stderr);
-
-	for (int32_t i = vm->cache.frameCount - 1; i >= 0; i--) {
-		CallFrame* frame = &vm->cache.frames[i];
-
-		ObjFunction* function = frame->closure->function;
-		size_t instruction = frame->ip - function->chunk.code - 1;
-
-		uint32_t line = getLine(&function->chunk.lines, (uint32_t)instruction);
-
-		fprintf(stderr, "[line %d] in ", line);
-		if (function->name != NULL) {
-			if (function->name->length != 0) {
-				fprintf(stderr, "%s() : (%d)\n", function->name->chars, function->id);
-			}
-			else {
-				fprintf(stderr, "<lambda>() : (%d)\n", function->id);
-			}
-		}
-		else {
-			fprintf(stderr, "<script> : (%d)\n", function->id);
-		}
-	}
-
-	fprintf(stderr, "[ErrorInfo] ");
-	printValue(stderr, error, false);
-	fprintf(stderr, "\n");
-
-	stack_reset(vm);
-	return false;
-}
-
-COLD_FUNCTION
 static void runtimeError(LfxVM* vm, C_STR format, ...) {
 	fprintf(stderr, "[RuntimeError] ");
 
@@ -128,28 +89,48 @@ static void runtimeError(LfxVM* vm, C_STR format, ...) {
 	va_end(args);
 	fputs("\n", stderr);
 
-	for (int32_t i = vm->cache.frameCount - 1; i >= 0; i--) {
-		CallFrame* frame = &vm->cache.frames[i];
-		ObjFunction* function = frame->closure->function;
-		size_t instruction = frame->ip - function->chunk.code - 1;
+	//blast through the resumer chain: trace and tear down every fiber on it,
+	//the error surfaces at the host. Proper propagation (delivering the error
+	//to the resumer as the resume result) is a later-version feature.
+	ObjFiber* fiber = vm->currentFiber;
+	while (fiber != NULL) {
+		// trace the call stack of each fiber
+		for (int32_t i = fiber->core.frameCount - 1; i >= 0; i--) {
+			CallFrame* frame = &fiber->core.frames[i];
+			ObjFunction* function = frame->closure->function;
+			size_t instruction = frame->ip - function->chunk.code - 1;
 
-		uint32_t line = getLine(&function->chunk.lines, (uint32_t)instruction);
+			uint32_t line = getLine(&function->chunk.lines, (uint32_t)instruction);
 
-		fprintf(stderr, "[line %d] in ", line);
-		if (function->name != NULL) {
-			if (function->name->length != 0) {
-				fprintf(stderr, "%s() : (%d)\n", function->name->chars, function->id);
+			fprintf(stderr, "[line %d] in ", line);
+			if (function->name != NULL) {
+				if (function->name->length != 0) {
+					fprintf(stderr, "%s() : (%d)\n", function->name->chars, function->id);
+				}
+				else {
+					fprintf(stderr, "<lambda>() : (%d)\n", function->id);
+				}
 			}
 			else {
-				fprintf(stderr, "<lambda>() : (%d)\n", function->id);
+				fprintf(stderr, "<script> : (%d)\n", function->id);
 			}
 		}
-		else {
-			fprintf(stderr, "<script> : (%d)\n", function->id);
-		}
-	}
 
-	stack_reset(vm);
+		ObjFiber* resumer = fiber->resumer;
+		if (resumer == NULL) {
+			vm->currentFiber = fiber;
+			vm_loadFiberToCache(vm);
+			stack_reset(vm);
+			break;	//the root fiber: never seals, stays alive for the REPL
+		}
+
+		sealFiber(vm, fiber);
+		fiber->status = FIBER_FAILED;
+		fiber->isRunning = 0;
+		fiber->result = NIL_VAL;// should be objError in the future
+		fiber->resumer = NULL;	//break the resumer cycle so gc can reclaim the pair
+		fiber = resumer;
+	}
 }
 
 NOINLINE_FUNCTION
@@ -302,7 +283,7 @@ static void importBuiltins(LfxVM* vm) {
 		vm->builtins[i] = (ObjInstance){
 		.obj = stateLess_obj_header(OBJ_INSTANCE),
 		.klass = &vm->defaultClass,
-		.fields = {.isGlobal = false,.isFrozen = true,.isEternal = true,.isPoisoned = false}//frozen from birth: tableSet is unguarded now, so filling members below works fine
+		.fields = { .isGlobal = false,.isFrozen = true,.isEternal = true,.isPoisoned = false }//frozen from birth: tableSet is unguarded now, so filling members below works fine
 		};
 	}
 
@@ -428,7 +409,7 @@ void vm_init(LfxVM* vm)
 	vm->globals = (ObjInstance){
 		.obj = stateLess_obj_header(OBJ_INSTANCE),
 		.klass = NULL,
-		.fields = {.isGlobal = true,.isFrozen = false,.isEternal = false,.isPoisoned = false}
+		.fields = { .isGlobal = true,.isFrozen = false,.isEternal = false,.isPoisoned = false }
 	};
 
 	table_init(&vm->globals.fields);
@@ -457,6 +438,7 @@ void vm_init(LfxVM* vm)
 
 	//the root fiber owns the main VM stack and the live frame/open-upvalue state
 	vm->currentFiber = newFiber(vm);
+	vm->currentFiber->isRunning = 1;
 
 	//commit the first stack chunk eagerly; later growth is lazy
 	if (!arenaBump_ensureCommitted(&vm->currentFiber->stackArena, vm->currentFiber->stackArena.commitChunkSize)) {
@@ -1289,6 +1271,8 @@ static InterpretResult run(LfxVM* vm)
 		[OP_INVOKE] = && label_op_invoke,
 		[OP_SUPER_INVOKE] = && label_op_super_invoke,
 		[OP_RETURN] = && label_op_return,
+		[OP_CEDE] = && label_op_cede,
+		[OP_YIELD] = && label_op_yield,
 		[OP_ITERATE] = && label_op_iterate,
 
 		[OP_GET_PROPERTY] = && label_op_get_property,
@@ -1384,7 +1368,6 @@ static InterpretResult run(LfxVM* vm)
 		[OP_JIF_NOT_EQUAL_LOCAL] = && label_op_jif_not_equal_local,
 		[OP_JIF_EQUAL_CONST] = && label_op_jif_equal_const,
 		[OP_JIF_NOT_EQUAL_CONST] = && label_op_jif_not_equal_const,
-		[OP_CEDE] = && label_op_cede,
 	};
 #endif
 
@@ -1413,7 +1396,8 @@ static InterpretResult run(LfxVM* vm)
 #define RUNTIME_ERROR(...)						\
 	do {										\
 		frame->ip = ip;							\
-		runtimeError(vm, __VA_ARGS__);				\
+		vm_storeCacheToFiber(vm);				\
+		runtimeError(vm, __VA_ARGS__);			\
 		return INTERPRET_RUNTIME_ERROR;			\
 	} while (false)
 
@@ -1636,11 +1620,11 @@ static InterpretResult run(LfxVM* vm)
 			if (IS_CLASS(superclass)) {
 				ObjClass* subclass = AS_CLASS(vm->cache.stackTop[-1]);
 				tableAddAll(vm, &AS_CLASS(superclass)->methods, &subclass->methods);
-			//inherited constructor:keep the initializer fast path in sync with the copied methods table
-			//(a subclass init declared after this would overwrite it via defineMethod)
-			if (subclass->initializer == NULL) {
-				subclass->initializer = AS_CLASS(superclass)->initializer;
-			}
+				//inherited constructor:keep the initializer fast path in sync with the copied methods table
+				//(a subclass init declared after this would overwrite it via defineMethod)
+				if (subclass->initializer == NULL) {
+					subclass->initializer = AS_CLASS(superclass)->initializer;
+				}
 				//record the link for instanceof (methods above are copies, not a lookup chain)
 				subclass->superclass = AS_CLASS(superclass);
 				stack_pop(vm); // Subclass.
@@ -2153,7 +2137,8 @@ static InterpretResult run(LfxVM* vm)
 				iter = newIterator(vm, AS_OBJ(target));
 				stack_replace(vm, OBJ_VAL(iter));
 				NEXT_INSTRUCTION;
-			} else if (IS_INSTANCE(target)) {
+			}
+			else if (IS_INSTANCE(target)) {
 				iter = newIterator(vm, AS_OBJ(target));
 				stack_replace(vm, OBJ_VAL(iter));
 				// init iter
@@ -2313,7 +2298,7 @@ static InterpretResult run(LfxVM* vm)
 		}
 		case OP_DIVIDE: {
 		label_op_divide:
-			BINARY_OP(/);
+			BINARY_OP(/ );
 		}
 		case OP_MODULUS: {
 		label_op_modulus:
@@ -2374,12 +2359,11 @@ static InterpretResult run(LfxVM* vm)
 		}
 		case OP_THROW: {
 		label_op_throw:
-			//sync for the stack trace before the error printer walks the frames
-			frame->ip = ip;
-			if (throwError(vm, stack_pop(vm), "An exception was thrown.")) {
-				NEXT_INSTRUCTION;
-			}
-			return INTERPRET_RUNTIME_ERROR;
+			LfxValue error = stack_pop(vm);
+			fprintf(stderr, "[ErrorInfo] ");
+			printValue(stderr, error, false);
+			fprintf(stderr, "\n");
+			RUNTIME_ERROR("An exception was thrown.");
 		}
 		case OP_GET_LOCAL: {
 		label_op_get_local:
@@ -2560,9 +2544,31 @@ static InterpretResult run(LfxVM* vm)
 			LfxValue result = stack_pop(vm);
 			//close all remaining upValues of function
 			closeUpvalues(vm, frame->slots);
+
 			if (--vm->cache.frameCount == 0) {
-				stack_pop(vm);
-				return INTERPRET_OK;
+				ObjFiber* fiber = vm->currentFiber;
+				ObjFiber* resumer = fiber->resumer;
+
+				fiber->result = result;
+				frame->ip = ip;
+				vm_storeCacheToFiber(vm);
+
+				if (resumer != NULL) {
+					fiber->isRunning = 0;
+					fiber->status = FIBER_SETTLED;
+					sealFiber(vm, fiber);
+
+					vm->currentFiber = resumer;
+					vm_loadFiberToCache(vm);
+					UPDATE_FRAME();
+					stack_push(vm, fiber->result);
+					NEXT_INSTRUCTION;
+				}
+				else {
+					//root fiber: not a coroutine, never seals - the REPL keeps reusing it line after line
+					stack_pop(vm);
+					return INTERPRET_OK;
+				}
 			}
 
 			//vm->cache.stackTop = frame->slots;
@@ -2572,6 +2578,29 @@ static InterpretResult run(LfxVM* vm)
 			vm->cache.stackTop = frame->slots + 1;
 
 			UPDATE_FRAME();
+			NEXT_INSTRUCTION;
+		}
+		case OP_YIELD: {
+		label_op_yield:
+			ObjFiber* fiber = vm->currentFiber;
+			ObjFiber* resumer = fiber->resumer;
+
+			//yielding from the root fiber (no resumer to return to) is a
+			//programming error: nothing would ever resume us
+			if (resumer == NULL) {
+				RUNTIME_ERROR("Can't yield outside of a coroutine.");
+			}
+
+			//the yielded value becomes the fiber's result and leaves the stack
+			fiber->result = stack_pop(vm);
+			frame->ip = ip;
+			vm_storeCacheToFiber(vm);
+			fiber->isRunning = 0;
+
+			vm->currentFiber = resumer;
+			vm_loadFiberToCache(vm);
+			UPDATE_FRAME();
+			stack_push(vm, fiber->result);
 			NEXT_INSTRUCTION;
 		}
 		case OP_ITERATE: {
@@ -2844,8 +2873,8 @@ static InterpretResult run(LfxVM* vm)
 			COMPARE_WITH_RIGHT(local, <= );
 		}
 
-		//fused compare + jump-if-false:[op:8][localA:16][localB:16][offset:16]
-		//no stack traffic, jump when compare is false
+								//fused compare + jump-if-false:[op:8][localA:16][localB:16][offset:16]
+								//no stack traffic, jump when compare is false
 		case OP_JIF_LESS_LL: {
 		label_op_jif_less_ll:
 			uint32_t indexA = READ_SHORT();
@@ -2883,8 +2912,8 @@ static InterpretResult run(LfxVM* vm)
 			NEXT_INSTRUCTION;
 		}
 
-		//fused compare + jump-if-false, number constant:[op:8][local:16][const:16][offset:16]
-		//the constant is compile-time guaranteed number,only the local side is checked
+								//fused compare + jump-if-false, number constant:[op:8][local:16][const:16][offset:16]
+								//the constant is compile-time guaranteed number,only the local side is checked
 		case OP_JIF_LESS_LN: {
 		label_op_jif_less_ln:
 			uint32_t index = READ_SHORT();
@@ -2936,7 +2965,7 @@ static InterpretResult run(LfxVM* vm)
 			NEXT_INSTRUCTION;
 		}
 
-		//fused equality, non-number constant:[op:8][local:16][const:24][offset:16]
+								//fused equality, non-number constant:[op:8][local:16][const:24][offset:16]
 		case OP_JIF_EQUAL_LC: {
 		label_op_jif_equal_lc:
 			uint32_t index = READ_SHORT();
@@ -2956,7 +2985,7 @@ static InterpretResult run(LfxVM* vm)
 			NEXT_INSTRUCTION;
 		}
 
-		//fused compare + jump-if-false, number constant, left operand on the stack: [op:8][const:16][offset:16]
+								//fused compare + jump-if-false, number constant, left operand on the stack: [op:8][const:16][offset:16]
 		case OP_JIF_LESS_NUMBER: {
 		label_op_jif_less_number:
 			LfxValue constant = READ_LOCAL_CONSTANT(READ_SHORT());
@@ -3006,9 +3035,9 @@ static InterpretResult run(LfxVM* vm)
 			NEXT_INSTRUCTION;
 		}
 
-		//fused ordering compare + jump-if-false, left operand on the stack:
-		//[op:8][local:16][offset:16]
-		//the local side is not compile-time typed: full number/string checks
+									//fused ordering compare + jump-if-false, left operand on the stack:
+									//[op:8][local:16][offset:16]
+									//the local side is not compile-time typed: full number/string checks
 		case OP_JIF_LESS_LOCAL: {
 		label_op_jif_less_local:
 			uint32_t index = READ_SHORT();
@@ -3034,8 +3063,8 @@ static InterpretResult run(LfxVM* vm)
 			JIF_CMP_STACK_TOP(frame->slots[index], offset, >= );
 		}
 
-		//fused equality + jump-if-false, left operand on the stack:
-		//[op:8][local:16][offset:16]
+									   //fused equality + jump-if-false, left operand on the stack:
+									   //[op:8][local:16][offset:16]
 		case OP_JIF_EQUAL_LOCAL: {
 		label_op_jif_equal_local:
 			uint32_t index = READ_SHORT();
@@ -3061,8 +3090,8 @@ static InterpretResult run(LfxVM* vm)
 			NEXT_INSTRUCTION;
 		}
 
-		//fused equality + jump-if-false, non-number constant, left operand on the stack:
-		//[op:8][const:24][offset:16]
+								   //fused equality + jump-if-false, non-number constant, left operand on the stack:
+								   //[op:8][const:24][offset:16]
 		case OP_JIF_EQUAL_CONST: {
 		label_op_jif_equal_const:
 			LfxValue constant = READ_CONSTANT(READ_24bits());
