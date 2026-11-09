@@ -217,7 +217,15 @@ static TokenType identifierType(Scanner* scanner) {
 	}
 	case 'o': return checkKeyword(scanner, 1, 1, "r", TOKEN_OR);
 	case 'p': return checkKeyword(scanner, 1, 4, "rint", TOKEN_PRINT);
-	case 'r': return checkKeyword(scanner, 1, 5, "eturn", TOKEN_RETURN);
+	case 'r': {
+		if ((scanner->current - scanner->start > 2) && (scanner->start[1] == 'e')) {
+			switch (scanner->start[2]) {
+			case 's': return checkKeyword(scanner, 3, 3, "ume", TOKEN_RESUME);
+			case 't': return checkKeyword(scanner, 3, 3, "urn", TOKEN_RETURN);
+			}
+		}
+		break;
+	}
 	case 's': return checkKeyword(scanner, 1, 4, "uper", TOKEN_SUPER);
 	case 't': {
 		if (scanner->current - scanner->start > 1) {
@@ -239,6 +247,7 @@ static TokenType identifierType(Scanner* scanner) {
 	}
 	case 'v': return checkKeyword(scanner, 1, 2, "ar", TOKEN_VAR);
 	case 'w': return checkKeyword(scanner, 1, 4, "hile", TOKEN_WHILE);
+	case 'y': return checkKeyword(scanner, 1, 4, "ield", TOKEN_YIELD);
 	}
 
 	return TOKEN_IDENTIFIER;

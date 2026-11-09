@@ -1504,6 +1504,25 @@ static void cedeStatement(CompilerContext* cc) {
 	clearOpStack(cc);
 }
 
+static void yieldStatement(CompilerContext* cc) {
+	Compiler* current = cc->currentCompiler;
+	if (current->type == TYPE_SCRIPT) {
+		error(cc, "Can't yield from top-level code.");
+	}
+
+	if (match(cc, TOKEN_SEMICOLON)) {
+		//no-value form: nil, mirrors emitReturn
+		emitBytes(cc, 2, OP_NIL, OP_YIELD);
+		clearOpStack(cc);
+	}
+	else {
+		expression(cc);
+		consume(cc, TOKEN_SEMICOLON, "Expect ';' after yield value.");
+		emitByte(cc, OP_YIELD);
+		clearOpStack(cc);
+	}
+}
+
 //exports in module script
 static void exportsStatement(CompilerContext* cc) {
 	Compiler* current = cc->currentCompiler;
@@ -1716,6 +1735,7 @@ static void synchronize(CompilerContext* cc) {
 		case TOKEN_IMPORT:
 		case TOKEN_EXPORT:
 		case TOKEN_CEDE:
+		case TOKEN_YIELD:
 			return;
 
 		default:
@@ -1770,6 +1790,9 @@ static void statementInner(CompilerContext* cc) {
 	}
 	else if (match(cc, TOKEN_CEDE)) {
 		cedeStatement(cc);
+	}
+	else if (match(cc, TOKEN_YIELD)) {
+		yieldStatement(cc);
 	}
 	else {
 		expressionStatement(cc);
@@ -2371,6 +2394,16 @@ static void super_(CompilerContext* cc, bool canAssign) {
 	clearOpStack(cc);
 }
 
+static void resume_(CompilerContext* cc, bool canAssign) {
+	//consume a fiber object (postfix chains bind into the operand); the resume
+	//result (yielded value, or the settled fiber's result) flows back as this
+	//expression's value. Opaque to the op-stack optimizer: a fiber switch must
+	//never participate in tail fusion
+	parsePrecedence(cc, PREC_CALL);
+	emitByte(cc, OP_RESUME);
+	clearOpStack(cc);
+}
+
 static void string_escape(CompilerContext* cc, bool canAssign) {
 	emitConstant(cc, OBJ_VAL(copyString(cc->vm, cc->parser.previous.start + 1, cc->parser.previous.length - 2, true)));
 }
@@ -2483,6 +2516,8 @@ ParseRule rules[] = {
 	[TOKEN_IMPORT] = { import_,     NULL,   PREC_NONE },
 	[TOKEN_EXPORT] = { NULL,     NULL,   PREC_NONE },
 	[TOKEN_CEDE] = { NULL,     NULL,   PREC_NONE },
+	[TOKEN_YIELD] = { NULL,     NULL,   PREC_NONE },
+	[TOKEN_RESUME] = { resume_,     NULL,   PREC_NONE },
 };
 
 static ParseRule* getRule(TokenType type) {
