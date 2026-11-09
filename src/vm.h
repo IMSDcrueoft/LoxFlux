@@ -4,6 +4,7 @@
  * See LICENSE file in the root directory for full license text.
 */
 #pragma once
+#include <setjmp.h>
 #include "chunk.h"
 #include "compiler.h"
 #include "table.h"
@@ -111,7 +112,6 @@ typedef struct LfxVM {
 	uint8_t gcWorking;
 	// current generation, 0 means Gen0, 1 means Gen1 and so on
 	uint8_t gcGeneration;
-
 	// 1 = execution control has been ceded to the host
 	uint8_t ceding;
 	//id for compiled functions
@@ -155,6 +155,13 @@ typedef struct LfxVM {
 
 	// per vm options
 	LfxOptions options;
+
+	// set by the longjmp landing; consumed and cleared by run()'s error handler
+	bool caughtException;
+	//error unwinding: setjmp/longjmp target for runtimeError. Instance-level
+	//(multi-vm embedding): armed by the interpret entry points before run(),
+	//fired by runtimeError after the fiber chain teardown
+	jmp_buf errorJmp;
 } LfxVM;
 
 typedef enum {

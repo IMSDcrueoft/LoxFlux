@@ -80,15 +80,24 @@ static ObjFunction* getCachedScript(LfxVM* vm, STR absolutePath) {
 }
 
 COLD_FUNCTION
-static void runtimeError(LfxVM* vm, C_STR format, ...) {
+static void runtimeErrorLogV(C_STR format, va_list args) {
 	fprintf(stderr, "[RuntimeError] ");
+	vfprintf(stderr, format, args);
+	fputs("\n", stderr);
+}
 
+COLD_FUNCTION
+NOINLINE_FUNCTION
+static void runtimeErrorLog(C_STR format, ...) {
 	va_list args;
 	va_start(args, format);
-	vfprintf(stderr, format, args);
+	runtimeErrorLogV(format, args);
 	va_end(args);
-	fputs("\n", stderr);
+}
 
+COLD_FUNCTION
+NOINLINE_FUNCTION
+static bool runtimeError(LfxVM* vm) {
 	//blast through the resumer chain: trace and tear down every fiber on it,
 	//the error surfaces at the host. Proper propagation (delivering the error
 	//to the resumer as the resume result) is a later-version feature.
@@ -131,6 +140,20 @@ static void runtimeError(LfxVM* vm, C_STR format, ...) {
 		fiber->resumer = NULL;	//break the resumer cycle so gc can reclaim the pair
 		fiber = resumer;
 	}
+
+	return false;
+}
+
+COLD_FUNCTION
+NOINLINE_FUNCTION
+static void runtimeErrorInNative(LfxVM* vm, C_STR format, ...) {
+	va_list args;
+	va_start(args, format);
+	runtimeErrorLogV(format, args);
+	va_end(args);
+
+	vm_storeCacheToFiber(vm);	//sync the core: the trace reads real frame counts
+	longjmp(vm->errorJmp, 1);
 }
 
 NOINLINE_FUNCTION
@@ -138,7 +161,7 @@ static void stack_grow(LfxVM* vm) {
 	//VA reservation exhausted: the last slot was written, the stack is full
 	size_t used = (size_t)((vm->cache.stackTop - vm->cache.stack) * sizeof(LfxValue));
 	if (used >= vm->currentFiber->stackArena.capacity) {
-		runtimeError(vm, "Stack overflow.");
+		runtimeErrorInNative(vm, "Stack overflow.");
 		return;
 	}
 
@@ -149,7 +172,7 @@ static void stack_grow(LfxVM* vm) {
 	//commit the next chunk lazily (must advance past stackTop, hence the
 	//extra chunk); failure means the stack cannot grow -> overflow
 	if (!arenaBump_ensureCommitted(&vm->currentFiber->stackArena, used + vm->currentFiber->stackArena.commitChunkSize)) {
-		runtimeError(vm, "Stack overflow.");
+		runtimeErrorInNative(vm, "Stack overflow.");
 		return;
 	}
 
@@ -435,6 +458,7 @@ void vm_init(LfxVM* vm)
 	vm->gcMark = OBJ_MARK_MASK;// start with all bits set
 	vm->gcWorking = 0;
 	vm->gcGeneration = 0;
+	vm->caughtException = false;
 
 	//the root fiber owns the main VM stack and the live frame/open-upvalue state
 	vm->currentFiber = newFiber(vm);
@@ -673,7 +697,7 @@ static void getTypeof(LfxVM* vm) {
 }
 
 HOT_FUNCTION
-static bool call(LfxVM* vm, ObjClosure* closure, int argCount) {
+static void call(LfxVM* vm, ObjClosure* closure, int argCount) {
 	//if (argCount > closure->function->arity) {
 	//	runtimeError(vm, "Expected %d arguments but got %d.",
 	//		closure->function->arity, argCount);
@@ -683,8 +707,8 @@ static bool call(LfxVM* vm, ObjClosure* closure, int argCount) {
 	// check stack
 	if (vm->cache.frameCount == vm->cache.frameCapacity) {
 		if (vm->cache.frameCapacity >= LOXFLUX_FRAMES_MAX) {
-			runtimeError(vm, "Stack overflow.");
-			return false;
+			runtimeErrorInNative(vm, "Stack overflow.");
+			return;
 		}
 
 		//LOXFLUX_FRAMES_INIT / LOXFLUX_FRAMES_MAX are powers of two, so GROW_CAPACITY grows
@@ -721,17 +745,14 @@ static bool call(LfxVM* vm, ObjClosure* closure, int argCount) {
 	//		STACK_PEEK(i) = NIL_VAL;
 	//	}
 	//}
-
-	return true;
 }
 
 HOT_FUNCTION
-static bool call_native(LfxVM* vm, LfxNativeFn native, int argCount) {
+static void call_native(LfxVM* vm, LfxNativeFn native, int argCount) {
 	LfxValue* stackTop = vm->cache.stackTop - argCount;//store top, we don't know if native push stack (avoiding gc)
 	LfxValue result = native(vm, argCount, stackTop);
 	vm->cache.stackTop = stackTop;//restore the top
 	stack_replace(vm, result);
-	return true;
 }
 
 static inline void defineMethod(LfxVM* vm, ObjString* name) {
@@ -748,15 +769,16 @@ static inline void defineMethod(LfxVM* vm, ObjString* name) {
 }
 
 HOT_FUNCTION
-static bool callValue(LfxVM* vm, LfxValue callee, int argCount) {
+static void callValue(LfxVM* vm, LfxValue callee, int argCount) {
 	if (IS_OBJ(callee)) {
 		switch (OBJ_TYPE(callee)) {
-		case OBJ_CLOSURE: return call(vm, AS_CLOSURE(callee), argCount);
-		case OBJ_NATIVE: return call_native(vm, AS_NATIVE(callee), argCount);
+		case OBJ_CLOSURE: call(vm, AS_CLOSURE(callee), argCount); return;
+		case OBJ_NATIVE: call_native(vm, AS_NATIVE(callee), argCount); return;
 		case OBJ_BOUND_METHOD: {
 			ObjBoundMethod* bound = AS_BOUND_METHOD(callee);
 			STACK_PEEK(argCount) = bound->receiver;//bind 'this' to logic slot[0]
-			return call(vm, bound->method, argCount);
+			call(vm, bound->method, argCount);
+			return;
 		}
 		case OBJ_CLASS: {
 			ObjClass* klass = AS_CLASS(callee);
@@ -764,19 +786,19 @@ static bool callValue(LfxVM* vm, LfxValue callee, int argCount) {
 
 			//call init with fast path
 			if (klass->initializer != NULL) {
-				return call(vm, klass->initializer, argCount);
+				call(vm, klass->initializer, argCount);
+				return;
 			}
 			else if (argCount != 0) {
-				runtimeError(vm, "Expected 0 arguments for initializer but got %d.", argCount);
-				return false;
+				runtimeErrorInNative(vm, "Expected 0 arguments for initializer but got %d.", argCount);
+				return;
 			}
-			return true;
+			return;	//no initializer: the bare instance is the call result
 		}
 		}
 	}
 
-	runtimeError(vm, "Can only call functions and classes.");
-	return false;
+	runtimeErrorInNative(vm, "Can only call functions and classes.");
 }
 
 //HOT_FUNCTION
@@ -1146,46 +1168,47 @@ static void icSetPropertySlow(LfxVM* vm, ObjInstance* instance, ObjString* name,
 //returns true if a callee was entered,false if a runtime error was reported
 COLD_FUNCTION
 NOINLINE_FUNCTION
-static bool icInvokeSlow(LfxVM* vm, ObjInstance* instance, ObjString* method, uint8_t argCount, uint8_t slot, InlineCacheSlot* icCache) {
+static void icInvokeSlow(LfxVM* vm, ObjInstance* instance, ObjString* method, uint8_t argCount, uint8_t slot, InlineCacheSlot* icCache) {
 	//slow path: field hit shadows method → poison + callValue
 	LfxValue value;
 	Entry* entry;
 	if (tableGetEntry(&instance->fields, method, &value, &entry)) {
 		INSTANCE_POISON(instance) = true;
 		STACK_PEEK(argCount) = value;
-		return callValue(vm, value, argCount);
+		callValue(vm, value, argCount);
+		return;	//the field's callee was entered: the method lookup below must not run
 	}
 
 	//method lookup
 	LfxValue methodValue;
 	if (!tableGetEntry(&instance->klass->methods, method, &methodValue, &entry)) {
-		runtimeError(vm, "Undefined property '%s'.", method->chars);
-		return false;
+		runtimeErrorInNative(vm, "Undefined property '%s'.", method->chars);
+		return;
 	}
 	//backfill cache
 	if (slot != 0) {
 		icCache[slot].extraA = instance->klass;
 		icCache[slot].extraB = AS_CLOSURE(methodValue);
 	}
-	return call(vm, AS_CLOSURE(methodValue), argCount);
+	call(vm, AS_CLOSURE(methodValue), argCount);
 }
 
 //super invoke slow path: lookup in superclass->methods, backfill [superclass, closure] pair
 //returns true if a callee was entered,false if a runtime error was reported
 COLD_FUNCTION
 NOINLINE_FUNCTION
-static bool icSuperInvokeSlow(LfxVM* vm, ObjClass* superclass, ObjString* method, uint8_t argCount, uint8_t slot, InlineCacheSlot* icCache) {
+static void icSuperInvokeSlow(LfxVM* vm, ObjClass* superclass, ObjString* method, uint8_t argCount, uint8_t slot, InlineCacheSlot* icCache) {
 	LfxValue methodValue;
 	if (!tableGet(&superclass->methods, method, &methodValue)) {
-		runtimeError(vm, "Undefined property '%s'.", method->chars);
-		return false;
+		runtimeErrorInNative(vm, "Undefined property '%s'.", method->chars);
+		return;
 	}
 	//backfill cache
 	if (slot != 0) {
 		icCache[slot].extraA = superclass;
 		icCache[slot].extraB = AS_CLOSURE(methodValue);
 	}
-	return call(vm, AS_CLOSURE(methodValue), argCount);
+	call(vm, AS_CLOSURE(methodValue), argCount);
 }
 
 #if DEBUG_TRACE_EXECUTION //print in debug mode
@@ -1209,6 +1232,15 @@ static InterpretResult run(LfxVM* vm)
 {
 	register CallFrame* frame = &vm->cache.frames[vm->cache.frameCount - 1];
 	register uint8_t* ip = frame->ip;
+
+	// handle runtime errors: the dispatch loop is a single function
+	if (vm->caughtException) {
+	label_error_handler:
+		vm->caughtException = false;
+		// future versions: static try catch table to find the nearest handler for the current frame
+		runtimeError(vm);
+		return INTERPRET_RUNTIME_ERROR;
+	}
 
 #if !LOXFLUX_FRAME_CACHED_BASES
 	register InlineCacheSlot* icCache = frame->closure->function->caches;
@@ -1395,10 +1427,10 @@ static InterpretResult run(LfxVM* vm)
 //stack escape (register-resident across the whole dispatch loop)
 #define RUNTIME_ERROR(...)						\
 	do {										\
+		runtimeErrorLog(__VA_ARGS__);			\
 		frame->ip = ip;							\
 		vm_storeCacheToFiber(vm);				\
-		runtimeError(vm, __VA_ARGS__);			\
-		return INTERPRET_RUNTIME_ERROR;			\
+		goto label_error_handler;				\
 	} while (false)
 
 	// push(pop() op pop())
@@ -2456,9 +2488,7 @@ static InterpretResult run(LfxVM* vm)
 			uint8_t argCount = READ_BYTE();
 			frame->ip = ip;//change before call
 
-			if (!callValue(vm, STACK_PEEK(argCount), argCount)) {
-				return INTERPRET_RUNTIME_ERROR;
-			}
+			callValue(vm, STACK_PEEK(argCount), argCount);
 			//we entered the function
 			UPDATE_FRAME();
 			NEXT_INSTRUCTION;
@@ -2486,9 +2516,7 @@ static InterpretResult run(LfxVM* vm)
 				InlineCacheSlot* c = &icCache[slot];
 				if ((ObjClass*)c->extraA == instance->klass) {
 					frame->ip = ip;//change before call
-					if (!call(vm, (ObjClosure*)c->extraB, argCount)) {
-						return INTERPRET_RUNTIME_ERROR;
-					}
+					call(vm, (ObjClosure*)c->extraB, argCount);
 					//we entered the function
 					UPDATE_FRAME();
 					NEXT_INSTRUCTION;
@@ -2499,9 +2527,7 @@ static InterpretResult run(LfxVM* vm)
 			ObjString* method = AS_STRING(constant);
 
 			frame->ip = ip;//change before call
-			if (!icInvokeSlow(vm, instance, method, argCount, slot, icCache)) {
-				return INTERPRET_RUNTIME_ERROR;
-			}
+			icInvokeSlow(vm, instance, method, argCount, slot, icCache);
 			//we entered the function
 			UPDATE_FRAME();
 			NEXT_INSTRUCTION;
@@ -2525,17 +2551,13 @@ static InterpretResult run(LfxVM* vm)
 			//re-declaring a class creates a new ObjClass, invalidating stale pairs. super lookup never
 			//consults instance fields, so no poison check applies)
 			if ((ObjClass*)icCache[slot].extraA == superclass) {
-				if (!call(vm, (ObjClosure*)icCache[slot].extraB, argCount)) {
-					return INTERPRET_RUNTIME_ERROR;
-				}
+				call(vm, (ObjClosure*)icCache[slot].extraB, argCount);
 				UPDATE_FRAME();
 				NEXT_INSTRUCTION;
 			}
 
 			LfxValue constant = READ_CONSTANT(constIndex);
-			if (!icSuperInvokeSlow(vm, superclass, AS_STRING(constant), argCount, slot, icCache)) {
-				return INTERPRET_RUNTIME_ERROR;
-			}
+			icSuperInvokeSlow(vm, superclass, AS_STRING(constant), argCount, slot, icCache);
 			UPDATE_FRAME();
 			NEXT_INSTRUCTION;
 		}
@@ -2683,9 +2705,7 @@ static InterpretResult run(LfxVM* vm)
 			//call the module
 			frame->ip = ip;//change before call
 
-			if (!call(vm, closure, 0)) {
-				return INTERPRET_RUNTIME_ERROR;
-			}
+			call(vm, closure, 0);
 
 			//we entered the function
 			UPDATE_FRAME();
@@ -3186,12 +3206,14 @@ bool interpret_compile(LfxVM* vm, C_STR source)
 	ObjClosure* closure = newClosure(vm, function);
 	stack_push(vm, OBJ_VAL(closure));
 
-	if (!call(vm, closure, 0)) {
+	if (setjmp(vm->errorJmp) != 0) {
 		stack_reset(vm);
 		vm->ceding = 0;
+		vm->caughtException = false;
 		return false;
 	}
 
+	call(vm, closure, 0);
 	//now the frame/stack are live, so the VM can be ceded/resumed
 	vm->ceding = 1;
 	return true;
@@ -3204,16 +3226,19 @@ InterpretResult interpret_execute(LfxVM* vm)
 	vm->ceding = 0;
 
 #if LOG_EXECUTE_TIMING
-	uint64_t time_run = get_milliseconds();
+	volatile uint64_t time_run = get_milliseconds();
 #endif
 
-	InterpretResult result = run(vm);
+	InterpretResult result = INTERPRET_RUNTIME_ERROR;
+	if (setjmp(vm->errorJmp) != 0) {
+		vm->caughtException = true;
+	}
+	result = run(vm);
 
 #if LOG_EXECUTE_TIMING
 	double time_run_f = (get_milliseconds() - time_run);
 	fprintf(stderr, "[Log] Finished executing in %g ms.\n", time_run_f);
 #endif
-
 	//CEDE keeps the ceded execution resumable; everything else is idle again
 	if (result == INTERPRET_CEDE) {
 		vm->ceding = 1;
