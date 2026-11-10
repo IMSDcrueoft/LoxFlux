@@ -181,8 +181,12 @@ static void blackenObject(LfxVM* vm, Obj* object) {
 
 	switch (object->type) {
 	case OBJ_UPVALUE: {
-		//When an upvalue is closed, it contains a reference to the closed-over value
-		markValue(vm, ((ObjUpvalue*)object)->closed);
+		ObjUpvalue* upvalue = (ObjUpvalue*)object;
+		//an open upvalue must keep its target alive even when the owning fiber
+		//is unreachable: that fiber may be reclaimed in this very cycle while
+		//an escaped closure outlives it, and sealFiber then copies *location
+		//into closed (for closed upvalues location == &closed, same as before)
+		markValue(vm, *upvalue->location);
 		break;
 	}
 	case OBJ_CLOSURE: {
