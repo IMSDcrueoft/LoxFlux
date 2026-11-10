@@ -183,6 +183,11 @@ static LfxValue readFileNative(LfxVM* vm, int argCount, LfxValue* args) {
 		return NIL_VAL;
 	}
 
+	//create the builder before opening the file: stack_push can longjmp on
+	//stack exhaustion (stack_grow), and no FILE* may be open across that window
+	ObjArray* stringBuilder = newArray(vm, OBJ_STRING_BUILDER);
+	stack_push(vm, OBJ_VAL(stringBuilder));
+
 	FILE* file = fopen(path, "rb");
 
 	if (file == NULL) {
@@ -200,9 +205,6 @@ static LfxValue readFileNative(LfxVM* vm, int argCount, LfxValue* args) {
 		fprintf(stderr, "File size exceeds maximum StringBuilder capacity.\n");
 		return NIL_VAL;
 	}
-
-	ObjArray* stringBuilder = newArray(vm, OBJ_STRING_BUILDER);
-	stack_push(vm, OBJ_VAL(stringBuilder));
 
 	// allocate memory
 	reserveArray(vm, stringBuilder, fileSize + 1);
@@ -235,6 +237,11 @@ static LfxValue readBinNative(LfxVM* vm, int argCount, LfxValue* args) {
 		return NIL_VAL;
 	}
 
+	//create the array before opening the file: stack_push can longjmp on
+	//stack exhaustion (stack_grow), and no FILE* may be open across that window
+	ObjArray* array = newArray(vm, OBJ_ARRAY_U8);
+	stack_push(vm, OBJ_VAL(array));
+
 	FILE* file = fopen(path, "rb");
 	if (file == NULL) {
 		fprintf(stderr, "Could not open file \"%s\".\n", path);
@@ -250,9 +257,6 @@ static LfxValue readBinNative(LfxVM* vm, int argCount, LfxValue* args) {
 		fprintf(stderr, "File size exceeds maximum U8Array capacity.\n");
 		return NIL_VAL;
 	}
-
-	ObjArray* array = newArray(vm, OBJ_ARRAY_U8);
-	stack_push(vm, OBJ_VAL(array));
 
 	reserveArray(vm, array, (uint64_t)fileSize);
 
