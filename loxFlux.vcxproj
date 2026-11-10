@@ -185,6 +185,7 @@
     <ClCompile Include="src\debug.c" />
     <ClCompile Include="src\entrance.c" />
     <ClCompile Include="src\nativeCtor.c" />
+<ClCompile Include="src\nativeFiber.c" />
     <ClCompile Include="src\gc.c" />
     <ClCompile Include="src\lineArray.c" />
     <ClCompile Include="src\memory.c" />

@@ -281,6 +281,7 @@ static TokenType builtinType(Scanner* scanner) {
 			break;
 		}
 		case 'c':return checkModule(scanner, 2, 3, "tor", TOKEN_MODULE_CTOR);
+		case 'f':return checkModule(scanner, 2, 4, "iber", TOKEN_MODULE_FIBER);
 		case 't':return checkModule(scanner, 2, 3, "ime", TOKEN_MODULE_TIME);
 		}
 	}
@@ -294,7 +295,7 @@ static Token mention(Scanner* scanner) {
 	TokenType type = builtinType(scanner);
 
 	if (type == TOKEN_NIL) {
-		return errorToken(scanner, "Unexpected module (Available modules : @math, @array, @object, @string, @time, @ctor, @sys).");
+		return errorToken(scanner, "Unexpected module (Available modules : @math, @array, @object, @string, @time, @ctor, @fiber, @sys).");
 	}
 
 	return makeToken(scanner, type);

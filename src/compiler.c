@@ -2228,6 +2228,10 @@ static void builtinLiteral(CompilerContext* cc, bool canAssign) {
 		module = MODULE_SYSTEM;
 		break;
 	}
+	case TOKEN_MODULE_FIBER: {
+		module = MODULE_FIBER;
+		break;
+	}
 	default: {
 		emitByte(cc, OP_NIL);
 		clearOpStack(cc);
@@ -2484,6 +2488,7 @@ ParseRule rules[] = {
 	[TOKEN_MODULE_TIME] = { builtinLiteral,     NULL,   PREC_NONE },
 	[TOKEN_MODULE_CTOR] = { builtinLiteral,     NULL,   PREC_NONE },
 	[TOKEN_MODULE_SYSTEM] = { builtinLiteral,     NULL,   PREC_NONE },
+	[TOKEN_MODULE_FIBER] = { builtinLiteral,     NULL,   PREC_NONE },
 	[TOKEN_AND] = { NULL,     and_,   PREC_AND },
 	[TOKEN_CLASS] = { NULL,     NULL,   PREC_NONE },
 	[TOKEN_ELSE] = { NULL,     NULL,   PREC_NONE },

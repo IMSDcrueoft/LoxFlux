@@ -53,6 +53,9 @@ static uint32_t builtinInStruction(C_STR name, Chunk* chunk, uint32_t offset) {
 	case MODULE_CTOR:
 		DIS_PRINTF("%-16s %-10s\n", name, "@ctor");
 		break;
+	case MODULE_FIBER:
+		DIS_PRINTF("%-16s %-10s\n", name, "@fiber");
+		break;
 	case MODULE_SYSTEM:
 		DIS_PRINTF("%-16s %-10s\n", name, "@sys");
 		break;

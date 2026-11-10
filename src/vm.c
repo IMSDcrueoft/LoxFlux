@@ -285,6 +285,22 @@ void defineNative_ctor(LfxVM* vm, C_STR name, LfxNativeFn function) {
 }
 
 COLD_FUNCTION
+void defineNative_fiber_number(LfxVM* vm, C_STR name, double value) {
+	tableSet(vm, &vm->builtins[MODULE_FIBER].fields,
+		copyString(vm, name, (uint32_t)strlen(name), false),
+		NUMBER_VAL(value)
+	);
+}
+
+COLD_FUNCTION
+void defineNative_fiber(LfxVM* vm, C_STR name, LfxNativeFn function) {
+	tableSet(vm, &vm->builtins[MODULE_FIBER].fields,
+		copyString(vm, name, (uint32_t)strlen(name), false),
+		OBJ_VAL(newNative(vm, function))
+	);
+}
+
+COLD_FUNCTION
 void defineNative_system(LfxVM* vm, C_STR name, LfxNativeFn function) {
 	tableSet(vm, &vm->builtins[MODULE_SYSTEM].fields,
 		copyString(vm, name, (uint32_t)strlen(name), false),
@@ -331,6 +347,7 @@ static void importBuiltins(LfxVM* vm) {
 	importNative_string(vm);
 	importNative_time(vm);
 	importNative_ctor(vm);
+	importNative_fiber(vm);
 	importNative_system(vm);
 }
 

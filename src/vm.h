@@ -237,6 +237,8 @@ void defineNative_object(LfxVM* vm, C_STR name, LfxNativeFn function);
 void defineNative_string(LfxVM* vm, C_STR name, LfxNativeFn function);
 void defineNative_time(LfxVM* vm, C_STR name, LfxNativeFn function);
 void defineNative_ctor(LfxVM* vm, C_STR name, LfxNativeFn function);
+void defineNative_fiber_number(LfxVM* vm, C_STR name, double value);
+void defineNative_fiber(LfxVM* vm, C_STR name, LfxNativeFn function);
 void defineNative_system(LfxVM* vm, C_STR name, LfxNativeFn function);
 //for global
 void defineNative_global(LfxVM* vm, C_STR name, LfxNativeFn function);

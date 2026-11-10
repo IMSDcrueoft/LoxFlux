@@ -1,0 +1,26 @@
+// fiber: @fiber.status across the lifecycle; the enum constants fold to
+// compile-time constants from the frozen builtin table (same as @math.*)
+// exit: 0
+// err: Can't take the status of a non-coroutine value.
+// err: Can't take the result of a non-coroutine value.
+// out: true
+// out: true
+// out: true
+// out: true
+// out: true
+// out: status-done
+var f = @ctor.Fiber(lambda() {
+	print @fiber.status(f) == @fiber.RUNNING;	//executing on the resumer chain
+	yield;
+	print @fiber.status(f) == @fiber.RUNNING;	//again after re-entry
+});
+print @fiber.status(f) == @fiber.PENDING;		//never started
+resume f;
+print @fiber.status(f) == @fiber.PENDING;		//suspended after the yield
+resume f;
+print @fiber.status(f) == @fiber.SETTLED;		//returned
+
+//non-fiber receivers are rejected
+@fiber.status(42);
+@fiber.result(42);
+print "status-done";

@@ -15,6 +15,7 @@ typedef enum {
 	MODULE_STRING,
 	MODULE_TIME,
 	MODULE_CTOR,
+	MODULE_FIBER,
 	MODULE_SYSTEM,
 
 	MODULE_COUNT,//as the size
@@ -26,5 +27,6 @@ void importNative_object(LfxVM* vm);
 void importNative_string(LfxVM* vm);
 void importNative_time(LfxVM* vm);
 void importNative_ctor(LfxVM* vm);
+void importNative_fiber(LfxVM* vm);
 void importNative_system(LfxVM* vm);
 void importNative_global(LfxVM* vm);
