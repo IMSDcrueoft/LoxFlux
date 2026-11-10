@@ -165,6 +165,7 @@ set(LOXFLUX_CORE_SOURCES
   src/memory.c
   src/nativeArray.c
   src/nativeCtor.c
+  src/nativeFiber.c
   src/nativeGlobal.c
   src/nativeMath.c
   src/nativeObject.c

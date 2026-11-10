@@ -1,0 +1,17 @@
+// fiber: yield/resume roundtrip, settle-on-return, and case-3 re-read
+// exit: 0
+// out: 1
+// out: 2
+// out: 3
+// out: 3
+// out: roundtrip-done
+var f = @ctor.Fiber(lambda() {
+	yield 1;
+	yield 2;
+	return 3;
+});
+print resume f;	//first resume: never-started -> body runs -> yield 1
+print resume f;	//re-entry after yield -> yield 2
+print resume f;	//re-entry -> return settles the fiber, result delivered
+print resume f;	//settled fiber: result re-delivered without a switch
+print "roundtrip-done";

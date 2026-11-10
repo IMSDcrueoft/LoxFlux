@@ -181,8 +181,12 @@ static void blackenObject(LfxVM* vm, Obj* object) {
 
 	switch (object->type) {
 	case OBJ_UPVALUE: {
-		//When an upvalue is closed, it contains a reference to the closed-over value
-		markValue(vm, ((ObjUpvalue*)object)->closed);
+		ObjUpvalue* upvalue = (ObjUpvalue*)object;
+		//an open upvalue must keep its target alive even when the owning fiber
+		//is unreachable: that fiber may be reclaimed in this very cycle while
+		//an escaped closure outlives it, and sealFiber then copies *location
+		//into closed (for closed upvalues location == &closed, same as before)
+		markValue(vm, *upvalue->location);
 		break;
 	}
 	case OBJ_CLOSURE: {
@@ -238,13 +242,19 @@ static void blackenObject(LfxVM* vm, Obj* object) {
 	case OBJ_FIBER: {
 		ObjFiber* fiber = (ObjFiber*)object;
 
-		//scan only the live prefix of this fiber's stack
-		for (LfxValue* slot = fiber->core.stack; slot < fiber->core.stackTop; slot++) {
-			markValue(vm, *slot);
+		//a sealed fiber's core is zeroed (sealFiber): stack/frames are NULL
+		//and only result still holds references, so guard the scans
+		if (fiber->core.stack != NULL) {
+			//scan only the live prefix of this fiber's stack
+			for (LfxValue* slot = fiber->core.stack; slot < fiber->core.stackTop; slot++) {
+				markValue(vm, *slot);
+			}
 		}
 
-		for (uint32_t i = 0; i < fiber->core.frameCount; i++) {
-			markObject(vm, (Obj*)fiber->core.frames[i].closure);
+		if (fiber->core.frames != NULL) {
+			for (uint32_t i = 0; i < fiber->core.frameCount; i++) {
+				markObject(vm, (Obj*)fiber->core.frames[i].closure);
+			}
 		}
 
 		for (ObjUpvalue* upvalue = fiber->core.openUpvalues; upvalue != NULL; upvalue = upvalue->next) {

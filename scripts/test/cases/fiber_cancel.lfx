@@ -1,0 +1,53 @@
+// fiber: @fiber.cancel seals a pending fiber as CANCELLED (optional argument
+// becomes its result); resume afterwards reads it via the settled path.
+// the boolean return reports whether the cancel took
+// exit: 0
+// err: Can't cancel a non-coroutine value.
+// out: true
+// out: true
+// out: reason-42
+// out: reason-42
+// out: false
+// out: true
+// out: payload
+// out: true
+// out: nil
+// out: false
+// out: false
+// out: true
+// out: cancel-done
+var f = @ctor.Fiber(lambda() {
+	yield 1;
+	return 2;
+});
+print @fiber.cancel(f, "reason-42");	//true: never-started fibers are cancellable
+print @fiber.status(f) == @fiber.CANCELLED;
+print @fiber.result(f);					//the optional argument landed as result
+print resume f;							//case 3: same result, body never runs
+print @fiber.cancel(f);					//false: already finalized
+
+var escaped = nil;
+var h = @ctor.Fiber(lambda() {
+	var secret = [];
+	@array.push(secret, "payload");
+	escaped = lambda() { return secret[0]; };
+	yield "started";
+});
+resume h;								//body runs to the yield: closure escaped
+print @fiber.cancel(h);					//true: the seal closes the open upvalue
+print escaped();						//payload: the escaped closure stayed valid
+
+var n = @ctor.Fiber(lambda() {
+	yield "never-seen";
+});
+print @fiber.cancel(n);					//true
+print @fiber.result(n);					//nil: no value argument
+print @fiber.cancel(42);				//false: non-fiber misuse (message on stderr)
+
+var s = @ctor.Fiber(lambda() {
+	print @fiber.cancel(s);				//false: can't cancel a running (self) fiber
+	yield "x";
+});
+resume s;
+print @fiber.status(s) == @fiber.PENDING;	//the failed self-cancel changed nothing
+print "cancel-done";

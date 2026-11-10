@@ -1,0 +1,13 @@
+// fiber: @fiber.current returns the executing fiber; identity switches with
+// the active fiber (root at top level, the coroutine inside its body)
+// exit: 0
+// out: false
+// out: true
+// out: current-done
+var f = @ctor.Fiber(lambda() {
+	print @fiber.current() == f;	//self-identity while executing
+	yield "x";
+});
+print @fiber.current() == f;		//false: at top level we are the root, not f
+resume f;
+print "current-done";

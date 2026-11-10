@@ -1,0 +1,71 @@
+// fiber: logic edges - yield/resume across nested call frames, namespace
+// self-inspection of the root fiber, sealed-fiber gc reclamation after cancel
+// exit: 0
+// err: Can't take the status of a non-coroutine value.
+// err: Can't take the result of a non-coroutine value.
+// err: Can't cancel a non-coroutine value.
+// out: from-deep
+// out: true
+// out: deep-done-mid-body
+// out: true
+// out: nil
+// out: true
+// out: false
+// out: nil
+// out: true
+// out: sealed-payload
+// out: edge-done
+
+//yield from a nested call frame: the fiber suspends with three live frames
+//and must re-enter deep's saved ip, not the body's
+fun deep() {
+	yield "from-deep";
+	return "deep-done";
+}
+fun mid() {
+	return deep() + "-mid";
+}
+var f = @ctor.Fiber(lambda() {
+	return mid() + "-body";
+});
+print resume f;
+print @fiber.status(f) == @fiber.PENDING;	//suspended inside deep's frame
+print resume f;								//deep -> mid -> body, settles at frame 0
+
+//current() is call-depth independent; result of a running fiber before any
+//yield is nil
+fun whoAmI() {
+	return @fiber.current();
+}
+var r = @ctor.Fiber(lambda() {
+	print whoAmI() == r;		//true: still the same fiber mid-call-chain
+	print @fiber.result(r);		//nil: running, nothing yielded yet
+});
+resume r;
+
+//the root fiber is exposed by current(): it reports RUNNING (it is executing)
+//and refuses cancel; its result is never set
+print @fiber.status(@fiber.current()) == @fiber.RUNNING;	//true
+print @fiber.cancel(@fiber.current());						//false
+print @fiber.result(@fiber.current());						//nil
+
+//missing-fiber calls reject on stderr and yield nil
+@fiber.status();
+@fiber.result();
+@fiber.cancel();
+
+//cancel seals deterministically; dropping the sealed fiber then forces gc to
+//mark it (NULL-guarded scans) and free it (idempotent re-seal on the sweep)
+var keep = nil;
+var d = @ctor.Fiber(lambda() {
+	var box = [];
+	@array.push(box, "sealed-payload");
+	keep = lambda() { return box[0]; };
+	yield "d-started";
+});
+resume d;
+print @fiber.cancel(d);		//true
+d = nil;
+@sys.gcRun();
+print keep();				//the escaped closure survived seal + reclaim
+print "edge-done";

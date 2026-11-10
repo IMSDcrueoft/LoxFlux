@@ -4,6 +4,7 @@
  * See LICENSE file in the root directory for full license text.
 */
 #pragma once
+#include <setjmp.h>
 #include "chunk.h"
 #include "compiler.h"
 #include "table.h"
@@ -111,7 +112,6 @@ typedef struct LfxVM {
 	uint8_t gcWorking;
 	// current generation, 0 means Gen0, 1 means Gen1 and so on
 	uint8_t gcGeneration;
-
 	// 1 = execution control has been ceded to the host
 	uint8_t ceding;
 	//id for compiled functions
@@ -155,6 +155,12 @@ typedef struct LfxVM {
 
 	// per vm options
 	LfxOptions options;
+
+	// set by the longjmp landing; consumed and cleared by run()'s error handler
+	bool caughtException;
+	bool jmpBuffArmed;
+	//fired by runtimeErrorInNative before the longjmp
+	jmp_buf errorJmp;
 } LfxVM;
 
 typedef enum {
@@ -218,9 +224,9 @@ uint32_t addConstant(LfxVM* vm, LfxValue value);
 
 //compile + prepare the top-level frame; on success the VM is ceding and the
 //caller may release the source buffer before calling interpret_execute
-bool interpret_compile(LfxVM* vm, C_STR source);
+bool interpret_compile(LfxVM* volatile vm, C_STR source);
 //run the prepared frame, or continue after INTERPRET_CEDE
-InterpretResult interpret_execute(LfxVM* vm);
+InterpretResult interpret_execute(LfxVM* volatile vm);
 InterpretResult interpret_repl(LfxVM* vm, C_STR source);
 
 //for builtin
@@ -231,6 +237,8 @@ void defineNative_object(LfxVM* vm, C_STR name, LfxNativeFn function);
 void defineNative_string(LfxVM* vm, C_STR name, LfxNativeFn function);
 void defineNative_time(LfxVM* vm, C_STR name, LfxNativeFn function);
 void defineNative_ctor(LfxVM* vm, C_STR name, LfxNativeFn function);
+void defineNative_fiber_number(LfxVM* vm, C_STR name, double value);
+void defineNative_fiber(LfxVM* vm, C_STR name, LfxNativeFn function);
 void defineNative_system(LfxVM* vm, C_STR name, LfxNativeFn function);
 //for global
 void defineNative_global(LfxVM* vm, C_STR name, LfxNativeFn function);

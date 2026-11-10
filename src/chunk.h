@@ -50,6 +50,11 @@ typedef enum {
 	OP_INVOKE,			// call with xxx.()
 	OP_SUPER_INVOKE,	// call with super.(), 1 + 3 + 1 + 1 byte, name u24 + argCount + ic slot
 	OP_RETURN,          // ret
+	// coroutine ops: yield/resume
+	OP_YIELD,
+	OP_RESUME,			
+	// hand execution control back to the host
+	OP_CEDE,
 
 	OP_GET_PROPERTY,	// get property
 	OP_SET_PROPERTY,
@@ -85,9 +90,6 @@ typedef enum {
 	OP_PRINT,			// 1 + 1 byte, print values space-joined (u8 count)
 	OP_THROW,			// throw
 	OP_IMPORT,			// import module
-
-	// hand execution control back to the host
-	OP_CEDE,
 
 	//super command
 	//OP_*_NUMBER : 1 + 2 byte, 16bits index into function's own constants (number only)

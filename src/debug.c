@@ -53,6 +53,9 @@ static uint32_t builtinInStruction(C_STR name, Chunk* chunk, uint32_t offset) {
 	case MODULE_CTOR:
 		DIS_PRINTF("%-16s %-10s\n", name, "@ctor");
 		break;
+	case MODULE_FIBER:
+		DIS_PRINTF("%-16s %-10s\n", name, "@fiber");
+		break;
 	case MODULE_SYSTEM:
 		DIS_PRINTF("%-16s %-10s\n", name, "@sys");
 		break;
@@ -513,6 +516,10 @@ uint32_t disassembleInstruction(LfxVM* vm, ObjFunction* function, uint32_t offse
 		return shortInstruction("OP_NEGATE_LOCAL", chunk, offset);
 	case OP_CEDE:
 		return simpleInstruction("OP_CEDE", offset);
+	case OP_YIELD:
+		return simpleInstruction("OP_YIELD", offset);
+	case OP_RESUME:
+		return simpleInstruction("OP_RESUME", offset);
 
 	case OP_EQUAL_LOCAL:
 		return shortInstruction("OP_EQUAL_LOCAL", chunk, offset);
@@ -707,6 +714,8 @@ void disassembleOpStack(OPStack* opStack) {
 		case OP_RETURN:           DIS_PRINTF("OP_RETURN\n"); break;
 		case OP_PRINT:            DIS_PRINTF("OP_PRINT\n"); break;
 		case OP_CEDE:             DIS_PRINTF("OP_CEDE\n"); break;
+		case OP_YIELD:            DIS_PRINTF("OP_YIELD\n"); break;
+		case OP_RESUME:           DIS_PRINTF("OP_RESUME\n"); break;
 		case OP_SET_SUBSCRIPT:    DIS_PRINTF("OP_SET_SUBSCRIPT\n"); break;
 		case OP_GET_SUBSCRIPT:    DIS_PRINTF("OP_GET_SUBSCRIPT\n"); break;
 		case OP_GET_UPVALUE:      DIS_PRINTF("OP_GET_UPVALUE\n"); break;

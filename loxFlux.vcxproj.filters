@@ -110,6 +110,9 @@
     <ClCompile Include="third-party\memAllocator\bits.c">
       <Filter>source</Filter>
     </ClCompile>
+    <ClCompile Include="src\nativeFiber.c">
+      <Filter>loxFlux\source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\chunk.h">

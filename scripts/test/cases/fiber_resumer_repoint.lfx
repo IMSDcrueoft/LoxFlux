@@ -1,0 +1,22 @@
+// fiber: resumer is re-pointed on every resume, so a fiber first resumed by
+// another fiber delivers its settle result to whoever resumed it last
+// exit: 0
+// out: inner-1
+// out: outer-1
+// out: inner-done
+// out: outer-done
+// out: repoint-done
+var b = @ctor.Fiber(lambda() {
+	yield "inner-1";
+	return "inner-done";
+});
+var o = @ctor.Fiber(lambda() {
+	yield (resume b);
+	yield "outer-1";
+	return "outer-done";
+});
+print resume o;	//root->o: o->b, b yields inner-1 to o, o yields it to root
+print resume o;	//root->o: o yields outer-1 (b stays suspended)
+print resume b;	//root->b: b returns, inner-done delivered to root now
+print resume o;	//root->o: o returns, outer-done delivered to root
+print "repoint-done";

@@ -1,0 +1,23 @@
+// fiber: ctor args are staged on the fiber stack and forwarded to the body
+// exit: 0
+// out: 9
+// out: nil
+// out: 7
+// out: args-done
+var g = @ctor.Fiber(lambda(a, b) {
+	yield a + b;
+}, 4, 5);
+print resume g;	//two ctor args become the body's arguments
+
+//missing args are nil-filled by call()
+var h = @ctor.Fiber(lambda(a) {
+	yield a;
+});
+print resume h;
+
+//extra args are tolerated, the body reads the leading ones
+var x = @ctor.Fiber(lambda(a) {
+	yield a;
+}, 7, 8);
+print resume x;
+print "args-done";

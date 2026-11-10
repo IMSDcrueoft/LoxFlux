@@ -1,0 +1,7 @@
+// fiber: a runtime error inside a fiber blasts through the resumer chain
+// exit: 70
+// err: Undefined variable 'nope'.
+var e = @ctor.Fiber(lambda() {
+	nope();
+});
+resume e;

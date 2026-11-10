@@ -1,0 +1,8 @@
+// fiber: the ctor rejects native and non-function bodies with a message
+// exit: 0
+// err: Can't create a coroutine from a native or non-function value.
+// out: reject-done
+@ctor.Fiber(@ctor.Object);
+@ctor.Fiber(42);
+@ctor.Fiber();
+print "reject-done";

@@ -358,6 +358,35 @@ static LfxValue stringBuilderNative(LfxVM* vm, int argCount, LfxValue* args) {
 	return OBJ_VAL(stringBuilder);
 }
 
+static LfxValue fiberNative(LfxVM* vm, int argCount, LfxValue* args) {
+	//native runs inline without pushing a frame, so a native body would leave the fiber at frameCount 0
+	//and the first resume would re-enter garbage
+	if (argCount >= 1 && IS_CLOSURE(args[0])) {
+		ObjFiber* fiber = newFiber(vm);
+
+		//stage [callee, args...] on the fiber's own stack: the first resume
+		//(OP_RESUME with frameCount == 0) enters the body via call(), which
+		//reads the argument count as stackTop - stack - 1
+		size_t committedBefore = fiber->stackArena.commitTop;
+		if (!arenaBump_ensureCommitted(&fiber->stackArena, (size_t)(argCount + 1) * sizeof(LfxValue))) {
+			fprintf(stderr, "Failed to commit the fiber stack arena.\n");
+			exit(1);
+		}
+
+#if LOG_MODE
+		vm->fiberStackCommittedBytes += fiber->stackArena.commitTop - committedBefore;
+#endif
+		fiber->core.stackBoundary = (LfxValue*)((char*)fiber->stackArena.base + fiber->stackArena.commitTop);
+		memcpy(fiber->core.stack, args, (size_t)argCount * sizeof(LfxValue));
+		fiber->core.stackTop = fiber->core.stack + argCount;
+
+		return OBJ_VAL(fiber);
+	}
+
+	fprintf(stderr, "Can't create a coroutine from a native or non-function value.\n");
+	return NIL_VAL;
+}
+
 COLD_FUNCTION
 void importNative_ctor(LfxVM* vm) {
 	defineNative_ctor(vm, "Object", objectNative);
@@ -373,4 +402,6 @@ void importNative_ctor(LfxVM* vm) {
 	defineNative_ctor(vm, "I8Array", I8ArrayNative);
 
 	defineNative_ctor(vm, "StringBuilder", stringBuilderNative);
+
+	defineNative_ctor(vm, "Fiber", fiberNative);
 }

@@ -1,0 +1,21 @@
+// fiber: @fiber.result is a pure read - it never executes the fiber, unlike
+// resume which would start a never-started one as a side effect
+// exit: 0
+// out: nil
+// out: false
+// out: 41
+// out: 42
+// out: result-done
+var bodyRan = false;
+var f = @ctor.Fiber(lambda() {
+	bodyRan = true;
+	yield 41;
+	return 42;
+});
+print @fiber.result(f);	//nil: never started...
+print bodyRan;			//false: ...and the body must not have run
+resume f;
+print @fiber.result(f);	//41: the last yielded value while suspended
+resume f;
+print @fiber.result(f);	//42: the settle value once finalized
+print "result-done";

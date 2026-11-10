@@ -1,0 +1,10 @@
+// fiber: mutual resume cycle A<->B rejected by the same guard
+// exit: 70
+// err: Can't resume a running coroutine.
+var a = @ctor.Fiber(lambda() {
+	resume b;
+});
+var b = @ctor.Fiber(lambda() {
+	resume a;
+});
+resume a;
