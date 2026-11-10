@@ -158,9 +158,8 @@ typedef struct LfxVM {
 
 	// set by the longjmp landing; consumed and cleared by run()'s error handler
 	bool caughtException;
-	//error unwinding: setjmp/longjmp target for runtimeError. Instance-level
-	//(multi-vm embedding): armed by the interpret entry points before run(),
-	//fired by runtimeError after the fiber chain teardown
+	bool jmpBuffArmed;
+	//fired by runtimeErrorInNative before the longjmp
 	jmp_buf errorJmp;
 } LfxVM;
 
@@ -225,9 +224,9 @@ uint32_t addConstant(LfxVM* vm, LfxValue value);
 
 //compile + prepare the top-level frame; on success the VM is ceding and the
 //caller may release the source buffer before calling interpret_execute
-bool interpret_compile(LfxVM* vm, C_STR source);
+bool interpret_compile(LfxVM* volatile vm, C_STR source);
 //run the prepared frame, or continue after INTERPRET_CEDE
-InterpretResult interpret_execute(LfxVM* vm);
+InterpretResult interpret_execute(LfxVM* volatile vm);
 InterpretResult interpret_repl(LfxVM* vm, C_STR source);
 
 //for builtin

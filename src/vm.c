@@ -153,7 +153,13 @@ static void runtimeErrorInNative(LfxVM* vm, C_STR format, ...) {
 	va_end(args);
 
 	vm_storeCacheToFiber(vm);	//sync the core: the trace reads real frame counts
-	longjmp(vm->errorJmp, 1);
+	if (vm->jmpBuffArmed) {
+		vm->jmpBuffArmed = false;
+		longjmp(vm->errorJmp, 1);
+	}
+	else {
+		exit(1);
+	}
 }
 
 NOINLINE_FUNCTION
@@ -458,7 +464,9 @@ void vm_init(LfxVM* vm)
 	vm->gcMark = OBJ_MARK_MASK;// start with all bits set
 	vm->gcWorking = 0;
 	vm->gcGeneration = 0;
+
 	vm->caughtException = false;
+	vm->jmpBuffArmed = false;
 
 	//the root fiber owns the main VM stack and the live frame/open-upvalue state
 	vm->currentFiber = newFiber(vm);
@@ -3187,7 +3195,7 @@ static InterpretResult run(LfxVM* vm)
 #undef RUNTIME_ERROR
 }
 
-bool interpret_compile(LfxVM* vm, C_STR source)
+bool interpret_compile(LfxVM* volatile vm, C_STR source)
 {
 	if (vm->cache.frameCount != 0 || vm->ceding) return false;
 
@@ -3210,16 +3218,19 @@ bool interpret_compile(LfxVM* vm, C_STR source)
 		stack_reset(vm);
 		vm->ceding = 0;
 		vm->caughtException = false;
+		vm->jmpBuffArmed = false;
 		return false;
 	}
 
+	vm->jmpBuffArmed = true;
 	call(vm, closure, 0);
 	//now the frame/stack are live, so the VM can be ceded/resumed
 	vm->ceding = 1;
+	vm->jmpBuffArmed = false;
 	return true;
 }
 
-InterpretResult interpret_execute(LfxVM* vm)
+InterpretResult interpret_execute(LfxVM* volatile vm)
 {
 	if (!vm_isCeding(vm) || vm->cache.frameCount == 0) return INTERPRET_RUNTIME_ERROR;
 
@@ -3228,12 +3239,12 @@ InterpretResult interpret_execute(LfxVM* vm)
 #if LOG_EXECUTE_TIMING
 	volatile uint64_t time_run = get_milliseconds();
 #endif
-
-	InterpretResult result = INTERPRET_RUNTIME_ERROR;
 	if (setjmp(vm->errorJmp) != 0) {
 		vm->caughtException = true;
 	}
-	result = run(vm);
+
+	vm->jmpBuffArmed = true;
+	InterpretResult result = run(vm);
 
 #if LOG_EXECUTE_TIMING
 	double time_run_f = (get_milliseconds() - time_run);
@@ -3248,6 +3259,8 @@ InterpretResult interpret_execute(LfxVM* vm)
 		if (vm->cache.frameCount != 0) stack_reset(vm);
 		vm->ceding = 0;
 	}
+
+	vm->jmpBuffArmed = false;
 	return result;
 }
 
