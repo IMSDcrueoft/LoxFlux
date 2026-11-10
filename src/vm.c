@@ -2585,6 +2585,7 @@ static InterpretResult run(LfxVM* vm)
 
 				if (resumer != NULL) {
 					fiber->isRunning = 0;
+					fiber->resumer = NULL;
 					fiber->status = FIBER_SETTLED;
 					sealFiber(vm, fiber);
 
@@ -2626,6 +2627,7 @@ static InterpretResult run(LfxVM* vm)
 			frame->ip = ip;
 			vm_storeCacheToFiber(vm);
 			fiber->isRunning = 0;
+			fiber->resumer = NULL;
 
 			vm->currentFiber = resumer;
 			vm_loadFiberToCache(vm);
