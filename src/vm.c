@@ -625,7 +625,7 @@ uint32_t addConstant(LfxVM* vm, LfxValue value)
 {
 	stack_push(vm, value);//prevent GC errors
 	uint32_t index = valueArray_write(vm, &vm->constants, value);
-	stack_pop(vm);
+	vm->cache.stackTop--;
 	return index;
 }
 
@@ -1313,6 +1313,7 @@ static InterpretResult run(LfxVM* vm)
 		[OP_RETURN] = && label_op_return,
 		[OP_CEDE] = && label_op_cede,
 		[OP_YIELD] = && label_op_yield,
+		[OP_RESUME] = && label_op_resume,
 		[OP_ITERATE] = && label_op_iterate,
 
 		[OP_GET_PROPERTY] = && label_op_get_property,
@@ -1667,7 +1668,7 @@ static InterpretResult run(LfxVM* vm)
 				}
 				//record the link for instanceof (methods above are copies, not a lookup chain)
 				subclass->superclass = AS_CLASS(superclass);
-				stack_pop(vm); // Subclass.
+				vm->cache.stackTop--; // Subclass.
 			}
 			else {
 				RUNTIME_ERROR("Superclass must be a class.");
@@ -2165,7 +2166,7 @@ static InterpretResult run(LfxVM* vm)
 			ObjString* name = AS_STRING(constant);
 			// this is used to create literal object,so we don't need to check frozen
 			tableSet(vm, &instance->fields, name, vm->cache.stackTop[-1]);
-			stack_pop(vm);
+			vm->cache.stackTop--;
 			NEXT_INSTRUCTION;
 		}
 		case OP_NEW_ITERATOR: {
@@ -2434,12 +2435,12 @@ static InterpretResult run(LfxVM* vm)
 		case OP_CLOSE_UPVALUE: {
 		label_op_close_upvalue:
 			closeUpvalues(vm, vm->cache.stackTop - 1);
-			stack_pop(vm);
+			vm->cache.stackTop--;
 			NEXT_INSTRUCTION;
 		}
 		case OP_POP: {
 		label_op_pop:
-			stack_pop(vm);
+			vm->cache.stackTop--;
 			NEXT_INSTRUCTION;
 		}
 		case OP_POP_N: {
@@ -2597,7 +2598,7 @@ static InterpretResult run(LfxVM* vm)
 				}
 				else {
 					//root fiber: not a coroutine, never seals - the REPL keeps reusing it line after line
-					stack_pop(vm);
+					vm->cache.stackTop--;
 					return INTERPRET_OK;
 				}
 			}
@@ -2633,6 +2634,54 @@ static InterpretResult run(LfxVM* vm)
 			vm_loadFiberToCache(vm);
 			UPDATE_FRAME();
 			stack_push(vm, fiber->result);
+			NEXT_INSTRUCTION;
+		}
+		case OP_RESUME: {
+		label_op_resume:
+			//stack: [fiber]; the operand slot is released below so the fiber's
+			//later yield/settle delivery lands exactly there
+			LfxValue targetVal = vm->cache.stackTop[-1];
+
+			//the resumed target must be a coroutine
+			if (!IS_FIBER(targetVal)) {
+				RUNTIME_ERROR("Can't resume a non-coroutine value.");
+			}
+
+			ObjFiber* target = AS_FIBER(targetVal);
+			//isRunning marks "executing on the active resumer chain", so this
+			//single flag rejects self, mutual and deep resume cycles alike
+			if (target->isRunning) {
+				RUNTIME_ERROR("Can't resume a running coroutine.");
+			}
+
+			//a sealed fiber (settled/failed/cancelled) never runs again: hand
+			//back the stored result without a switch. failed fibers hold nil
+			//until error propagation delivers real error values (later version)
+			if (target->status != FIBER_PENDING) {
+				stack_replace(vm, target->result);
+				NEXT_INSTRUCTION;
+			}
+
+			//release the operand slot BEFORE saving the resumer's core, so the
+			//fiber's later yield/settle stack_push balances the stack. no
+			//allocation between this pop and the currentFiber assignment: until
+			//then the target is kept alive only by this C local
+			frame->ip = ip;
+			vm->cache.stackTop--;
+			vm_storeCacheToFiber(vm);
+			target->resumer = vm->currentFiber;	//only executing fibers own a resumer
+			target->isRunning = 1;
+			vm->currentFiber = target;
+			vm_loadFiberToCache(vm);
+
+			if (vm->cache.frameCount == 0) {
+				//never-started fiber: the ctor left [callee, args...] on this
+				//fiber's own stack; enter the body now
+				call(vm, AS_CLOSURE(vm->cache.stack[0]), ((int)(ptrdiff_t)(vm->cache.stackTop - vm->cache.stack) - 1));
+			}
+			//else: suspended mid-execution, the saved ip continues after its yield
+
+			UPDATE_FRAME();
 			NEXT_INSTRUCTION;
 		}
 		case OP_ITERATE: {
