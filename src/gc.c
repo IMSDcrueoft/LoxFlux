@@ -242,13 +242,19 @@ static void blackenObject(LfxVM* vm, Obj* object) {
 	case OBJ_FIBER: {
 		ObjFiber* fiber = (ObjFiber*)object;
 
-		//scan only the live prefix of this fiber's stack
-		for (LfxValue* slot = fiber->core.stack; slot < fiber->core.stackTop; slot++) {
-			markValue(vm, *slot);
+		//a sealed fiber's core is zeroed (sealFiber): stack/frames are NULL
+		//and only result still holds references, so guard the scans
+		if (fiber->core.stack != NULL) {
+			//scan only the live prefix of this fiber's stack
+			for (LfxValue* slot = fiber->core.stack; slot < fiber->core.stackTop; slot++) {
+				markValue(vm, *slot);
+			}
 		}
 
-		for (uint32_t i = 0; i < fiber->core.frameCount; i++) {
-			markObject(vm, (Obj*)fiber->core.frames[i].closure);
+		if (fiber->core.frames != NULL) {
+			for (uint32_t i = 0; i < fiber->core.frameCount; i++) {
+				markObject(vm, (Obj*)fiber->core.frames[i].closure);
+			}
 		}
 
 		for (ObjUpvalue* upvalue = fiber->core.openUpvalues; upvalue != NULL; upvalue = upvalue->next) {
