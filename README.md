@@ -108,10 +108,28 @@ modifier     ::= "var" | "const"
 ### Cede
 
 - **`cede` keyword**: Hands execution control back to the host while keeping the VM frame stack live. Execution resumes from the next statement when the host resumes the VM. The standalone CLI has no resumer, so `cede` stops execution there.
-```lox
+```
 print "before";
 cede;
 print "after"; // runs only after the host resumes execution
+```
+
+---
+
+### Coroutine
+
+- **Fibers**: `@ctor.Fiber(body [, args...])` creates a coroutine from a function (natives are rejected); extra arguments are forwarded to the body. A fiber runs only when resumed.
+- **`yield` / `resume`**: `yield expr` suspends the fiber and delivers `expr` as the value of the corresponding `resume` expression; `resume f` starts or re-enters `f` and evaluates to the yielded — or finally returned — value. Yielding in top-level, or resuming a running fiber (self/cycle), is a runtime error.
+- **Lifecycle**: returning settles a fiber (`SETTLED`), a runtime error fails it (`FAILED`), `@fiber.cancel` finalizes it (`CANCELLED`). Finalized fibers never execute again — resuming one just returns its result.
+
+```
+var f = @ctor.Fiber(lambda(a) {
+    yield a + 1;
+    return "done";
+});
+print resume f;                            // 6
+print @fiber.status(f) == @fiber.PENDING;  // true
+print resume f;                            // done
 ```
 
 ---
@@ -216,7 +234,7 @@ print thing; // Prints the exported value from module.lfx
 ```
 - **export**: Used within a module file to specify what value should be returned to the importing file. It works similarly to `return` but in the module context.
 ```
-// Inside module.lox  
+// Inside module
 const PI = 3.14159;  // the module file work in local scope, so you can use const
   
 // Export an object with math functions  
@@ -232,7 +250,7 @@ export {
 
 There are some namespace objects that start with `'@'` available, and since they are not in the global scope, the initial state of the global scope is a "completely clean" state. 
 
-#### `@math` `@array` `@object` `@string` `@time` `@ctor` `@sys`
+#### `@math` `@array` `@object` `@string` `@time` `@ctor` `@fiber` `@sys`
 
 The `@math` module provides a comprehensive set of mathematical functions and utilities, implemented as native bindings for efficiency and ease of use. These functions are accessible globally and can be used directly in scripts or applications.
 
@@ -371,6 +389,7 @@ The `@ctor` module provides built-in types of constructors.
   - `U8Array`: Creates a fixed-size array of 8-bit unsigned integers (commonly used for byte-level operations).
   - `I8Array`: Creates a fixed-size array of 8-bit signed integers.
   - `StringBuilder`: Creates a mutable string buffer, optionally initialized with a string or another builder.  
+  - `Fiber`: Creates a coroutine from a function; extra arguments are forwarded to the body.  
 
 ---
 
@@ -394,6 +413,18 @@ The `@sys` module offers low-level system utilities, primarily focused on file I
   - `pinnedBytes`: Returns the total number of bytes allocated for static objects(e.g., strings, functions).
 
 These utilities are invaluable for monitoring and optimizing memory usage, especially in long-running applications or environments with limited resources. They enable developers to manage memory explicitly and diagnose potential memory leaks or inefficiencies.
+
+---
+
+The `@fiber` module provides coroutine introspection and lifecycle control.
+
+- **Status**:
+  - `status`: Returns the fiber's state as one of the `PENDING` / `RUNNING` / `SETTLED` / `FAILED` / `CANCELLED` constants.
+  - `result`: Returns the fiber's last yielded value, or its settle value once finalized.
+
+- **Lifecycle Control**:
+  - `cancel`: Finalizes a pending fiber as `CANCELLED`, optionally storing a result value; returns whether the cancel took.
+  - `current`: Returns the fiber executing right now (the root fiber at top level).
 
 ---
 
@@ -485,6 +516,5 @@ The project **loxFlux** is based on `MIT` and uses three third-party projects.
 
 ## Other expectations
 1. try catch syntax.
-2. coroutine support.
-3. performace improve.
-4. gc optimization.
+2. performace improve.
+3. gc optimization.
