@@ -1,0 +1,31 @@
+// fiber: an unreachable suspended fiber is reclaimed by gc; sealFiber closes
+// its open upvalues so an escaped closure keeps reading valid values
+// exit: 0
+// out: suspended
+// out: payload-42
+// out: gc-seal-done
+var escaped = nil;
+var f = @ctor.Fiber(lambda() {
+	var secret = [];	//runtime object, not reachable from any chunk
+	@array.push(secret, "payload-42");
+	escaped = lambda() { return secret[0]; };	//captures secret while it is open
+	yield "suspended";	//secret stays open on the fiber stack
+	return "never";
+});
+print resume f;
+
+//drop the last reference: the suspended fiber becomes unreachable garbage
+f = nil;
+
+//force a cycle that must reclaim the fiber and seal its open upvalues
+@sys.gcRun();
+
+//churn the heap so a dangling reference cannot pass on stale-byte luck
+for (var i = 0; i < 300; i = i + 1) {
+	@array.push(@ctor.Array(8), "churn");
+}
+@sys.gcRun();
+
+//the escaped closure reads the closed-over copy, not a dangling stack slot
+print escaped();
+print "gc-seal-done";

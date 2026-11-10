@@ -1,0 +1,8 @@
+// fiber: anonymous fiber settles on the first resume, result delivered inline
+// exit: 0
+// out: 9
+// out: anon-done
+print resume @ctor.Fiber(lambda() {
+	return 9;
+});
+print "anon-done";
