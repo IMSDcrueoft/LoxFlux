@@ -29,6 +29,7 @@ export type Expr =
 	| ArrayLiteralExpr
 	| ObjectLiteralExpr
 	| ImportExpr
+	| ResumeExpr
 	| ThisExpr
 	| SuperExpr;
 
@@ -131,6 +132,12 @@ export interface ImportExpr extends Node {
 	path: Expr;
 }
 
+export interface ResumeExpr extends Node {
+	kind: 'Resume';
+	resumeToken: Token;
+	operand: Expr;
+}
+
 export interface ThisExpr extends Node {
 	kind: 'This';
 	token: Token;
@@ -158,6 +165,7 @@ export type Stmt =
 	| ThrowStmt
 	| ExportStmt
 	| CedeStmt
+	| YieldStmt
 	| BreakStmt
 	| ContinueStmt
 	| BlockStmt;
@@ -280,6 +288,12 @@ export interface ExportStmt extends Node {
 export interface CedeStmt extends Node {
 	kind: 'Cede';
 	cedeToken: Token;
+}
+
+export interface YieldStmt extends Node {
+	kind: 'Yield';
+	yieldToken: Token;
+	value?: Expr;
 }
 
 export interface BreakStmt extends Node {
