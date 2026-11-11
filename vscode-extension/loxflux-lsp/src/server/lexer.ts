@@ -22,7 +22,7 @@ export enum TokenType {
 	// Literals.
 	Identifier, String, StringEscape, Number, NumberBin, NumberHex,
 	// Builtin Literals.
-	ModuleMath, ModuleArray, ModuleObject, ModuleString, ModuleTime, ModuleCtor, ModuleSys,
+	ModuleMath, ModuleArray, ModuleObject, ModuleString, ModuleTime, ModuleCtor, ModuleFiber, ModuleSys,
 	// Keywords.
 	And, Class, Else, False,
 	For, ForEach, Fun, If, Nil, Or,
@@ -30,7 +30,7 @@ export enum TokenType {
 	True, Var, While, Do, Const,
 	Break, Continue, Throw, Lambda, RightArrow,
 	Branch, None, InstanceOf, TypeOf, In,
-	Import, Export, Cede,
+	Import, Export, Cede, Yield, Resume,
 
 	Error, EOF,
 }
@@ -89,6 +89,7 @@ const KEYWORDS: Record<string, TokenType> = {
 	'none': TokenType.None,
 	'or': TokenType.Or,
 	'print': TokenType.Print,
+	'resume': TokenType.Resume,
 	'return': TokenType.Return,
 	'super': TokenType.Super,
 	'this': TokenType.This,
@@ -97,6 +98,7 @@ const KEYWORDS: Record<string, TokenType> = {
 	'typeof': TokenType.TypeOf,
 	'var': TokenType.Var,
 	'while': TokenType.While,
+	'yield': TokenType.Yield,
 };
 
 const MODULES: Record<string, TokenType> = {
@@ -106,6 +108,7 @@ const MODULES: Record<string, TokenType> = {
 	'string': TokenType.ModuleString,
 	'time': TokenType.ModuleTime,
 	'ctor': TokenType.ModuleCtor,
+	'fiber': TokenType.ModuleFiber,
 	'sys': TokenType.ModuleSys,
 };
 

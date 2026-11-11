@@ -4,6 +4,9 @@ All notable changes to the "loxflux-syntax-highlight" extension will be document
 
 ## [Unreleased]
 
+### ver 0.0.7
+- Add `yield` / `resume` keyword highlighting (0.14.0 coroutine support)
+- Add `@fiber` to the builtin module scope
 ### ver 0.0.1
 - Initialize base highlight
 ### ver 0.0.2

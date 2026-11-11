@@ -157,6 +157,7 @@ export class Parser {
 				case TokenType.Throw:
 				case TokenType.Export:
 				case TokenType.Cede:
+				case TokenType.Yield:
 					return;
 				default:
 					this.advance();
@@ -402,6 +403,9 @@ export class Parser {
 		if (this.match(TokenType.Cede)) {
 			return this.cedeStatement();
 		}
+		if (this.match(TokenType.Yield)) {
+			return this.yieldStatement();
+		}
 		return this.expressionStatement();
 	}
 
@@ -446,6 +450,22 @@ export class Parser {
 		const cedeToken = this.previous;
 		this.consume(TokenType.Semicolon, "Expect ';' after 'cede'.");
 		return { kind: 'Cede', start: cedeToken.start, end: this.previous.end, cedeToken };
+	}
+
+	private yieldStatement(): Stmt {
+		const yieldToken = this.previous;
+		let value: Expr | undefined;
+		if (!this.match(TokenType.Semicolon)) {
+			value = this.expression();
+			this.consume(TokenType.Semicolon, "Expect ';' after yield value.");
+		}
+		return { kind: 'Yield', start: yieldToken.start, end: this.previous.end, yieldToken, value };
+	}
+
+	private resumeExpression(): Expr {
+		const resumeToken = this.previous;
+		const operand = this.parsePrecedence(Precedence.PrecCall);
+		return { kind: 'Resume', start: resumeToken.start, end: this.previous.end, resumeToken, operand };
 	}
 
 	private ifStatement(): Stmt {
@@ -675,6 +695,7 @@ export class Parser {
 			case TokenType.ModuleString:
 			case TokenType.ModuleTime:
 			case TokenType.ModuleCtor:
+			case TokenType.ModuleFiber:
 			case TokenType.ModuleSys:
 				return {
 					prefix: () => {
@@ -686,6 +707,8 @@ export class Parser {
 				};
 			case TokenType.Lambda:
 				return { prefix: () => this.lambda(), infix: undefined, precedence: Precedence.PrecNone };
+			case TokenType.Resume:
+				return { prefix: () => this.resumeExpression(), infix: undefined, precedence: Precedence.PrecNone };
 			case TokenType.Import:
 				return {
 					prefix: () => {

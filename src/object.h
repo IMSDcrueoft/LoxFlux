@@ -157,6 +157,13 @@ typedef struct {
 	void* extraB; //invoke: ObjClosure*
 } InlineCacheSlot;
 
+// the try block body info, used to unwind the stack and find the catch block
+typedef struct {
+	uint32_t tryBegin; // ip + begin = begin of try block
+	uint16_t tryBytes; // ip + begin + tryBytes = begin of catch block
+	uint16_t slotDepth;// frame slot depth before try block
+} tryBody;
+
 typedef struct {
 	Obj obj;
 	uint16_t arity;

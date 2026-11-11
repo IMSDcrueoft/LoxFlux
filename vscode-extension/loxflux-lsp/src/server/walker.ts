@@ -117,6 +117,11 @@ function walkStmt(stmt: Stmt, ctx: WalkContext, handlers: WalkHandlers): void {
 			break;
 		case 'Cede':
 			break;
+		case 'Yield':
+			if (stmt.value) {
+				walkExpr(stmt.value, ctx, handlers);
+			}
+			break;
 		case 'Break':
 		case 'Continue':
 			break;
@@ -195,6 +200,9 @@ function walkExpr(expr: Expr, ctx: WalkContext, handlers: WalkHandlers): void {
 			if (expr.path.kind !== 'Literal') {
 				walkExpr(expr.path, ctx, handlers);
 			}
+			break;
+		case 'Resume':
+			walkExpr(expr.operand, ctx, handlers);
 			break;
 	}
 }

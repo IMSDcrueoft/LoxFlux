@@ -4,7 +4,12 @@ All notable changes to the LoxFlux Language Server extension will be documented 
 
 ## [Unreleased]
 
+## [0.1.7]
+
 - Add LSP support for the `cede` keyword: lexing, parsing, diagnostics, keyword hover and completion.
+- Add LSP support for the `yield` / `resume` keywords: lexing, parsing (`yield expr?;` statement, `resume` call-level prefix expression), keyword hover and completion.
+- Add the `@fiber` builtin module: `status` / `result` / `cancel` / `current` and the `PENDING` / `RUNNING` / `SETTLED` / `FAILED` / `CANCELLED` status constants.
+- Add `@ctor.Fiber` constructor documentation.
 
 ## [0.1.6]
 
