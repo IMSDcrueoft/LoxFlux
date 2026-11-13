@@ -1,0 +1,32 @@
+// invoke inline-cache slots hold weak [klass, closure] pairs that
+// gc_clear_dead_ic_slots must clear once the cached class dies; a function
+// whose IC registration is skipped (endCompiler guard bug) keeps stale
+// pointers, and after mimalloc reuses the freed blocks the klass-identity
+// guard can false-hit and call whatever now occupies the old closure block.
+// The per-iteration decoy lambdas shift same-size-class reuse so the stale
+// slot is eventually invoked with a mismatched closure: a regression turns
+// into a wrong count or an access violation, the fixed build always prints 0.
+// exit: 0
+// out: 0
+
+fun make(n) {
+	class T { m() { return n; } }
+	for (var j = 0; j < (n % 5); j = j + 1) {
+		var d = lambda () => 999;
+	}
+	return T;
+}
+
+var bad = 0;
+for (var i = 0; i < 300; i = i + 1) {
+	var T = make(i);
+	var t = T();
+	var r = t.m();
+	if (r != i) {
+		bad = bad + 1;
+	}
+	T = nil;
+	t = nil;
+	@sys.gcRun();
+}
+print bad;
