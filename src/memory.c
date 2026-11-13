@@ -120,11 +120,16 @@ void freeObject(LfxVM* vm, Obj* object) {
 	case OBJ_FUNCTION: {
 		ObjFunction* function = (ObjFunction*)object;
 		chunk_free(vm, &function->chunk);
-		//inline cache slots are owned by the object (post-endCompiler size is exactly cacheCount+1;
-		//FAM-sealed scratch objects arrive with caches == NULL, so they skip this)
+		//both arrays are owned by the object and keep their doubling slack,
+		//so they are freed by the recorded capacity
+		//(FAM-sealed scratch objects arrive with caches == NULL, so they skip this)
 		if (function->caches != NULL) {
-			FREE_ARRAY_NO_GC(vm, InlineCacheSlot, function->caches, (uint32_t)function->cacheCount + 1);
+			FREE_ARRAY_NO_GC(vm, InlineCacheSlot, function->caches, function->cacheCapacity);
 			function->caches = NULL;
+		}
+		if (function->tryContexts != NULL) {
+			FREE_ARRAY_NO_GC(vm, TryContext, function->tryContexts, function->tryContextCapacity);
+			function->tryContexts = NULL;
 		}
 		FREE_FLEX_NO_GC(vm, ObjFunction, function, LfxValue, function->constantsCount);
 		break;

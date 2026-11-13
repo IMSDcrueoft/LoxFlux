@@ -162,20 +162,32 @@ typedef struct {
 	uint32_t tryBegin; // ip + begin = begin of try block
 	uint16_t tryBytes; // ip + begin + tryBytes = begin of catch block
 	uint16_t slotDepth;// frame slot depth before try block
-} tryBody;
+} TryContext;
+
+typedef struct {
+	Obj obj;
+	uint16_t traceLines;
+	uint16_t length; // Truncate the length to a certain amount to prevent too much output
+	uint32_t capacity;
+	char* text;
+} ObjError;
 
 typedef struct {
 	Obj obj;
 	uint16_t arity;
 	uint16_t upvalueCount;
 	uint32_t id;
-	Chunk chunk;			// function bytecodes
 
+	uint16_t cacheCount;				// number of allocated slots (capped at UINT8_MAX: the slot operand is u8)
+	uint16_t tryContextCount;			// number of allocated try contexts
+	uint32_t cacheCapacity;
+	uint32_t tryContextCapacity;
+	uint32_t constantsCount;			// number of constants in the FAM (sealed at endCompiler; code indexes are 16-bit)
+
+	Chunk chunk;						// function bytecodes
 	ObjString* name;
+	TryContext* tryContexts;					// try block contexts, sized at compile time, runtime only reads
 	InlineCacheSlot* caches;			// inline cache slots, sized at compile time, runtime only overwrites (numbers + gc-marked pointers)
-	uint32_t cacheCount;	// number of allocated slots (capped at UINT8_MAX: the slot operand is u8)
-
-	uint32_t constantsCount; // number of constants in the FAM (sealed at endCompiler; code indexes are 16-bit)
 	LfxValue constants[];
 } ObjFunction;
 

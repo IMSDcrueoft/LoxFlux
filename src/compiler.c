@@ -169,7 +169,7 @@ static void emitShortCommand(CompilerContext* cc, OpCode target, uint32_t index)
 //returns the operand to embed in the instruction
 static uint8_t emitCacheSlot(CompilerContext* cc) {
 	Compiler* current = cc->currentCompiler;
-	if (current->cacheCount + 1 > UINT8_MAX) {//operand values 1..255 are real slots
+	if (current->function.cacheCount + 1 > UINT8_MAX) {//operand values 1..255 are real slots
 #if DEBUG_PRINT_CODE
 		if (!current->icWarned) {
 			current->icWarned = true;
@@ -177,9 +177,9 @@ static uint8_t emitCacheSlot(CompilerContext* cc) {
 				current->function.name != NULL ? current->function.name->chars : "<script>");
 		}
 #endif
-		if (current->cacheCapacity == 0) {//sentinel sites still need array[0] to exist
+		if (current->function.cacheCapacity == 0) {//sentinel sites still need array[0] to exist
 			current->function.caches = ALLOCATE_NO_GC(cc->vm, InlineCacheSlot, 1);
-			current->cacheCapacity = 1;
+			current->function.cacheCapacity = 1;
 			current->function.caches[0].capacity = 0;
 			current->function.caches[0].index = 0;
 			current->function.caches[0].extraA = NULL;
@@ -188,21 +188,21 @@ static uint8_t emitCacheSlot(CompilerContext* cc) {
 		return 0;//sentinel
 	}
 
-	if (current->cacheCapacity < (uint32_t)current->cacheCount + 2) {//real slot k lives at array index k+1
-		uint32_t capacity = GROW_CAPACITY(current->cacheCapacity);
+	if (current->function.cacheCapacity < (uint32_t)current->function.cacheCount + 2) {//real slot k lives at array index k+1
+		uint32_t capacity = GROW_CAPACITY(current->function.cacheCapacity);
 		bool firstAlloc = (current->function.caches == NULL);
-		current->function.caches = GROW_ARRAY_NO_GC(cc->vm, InlineCacheSlot, current->function.caches, current->cacheCapacity, capacity);
+		current->function.caches = GROW_ARRAY_NO_GC(cc->vm, InlineCacheSlot, current->function.caches, current->function.cacheCapacity, capacity);
 		if (firstAlloc) {//malloc memory is not zeroed: init the shared sentinel slot at index 0
 			current->function.caches[0].capacity = 0;
 			current->function.caches[0].index = 0;
 			current->function.caches[0].extraA = NULL;
 			current->function.caches[0].extraB = NULL;
 		}
-		current->cacheCapacity = capacity;
+		current->function.cacheCapacity = capacity;
 	}
 
-	uint8_t slot = (uint8_t)(current->cacheCount + 1);//operand = real index + 1
-	current->cacheCount++;
+	uint8_t slot = (uint8_t)(current->function.cacheCount + 1);//operand = real index + 1
+	current->function.cacheCount++;
 	current->function.caches[slot].capacity = 0;
 	current->function.caches[slot].index = 0;
 	current->function.caches[slot].extraA = NULL;
@@ -579,7 +579,7 @@ static bool foldBuiltinMember(CompilerContext* cc) {
 	// revert the allocated IC slot: the folded site no longer owns one
 	if (slot != 0) {
 		Compiler* current = cc->currentCompiler;
-		current->cacheCount--;
+		current->function.cacheCount--;
 	}
 
 	//numbers into the function's own pool, native members into the shared pool
@@ -650,12 +650,14 @@ static void initCompiler(CompilerContext* cc, Compiler* compiler, FunctionType t
 	chunk_init(&compiler->function.chunk);
 	compiler->function.caches = NULL;
 	compiler->function.cacheCount = 0;
+	compiler->function.cacheCapacity = 0;
+	compiler->function.tryContexts = NULL;
+	compiler->function.tryContextCount = 0;
+	compiler->function.tryContextCapacity = 0;
 	compiler->function.constantsCount = 0;//scratch state, constants live in the compiler until sealed
 	compiler->objectNestingDepth = 0;
 
-	compiler->cacheCount = 0;
 	compiler->icWarned = false;
-	compiler->cacheCapacity = 0;
 
 	compiler->condRegionValid = false;
 
@@ -721,13 +723,6 @@ static ObjFunction* endCompiler(CompilerContext* cc) {
 	opStack_free(cc->vm, currentOpStack(cc));
 	binaryTable_free(cc->vm, &current->numbers);//free every compiler's number pool (nested compilers were leaking)
 
-	//shrink inline caches to exactly cacheCount+1 entries (index 0 = shared sentinel slot)
-	//small functions/lambdas keep no doubling slack; functions without ic sites keep NULL
-	if (current->cacheCapacity > (uint32_t)current->cacheCount + 1) {
-		current->function.caches = GROW_ARRAY_NO_GC(cc->vm, InlineCacheSlot, current->function.caches, current->cacheCapacity, (uint32_t)current->cacheCount + 1);
-		current->cacheCapacity = (uint32_t)current->cacheCount + 1;
-	}
-
 	//materialize the final FAM function from the embedded compile-time state
 	//must run BEFORE IC registration: the registry and OP_CLOSURE must hold the final object pointer
 	ObjFunction* function = newFunction(cc->vm, current);
@@ -735,12 +730,17 @@ static ObjFunction* endCompiler(CompilerContext* cc) {
 	//detach the moved buffers from the embedded state: the fresh object owns them now
 	chunk_init(&current->function.chunk);
 	current->function.caches = NULL;
+	current->function.cacheCapacity = 0;
+	current->function.tryContexts = NULL;
+	current->function.tryContextCount = 0;
+	current->function.tryContextCapacity = 0;
 	current->function.constantsCount = 0;
 
 	valueArray_free(cc->vm, &current->constants);
 
 	//register for gc: invoke cache slots hold ObjClass*/ObjClosure* that must stay marked
-	if (current->cacheCapacity > 0) {
+	//(check the materialized object: the embedded scratch state was detached/zeroed above)
+	if (function->cacheCapacity > 0) {
 		vm_registerIcFunction(cc->vm, function);
 	}
 
@@ -1413,6 +1413,69 @@ static void ifStatement(CompilerContext* cc) {
 	patchJump(cc, elseJump);
 }
 
+//entries live in function.tryContexts, moved into the ObjFunction at endCompiler
+static void recordTryContext(CompilerContext* cc, uint32_t tryBegin, uint16_t tryBytes, uint16_t slotDepth) {
+	Compiler* current = cc->currentCompiler;
+
+	if (current->function.tryContextCount == UINT8_COUNT) {
+		error(cc, "Too many try-catch blocks in one function.");
+		return;
+	}
+
+	if (current->function.tryContextCount == current->function.tryContextCapacity) {
+		uint32_t oldCapacity = current->function.tryContextCapacity;
+		current->function.tryContextCapacity = GROW_CAPACITY(oldCapacity);
+		current->function.tryContexts = GROW_ARRAY_NO_GC(cc->vm, TryContext, current->function.tryContexts, oldCapacity, current->function.tryContextCapacity);
+	}
+
+	current->function.tryContexts[current->function.tryContextCount++] = (TryContext) {
+		.tryBegin = tryBegin,
+		.tryBytes = tryBytes,
+		.slotDepth = slotDepth
+	};
+}
+
+static void tryStatement(CompilerContext* cc) {
+	Compiler* current = cc->currentCompiler;
+
+	uint32_t slotDepth = current->localCount;
+	uint32_t tryBegin = currentChunk(cc)->count;
+
+	consume(cc, TOKEN_LEFT_BRACE, "Expect '{' after 'try'.");
+	beginScope(cc);
+	block(cc);
+	endScope(cc);
+
+	int32_t endJump = emitJump(cc, OP_JUMP);
+
+	//the region also covers the 3-byte exit jump so the catch entry is exactly
+	//tryBegin + tryBytes; the jump itself can never raise
+	uint32_t tryBytes = currentChunk(cc)->count - tryBegin;
+	if (tryBytes > UINT16_MAX) {
+		error(cc, "Too much code in try block.");
+	}
+
+	consume(cc, TOKEN_CATCH, "Expect 'catch' after try block.");
+	consume(cc, TOKEN_LEFT_PAREN, "Expect '(' after 'catch'.");
+	consume(cc, TOKEN_IDENTIFIER, "Expect error binding name in 'catch (...)'.");
+	Token errorName = cc->parser.previous;
+	consume(cc, TOKEN_RIGHT_PAREN, "Expect ')' after catch binding.");
+
+	//exception dispatch restores the stack to slotDepth and pushes the error
+	//value, so it lands exactly at locals[slotDepth]: the binding needs no
+	//initializer opcode and is unreachable on the normal path
+	beginScope(cc);
+	declareVariableAt(cc, &errorName);
+	markInitialized(cc, false);
+
+	consume(cc, TOKEN_LEFT_BRACE, "Expect '{' after catch binding.");
+	block(cc);
+	endScope(cc);
+
+	recordTryContext(cc, tryBegin, (uint16_t)tryBytes, (uint16_t)slotDepth);
+	patchJump(cc, endJump);
+}
+
 static void branchCaseStatementInner(CompilerContext* cc) {
 	if (!match(cc, TOKEN_NONE)) {
 		int32_t condStart = beginCondition(cc);
@@ -1732,6 +1795,7 @@ static void synchronize(CompilerContext* cc) {
 		case TOKEN_PRINT:
 		case TOKEN_RETURN:
 		case TOKEN_THROW:
+		case TOKEN_TRY:
 		case TOKEN_IMPORT:
 		case TOKEN_EXPORT:
 		case TOKEN_CEDE:
@@ -1784,6 +1848,9 @@ static void statementInner(CompilerContext* cc) {
 	}
 	else if (match(cc, TOKEN_THROW)) {
 		throwStatement(cc);
+	}
+	else if (match(cc, TOKEN_TRY)) {
+		tryStatement(cc);
 	}
 	else if (match(cc, TOKEN_EXPORT)) {
 		exportsStatement(cc);
@@ -2523,6 +2590,8 @@ ParseRule rules[] = {
 	[TOKEN_CEDE] = { NULL,     NULL,   PREC_NONE },
 	[TOKEN_YIELD] = { NULL,     NULL,   PREC_NONE },
 	[TOKEN_RESUME] = { resume_,     NULL,   PREC_NONE },
+	[TOKEN_TRY] = { NULL,     NULL,   PREC_NONE },
+	[TOKEN_CATCH] = { NULL,     NULL,   PREC_NONE },
 };
 
 static ParseRule* getRule(TokenType type) {

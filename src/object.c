@@ -112,7 +112,6 @@ ObjFunction* newFunction(LfxVM* vm, Compiler* compiler) {
 
 	memcpy(function->constants, compiler->constants.values, sizeof(LfxValue) * constantsCount);//always copy, count may be 0
 	function->constantsCount = constantsCount;
-	function->cacheCount = compiler->cacheCount;//real slot count for the VM
 
 	return function;
 }
