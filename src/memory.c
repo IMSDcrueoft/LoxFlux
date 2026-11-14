@@ -117,6 +117,14 @@ void freeObject(LfxVM* vm, Obj* object) {
 	case OBJ_ITERATOR:
 		FREE(vm, ObjIterator, object);
 		break;
+	case OBJ_ERROR: {
+		ObjError* error = (ObjError*)object;
+		if (error->text != NULL) {
+			FREE_ARRAY(vm, char, error->text, error->capacity);
+		}
+		FREE(vm, ObjError, object);
+		break;
+	}
 	case OBJ_FUNCTION: {
 		ObjFunction* function = (ObjFunction*)object;
 		chunk_free(vm, &function->chunk);

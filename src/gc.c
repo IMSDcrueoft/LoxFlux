@@ -239,6 +239,9 @@ static void blackenObject(LfxVM* vm, Obj* object) {
 		markObject(vm, iterator->target);
 		break;
 	}
+	case OBJ_ERROR:
+		//pure text, no references to trace
+		break;
 	case OBJ_FIBER: {
 		ObjFiber* fiber = (ObjFiber*)object;
 

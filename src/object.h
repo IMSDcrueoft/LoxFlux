@@ -45,6 +45,9 @@ typedef enum {
 	//coroutine
 	OBJ_FIBER,
 
+	//error
+	OBJ_ERROR,
+
 	//string builder and array are typed arrays
 	OBJ_STRING_BUILDER,
 	//array
@@ -72,6 +75,7 @@ typedef enum {
 	TYPE_STRING_OBJECT,
 	TYPE_STRING_ITERATOR,
 	TYPE_STRING_FIBER,
+	TYPE_STRING_ERROR,
 	TYPE_STRING_ARRAY,
 	TYPE_STRING_ARRAY_F64,
 	TYPE_STRING_ARRAY_F32,
@@ -349,6 +353,7 @@ typedef struct ObjFiber {
 #define IS_INSTANCE(value)			isObjType(value, OBJ_INSTANCE)
 #define IS_FIBER(value)				isObjType(value, OBJ_FIBER)
 #define IS_ITERATOR(value)			isObjType(value, OBJ_ITERATOR)
+#define IS_ERROR(value)				isObjType(value, OBJ_ERROR)
 #define IS_STRING(value)			isObjType(value, OBJ_STRING)
 #define IS_STRING_BUILDER(value)	isObjType(value, OBJ_STRING_BUILDER)
 #define IS_ARRAY(value)				isObjType(value, OBJ_ARRAY)
@@ -404,6 +409,7 @@ typedef struct ObjFiber {
 #define AS_NATIVE(value)			(((ObjNative*)AS_OBJ(value))->function)
 #define AS_STRING(value)			((ObjString*)AS_OBJ(value))
 #define AS_ARRAY(value)				((ObjArray*)AS_OBJ(value))
+#define AS_ERROR(value)				((ObjError*)AS_OBJ(value))
 
 static inline bool isObjType(LfxValue value, ObjType type) {
 	return IS_OBJ(value) && AS_OBJ(value)->type == type;
@@ -448,6 +454,7 @@ ObjInstance* newInstance(LfxVM* vm, ObjClass* klass);
 ObjFiber* newFiber(LfxVM* vm);
 ObjArray* newArray(LfxVM* vm, ObjType type);
 ObjIterator* newIterator(LfxVM* vm, Obj* target);
+ObjError* newError(LfxVM* vm);
 
 void reserveArray(LfxVM* vm, ObjArray* array, uint64_t size);
 

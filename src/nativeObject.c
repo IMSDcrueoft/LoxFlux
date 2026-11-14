@@ -67,6 +67,12 @@ static LfxValue isFiberNative(LfxVM* vm, int argCount, LfxValue* args) {
 	return BOOL_VAL(argCount >= 1 && IS_FIBER(args[0]));
 }
 
+static LfxValue isErrorNative(LfxVM* vm, int argCount, LfxValue* args)
+{
+	(void)vm;
+	return BOOL_VAL(argCount >= 1 && IS_ERROR(args[0]));
+}
+
 //returns the class object of an instance; pairs with the class-level
 //instanceof semantics: getClass(a) instanceof getClass(b) is a dynamic
 //subclass check. non-instances have no class -> nil
@@ -178,6 +184,7 @@ void importNative_object(LfxVM* vm) {
 	defineNative_object(vm, "isArrayLike", isArrayLikeNative);
 	defineNative_object(vm, "isBoolean", isBooleanNative);
 	defineNative_object(vm, "isFiber", isFiberNative);
+	defineNative_object(vm, "isError", isErrorNative);
 	defineNative_object(vm, "getClass", getClassNative);
 	defineNative_object(vm, "getGlobal", getGlobalNative);
 	defineNative_object(vm, "keys", keysNative);

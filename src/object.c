@@ -24,6 +24,7 @@ const C_STR objTypeInfo[] = {
 	[OBJ_INSTANCE] = {"instance"},
 	[OBJ_ITERATOR] = {"iterator"},
 	[OBJ_FIBER] = {"fiber"},
+	[OBJ_ERROR] = {"error"},
 	[OBJ_STRING_BUILDER] = {"stringBuilder"},
 	[OBJ_ARRAY] = {"array"},
 	[OBJ_ARRAY_F64] = {"arrayF64"},
@@ -138,6 +139,15 @@ ObjBoundMethod* newBoundMethod(LfxVM* vm, LfxValue receiver, ObjClosure* method)
 	bound->receiver = receiver;
 	bound->method = method;
 	return bound;
+}
+
+ObjError* newError(LfxVM* vm) {
+	ObjError* error = ALLOCATE_OBJ(vm, ObjError, OBJ_ERROR);
+	error->traceLines = 0;
+	error->length = 0;
+	error->capacity = 0;
+	error->text = NULL;
+	return error;
 }
 
 //create native function
@@ -603,6 +613,11 @@ void printObjectTo(FILE* stream, LfxValue value, bool isExpand) {
 	case OBJ_ITERATOR:
 		fprintf(stream, "<iterator>");
 		break;
+	case OBJ_ERROR: {
+		ObjError* error = AS_ERROR(value);
+		fprintf(stream, "<error> \"%s\"", (error->text != NULL) ? error->text : "");
+		break;
+	}
 	default: {
 		if (isIndexableArray(value)) {
 			ObjArray* array = AS_ARRAY(value);

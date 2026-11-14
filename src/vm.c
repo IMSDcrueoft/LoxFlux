@@ -375,6 +375,7 @@ static void initTypeStrings(LfxVM* vm) {
 	vm->typeStrings[TYPE_STRING_OBJECT] = copyString(vm, "object", (uint32_t)strlen("object"), false);
 	vm->typeStrings[TYPE_STRING_ITERATOR] = copyString(vm, "iterator", (uint32_t)strlen("iterator"), false);
 	vm->typeStrings[TYPE_STRING_FIBER] = copyString(vm, "fiber", (uint32_t)strlen("fiber"), false);
+	vm->typeStrings[TYPE_STRING_ERROR] = copyString(vm, "error", (uint32_t)strlen("error"), false);
 	vm->typeStrings[TYPE_STRING_ARRAY] = copyString(vm, "array", (uint32_t)strlen("array"), false);
 	vm->typeStrings[TYPE_STRING_ARRAY_F64] = copyString(vm, "array-f64", (uint32_t)strlen("array-f64"), false);
 	vm->typeStrings[TYPE_STRING_ARRAY_F32] = copyString(vm, "array-f32", (uint32_t)strlen("array-f32"), false);
@@ -687,6 +688,9 @@ static void getTypeof(LfxVM* vm) {
 			return;
 		case OBJ_FIBER:
 			stack_replace(vm, OBJ_VAL(vm->typeStrings[TYPE_STRING_FIBER]));
+			return;
+		case OBJ_ERROR:
+			stack_replace(vm, OBJ_VAL(vm->typeStrings[TYPE_STRING_ERROR]));
 			return;
 		case OBJ_ARRAY:
 			stack_replace(vm, OBJ_VAL(vm->typeStrings[TYPE_STRING_ARRAY]));
