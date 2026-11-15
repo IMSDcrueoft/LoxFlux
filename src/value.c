@@ -114,7 +114,7 @@ void convert_adaptive_double(double value, char* buffer, uint32_t bufferSize) {
 	const int k = digitCount;
 
 	uint32_t pos = 0;
-	if (negative) buffer[pos++] = '-';
+	if (negative && pos + 1 < bufferSize) buffer[pos++] = '-';
 
 	if (k <= n && n <= 21) {//integer-shaped: digits + (n-k) trailing zeros
 		append_chars(buffer, bufferSize, &pos, digits, (uint32_t)k);
@@ -145,7 +145,34 @@ void convert_adaptive_double(double value, char* buffer, uint32_t bufferSize) {
 		append_chars(buffer, bufferSize, &pos, expText, (uint32_t)written);
 	}
 
-	buffer[pos] = '\0';
+	if (pos < bufferSize) {
+		buffer[pos] = '\0';
+	}
+	else if (bufferSize > 0) {
+		buffer[bufferSize - 1] = '\0';
+	}
+}
+
+//shallow serialization of a thrown value for the error's first line:
+//numbers reuse convert_adaptive_double, objects go to object.c's sibling
+uint32_t serializeValueInto(char* buffer, uint32_t bufferSize, LfxValue value) {
+	if (IS_OBJ(value)) {
+		return serializeObjectInto(buffer, bufferSize, value);
+	}
+
+	if (bufferSize == 0) return 0;
+	buffer[0] = '\0';
+
+	if (IS_BOOL(value)) {
+		snprintf(buffer, bufferSize, AS_BOOL(value) ? "true" : "false");
+	}
+	else if (IS_NIL(value)) {
+		snprintf(buffer, bufferSize, "nil");
+	}
+	else if (IS_NUMBER(value)) {
+		convert_adaptive_double(AS_NUMBER(value), buffer, bufferSize);
+	}
+	return (uint32_t)strlen(buffer);
 }
 
 void printValue(FILE* stream, LfxValue value, bool isExpand) {

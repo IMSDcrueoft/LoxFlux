@@ -572,6 +572,49 @@ static void printArrayLike(FILE* stream, ObjArray* array, bool isExpand) {
 	}
 }
 
+//buffer-flavored sibling of printObjectTo for the throw serializer:
+//shallow print-tag formatting, truncated to fit. returns the written length
+uint32_t serializeObjectInto(char* buffer, uint32_t bufferSize, LfxValue value) {
+	if (bufferSize == 0) return 0;
+	buffer[0] = '\0';
+
+	switch (OBJ_TYPE(value)) {
+	case OBJ_STRING: {
+		ObjString* s = AS_STRING(value);
+		uint32_t len = (s->length < bufferSize - 1) ? s->length : bufferSize - 1;
+		memcpy(buffer, s->chars, len);
+		buffer[len] = '\0';
+		return len;
+	}
+	case OBJ_STRING_BUILDER: {
+		ObjArray* b = AS_ARRAY(value);
+		uint32_t len = ((uint32_t)b->length < bufferSize - 1) ? (uint32_t)b->length : bufferSize - 1;
+		memcpy(buffer, b->payload, len);
+		buffer[len] = '\0';
+		return len;
+	}
+	case OBJ_CLASS: {
+		ObjString* name = AS_CLASS(value)->name;
+		snprintf(buffer, bufferSize, "%s (class)", name != NULL ? name->chars : "$anon");
+		break;
+	}
+	case OBJ_INSTANCE:
+		snprintf(buffer, bufferSize, "%s (instance)", AS_INSTANCE(value)->klass->name->chars);
+		break;
+	case OBJ_CLOSURE:
+	case OBJ_BOUND_METHOD:
+	case OBJ_FUNCTION:
+		snprintf(buffer, bufferSize, "<function>");
+		break;
+	case OBJ_NATIVE: snprintf(buffer, bufferSize, "<native fn>"); break;
+	case OBJ_FIBER: snprintf(buffer, bufferSize, "<fiber>"); break;
+	case OBJ_ITERATOR: snprintf(buffer, bufferSize, "<iterator>"); break;
+	case OBJ_ERROR: snprintf(buffer, bufferSize, "<error>"); break;
+	default: snprintf(buffer, bufferSize, "<object>"); break;
+	}
+	return (uint32_t)strlen(buffer);
+}
+
 void printObjectTo(FILE* stream, LfxValue value, bool isExpand) {
 	switch (OBJ_TYPE(value)) {
 	case OBJ_CLASS: {
