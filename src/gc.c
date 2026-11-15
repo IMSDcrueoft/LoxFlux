@@ -121,6 +121,7 @@ static void markRoots(LfxVM* vm) {
 	}
 
 	markTable(vm, &vm->globals.fields);
+	markValue(vm, vm->pendingException);
 	//the shared constants don't gc
 	//markConstants(&vm.constants);
 

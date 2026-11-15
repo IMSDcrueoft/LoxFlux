@@ -156,6 +156,9 @@ typedef struct LfxVM {
 	// per vm options
 	LfxOptions options;
 
+	//error payload being propagated through unwind/dispatch; rooted in markRoots
+	LfxValue pendingException;
+
 	// set by the longjmp landing; consumed and cleared by run()'s error handler
 	bool caughtException;
 	bool jmpBuffArmed;

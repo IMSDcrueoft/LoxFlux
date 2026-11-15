@@ -723,6 +723,21 @@ static ObjFunction* endCompiler(CompilerContext* cc) {
 	opStack_free(cc->vm, currentOpStack(cc));
 	binaryTable_free(cc->vm, &current->numbers);//free every compiler's number pool (nested compilers were leaking)
 
+	//try contexts are appended in completion order, which is not sorted: nested
+	//tries record inner-first. sort for the runtime's binary search: tryBegin asc,
+	//ties tryBytes desc (the inner of a same-begin group comes last)
+	for (uint32_t i = 1, j = 0; i < current->function.tryContextCount; i++) {
+		TryContext entry = current->function.tryContexts[i];
+
+		for (j = i;j > 0;j--) {
+			TryContext* prev = &current->function.tryContexts[j - 1];
+			if (prev->tryBegin < entry.tryBegin) break;
+			if (prev->tryBegin == entry.tryBegin && prev->tryBytes >= entry.tryBytes) break;
+			current->function.tryContexts[j] = *prev;
+		}
+		current->function.tryContexts[j] = entry;
+	}
+
 	//materialize the final FAM function from the embedded compile-time state
 	//must run BEFORE IC registration: the registry and OP_CLOSURE must hold the final object pointer
 	ObjFunction* function = newFunction(cc->vm, current);
