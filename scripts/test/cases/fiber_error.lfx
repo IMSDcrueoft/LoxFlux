@@ -1,7 +1,9 @@
-// fiber: a runtime error inside a fiber blasts through the resumer chain
-// exit: 70
+// fiber: a runtime error inside a fiber fails that fiber and delivers the
+// error to the resumer as the resume result (the host keeps running)
+// exit: 0
 // err: Undefined variable 'nope'.
+// out: true
 var e = @ctor.Fiber(lambda() {
 	nope();
 });
-resume e;
+print @object.isError(resume e);

@@ -15,11 +15,11 @@ hexDigit      → digit | "a" … "f" | "A" … "F" ;
 comment       → "//" { anyCharacter − newline }
               | "/*" { anyCharacter − "*/" } "*/" ;            (* not nested *)
 
-keyword       → "and" | "break" | "branch" | "cede" | "class" | "const"
+keyword       → "and" | "break" | "branch" | "catch" | "cede" | "class" | "const"
               | "continue" | "do" | "else" | "export" | "false" | "for"
               | "foreach" | "fun" | "if" | "import" | "in" | "instanceof"
               | "lambda" | "nil" | "none" | "or" | "print" | "resume"
-              | "return" | "super" | "this" | "throw" | "true" | "typeof"
+              | "return" | "super" | "this" | "throw" | "true" | "try" | "typeof"
               | "var" | "while" | "yield" ;
 
 identifier    → letter { letter | digit } ;                    (* keywords match first *)
@@ -71,7 +71,7 @@ constInit    → identifier "=" expression ;
 ```ebnf
 statement    → printStmt | ifStmt | branchStmt | returnStmt | whileStmt
             | doWhileStmt | forStmt | foreachStmt | breakStmt | continueStmt
-            | block | throwStmt | exportStmt | cedeStmt | yieldStmt
+            | block | throwStmt | tryCatchStmt | exportStmt | cedeStmt | yieldStmt
             | exprStmt ;
 
 printStmt    → "print" expression { "," expression } ";" ;
@@ -90,6 +90,7 @@ foreachStmt  → "foreach" "(" ( "var" | "const" ) identifier "," identifier
 breakStmt    → "break" ";" ;                              (* inside loops only *)
 continueStmt → "continue" ";" ;                           (* inside loops only *)
 throwStmt    → "throw" expression ";" ;
+tryCatchStmt → "try" block "catch" "(" identifier ")" block ;     (* the binding is a local of the catch block scope *)
 exportStmt   → "export" [ expression ] ";" ;              (* module code only *)
 cedeStmt     → "cede" ";" ;
 yieldStmt    → "yield" [ expression ] ";" ;               (* not allowed in top-level script code *)
@@ -171,7 +172,7 @@ Builtin modules are primaries (`moduleLiteral`) whose members are reached throug
 |:---|:---|:---|
 | `@math` | `NaN` `Infinity` `EPSILON` `MAX_VALUE` `MIN_VALUE` `MAX_SAFE_INTEGER` `MIN_SAFE_INTEGER` `E` `LN2` `LN10` `LOG2E` `LOG10E` `PI` `SQRT1_2` `SQRT2` | `max` `min` `abs` `floor` `ceil` `round` `pow` `sqrt` `sin` `asin` `cos` `acos` `tan` `atan` `log` `log2` `log10` `exp` `isNaN` `isFinite` `random` `seed` |
 | `@array` | — | `resize` `length` `pop` `push` `slice` |
-| `@object` | — | `isNumber` `isString` `isStringBuilder` `isFunction` `isClass` `isObject` `isArray` `isTypedArray` `isArrayLike` `isBoolean` `isFiber` `getClass` `getGlobal` `keys` `hasOwn` `freeze` `isFrozen` |
+| `@object` | — | `isNumber` `isString` `isStringBuilder` `isFunction` `isClass` `isObject` `isArray` `isTypedArray` `isArrayLike` `isBoolean` `isFiber` `isError` `getClass` `getGlobal` `keys` `hasOwn` `freeze` `isFrozen` |
 | `@string` | — | `byteLen` `charAt` `utf8Len` `utf8At` `append` `intern` `equals` `slice` `parseInt` `parseFloat` |
 | `@time` | — | `nano` `micro` `milli` `second` `utc` |
 | `@ctor` | — | `Object` `Array` `F64Array` `F32Array` `U32Array` `I32Array` `U16Array` `I16Array` `U8Array` `I8Array` `StringBuilder` `Fiber` |

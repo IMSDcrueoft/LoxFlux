@@ -2,7 +2,7 @@
 // the object stays on the GC list and is reclaimed by the sweeper / freeObjects
 // at exit - the process must terminate cleanly with the error report
 // exit: 70
-// err: exception
+// err: boom
 var arr = [10, 20, 30];
 foreach (var i, v in arr) {
 	if (v == 20) {

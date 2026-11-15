@@ -86,6 +86,10 @@ function walkStmt(stmt: Stmt, ctx: WalkContext, handlers: WalkHandlers): void {
 			}
 			walkStmt(stmt.body, ctx, handlers);
 			break;
+		case 'Foreach':
+			walkExpr(stmt.iterable, ctx, handlers);
+			walkStmt(stmt.body, ctx, handlers);
+			break;
 		case 'Branch':
 			for (const c of stmt.cases) {
 				if (c.condition) {
@@ -109,6 +113,10 @@ function walkStmt(stmt: Stmt, ctx: WalkContext, handlers: WalkHandlers): void {
 			break;
 		case 'Throw':
 			walkExpr(stmt.value, ctx, handlers);
+			break;
+		case 'TryCatch':
+			walkStmt(stmt.tryBlock, ctx, handlers);
+			walkStmt(stmt.catchBlock, ctx, handlers);
 			break;
 		case 'Export':
 			if (stmt.value) {

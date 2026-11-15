@@ -1,0 +1,16 @@
+// a fiber that fails uncaught reports [RuntimeError] but delivers the error
+// to the resumer as the resume result instead of killing the host
+// exit: 0
+// err: [RuntimeError] Operands must be two numbers or two strings.
+// out: error
+// out: true
+// out: <error> "Operands must be two numbers or two strings.
+// out: [line 10] in w() : (1)"
+// out: after
+fun w() { var z = 5; return z + "bad"; }
+var f = @ctor.Fiber(w);
+var r = resume f;
+print typeof r;
+print @object.isError(r);
+print r;
+print "after";

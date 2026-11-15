@@ -85,6 +85,11 @@ test('tracks line numbers', () => {
 	assert.strictEqual(tokens[2].line, 2);
 });
 
+test('tokenizes try/catch keywords', () => {
+	const { tokens } = lex('try catch');
+	assert.deepStrictEqual(tokens.slice(0, 2).map((t) => t.type), [TokenType.Try, TokenType.Catch]);
+});
+
 // ---- parser ------------------------------------------------------------
 
 console.log('parser:');
@@ -136,6 +141,17 @@ test('parses cede statement', () => {
 	const { script } = analyzeOf('cede;');
 	assert.strictEqual(script.errors.length, 0);
 	assert.strictEqual(script.statements[0].kind, 'Cede');
+});
+
+test('parses try/catch statement', () => {
+	const { script } = analyzeOf('try { throw "x"; } catch (e) { print e; }');
+	assert.strictEqual(script.errors.length, 0);
+	assert.strictEqual(script.statements[0].kind, 'TryCatch');
+});
+
+test('rejects a bare catch without binding', () => {
+	const { script } = analyzeOf('try { } catch { }');
+	assert.ok(script.errors.length > 0);
 });
 
 test('parses bitwise operations', () => {
@@ -226,6 +242,42 @@ test('does not treat code after cede as unreachable', () => {
 	const { analysis } = analyzeOf('cede;\nprint 1;');
 	const unreachable = analysis.diagnostics.filter((d) => d.code === 'unreachable');
 	assert.strictEqual(unreachable.length, 0);
+});
+
+test('declares catch binding in the catch scope', () => {
+	const { analysis } = analyzeOf('try { throw "x"; } catch (e) { print e; }');
+	assert.strictEqual(analysis.diagnostics.length, 0);
+	assert.ok(analysis.symbols.some((s) => s.nameToken.text === 'e'));
+});
+
+test('catch binding does not leak out of the catch scope', () => {
+	const { analysis } = analyzeOf('try { throw "x"; } catch (e) { print e; } print e;');
+	const undeclared = analysis.diagnostics.filter((d) => d.code === 'undeclared');
+	assert.strictEqual(undeclared.length, 1);
+});
+
+test('declares foreach k/v in the loop scope', () => {
+	const { analysis } = analyzeOf('foreach (var k, v in [1, 2]) { print k; print v; }');
+	assert.strictEqual(analysis.diagnostics.length, 0);
+	assert.ok(analysis.symbols.some((s) => s.nameToken.text === 'k'));
+	assert.ok(analysis.symbols.some((s) => s.nameToken.text === 'v'));
+});
+
+test('foreach k/v do not leak out of the loop', () => {
+	const { analysis } = analyzeOf('foreach (var k, v in [1, 2]) { print v; } print k;');
+	const undeclared = analysis.diagnostics.filter((d) => d.code === 'undeclared');
+	assert.strictEqual(undeclared.length, 1);
+});
+
+test('foreach body validates break/continue and const-ness', () => {
+	const { analysis } = analyzeOf('foreach (const k, v in [1, 2]) { break; continue; }');
+	assert.strictEqual(analysis.diagnostics.filter((d) => d.code === 'break-outside' || d.code === 'continue-outside').length, 0);
+	assert.ok(analysis.symbols.find((s) => s.nameToken.text === 'k')?.isConst);
+});
+
+test('foreach iterable resolves in the enclosing scope', () => {
+	const { analysis } = analyzeOf('var arr = [1, 2]; foreach (var arr, v in arr) { print arr; }');
+	assert.strictEqual(analysis.diagnostics.length, 0);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

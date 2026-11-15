@@ -155,6 +155,7 @@ export class Parser {
 				case TokenType.Print:
 				case TokenType.Return:
 				case TokenType.Throw:
+				case TokenType.Try:
 				case TokenType.Export:
 				case TokenType.Cede:
 				case TokenType.Yield:
@@ -397,6 +398,9 @@ export class Parser {
 		if (this.match(TokenType.Throw)) {
 			return this.throwStatement();
 		}
+		if (this.match(TokenType.Try)) {
+			return this.tryStatement();
+		}
 		if (this.match(TokenType.Export)) {
 			return this.exportStatement();
 		}
@@ -424,6 +428,19 @@ export class Parser {
 		const value = this.expression();
 		this.consume(TokenType.Semicolon, "Expect ';' after value.");
 		return { kind: 'Throw', start: throwToken.start, end: this.previous.end, throwToken, value };
+	}
+
+	private tryStatement(): Stmt {
+		const tryToken = this.previous;
+		this.consume(TokenType.LBrace, "Expect '{' after 'try'.");
+		const tryBlock = this.block();
+		const catchToken = this.consume(TokenType.Catch, "Expect 'catch' after try block.");
+		this.consume(TokenType.LParen, "Expect '(' after 'catch'.");
+		const errorName = this.consume(TokenType.Identifier, "Expect error binding name in 'catch (...)'.");
+		this.consume(TokenType.RParen, "Expect ')' after catch binding.");
+		this.consume(TokenType.LBrace, "Expect '{' after catch binding.");
+		const catchBlock = this.block();
+		return { kind: 'TryCatch', start: tryToken.start, end: this.previous.end, tryToken, tryBlock, catchToken, errorName, catchBlock };
 	}
 
 	private returnStatement(): Stmt {
