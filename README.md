@@ -120,7 +120,7 @@ print "after"; // runs only after the host resumes execution
 
 - **Fibers**: `@ctor.Fiber(body [, args...])` creates a coroutine from a function (natives are rejected); extra arguments are forwarded to the body. A fiber runs only when resumed.
 - **`yield` / `resume`**: `yield expr` suspends the fiber and delivers `expr` as the value of the corresponding `resume` expression; `resume f` starts or re-enters `f` and evaluates to the yielded — or finally returned — value. Yielding in top-level, or resuming a running fiber (self/cycle), is a runtime error.
-- **Lifecycle**: returning settles a fiber (`SETTLED`), a runtime error fails it (`FAILED`), `@fiber.cancel` finalizes it (`CANCELLED`). Finalized fibers never execute again — resuming one just returns its result.
+- **Lifecycle**: returning settles a fiber (`SETTLED`), an uncaught throw or runtime error fails it (`FAILED`), `@fiber.cancel` finalizes it (`CANCELLED`). Finalized fibers never execute again — resuming one just returns its result.
 
 ```
 var f = @ctor.Fiber(lambda(a) {
@@ -131,6 +131,37 @@ print resume f;                            // 6
 print @fiber.status(f) == @fiber.PENDING;  // true
 print resume f;                            // done
 ```
+
+---
+
+### Exceptions
+
+- **`try` / `catch`**: A `try` statement has exactly one `catch` clause with a mandatory binding. The binding is local to the catch block. There is no `finally` clause.
+- **`throw`**: Throws any value unchanged. Primitive values keep their value and objects keep their identity; rethrowing does not add a wrapper.
+- **Runtime errors**: VM and native failures are caught as text-based error objects containing the message and the collected call trace. Use `@object.isError(value)` to distinguish them from ordinary thrown values.
+
+```ebnf
+tryCatchStmt ::= "try" block "catch" "(" IDENTIFIER ")" block
+throwStmt    ::= "throw" expression ";"
+```
+
+```
+var payload = { code: 42 };
+try { throw payload; } catch (e) {
+    print e == payload;          // true
+    print @object.isError(e);    // false
+}
+
+try {
+    var text = "bad";
+    var result = 1 + text;
+} catch (e) {
+    print @object.isError(e);    // true
+    print e;                     // <error> "Operands must be two numbers or two strings."
+}
+```
+
+- **Uncaught failures**: They are reported with `[RuntimeError]`. In a non-root fiber, the fiber is sealed as `FAILED`; the original thrown value or runtime error object becomes both the `resume` result and `@fiber.result(f)`. Resumer frames are not searched for a handler.
 
 ---
 
@@ -333,6 +364,7 @@ The `@object` module provides utilities for type checking and object introspecti
   - `isStringBuilder`: Verifies if a value is a stringBuilder.
   - `isNumber`: Verifies whether a value is a number.
   - `isBoolean`: Verifies whether a value is true or false.
+  - `isError`: Verifies whether a value is an error object carrying a message and collected call trace.
   - `getGlobal`: Get global object.
   - `keys`: Returns the own keys array of an instance.
   - `hasOwn`: Returns true if the instance has an own data property with the given string key (methods are not own properties).
@@ -420,7 +452,7 @@ The `@fiber` module provides coroutine introspection and lifecycle control.
 
 - **Status**:
   - `status`: Returns the fiber's state as one of the `PENDING` / `RUNNING` / `SETTLED` / `FAILED` / `CANCELLED` constants.
-  - `result`: Returns the fiber's last yielded value, or its settle value once finalized.
+  - `result`: Returns the fiber's last yielded value, its return value once settled, or the original thrown value/runtime error object once failed.
 
 - **Lifecycle Control**:
   - `cancel`: Finalizes a pending fiber as `CANCELLED`, optionally storing a result value; returns whether the cancel took.
@@ -515,6 +547,5 @@ The project **loxFlux** is based on `MIT` and uses three third-party projects.
    - License: `MIT`
 
 ## Other expectations
-1. try catch syntax.
-2. performace improve.
-3. gc optimization.
+1. performace improve.
+2. gc optimization.
