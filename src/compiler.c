@@ -69,11 +69,8 @@ static void emitOpStack(CompilerContext* cc, uint8_t byte, bool doCheck) {
 #endif
 }
 
-static void errorAt(CompilerContext* cc, Token* token, C_STR message) {
-	if (cc->parser.panicMode) return;
-	cc->parser.panicMode = true;
-
-	fprintf(stderr, "[line %d] Error", token->line);
+static void diagnosticAt(Token* token, C_STR severity, C_STR message) {
+	fprintf(stderr, "[%s] [line %d] ", severity, token->line);
 
 	if (token->type == TOKEN_EOF) {
 		fprintf(stderr, " at end");
@@ -86,6 +83,12 @@ static void errorAt(CompilerContext* cc, Token* token, C_STR message) {
 	}
 
 	fprintf(stderr, ": %s\n", message);
+}
+
+static void errorAt(CompilerContext* cc, Token* token, C_STR message) {
+	if (cc->parser.panicMode) return;
+	cc->parser.panicMode = true;
+	diagnosticAt(token, "Error", message);
 	cc->parser.hadError = true;
 }
 
@@ -96,6 +99,21 @@ static void error(CompilerContext* cc, C_STR message) {
 static void errorAtCurrent(CompilerContext* cc, C_STR message) {
 	errorAt(cc, &cc->parser.current, message);
 }
+
+#if LOXFLUX_COMPILATION_TIME_OPTIMIZATION
+static void warning(CompilerContext* cc, C_STR message) {
+	diagnosticAt(&cc->parser.previous, "Warning", message);
+}
+
+static void warningAtCurrent(CompilerContext* cc, C_STR message) {
+	diagnosticAt(&cc->parser.current, "Warning", message);
+}
+
+static void rejectOptimization(CompilerContext* cc, C_STR message) {
+	warning(cc, message);
+	clearOpStack(cc);
+}
+#endif
 
 static void advance(CompilerContext* cc) {
 	cc->parser.previous = cc->parser.current;
@@ -2087,19 +2105,19 @@ static void dot(CompilerContext* cc, bool canAssign) {
 				LfxValue member;
 				if (tableGet(&cc->vm->builtins[builtinModule].fields, AS_STRING(cc->vm->constants.values[name]), &member)) {
 					if (!IS_NATIVE(member)) {
-						//frozen builtin member that is not a method (e.g. @math.PI): calling it is a
-						//compile-time-detectable error
-						errorAtCurrent(cc, "Cannot call a non-method member of a builtin module.");
+						//keep the generic invoke; only the executed site reports the error
+						warningAtCurrent(cc, "Cannot call a non-method member of a builtin module.");
+					}
+					else {
+						//drop the OP_MODULE_BUILTIN push (opcode + module u8)
+						chunk_fallback(chunk, 2);
+						opStack_fallback(opStack, 1);//the opcode entry
+						emitConstant(cc, member);
+						uint8_t argCount = argumentList(cc);
+						emitBytes(cc, 2, OP_CALL, argCount);
+						clearOpStack(cc);
 						return;
 					}
-					//drop the OP_MODULE_BUILTIN push (opcode + module u8)
-					chunk_fallback(chunk, 2);
-					opStack_fallback(opStack, 1);//the opcode entry
-					emitConstant(cc, member);
-					uint8_t argCount = argumentList(cc);
-					emitBytes(cc, 2, OP_CALL, argCount);
-					clearOpStack(cc);
-					return;
 				}
 			}
 		}
@@ -2751,7 +2769,7 @@ static void instructionOptimize(CompilerContext* cc) {
 			opStack_fallback(opStack,3);						\
 			emitNumberConstant(cc, NUMBER_VAL(val));				\
 		} else {												\
-			error(cc, "Operands must be numbers.");					\
+			rejectOptimization(cc, "Operands must be numbers.");					\
 		}														\
 	} while (false)
 
@@ -2772,7 +2790,7 @@ static void instructionOptimize(CompilerContext* cc) {
 			emitOpStack(cc, val ? OP_TRUE : OP_FALSE, false);		\
 		}														\
 		else {													\
-			error(cc, "Operands must be two numbers or two strings.");\
+			rejectOptimization(cc, "Operands must be two numbers or two strings.");\
 		}														\
 	} while (false)
 
@@ -2798,7 +2816,7 @@ static void instructionOptimize(CompilerContext* cc) {
 				emitConstant(cc, OBJ_VAL(val));
 			}
 			else {
-				error(cc, "Operands must be two numbers or two strings.");
+				rejectOptimization(cc, "Operands must be two numbers or two strings.");
 			}
 		}
 		else if (isRightConstNumber) {
@@ -2879,7 +2897,7 @@ static void instructionOptimize(CompilerContext* cc) {
 				emitNumberConstant(cc, NUMBER_VAL(val));
 			}
 			else {
-				error(cc, "Operands must be numbers.");
+				rejectOptimization(cc, "Operands must be numbers.");
 			}
 		}
 		else if (isRightConstNumber) {
@@ -2937,10 +2955,10 @@ static void instructionOptimize(CompilerContext* cc) {
 			emitNumberConstant(cc, NUMBER_VAL(val));
 		}
 		else if (prevRight == OP_CONSTANT) {
-			error(cc, "Operand must be a number.");
+			rejectOptimization(cc, "Operand must be a number.");
 		}
 		else if (prevRight == OP_FALSE || prevRight == OP_TRUE || prevRight == OP_NIL) {
-			error(cc, "Operand must be a number.");
+			rejectOptimization(cc, "Operand must be a number.");
 		}
 		else if (isRightLocal) {
 			chunk_fallback(chunk, 1);//op
@@ -3061,7 +3079,7 @@ static void instructionOptimize(CompilerContext* cc) {
 			LfxValue right = READ_LOCAL_CONSTANT(idx_right);
 
 			if (!IS_NUMBER(right)) {
-				error(cc, "Operand of bitwise must be a number.");
+				rejectOptimization(cc, "Operand of bitwise must be a number.");
 				break;
 			}
 
@@ -3099,7 +3117,7 @@ static void instructionOptimize(CompilerContext* cc) {
 			}
 			case BIT_OP_SHR: {
 				if (rightNum < 0) {
-					error(cc, "Operand of bitwise must be a positive.");
+					rejectOptimization(cc, "Operand of bitwise must be a positive.");
 					break;
 				}
 				uint32_t shiftIMM = double_to_shift32(rightNum);
@@ -3110,7 +3128,7 @@ static void instructionOptimize(CompilerContext* cc) {
 			}
 			case BIT_OP_SAR: {
 				if (rightNum < 0) {
-					error(cc, "Operand of bitwise must be a positive.");
+					rejectOptimization(cc, "Operand of bitwise must be a positive.");
 					break;
 				}
 				uint32_t shiftIMM = double_to_shift32(rightNum);
@@ -3125,7 +3143,7 @@ static void instructionOptimize(CompilerContext* cc) {
 			}
 		}
 		else if (prevRight == OP_CONSTANT) {
-			error(cc, "Operand of bitwise must be a number.");
+			rejectOptimization(cc, "Operand of bitwise must be a number.");
 		}
 		break;
 	}

@@ -1,0 +1,28 @@
+// optimization-only type failures warn and retain the generic runtime instruction
+// exit: 0
+// err: Warning
+// err: Operands must be two numbers or two strings.
+// err: Operands must be numbers.
+// err: Operand must be a number.
+// err: Operand of bitwise must be a number.
+// err: Operand of bitwise must be a positive.
+// err: Cannot call a non-method member of a builtin module.
+// err!: ] Error
+// out: <error> "Operands must be two numbers or two strings."
+// out: <error> "Operands must be numbers."
+// out: <error> "Operands must be two numbers or two strings."
+// out: <error> "Operand must be a number."
+// out: <error> "Operand must be a number."
+// out: <error> "Operands must be numbers."
+// out: 0
+// out: 0
+// out: <error> "Can only call functions and classes."
+try { 1 + "x"; } catch (e) { print e; }
+try { "x" - 1; } catch (e) { print e; }
+try { 1 < "x"; } catch (e) { print e; }
+try { -"x"; } catch (e) { print e; }
+try { -true; } catch (e) { print e; }
+try { 1 & "x"; } catch (e) { print e; }
+print 1 >> -1;
+print 1 >>> -1;
+try { @math.PI(); } catch (e) { print e; }
