@@ -79,78 +79,58 @@ static ObjFunction* getCachedScript(LfxVM* vm, STR absolutePath) {
 	return function;
 }
 
-COLD_FUNCTION
-static void runtimeErrorLogV(C_STR format, va_list args) {
-	fprintf(stderr, "[RuntimeError] ");
-	vfprintf(stderr, format, args);
-	fputs("\n", stderr);
-}
-
+//copies bytes into the error's text (gc-book growth, u16 truncation, NUL kept);
+//the error must already be rooted
 COLD_FUNCTION
 NOINLINE_FUNCTION
-static void runtimeErrorLog(C_STR format, ...) {
-	va_list args;
-	va_start(args, format);
-	runtimeErrorLogV(format, args);
-	va_end(args);
-}
-
-COLD_FUNCTION
-NOINLINE_FUNCTION
-static bool runtimeError(LfxVM* vm) {
-	//blast through the resumer chain: trace and tear down every fiber on it,
-	//the error surfaces at the host. Proper propagation (delivering the error
-	//to the resumer as the resume result) is a later-version feature.
-	ObjFiber* fiber = vm->currentFiber;
-	while (fiber != NULL) {
-		// trace the call stack of each fiber
-		for (int32_t i = fiber->core.frameCount - 1; i >= 0; i--) {
-			CallFrame* frame = &fiber->core.frames[i];
-			ObjFunction* function = frame->closure->function;
-			size_t instruction = frame->ip - function->chunk.code - 1;
-
-			uint32_t line = getLine(&function->chunk.lines, (uint32_t)instruction);
-
-			fprintf(stderr, "[line %d] in ", line);
-			if (function->name != NULL) {
-				if (function->name->length != 0) {
-					fprintf(stderr, "%s() : (%d)\n", function->name->chars, function->id);
-				}
-				else {
-					fprintf(stderr, "<lambda>() : (%d)\n", function->id);
-				}
-			}
-			else {
-				fprintf(stderr, "<script> : (%d)\n", function->id);
-			}
-		}
-
-		ObjFiber* resumer = fiber->resumer;
-		if (resumer == NULL) {
-			vm->currentFiber = fiber;
-			vm_loadFiberToCache(vm);
-			stack_reset(vm);
-			break;	//the root fiber: never seals, stays alive for the REPL
-		}
-
-		sealFiber(vm, fiber);
-		fiber->status = FIBER_FAILED;
-		fiber->isRunning = 0;
-		fiber->result = NIL_VAL;// should be objError in the future
-		fiber->resumer = NULL;	//break the resumer cycle so gc can reclaim the pair
-		fiber = resumer;
+static void errorInjectText(LfxVM* vm, ObjError* error, C_STR bytes, uint32_t length) {
+	uint32_t newLength = (uint32_t)error->length + length;
+	if (newLength > UINT16_MAX) {
+		length = UINT16_MAX - error->length;
+		if (length == 0) return;
+		newLength = UINT16_MAX;
 	}
 
-	return false;
+	if (newLength + 1 > error->capacity) {
+		uint32_t newCapacity = GROW_CAPACITY(error->capacity);
+		if (newCapacity < newLength + 1) newCapacity = newLength + 1;
+		error->text = GROW_ARRAY(vm, char, error->text, error->capacity, newCapacity);
+		error->capacity = newCapacity;
+	}
+
+	memcpy(error->text + error->length, bytes, length);
+	error->length = (uint16_t)newLength;
+	error->text[newLength] = '\0';
+}
+
+//builds the error from the formatted text and parks it for the handler
+COLD_FUNCTION
+static void raiseErrorText(LfxVM* vm, C_STR text, uint32_t length) {
+	ObjError* error = newError(vm);
+	vm->pendingException = OBJ_VAL(error);
+	errorInjectText(vm, error, text, length);
+}
+
+COLD_FUNCTION
+NOINLINE_FUNCTION
+static void raiseError(LfxVM* vm, C_STR format, ...) {
+	char buffer[256];
+	va_list args;
+	va_start(args, format);
+	vsnprintf(buffer, sizeof(buffer), format, args);
+	va_end(args);
+	raiseErrorText(vm, buffer, (uint32_t)strlen(buffer));
 }
 
 COLD_FUNCTION
 NOINLINE_FUNCTION
 static void runtimeErrorInNative(LfxVM* vm, C_STR format, ...) {
+	char buffer[256];
 	va_list args;
 	va_start(args, format);
-	runtimeErrorLogV(format, args);
+	vsnprintf(buffer, sizeof(buffer), format, args);
 	va_end(args);
+	raiseErrorText(vm, buffer, (uint32_t)strlen(buffer));
 
 	vm_storeCacheToFiber(vm);	//sync the core: the trace reads real frame counts
 	if (vm->jmpBuffArmed) {
@@ -158,6 +138,7 @@ static void runtimeErrorInNative(LfxVM* vm, C_STR format, ...) {
 		longjmp(vm->errorJmp, 1);
 	}
 	else {
+		fprintf(stderr, "fatal error: An exception was thrown in native code without a guard set.\n");
 		exit(1);
 	}
 }
@@ -484,6 +465,7 @@ void vm_init(LfxVM* vm)
 	vm->gcGeneration = 0;
 
 	vm->caughtException = false;
+	vm->pendingException = NIL_VAL;
 	vm->jmpBuffArmed = false;
 
 	//the root fiber owns the main VM stack and the live frame/open-upvalue state
@@ -1255,21 +1237,156 @@ static void traceFrameStack(LfxVM* vm, FILE* stream, CallFrame* frame) {
 }
 #endif
 
+//innermost containing entry = max tryBegin with tryBegin <= ip < tryBegin+tryBytes
+//(ties: smallest tryBytes); entries are sorted at endCompiler by (tryBegin asc,
+//tryBytes desc), so the backward walk hits the inner of a nested group first
+static TryContext* findTryContext(ObjFunction* function, uint32_t ipOffset) {
+	uint32_t count = function->tryContextCount;
+	if (count == 0) return NULL;
+	TryContext* contexts = function->tryContexts;
+
+	//upper bound: first entry with tryBegin > ipOffset
+	uint32_t low = 0, high = count;
+	while (low < high) {
+		uint32_t mid = (low + high) / 2;
+		if (contexts[mid].tryBegin <= ipOffset) low = mid + 1;
+		else high = mid;
+	}
+
+	while (low > 0) {
+		TryContext* ctx = &contexts[low - 1];
+		if (ipOffset < (uint32_t)ctx->tryBegin + ctx->tryBytes) return ctx;
+		low--;
+	}
+	return NULL;
+}
+
+#define ERROR_TRACE_CAPACITY 4096
+
+typedef struct {
+	char text[ERROR_TRACE_CAPACITY];
+	uint32_t length;
+	uint16_t lines;
+} ErrorTrace;
+
+COLD_FUNCTION
+static void errorAppendTrace(ErrorTrace* trace, CallFrame* frame) {
+	if (trace->lines >= 256 || trace->length >= ERROR_TRACE_CAPACITY - 1) return;
+
+	ObjFunction* function = frame->closure->function;
+	uint32_t instruction = (uint32_t)(frame->ip - function->chunk.code - 1);
+	uint32_t line = getLine(&function->chunk.lines, instruction);
+	ObjString* name = function->name;
+
+	char buffer[128];
+	int written;
+	if (name == NULL) {
+		written = snprintf(buffer, sizeof(buffer), "\n[line %u] in <script> : (%u)", line, function->id);
+	}
+	else if (name->length == 0) {
+		written = snprintf(buffer, sizeof(buffer), "\n[line %u] in <lambda>() : (%u)", line, function->id);
+	}
+	else {
+		written = snprintf(buffer, sizeof(buffer), "\n[line %u] in %s() : (%u)", line, name->chars, function->id);
+	}
+	if (written <= 0) return;
+	if (written > (int)sizeof(buffer) - 1) written = (int)sizeof(buffer) - 1;
+
+	uint32_t available = ERROR_TRACE_CAPACITY - 1 - trace->length;
+	if ((uint32_t)written > available) written = (int)available;
+	memcpy(trace->text + trace->length, buffer, (uint32_t)written);
+	trace->length += (uint32_t)written;
+	trace->text[trace->length] = '\0';
+	trace->lines++;
+}
+
+//pendingException keeps the error rooted while its text grows
+COLD_FUNCTION
+static void errorCommitTrace(LfxVM* vm, ErrorTrace* trace) {
+	if (trace->length == 0 || !IS_ERROR(vm->pendingException)) return;
+	ObjError* error = AS_ERROR(vm->pendingException);
+	errorInjectText(vm, error, trace->text, trace->length);
+	error->traceLines = trace->lines;
+}
+
+//unwind and deliver the pending value; true means a catch or resumer continues
+COLD_FUNCTION
+NOINLINE_FUNCTION
+static bool handleException(LfxVM* vm) {
+	ErrorTrace trace;
+	trace.length = 0;
+	trace.text[0] = '\0';
+	trace.lines = IS_ERROR(vm->pendingException) ? AS_ERROR(vm->pendingException)->traceLines : 0;
+
+	while (vm->cache.frameCount > 0) {
+		CallFrame* frame = &vm->cache.frames[vm->cache.frameCount - 1];
+		ObjFunction* function = frame->closure->function;
+		uint32_t ipOffset = (uint32_t)(frame->ip - function->chunk.code - 1);
+		TryContext* ctx = findTryContext(function, ipOffset);
+
+		if (ctx != NULL) {
+			errorCommitTrace(vm, &trace);
+			closeUpvalues(vm, frame->slots + ctx->slotDepth);
+			vm->cache.stackTop = frame->slots + ctx->slotDepth;
+			stack_push(vm, vm->pendingException);
+			vm->pendingException = NIL_VAL;
+			frame->ip = function->chunk.code + ctx->tryBegin + ctx->tryBytes;
+			return true;
+		}
+
+		errorAppendTrace(&trace, frame);
+		closeUpvalues(vm, frame->slots);
+		vm->cache.frameCount--;
+	}
+
+	//uncaught: every frame unwound; the failed fiber is still current
+	ObjFiber* failed = vm->currentFiber;
+	ObjFiber* resumer = failed->resumer;
+	LfxValue exception = vm->pendingException;
+	errorCommitTrace(vm, &trace);
+
+	fprintf(stderr, "[RuntimeError] ");
+	if (IS_ERROR(exception)) {
+		ObjError* error = AS_ERROR(exception);
+		if (error->text != NULL) {
+			fwrite(error->text, sizeof(char), error->length, stderr);
+		}
+	}
+	else {
+		printValue(stderr, exception, false);
+		if (trace.length > 0) {
+			fwrite(trace.text, sizeof(char), trace.length, stderr);
+		}
+	}
+	fprintf(stderr, "\n");
+
+	if (resumer != NULL) {
+		failed->result = exception;
+		vm->pendingException = NIL_VAL;
+		failed->status = FIBER_FAILED;
+		failed->isRunning = 0;
+		failed->resumer = NULL;
+		vm_storeCacheToFiber(vm);
+		sealFiber(vm, failed);
+
+		vm->currentFiber = resumer;
+		vm_loadFiberToCache(vm);
+		stack_push(vm, failed->result);
+		return true;
+	}
+	else {
+		vm->pendingException = NIL_VAL;
+		stack_reset(vm);
+		return false;
+	}
+}
+
 //to run code in vm
 HOT_FUNCTION
 static InterpretResult run(LfxVM* vm)
 {
 	register CallFrame* frame = &vm->cache.frames[vm->cache.frameCount - 1];
 	register uint8_t* ip = frame->ip;
-
-	// handle runtime errors: the dispatch loop is a single function
-	if (vm->caughtException) {
-	label_error_handler:
-		vm->caughtException = false;
-		// future versions: static try catch table to find the nearest handler for the current frame
-		runtimeError(vm);
-		return INTERPRET_RUNTIME_ERROR;
-	}
 
 #if !LOXFLUX_FRAME_CACHED_BASES
 	register InlineCacheSlot* icCache = frame->closure->function->caches;
@@ -1291,6 +1408,19 @@ static InterpretResult run(LfxVM* vm)
 		constants = frame->closure->function->constants;\
 	} while (false)
 #endif
+
+	// handle runtime errors: the dispatch loop is a single function
+	if (vm->caughtException) {
+	label_error_handler:
+		vm->caughtException = false;
+		if (handleException(vm)) {
+			UPDATE_FRAME();
+			//fall into the dispatch loop at the catch entry or in the resumer
+		}
+		else {
+			return INTERPRET_RUNTIME_ERROR;
+		}
+	}
 
 #if COMPUTE_GOTO
 	static void* label_instructions[] = {
@@ -1452,12 +1582,13 @@ static InterpretResult run(LfxVM* vm)
 #define NEXT_INSTRUCTION goto *label_instructions[READ_BYTE()]
 #endif									
 
-//error inside run(vm): sync the top frame's ip for the stack trace, then raise.
-//error paths are cold, so this store costs nothing and keeps `ip` free of any
-//stack escape (register-resident across the whole dispatch loop)
+//error inside run(vm): build the error payload first, then sync the top
+//frame's ip for the trace, then unwind. error paths are cold, so this store
+//costs nothing and keeps `ip` free of any stack escape (register-resident
+//across the whole dispatch loop)
 #define RUNTIME_ERROR(...)						\
 	do {										\
-		runtimeErrorLog(__VA_ARGS__);			\
+		raiseError(vm, __VA_ARGS__);			\
 		frame->ip = ip;							\
 		vm_storeCacheToFiber(vm);				\
 		goto label_error_handler;				\
@@ -2421,11 +2552,10 @@ static InterpretResult run(LfxVM* vm)
 		}
 		case OP_THROW: {
 		label_op_throw:
-			LfxValue error = stack_pop(vm);
-			fprintf(stderr, "[ErrorInfo] ");
-			printValue(stderr, error, false);
-			fprintf(stderr, "\n");
-			RUNTIME_ERROR("An exception was thrown.");
+			vm->pendingException = stack_pop(vm);
+			frame->ip = ip;
+			vm_storeCacheToFiber(vm);
+			goto label_error_handler;
 		}
 		case OP_GET_LOCAL: {
 		label_op_get_local:
@@ -2676,8 +2806,8 @@ static InterpretResult run(LfxVM* vm)
 			}
 
 			//a sealed fiber (settled/failed/cancelled) never runs again: hand
-			//back the stored result without a switch. failed fibers hold nil
-			//until error propagation delivers real error values (later version)
+			//back the stored result without a switch. failed fibers hold the
+			//exception value stored during error propagation
 			if (target->status != FIBER_PENDING) {
 				stack_replace(vm, target->result);
 				NEXT_INSTRUCTION;
@@ -3291,6 +3421,7 @@ bool interpret_compile(LfxVM* volatile vm, C_STR source)
 		vm->ceding = 0;
 		vm->caughtException = false;
 		vm->jmpBuffArmed = false;
+		vm->pendingException = NIL_VAL;
 		return false;
 	}
 

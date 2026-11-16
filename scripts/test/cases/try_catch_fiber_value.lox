@@ -1,0 +1,18 @@
+// an uncaught fiber throw reports the value but delivers the original object
+// exit: 0
+// err: [RuntimeError] Payload (instance)
+// err: [line 12] in fail()
+// err!: <error>
+// out: true
+// out: 7
+// out: false
+// out: true
+class Payload { init(code) { this.code = code; } }
+var payload = Payload(7);
+fun fail() { throw payload; }
+var f = @ctor.Fiber(fail);
+var result = resume f;
+print result == payload;
+print result.code;
+print @object.isError(result);
+print @fiber.result(f) == payload;

@@ -1,10 +1,10 @@
-// try/catch: user throws, runtime errors and native longjmp errors are all
-// catchable; rethrowing an existing error passes it through unwrapped
+// try/catch: user values pass through unchanged; runtime and native failures
+// are error objects, and rethrowing any value preserves its identity
 // exit: 0
-// out: <error> "boom"
+// out: boom
 // out: <error> "Operands must be two numbers or two strings."
 // out: caught-inner
-// out: <error> "inner"
+// out: inner
 // out: <error> "Can only call functions and classes."
 try { throw "boom"; } catch (e) { print e; }
 try { var s = "a"; var x = 1 + s; } catch (e) { print e; }
