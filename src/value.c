@@ -153,28 +153,6 @@ void convert_adaptive_double(double value, char* buffer, uint32_t bufferSize) {
 	}
 }
 
-//shallow serialization of a thrown value for the error's first line:
-//numbers reuse convert_adaptive_double, objects go to object.c's sibling
-uint32_t serializeValueInto(char* buffer, uint32_t bufferSize, LfxValue value) {
-	if (IS_OBJ(value)) {
-		return serializeObjectInto(buffer, bufferSize, value);
-	}
-
-	if (bufferSize == 0) return 0;
-	buffer[0] = '\0';
-
-	if (IS_BOOL(value)) {
-		snprintf(buffer, bufferSize, AS_BOOL(value) ? "true" : "false");
-	}
-	else if (IS_NIL(value)) {
-		snprintf(buffer, bufferSize, "nil");
-	}
-	else if (IS_NUMBER(value)) {
-		convert_adaptive_double(AS_NUMBER(value), buffer, bufferSize);
-	}
-	return (uint32_t)strlen(buffer);
-}
-
 void printValue(FILE* stream, LfxValue value, bool isExpand) {
 #if NAN_BOXING
 	if (IS_BOOL(value)) {

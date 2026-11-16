@@ -118,7 +118,6 @@ bool valuesEqual_number(LfxValue a, double b);
 void convert_adaptive_double(double value, char* buffer, uint32_t bufferSize);//ECMAScript type Number; buffer size 40 is enough
 //all rendering goes through this: stream and expansion are explicit at every call site
 void printValue(FILE* stream, LfxValue value, bool isExpand);
-uint32_t serializeValueInto(char* buffer, uint32_t bufferSize, LfxValue value);
 
 void valueArray_init(ValueArray* array);
 //returns the index the value was written to: a reusable hole when one exists,
