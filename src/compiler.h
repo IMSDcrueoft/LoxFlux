@@ -38,10 +38,12 @@ typedef enum {
 	PREC_ASSIGNMENT,  // =
 	PREC_OR,          // or
 	PREC_AND,         // and
-	PREC_BITWISE,	  // |, ^, &, <<, >>, >>>
+	PREC_BIT_OR,      // |
+	PREC_BIT_XOR,     // ^
+	PREC_BIT_AND,     // &
 	PREC_EQUALITY,    // == !=
-	PREC_RELATIONAL,  // instanceof, in
-	PREC_COMPARISON,  // <, >, <=, >=
+	PREC_RELATIONAL,  // <, >, <=, >=, instanceof, in
+	PREC_SHIFT,       // <<, >>, >>>
 	PREC_TERM,        // +, -
 	PREC_FACTOR,      // *, /, %
 	PREC_UNARY,       // !, -, ~, typeof

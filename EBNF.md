@@ -109,11 +109,13 @@ target        → identifier
               | postfix "[" expression "]" ;      (* any other left-hand side is rejected *)
 
 logicOr       → logicAnd { "or" logicAnd } ;
-logicAnd      → bitwise { "and" bitwise } ;
-bitwise       → equality { ( "&" | "|" | "^" | "<<" | ">>" | ">>>" ) equality } ;
+logicAnd      → bitwiseOr { "and" bitwiseOr } ;
+bitwiseOr     → bitwiseXor { "|" bitwiseXor } ;
+bitwiseXor    → bitwiseAnd { "^" bitwiseAnd } ;
+bitwiseAnd    → equality { "&" equality } ;
 equality      → relational { ( "==" | "!=" ) relational } ;
-relational    → comparison { ( "instanceof" | "in" ) comparison } ;
-comparison    → term { ( "<" | ">" | "<=" | ">=" ) term } ;
+relational    → shift { ( "<" | ">" | "<=" | ">=" | "instanceof" | "in" ) shift } ;
+shift         → term { ( "<<" | ">>" | ">>>" ) term } ;
 term          → factor { ( "+" | "-" ) factor } ;
 factor        → unary { ( "*" | "/" | "%" ) unary } ;
 unary         → ( "!" | "-" | "~" | "typeof" ) unary | postfix ;
@@ -148,21 +150,24 @@ arguments     → expression { "," expression } ;
 | 1 | `=` assignment | right |
 | 2 | `or` | right (parser structure) |
 | 3 | `and` | right (parser structure) |
-| 4 | `& \| ^ << >> >>>` | left |
-| 5 | `== !=` | left |
-| 6 | `instanceof` `in` | left |
-| 7 | `< > <= >=` | left |
-| 8 | `+ -` | left |
-| 9 | `* / %` | left |
-| 10 | `! - ~ typeof` (prefix) | right |
-| 11 | `. () []` (postfix) | chaining |
-| 12 | primaries | — |
+| 4 | `\|` | left |
+| 5 | `^` | left |
+| 6 | `&` | left |
+| 7 | `== !=` | left |
+| 8 | `< > <= >= instanceof in` | left |
+| 9 | `<< >> >>>` | left |
+| 10 | `+ -` | left |
+| 11 | `* / %` | left |
+| 12 | `! - ~ typeof` (prefix) | right |
+| 13 | `. () []` (postfix) | chaining |
+| 14 | primaries | — |
 
-Differences from C/Java:
+JavaScript-compatible precedence:
 
-- All six bitwise operators (`& | ^ << >> >>>`) share **one** precedence level, weaker than equality. C/Java bind the shift operators tighter than relational/equality and split `&`, `^`, `|` into three levels. Hence `a | b & c` parses as `(a | b) & c`, and `1 << x == y` parses as `1 << (x == y)`.
-- `instanceof` and `in` bind **weaker** than the comparison operators (`< > <= >=`); C/Java treat them as one relational level. Hence `a instanceof b < c` parses as `a instanceof (b < c)` (Java: `(a instanceof b) < c`).
-- `a & b == c` parses as `a & (b == c)` — the grouping C/Java also produce; listed here because it follows directly from the single bitwise level.
+- Shifts bind tighter than relational/equality operators and looser than addition: `1 << x == y` parses as `(1 << x) == y`.
+- Bitwise AND/XOR/OR form three descending levels: `a | b & c` parses as `a | (b & c)`, and `a & b == c` parses as `a & (b == c)`.
+- `instanceof` and `in` share the relational level with `< > <= >=`, all left-associative: `a instanceof b < c` parses as `(a instanceof b) < c`.
+- Only precedence and associativity follow JavaScript; LoxFlux retains its own operand type checks and 32-bit bitwise conversion semantics.
 
 ## 3. Builtin Modules
 

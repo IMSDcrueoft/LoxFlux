@@ -15,10 +15,12 @@ enum Precedence {
 	PrecAssignment, // =
 	PrecOr, // or
 	PrecAnd, // and
-	PrecBitwise, // | ^ & << >> >>> (shared level, like the compiler)
+	PrecBitOr, // |
+	PrecBitXor, // ^
+	PrecBitAnd, // &
 	PrecEquality, // == !=
-	PrecRelational, // instanceof, in
-	PrecComparison, // < > <= >=
+	PrecRelational, // < > <= >= instanceof in
+	PrecShift, // << >> >>>
 	PrecTerm, // + -
 	PrecFactor, // * / %
 	PrecUnary, // ! - ~ typeof
@@ -664,14 +666,17 @@ export class Parser {
 			case TokenType.GreaterEqual:
 			case TokenType.Less:
 			case TokenType.LessEqual:
-				return { prefix: undefined, infix: (l) => this.binary(l), precedence: Precedence.PrecComparison };
+				return { prefix: undefined, infix: (l) => this.binary(l), precedence: Precedence.PrecRelational };
 			case TokenType.BitAnd:
+				return { prefix: undefined, infix: (l) => this.binary(l), precedence: Precedence.PrecBitAnd };
 			case TokenType.BitOr:
+				return { prefix: undefined, infix: (l) => this.binary(l), precedence: Precedence.PrecBitOr };
 			case TokenType.BitXor:
+				return { prefix: undefined, infix: (l) => this.binary(l), precedence: Precedence.PrecBitXor };
 			case TokenType.BitShl:
 			case TokenType.BitSar:
 			case TokenType.BitShr:
-				return { prefix: undefined, infix: (l) => this.binary(l), precedence: Precedence.PrecBitwise };
+				return { prefix: undefined, infix: (l) => this.binary(l), precedence: Precedence.PrecShift };
 			case TokenType.And:
 				return { prefix: undefined, infix: (l) => this.logical(l, 'and'), precedence: Precedence.PrecAnd };
 			case TokenType.Or:
