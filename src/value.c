@@ -114,7 +114,7 @@ void convert_adaptive_double(double value, char* buffer, uint32_t bufferSize) {
 	const int k = digitCount;
 
 	uint32_t pos = 0;
-	if (negative) buffer[pos++] = '-';
+	if (negative && pos + 1 < bufferSize) buffer[pos++] = '-';
 
 	if (k <= n && n <= 21) {//integer-shaped: digits + (n-k) trailing zeros
 		append_chars(buffer, bufferSize, &pos, digits, (uint32_t)k);
@@ -145,7 +145,12 @@ void convert_adaptive_double(double value, char* buffer, uint32_t bufferSize) {
 		append_chars(buffer, bufferSize, &pos, expText, (uint32_t)written);
 	}
 
-	buffer[pos] = '\0';
+	if (pos < bufferSize) {
+		buffer[pos] = '\0';
+	}
+	else if (bufferSize > 0) {
+		buffer[bufferSize - 1] = '\0';
+	}
 }
 
 void printValue(FILE* stream, LfxValue value, bool isExpand) {

@@ -1,0 +1,8 @@
+// uncaught user values use printValue followed by the unwound call trace
+// exit: 70
+// err: [RuntimeError] boom
+// err: [line 7] in fail()
+// err: [line 8] in <script>
+// err!: <error>
+fun fail() { throw "boom"; }
+fail();

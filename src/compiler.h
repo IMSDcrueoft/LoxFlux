@@ -38,10 +38,12 @@ typedef enum {
 	PREC_ASSIGNMENT,  // =
 	PREC_OR,          // or
 	PREC_AND,         // and
-	PREC_BITWISE,	  // |, ^, &, <<, >>, >>>
+	PREC_BIT_OR,      // |
+	PREC_BIT_XOR,     // ^
+	PREC_BIT_AND,     // &
 	PREC_EQUALITY,    // == !=
-	PREC_RELATIONAL,  // instanceof, in
-	PREC_COMPARISON,  // <, >, <=, >=
+	PREC_RELATIONAL,  // <, >, <=, >=, instanceof, in
+	PREC_SHIFT,       // <<, >>, >>>
 	PREC_TERM,        // +, -
 	PREC_FACTOR,      // *, /, %
 	PREC_UNARY,       // !, -, ~, typeof
@@ -127,9 +129,6 @@ typedef struct Compiler {
 	//so nested compilation never disturbs the enclosing condition's witness
 	bool condRegionValid;
 	bool icWarned; //one-shot exhaustion warning flag (debug builds only)
-	//inline cache slots (capped at UINT8_MAX sites, slot operand is u8)
-	uint16_t cacheCount;
-	uint32_t cacheCapacity; //allocated InlineCacheSlot capacity of function.caches
 	Local* locals;
 
 	LoopContext* currentLoop;

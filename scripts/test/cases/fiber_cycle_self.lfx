@@ -1,7 +1,10 @@
-// fiber: self-resume is rejected by the isRunning cycle guard
-// exit: 70
+// fiber: self-resume is rejected by the isRunning cycle guard;
+// the uncaught error is reported and the failed fiber's result carries it
+// exit: 0
 // err: Can't resume a running coroutine.
+// out: true
 var c = @ctor.Fiber(lambda() {
 	resume c;
 });
-resume c;
+var r = resume c;
+print @object.isError(r);

@@ -1,5 +1,5 @@
 # LoxFlux
-![Version](https://img.shields.io/badge/version-0.14.0-blue)
+![Version](https://img.shields.io/badge/version-0.15.0-blue)
 
 LoxFlux is an independent reimplementation of the cLox interpreter described in "Crafting Interpreters"—a stack-based bytecode virtual machine. All code is written from scratch, following the book’s design principles. This project is still actively being developed and improved.
 
@@ -38,21 +38,21 @@ Lox is a programming language designed for learning purposes. It is conceived as
 #### Performance test
 
 _(AMD Ryzen7-5800X, Windows 11, Use ClangCL/LLVM 22.1.3 for loxflux & clox (loop 1e8: LLVM 19, see note) & Lua 5.5.1; LoxFlux benchmarks in `scripts/benchmark/lfx`, CPython in `scripts/benchmark/py`, Lua in `scripts/benchmark/lua`)_
-|program|LoxFlux - [0.14.0]|clox|NodeJS - [24.19.0] - jitless|Cpython3 - [3.14.7]|Lua - [5.5.1]|
+|program|LoxFlux - [0.15.0]|clox|NodeJS - [24.19.0] - jitless|Cpython3 - [3.14.7]|Lua - [5.5.1]|
 |---|---|---|---|---|---|
 |fib30|44ms|81ms|50ms|121ms|51ms|
 |fib35|489ms|880ms|570ms|1319ms|546ms|
-|fib40|5440ms|10365ms|6131ms|14593ms|6038ms|
-|loop 1e8|410ms (for: 721ms)|1109ms|583ms|2671ms|842ms (for: 213ms)|
-|global loop 1e8|708ms|2694ms|988ms|4462ms|2265ms|
-|binary_trees|828ms|2295ms|517ms|1247ms|2364ms|
-|instantiation|325ms|845ms|226ms|1020ms|1145ms|
-|invocation|142ms|244ms|203ms|312ms|286ms|
+|fib40|5450ms|10365ms|6131ms|14593ms|6038ms|
+|loop 1e8|413ms (for: 660ms)|1109ms|583ms|2671ms|842ms (for: 213ms)|
+|global loop 1e8|720ms|2694ms|988ms|4462ms|2265ms|
+|binary_trees|868ms|2295ms|517ms|1247ms|2364ms|
+|instantiation|336ms|845ms|226ms|1020ms|1145ms|
+|invocation|140ms|244ms|203ms|312ms|286ms|
 |method_call|79ms|167ms|93ms|160ms|137ms|
-|properties|178ms|373ms|229ms|339ms|329ms|
-|trees|986ms|3884ms|1307ms|2002ms|3116ms|
-|zoo|142ms|288ms|169ms|292ms|251ms|
-|zoo_batch(10sec)|11074batch|5063batch|9049batch|5665batch|6569batch|
+|properties|182ms|373ms|229ms|339ms|329ms|
+|trees|924ms|3884ms|1307ms|2002ms|3116ms|
+|zoo|143ms|288ms|169ms|292ms|251ms|
+|zoo_batch(10sec)|10932batch|5063batch|9049batch|5665batch|6569batch|
 
 ---
 
@@ -120,7 +120,7 @@ print "after"; // runs only after the host resumes execution
 
 - **Fibers**: `@ctor.Fiber(body [, args...])` creates a coroutine from a function (natives are rejected); extra arguments are forwarded to the body. A fiber runs only when resumed.
 - **`yield` / `resume`**: `yield expr` suspends the fiber and delivers `expr` as the value of the corresponding `resume` expression; `resume f` starts or re-enters `f` and evaluates to the yielded — or finally returned — value. Yielding in top-level, or resuming a running fiber (self/cycle), is a runtime error.
-- **Lifecycle**: returning settles a fiber (`SETTLED`), a runtime error fails it (`FAILED`), `@fiber.cancel` finalizes it (`CANCELLED`). Finalized fibers never execute again — resuming one just returns its result.
+- **Lifecycle**: returning settles a fiber (`SETTLED`), an uncaught throw or runtime error fails it (`FAILED`), `@fiber.cancel` finalizes it (`CANCELLED`). Finalized fibers never execute again — resuming one just returns its result.
 
 ```
 var f = @ctor.Fiber(lambda(a) {
@@ -131,6 +131,37 @@ print resume f;                            // 6
 print @fiber.status(f) == @fiber.PENDING;  // true
 print resume f;                            // done
 ```
+
+---
+
+### Exceptions
+
+- **`try` / `catch`**: A `try` statement has exactly one `catch` clause with a mandatory binding. The binding is local to the catch block. There is no `finally` clause.
+- **`throw`**: Throws any value unchanged. Primitive values keep their value and objects keep their identity; rethrowing does not add a wrapper.
+- **Runtime errors**: VM and native failures are caught as text-based error objects containing the message and the collected call trace. Use `@object.isError(value)` to distinguish them from ordinary thrown values.
+
+```ebnf
+tryCatchStmt ::= "try" block "catch" "(" IDENTIFIER ")" block
+throwStmt    ::= "throw" expression ";"
+```
+
+```
+var payload = { code: 42 };
+try { throw payload; } catch (e) {
+    print e == payload;          // true
+    print @object.isError(e);    // false
+}
+
+try {
+    var text = "bad";
+    var result = 1 + text;
+} catch (e) {
+    print @object.isError(e);    // true
+    print e;                     // <error> "Operands must be two numbers or two strings."
+}
+```
+
+- **Uncaught failures**: They are reported with `[RuntimeError]`. In a non-root fiber, the fiber is sealed as `FAILED`; the original thrown value or runtime error object becomes both the `resume` result and `@fiber.result(f)`. Resumer frames are not searched for a handler.
 
 ---
 
@@ -333,6 +364,7 @@ The `@object` module provides utilities for type checking and object introspecti
   - `isStringBuilder`: Verifies if a value is a stringBuilder.
   - `isNumber`: Verifies whether a value is a number.
   - `isBoolean`: Verifies whether a value is true or false.
+  - `isError`: Verifies whether a value is an error object carrying a message and collected call trace.
   - `getGlobal`: Get global object.
   - `keys`: Returns the own keys array of an instance.
   - `hasOwn`: Returns true if the instance has an own data property with the given string key (methods are not own properties).
@@ -420,7 +452,7 @@ The `@fiber` module provides coroutine introspection and lifecycle control.
 
 - **Status**:
   - `status`: Returns the fiber's state as one of the `PENDING` / `RUNNING` / `SETTLED` / `FAILED` / `CANCELLED` constants.
-  - `result`: Returns the fiber's last yielded value, or its settle value once finalized.
+  - `result`: Returns the fiber's last yielded value, its return value once settled, or the original thrown value/runtime error object once failed.
 
 - **Lifecycle Control**:
   - `cancel`: Finalizes a pending fiber as `CANCELLED`, optionally storing a result value; returns whether the cancel took.
@@ -515,6 +547,5 @@ The project **loxFlux** is based on `MIT` and uses three third-party projects.
    - License: `MIT`
 
 ## Other expectations
-1. try catch syntax.
-2. performace improve.
-3. gc optimization.
+1. performace improve.
+2. gc optimization.

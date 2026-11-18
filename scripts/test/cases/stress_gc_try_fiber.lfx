@@ -1,0 +1,54 @@
+// failed-fiber GC stress: result is the sole owner after the resume result drops
+// exit: 0
+// err: [RuntimeError] Payload (instance)
+// err: [RuntimeError] Operands must be two numbers or two strings.
+// out: 71
+// out: <error> "Operands must be two numbers or two strings.
+// out: [line 25] in <lambda>() : (3)"
+// out: true
+class Payload { init(v) { this.v = v; } }
+
+var objectFiber = @ctor.Fiber(lambda() {
+	var payload = Payload(71);
+	throw payload;
+});
+var objectResult = resume objectFiber;
+objectResult = nil;
+@sys.gcRun();
+for (var i = 0; i < 24; i = i + 1) { @array.push(@ctor.Array(4), i); }
+print @fiber.result(objectFiber).v;
+objectFiber = nil;
+@sys.gcRun();
+
+var errorFiber = @ctor.Fiber(lambda() {
+	var text = "bad";
+	return 1 + text;
+});
+var errorResult = resume errorFiber;
+errorResult = nil;
+@sys.gcRun();
+for (var i = 0; i < 24; i = i + 1) { @array.push(@ctor.Array(4), i); }
+print @fiber.result(errorFiber);
+errorFiber = nil;
+@sys.gcRun();
+
+fun runFailedFiber(i) {
+	var f = @ctor.Fiber(lambda() {
+		var payload = Payload(i);
+		throw payload;
+	});
+	var result = resume f;
+}
+
+//warm the fiber arena cache before comparing the GC-book baseline
+runFailedFiber(-1);
+var i = 0;
+var base = 0;
+@sys.gcRun();
+base = @sys.allocatedBytes();
+for (i = 0; i < 16; i = i + 1) {
+	runFailedFiber(i);
+	if ((i & 3) == 0) @sys.gcRun();
+}
+@sys.gcRun();
+print base == @sys.allocatedBytes();

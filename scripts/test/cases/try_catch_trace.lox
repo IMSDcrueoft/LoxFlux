@@ -1,0 +1,8 @@
+// unwind appends one trace line per popped frame; the frame that owns the
+// handler is not recorded
+// exit: 0
+// out: caught
+// out: <error> "Operands must be numbers.
+// out: [line 7] in callee() : (1)"
+fun callee() { var y = "s"; return y + 1; }
+try { callee(); } catch (e) { print "caught"; print e; }

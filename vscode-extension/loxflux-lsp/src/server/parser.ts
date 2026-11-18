@@ -15,10 +15,12 @@ enum Precedence {
 	PrecAssignment, // =
 	PrecOr, // or
 	PrecAnd, // and
-	PrecBitwise, // | ^ & << >> >>> (shared level, like the compiler)
+	PrecBitOr, // |
+	PrecBitXor, // ^
+	PrecBitAnd, // &
 	PrecEquality, // == !=
-	PrecRelational, // instanceof, in
-	PrecComparison, // < > <= >=
+	PrecRelational, // < > <= >= instanceof in
+	PrecShift, // << >> >>>
 	PrecTerm, // + -
 	PrecFactor, // * / %
 	PrecUnary, // ! - ~ typeof
@@ -155,6 +157,7 @@ export class Parser {
 				case TokenType.Print:
 				case TokenType.Return:
 				case TokenType.Throw:
+				case TokenType.Try:
 				case TokenType.Export:
 				case TokenType.Cede:
 				case TokenType.Yield:
@@ -397,6 +400,9 @@ export class Parser {
 		if (this.match(TokenType.Throw)) {
 			return this.throwStatement();
 		}
+		if (this.match(TokenType.Try)) {
+			return this.tryStatement();
+		}
 		if (this.match(TokenType.Export)) {
 			return this.exportStatement();
 		}
@@ -424,6 +430,19 @@ export class Parser {
 		const value = this.expression();
 		this.consume(TokenType.Semicolon, "Expect ';' after value.");
 		return { kind: 'Throw', start: throwToken.start, end: this.previous.end, throwToken, value };
+	}
+
+	private tryStatement(): Stmt {
+		const tryToken = this.previous;
+		this.consume(TokenType.LBrace, "Expect '{' after 'try'.");
+		const tryBlock = this.block();
+		const catchToken = this.consume(TokenType.Catch, "Expect 'catch' after try block.");
+		this.consume(TokenType.LParen, "Expect '(' after 'catch'.");
+		const errorName = this.consume(TokenType.Identifier, "Expect error binding name in 'catch (...)'.");
+		this.consume(TokenType.RParen, "Expect ')' after catch binding.");
+		this.consume(TokenType.LBrace, "Expect '{' after catch binding.");
+		const catchBlock = this.block();
+		return { kind: 'TryCatch', start: tryToken.start, end: this.previous.end, tryToken, tryBlock, catchToken, errorName, catchBlock };
 	}
 
 	private returnStatement(): Stmt {
@@ -647,14 +666,17 @@ export class Parser {
 			case TokenType.GreaterEqual:
 			case TokenType.Less:
 			case TokenType.LessEqual:
-				return { prefix: undefined, infix: (l) => this.binary(l), precedence: Precedence.PrecComparison };
+				return { prefix: undefined, infix: (l) => this.binary(l), precedence: Precedence.PrecRelational };
 			case TokenType.BitAnd:
+				return { prefix: undefined, infix: (l) => this.binary(l), precedence: Precedence.PrecBitAnd };
 			case TokenType.BitOr:
+				return { prefix: undefined, infix: (l) => this.binary(l), precedence: Precedence.PrecBitOr };
 			case TokenType.BitXor:
+				return { prefix: undefined, infix: (l) => this.binary(l), precedence: Precedence.PrecBitXor };
 			case TokenType.BitShl:
 			case TokenType.BitSar:
 			case TokenType.BitShr:
-				return { prefix: undefined, infix: (l) => this.binary(l), precedence: Precedence.PrecBitwise };
+				return { prefix: undefined, infix: (l) => this.binary(l), precedence: Precedence.PrecShift };
 			case TokenType.And:
 				return { prefix: undefined, infix: (l) => this.logical(l, 'and'), precedence: Precedence.PrecAnd };
 			case TokenType.Or:

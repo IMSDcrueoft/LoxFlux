@@ -163,6 +163,7 @@ export type Stmt =
 	| BranchStmt
 	| ReturnStmt
 	| ThrowStmt
+	| TryCatchStmt
 	| ExportStmt
 	| CedeStmt
 	| YieldStmt
@@ -277,6 +278,15 @@ export interface ThrowStmt extends Node {
 	kind: 'Throw';
 	throwToken: Token;
 	value: Expr;
+}
+
+export interface TryCatchStmt extends Node {
+	kind: 'TryCatch';
+	tryToken: Token;
+	tryBlock: BlockStmt;
+	catchToken: Token;
+	errorName: Token;
+	catchBlock: BlockStmt;
 }
 
 export interface ExportStmt extends Node {

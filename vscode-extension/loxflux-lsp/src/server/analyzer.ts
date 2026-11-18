@@ -10,7 +10,7 @@ import { Positions } from './positions';
 
 const STMT_KINDS = new Set<string>([
 	'Print', 'ExprStmt', 'VarDecl', 'FunDecl', 'ClassDecl', 'If', 'While', 'DoWhile',
-	'For', 'Branch', 'Return', 'Throw', 'Export', 'Cede', 'Break', 'Continue', 'Block',
+	'For', 'Foreach', 'Branch', 'Return', 'Throw', 'TryCatch', 'Export', 'Cede', 'Break', 'Continue', 'Block',
 ]);
 
 export enum DeclKind {
@@ -551,6 +551,36 @@ export class Analyzer {
 				}
 				break;
 			}
+			case 'Foreach': {
+				//the iterable runs in the enclosing scope (k/v are not declared yet);
+				//k/v then become locals of the foreach scope, and the body walks
+				//with loop depth raised so break/continue validate against it
+				this.walkExpr(stmt.iterable);
+				this.pushScope(false, stmt.start, stmt.end);
+				try {
+					this.declare(stmt.keyToken, DeclKind.Local, {
+						isConst: stmt.isConst,
+						declStart: stmt.start,
+						declEnd: stmt.end,
+						doc: this.docFor(stmt.keyToken.start),
+					});
+					this.declare(stmt.valueToken, DeclKind.Local, {
+						isConst: stmt.isConst,
+						declStart: stmt.start,
+						declEnd: stmt.end,
+						doc: this.docFor(stmt.valueToken.start),
+					});
+					this.loopDepth++;
+					try {
+						this.walkStmt(stmt.body);
+					} finally {
+						this.loopDepth--;
+					}
+				} finally {
+					this.popScope();
+				}
+				break;
+			}
 			case 'Branch':
 				for (const c of stmt.cases) {
 					if (c.condition) {
@@ -584,6 +614,25 @@ export class Analyzer {
 			case 'Throw':
 				this.walkExpr(stmt.value);
 				break;
+			case 'TryCatch': {
+				this.walkStmt(stmt.tryBlock);
+				//catch binding is a local of the catch block scope; the try block
+				//is a plain Block and manages its own scope inside walkStmt
+				this.pushScope(false, stmt.catchBlock.start, stmt.catchBlock.end);
+				try {
+					this.declare(stmt.errorName, DeclKind.Local, {
+						declStart: stmt.errorName.start,
+						declEnd: stmt.errorName.end,
+						doc: this.docFor(stmt.errorName.start),
+					});
+					for (const s of stmt.catchBlock.statements) {
+						this.walkStmt(s);
+					}
+				} finally {
+					this.popScope();
+				}
+				break;
+			}
 			case 'Export':
 				if (stmt.value) {
 					this.collectExport(stmt.value);
@@ -872,41 +921,17 @@ export class Analyzer {
 				case 'For':
 					this.reportUnreachable([stmt.body]);
 					break;
-			case 'Foreach': {
-				// mirror the compiler: the iterable expression runs in the
-				// enclosing scope (k/v are not declared yet), then k/v become
-				// locals of the foreach scope and the body walks with the
-				// loop depth raised so break/continue validate against it
-				this.walkExpr(stmt.iterable);
-				this.pushScope(false, stmt.start, stmt.end);
-				try {
-					this.declare(stmt.keyToken, DeclKind.Local, {
-						isConst: stmt.isConst,
-						declStart: stmt.start,
-						declEnd: stmt.end,
-						doc: this.docFor(stmt.keyToken.start),
-					});
-					this.declare(stmt.valueToken, DeclKind.Local, {
-						isConst: stmt.isConst,
-						declStart: stmt.start,
-						declEnd: stmt.end,
-						doc: this.docFor(stmt.valueToken.start),
-					});
-					this.loopDepth++;
-					try {
-						this.walkStmt(stmt.body);
-					} finally {
-						this.loopDepth--;
-					}
-				} finally {
-					this.popScope();
-				}
-				break;
-			}
+				case 'Foreach':
+					this.reportUnreachable([stmt.body]);
+					break;
 			case 'Branch':
 					for (const c of stmt.cases) {
 						this.reportUnreachable([c.body]);
 					}
+					break;
+				case 'TryCatch':
+					this.reportUnreachable(stmt.tryBlock.statements);
+					this.reportUnreachable(stmt.catchBlock.statements);
 					break;
 				case 'FunDecl':
 					this.reportUnreachable(stmt.body.statements);

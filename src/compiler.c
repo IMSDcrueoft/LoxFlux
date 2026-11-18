@@ -69,11 +69,8 @@ static void emitOpStack(CompilerContext* cc, uint8_t byte, bool doCheck) {
 #endif
 }
 
-static void errorAt(CompilerContext* cc, Token* token, C_STR message) {
-	if (cc->parser.panicMode) return;
-	cc->parser.panicMode = true;
-
-	fprintf(stderr, "[line %d] Error", token->line);
+static void diagnosticAt(Token* token, C_STR severity, C_STR message) {
+	fprintf(stderr, "[%s] [line %d] ", severity, token->line);
 
 	if (token->type == TOKEN_EOF) {
 		fprintf(stderr, " at end");
@@ -86,6 +83,12 @@ static void errorAt(CompilerContext* cc, Token* token, C_STR message) {
 	}
 
 	fprintf(stderr, ": %s\n", message);
+}
+
+static void errorAt(CompilerContext* cc, Token* token, C_STR message) {
+	if (cc->parser.panicMode) return;
+	cc->parser.panicMode = true;
+	diagnosticAt(token, "Error", message);
 	cc->parser.hadError = true;
 }
 
@@ -96,6 +99,21 @@ static void error(CompilerContext* cc, C_STR message) {
 static void errorAtCurrent(CompilerContext* cc, C_STR message) {
 	errorAt(cc, &cc->parser.current, message);
 }
+
+#if LOXFLUX_COMPILATION_TIME_OPTIMIZATION
+static void warning(CompilerContext* cc, C_STR message) {
+	diagnosticAt(&cc->parser.previous, "Warning", message);
+}
+
+static void warningAtCurrent(CompilerContext* cc, C_STR message) {
+	diagnosticAt(&cc->parser.current, "Warning", message);
+}
+
+static void rejectOptimization(CompilerContext* cc, C_STR message) {
+	warning(cc, message);
+	clearOpStack(cc);
+}
+#endif
 
 static void advance(CompilerContext* cc) {
 	cc->parser.previous = cc->parser.current;
@@ -169,7 +187,7 @@ static void emitShortCommand(CompilerContext* cc, OpCode target, uint32_t index)
 //returns the operand to embed in the instruction
 static uint8_t emitCacheSlot(CompilerContext* cc) {
 	Compiler* current = cc->currentCompiler;
-	if (current->cacheCount + 1 > UINT8_MAX) {//operand values 1..255 are real slots
+	if (current->function.cacheCount + 1 > UINT8_MAX) {//operand values 1..255 are real slots
 #if DEBUG_PRINT_CODE
 		if (!current->icWarned) {
 			current->icWarned = true;
@@ -177,9 +195,9 @@ static uint8_t emitCacheSlot(CompilerContext* cc) {
 				current->function.name != NULL ? current->function.name->chars : "<script>");
 		}
 #endif
-		if (current->cacheCapacity == 0) {//sentinel sites still need array[0] to exist
+		if (current->function.cacheCapacity == 0) {//sentinel sites still need array[0] to exist
 			current->function.caches = ALLOCATE_NO_GC(cc->vm, InlineCacheSlot, 1);
-			current->cacheCapacity = 1;
+			current->function.cacheCapacity = 1;
 			current->function.caches[0].capacity = 0;
 			current->function.caches[0].index = 0;
 			current->function.caches[0].extraA = NULL;
@@ -188,21 +206,21 @@ static uint8_t emitCacheSlot(CompilerContext* cc) {
 		return 0;//sentinel
 	}
 
-	if (current->cacheCapacity < (uint32_t)current->cacheCount + 2) {//real slot k lives at array index k+1
-		uint32_t capacity = GROW_CAPACITY(current->cacheCapacity);
+	if (current->function.cacheCapacity < (uint32_t)current->function.cacheCount + 2) {//real slot k lives at array index k+1
+		uint32_t capacity = GROW_CAPACITY(current->function.cacheCapacity);
 		bool firstAlloc = (current->function.caches == NULL);
-		current->function.caches = GROW_ARRAY_NO_GC(cc->vm, InlineCacheSlot, current->function.caches, current->cacheCapacity, capacity);
+		current->function.caches = GROW_ARRAY_NO_GC(cc->vm, InlineCacheSlot, current->function.caches, current->function.cacheCapacity, capacity);
 		if (firstAlloc) {//malloc memory is not zeroed: init the shared sentinel slot at index 0
 			current->function.caches[0].capacity = 0;
 			current->function.caches[0].index = 0;
 			current->function.caches[0].extraA = NULL;
 			current->function.caches[0].extraB = NULL;
 		}
-		current->cacheCapacity = capacity;
+		current->function.cacheCapacity = capacity;
 	}
 
-	uint8_t slot = (uint8_t)(current->cacheCount + 1);//operand = real index + 1
-	current->cacheCount++;
+	uint8_t slot = (uint8_t)(current->function.cacheCount + 1);//operand = real index + 1
+	current->function.cacheCount++;
 	current->function.caches[slot].capacity = 0;
 	current->function.caches[slot].index = 0;
 	current->function.caches[slot].extraA = NULL;
@@ -579,7 +597,7 @@ static bool foldBuiltinMember(CompilerContext* cc) {
 	// revert the allocated IC slot: the folded site no longer owns one
 	if (slot != 0) {
 		Compiler* current = cc->currentCompiler;
-		current->cacheCount--;
+		current->function.cacheCount--;
 	}
 
 	//numbers into the function's own pool, native members into the shared pool
@@ -650,12 +668,14 @@ static void initCompiler(CompilerContext* cc, Compiler* compiler, FunctionType t
 	chunk_init(&compiler->function.chunk);
 	compiler->function.caches = NULL;
 	compiler->function.cacheCount = 0;
+	compiler->function.cacheCapacity = 0;
+	compiler->function.tryContexts = NULL;
+	compiler->function.tryContextCount = 0;
+	compiler->function.tryContextCapacity = 0;
 	compiler->function.constantsCount = 0;//scratch state, constants live in the compiler until sealed
 	compiler->objectNestingDepth = 0;
 
-	compiler->cacheCount = 0;
 	compiler->icWarned = false;
-	compiler->cacheCapacity = 0;
 
 	compiler->condRegionValid = false;
 
@@ -721,11 +741,19 @@ static ObjFunction* endCompiler(CompilerContext* cc) {
 	opStack_free(cc->vm, currentOpStack(cc));
 	binaryTable_free(cc->vm, &current->numbers);//free every compiler's number pool (nested compilers were leaking)
 
-	//shrink inline caches to exactly cacheCount+1 entries (index 0 = shared sentinel slot)
-	//small functions/lambdas keep no doubling slack; functions without ic sites keep NULL
-	if (current->cacheCapacity > (uint32_t)current->cacheCount + 1) {
-		current->function.caches = GROW_ARRAY_NO_GC(cc->vm, InlineCacheSlot, current->function.caches, current->cacheCapacity, (uint32_t)current->cacheCount + 1);
-		current->cacheCapacity = (uint32_t)current->cacheCount + 1;
+	//try contexts are appended in completion order, which is not sorted: nested
+	//tries record inner-first. sort for the runtime's binary search: tryBegin asc,
+	//ties tryBytes desc (the inner of a same-begin group comes last)
+	for (uint32_t i = 1, j = 0; i < current->function.tryContextCount; i++) {
+		TryContext entry = current->function.tryContexts[i];
+
+		for (j = i;j > 0;j--) {
+			TryContext* prev = &current->function.tryContexts[j - 1];
+			if (prev->tryBegin < entry.tryBegin) break;
+			if (prev->tryBegin == entry.tryBegin && prev->tryBytes >= entry.tryBytes) break;
+			current->function.tryContexts[j] = *prev;
+		}
+		current->function.tryContexts[j] = entry;
 	}
 
 	//materialize the final FAM function from the embedded compile-time state
@@ -735,12 +763,17 @@ static ObjFunction* endCompiler(CompilerContext* cc) {
 	//detach the moved buffers from the embedded state: the fresh object owns them now
 	chunk_init(&current->function.chunk);
 	current->function.caches = NULL;
+	current->function.cacheCapacity = 0;
+	current->function.tryContexts = NULL;
+	current->function.tryContextCount = 0;
+	current->function.tryContextCapacity = 0;
 	current->function.constantsCount = 0;
 
 	valueArray_free(cc->vm, &current->constants);
 
 	//register for gc: invoke cache slots hold ObjClass*/ObjClosure* that must stay marked
-	if (current->cacheCapacity > 0) {
+	//(check the materialized object: the embedded scratch state was detached/zeroed above)
+	if (function->cacheCapacity > 0) {
 		vm_registerIcFunction(cc->vm, function);
 	}
 
@@ -1413,6 +1446,69 @@ static void ifStatement(CompilerContext* cc) {
 	patchJump(cc, elseJump);
 }
 
+//entries live in function.tryContexts, moved into the ObjFunction at endCompiler
+static void recordTryContext(CompilerContext* cc, uint32_t tryBegin, uint16_t tryBytes, uint16_t slotDepth) {
+	Compiler* current = cc->currentCompiler;
+
+	if (current->function.tryContextCount == UINT8_COUNT) {
+		error(cc, "Too many try-catch blocks in one function.");
+		return;
+	}
+
+	if (current->function.tryContextCount == current->function.tryContextCapacity) {
+		uint32_t oldCapacity = current->function.tryContextCapacity;
+		current->function.tryContextCapacity = GROW_CAPACITY(oldCapacity);
+		current->function.tryContexts = GROW_ARRAY_NO_GC(cc->vm, TryContext, current->function.tryContexts, oldCapacity, current->function.tryContextCapacity);
+	}
+
+	current->function.tryContexts[current->function.tryContextCount++] = (TryContext) {
+		.tryBegin = tryBegin,
+		.tryBytes = tryBytes,
+		.slotDepth = slotDepth
+	};
+}
+
+static void tryStatement(CompilerContext* cc) {
+	Compiler* current = cc->currentCompiler;
+
+	uint32_t slotDepth = current->localCount;
+	uint32_t tryBegin = currentChunk(cc)->count;
+
+	consume(cc, TOKEN_LEFT_BRACE, "Expect '{' after 'try'.");
+	beginScope(cc);
+	block(cc);
+	endScope(cc);
+
+	int32_t endJump = emitJump(cc, OP_JUMP);
+
+	//the region also covers the 3-byte exit jump so the catch entry is exactly
+	//tryBegin + tryBytes; the jump itself can never raise
+	uint32_t tryBytes = currentChunk(cc)->count - tryBegin;
+	if (tryBytes > UINT16_MAX) {
+		error(cc, "Too much code in try block.");
+	}
+
+	consume(cc, TOKEN_CATCH, "Expect 'catch' after try block.");
+	consume(cc, TOKEN_LEFT_PAREN, "Expect '(' after 'catch'.");
+	consume(cc, TOKEN_IDENTIFIER, "Expect error binding name in 'catch (...)'.");
+	Token errorName = cc->parser.previous;
+	consume(cc, TOKEN_RIGHT_PAREN, "Expect ')' after catch binding.");
+
+	//exception dispatch restores the stack to slotDepth and pushes the error
+	//value, so it lands exactly at locals[slotDepth]: the binding needs no
+	//initializer opcode and is unreachable on the normal path
+	beginScope(cc);
+	declareVariableAt(cc, &errorName);
+	markInitialized(cc, false);
+
+	consume(cc, TOKEN_LEFT_BRACE, "Expect '{' after catch binding.");
+	block(cc);
+	endScope(cc);
+
+	recordTryContext(cc, tryBegin, (uint16_t)tryBytes, (uint16_t)slotDepth);
+	patchJump(cc, endJump);
+}
+
 static void branchCaseStatementInner(CompilerContext* cc) {
 	if (!match(cc, TOKEN_NONE)) {
 		int32_t condStart = beginCondition(cc);
@@ -1732,6 +1828,7 @@ static void synchronize(CompilerContext* cc) {
 		case TOKEN_PRINT:
 		case TOKEN_RETURN:
 		case TOKEN_THROW:
+		case TOKEN_TRY:
 		case TOKEN_IMPORT:
 		case TOKEN_EXPORT:
 		case TOKEN_CEDE:
@@ -1784,6 +1881,9 @@ static void statementInner(CompilerContext* cc) {
 	}
 	else if (match(cc, TOKEN_THROW)) {
 		throwStatement(cc);
+	}
+	else if (match(cc, TOKEN_TRY)) {
+		tryStatement(cc);
 	}
 	else if (match(cc, TOKEN_EXPORT)) {
 		exportsStatement(cc);
@@ -2005,19 +2105,19 @@ static void dot(CompilerContext* cc, bool canAssign) {
 				LfxValue member;
 				if (tableGet(&cc->vm->builtins[builtinModule].fields, AS_STRING(cc->vm->constants.values[name]), &member)) {
 					if (!IS_NATIVE(member)) {
-						//frozen builtin member that is not a method (e.g. @math.PI): calling it is a
-						//compile-time-detectable error
-						errorAtCurrent(cc, "Cannot call a non-method member of a builtin module.");
+						//keep the generic invoke; only the executed site reports the error
+						warningAtCurrent(cc, "Cannot call a non-method member of a builtin module.");
+					}
+					else {
+						//drop the OP_MODULE_BUILTIN push (opcode + module u8)
+						chunk_fallback(chunk, 2);
+						opStack_fallback(opStack, 1);//the opcode entry
+						emitConstant(cc, member);
+						uint8_t argCount = argumentList(cc);
+						emitBytes(cc, 2, OP_CALL, argCount);
+						clearOpStack(cc);
 						return;
 					}
-					//drop the OP_MODULE_BUILTIN push (opcode + module u8)
-					chunk_fallback(chunk, 2);
-					opStack_fallback(opStack, 1);//the opcode entry
-					emitConstant(cc, member);
-					uint8_t argCount = argumentList(cc);
-					emitBytes(cc, 2, OP_CALL, argCount);
-					clearOpStack(cc);
-					return;
 				}
 			}
 		}
@@ -2462,19 +2562,19 @@ ParseRule rules[] = {
 	[TOKEN_BANG_EQUAL] = { NULL,     binary,   PREC_EQUALITY },
 	[TOKEN_EQUAL] = { NULL,     NULL,   PREC_NONE },
 	[TOKEN_EQUAL_EQUAL] = { NULL,     binary, PREC_EQUALITY },
-	[TOKEN_GREATER] = { NULL,     binary, PREC_COMPARISON },
-	[TOKEN_GREATER_EQUAL] = { NULL,     binary, PREC_COMPARISON },
-	[TOKEN_LESS] = { NULL,     binary, PREC_COMPARISON },
-	[TOKEN_LESS_EQUAL] = { NULL,     binary, PREC_COMPARISON },
+	[TOKEN_GREATER] = { NULL,     binary, PREC_RELATIONAL },
+	[TOKEN_GREATER_EQUAL] = { NULL,     binary, PREC_RELATIONAL },
+	[TOKEN_LESS] = { NULL,     binary, PREC_RELATIONAL },
+	[TOKEN_LESS_EQUAL] = { NULL,     binary, PREC_RELATIONAL },
 	[TOKEN_INSTANCE_OF] = { NULL,     binary,   PREC_RELATIONAL },
 	[TOKEN_TYPE_OF] = { unary,	NULL, PREC_UNARY },
-	[TOKEN_BIT_AND] = { NULL,	binary, PREC_BITWISE },
-	[TOKEN_BIT_OR] = { NULL,		binary, PREC_BITWISE },
-	[TOKEN_BIT_XOR] = { NULL,	binary, PREC_BITWISE },
+	[TOKEN_BIT_AND] = { NULL,	binary, PREC_BIT_AND },
+	[TOKEN_BIT_OR] = { NULL,		binary, PREC_BIT_OR },
+	[TOKEN_BIT_XOR] = { NULL,	binary, PREC_BIT_XOR },
 	[TOKEN_BIT_NOT] = { unary,	NULL, PREC_UNARY },
-	[TOKEN_BIT_SHL] = { NULL,	binary, PREC_BITWISE },
-	[TOKEN_BIT_SHR] = { NULL,	binary, PREC_BITWISE },
-	[TOKEN_BIT_SAR] = { NULL,	binary, PREC_BITWISE },
+	[TOKEN_BIT_SHL] = { NULL,	binary, PREC_SHIFT },
+	[TOKEN_BIT_SHR] = { NULL,	binary, PREC_SHIFT },
+	[TOKEN_BIT_SAR] = { NULL,	binary, PREC_SHIFT },
 	[TOKEN_IDENTIFIER] = { variable,     NULL,   PREC_NONE },
 	[TOKEN_STRING] = { string,     NULL,   PREC_NONE },
 	[TOKEN_STRING_ESCAPE] = { string_escape,     NULL,   PREC_NONE },
@@ -2523,6 +2623,8 @@ ParseRule rules[] = {
 	[TOKEN_CEDE] = { NULL,     NULL,   PREC_NONE },
 	[TOKEN_YIELD] = { NULL,     NULL,   PREC_NONE },
 	[TOKEN_RESUME] = { resume_,     NULL,   PREC_NONE },
+	[TOKEN_TRY] = { NULL,     NULL,   PREC_NONE },
+	[TOKEN_CATCH] = { NULL,     NULL,   PREC_NONE },
 };
 
 static ParseRule* getRule(TokenType type) {
@@ -2667,7 +2769,7 @@ static void instructionOptimize(CompilerContext* cc) {
 			opStack_fallback(opStack,3);						\
 			emitNumberConstant(cc, NUMBER_VAL(val));				\
 		} else {												\
-			error(cc, "Operands must be numbers.");					\
+			rejectOptimization(cc, "Operands must be numbers.");					\
 		}														\
 	} while (false)
 
@@ -2688,7 +2790,7 @@ static void instructionOptimize(CompilerContext* cc) {
 			emitOpStack(cc, val ? OP_TRUE : OP_FALSE, false);		\
 		}														\
 		else {													\
-			error(cc, "Operands must be two numbers or two strings.");\
+			rejectOptimization(cc, "Operands must be two numbers or two strings.");\
 		}														\
 	} while (false)
 
@@ -2714,7 +2816,7 @@ static void instructionOptimize(CompilerContext* cc) {
 				emitConstant(cc, OBJ_VAL(val));
 			}
 			else {
-				error(cc, "Operands must be two numbers or two strings.");
+				rejectOptimization(cc, "Operands must be two numbers or two strings.");
 			}
 		}
 		else if (isRightConstNumber) {
@@ -2795,7 +2897,7 @@ static void instructionOptimize(CompilerContext* cc) {
 				emitNumberConstant(cc, NUMBER_VAL(val));
 			}
 			else {
-				error(cc, "Operands must be numbers.");
+				rejectOptimization(cc, "Operands must be numbers.");
 			}
 		}
 		else if (isRightConstNumber) {
@@ -2853,10 +2955,10 @@ static void instructionOptimize(CompilerContext* cc) {
 			emitNumberConstant(cc, NUMBER_VAL(val));
 		}
 		else if (prevRight == OP_CONSTANT) {
-			error(cc, "Operand must be a number.");
+			rejectOptimization(cc, "Operand must be a number.");
 		}
 		else if (prevRight == OP_FALSE || prevRight == OP_TRUE || prevRight == OP_NIL) {
-			error(cc, "Operand must be a number.");
+			rejectOptimization(cc, "Operand must be a number.");
 		}
 		else if (isRightLocal) {
 			chunk_fallback(chunk, 1);//op
@@ -2977,7 +3079,7 @@ static void instructionOptimize(CompilerContext* cc) {
 			LfxValue right = READ_LOCAL_CONSTANT(idx_right);
 
 			if (!IS_NUMBER(right)) {
-				error(cc, "Operand of bitwise must be a number.");
+				rejectOptimization(cc, "Operand of bitwise must be a number.");
 				break;
 			}
 
@@ -3015,7 +3117,7 @@ static void instructionOptimize(CompilerContext* cc) {
 			}
 			case BIT_OP_SHR: {
 				if (rightNum < 0) {
-					error(cc, "Operand of bitwise must be a positive.");
+					rejectOptimization(cc, "Operand of bitwise must be a positive.");
 					break;
 				}
 				uint32_t shiftIMM = double_to_shift32(rightNum);
@@ -3026,7 +3128,7 @@ static void instructionOptimize(CompilerContext* cc) {
 			}
 			case BIT_OP_SAR: {
 				if (rightNum < 0) {
-					error(cc, "Operand of bitwise must be a positive.");
+					rejectOptimization(cc, "Operand of bitwise must be a positive.");
 					break;
 				}
 				uint32_t shiftIMM = double_to_shift32(rightNum);
@@ -3041,7 +3143,7 @@ static void instructionOptimize(CompilerContext* cc) {
 			}
 		}
 		else if (prevRight == OP_CONSTANT) {
-			error(cc, "Operand of bitwise must be a number.");
+			rejectOptimization(cc, "Operand of bitwise must be a number.");
 		}
 		break;
 	}

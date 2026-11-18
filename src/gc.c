@@ -121,6 +121,7 @@ static void markRoots(LfxVM* vm) {
 	}
 
 	markTable(vm, &vm->globals.fields);
+	markValue(vm, vm->pendingException);
 	//the shared constants don't gc
 	//markConstants(&vm.constants);
 
@@ -239,6 +240,9 @@ static void blackenObject(LfxVM* vm, Obj* object) {
 		markObject(vm, iterator->target);
 		break;
 	}
+	case OBJ_ERROR:
+		//pure text, no references to trace
+		break;
 	case OBJ_FIBER: {
 		ObjFiber* fiber = (ObjFiber*)object;
 

@@ -1,0 +1,96 @@
+// try/catch GC stress: catch ownership, closed upvalues, error text and churn
+// exit: 0
+// out: 42
+// out: 43
+// out: 44
+// out: <error> "Operands must be two numbers or two strings.
+// out: [line 50] in runtimeCallee() : (6)
+// out: [line 51] in runtimeCaller() : (7)"
+// out: <error> "Can only call functions and classes."
+// out: true
+class Payload { init(v) { this.v = v; } }
+
+fun catchPayload(v) {
+	try {
+		var payload = Payload(v);
+		throw payload;
+	} catch (e) {
+		@sys.gcRun();
+		for (var i = 0; i < 24; i = i + 1) { @array.push(@ctor.Array(4), i); }
+		return e;
+	}
+}
+var caught = catchPayload(42);
+print caught.v;
+caught = nil;
+
+var escapedPopped = nil;
+fun failWithClosure() {
+	var local = Payload(43);
+	escapedPopped = lambda() { return local.v; };
+	throw "popped-frame";
+}
+try { failWithClosure(); } catch (e) {
+	@sys.gcRun();
+	print escapedPopped();
+}
+
+var escapedSame = nil;
+try {
+	var local = Payload(44);
+	escapedSame = lambda() { return local.v; };
+	throw "same-frame";
+} catch (e) {
+	@sys.gcRun();
+	print escapedSame();
+}
+escapedPopped = nil;
+escapedSame = nil;
+
+fun runtimeCallee() { var text = "x"; return 1 + text; }
+fun runtimeCaller() { return runtimeCallee(); }
+try {
+	try { runtimeCaller(); } catch (e) {
+		@sys.gcRun();
+		throw e;
+	}
+} catch (outer) {
+	@sys.gcRun();
+	print outer;
+}
+try { var callee = 5; callee(); } catch (e) {
+	@sys.gcRun();
+	print e;
+}
+
+fun throwObject(i) {
+	try {
+		var payload = Payload(i);
+		throw payload;
+	} catch (e) {
+		if (e.v != i) print "payload-mismatch";
+	}
+}
+fun catchRuntime() {
+	try { var text = "x"; var value = 1 + text; } catch (e) { }
+}
+fun catchNative() {
+	try { var callee = 0; callee(); } catch (e) { }
+}
+
+//warm up call sites, then prove caught errors/text and thrown objects reclaim fully
+throwObject(-1);
+catchRuntime();
+catchNative();
+var i = 0;
+var base = 0;
+@sys.gcRun();
+base = @sys.allocatedBytes();
+for (i = 0; i < 64; i = i + 1) {
+	throwObject(i);
+	catchRuntime();
+	catchNative();
+	if ((i & 7) == 0) @sys.gcRun();
+}
+@sys.gcRun();
+print base == @sys.allocatedBytes();

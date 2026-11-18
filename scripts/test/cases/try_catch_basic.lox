@@ -1,0 +1,16 @@
+// try/catch: user values pass through unchanged; runtime and native failures
+// are error objects, and rethrowing any value preserves its identity
+// exit: 0
+// out: boom
+// out: <error> "Operands must be two numbers or two strings."
+// out: caught-inner
+// out: inner
+// out: <error> "Can only call functions and classes."
+try { throw "boom"; } catch (e) { print e; }
+try { var s = "a"; var x = 1 + s; } catch (e) { print e; }
+try {
+	try { throw "inner"; } catch (e) { print "caught-inner"; throw e; }
+} catch (outer) {
+	print outer;
+}
+try { var x = 5; x(); } catch (e) { print e; }

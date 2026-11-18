@@ -1,0 +1,37 @@
+// user throws preserve primitive values and object identity across calls/rethrow
+// exit: 0
+// out: 42
+// out: number
+// out: false
+// out: nil
+// out: true
+// out: true
+// out: 7
+// out: false
+// out: true
+// out: 3
+// out: true
+try { throw 42; } catch (e) { print e; print typeof e; print @object.isError(e); }
+try { throw nil; } catch (e) { print e; }
+try { throw true; } catch (e) { print e; }
+
+var payload = { code: 7 };
+try { throw payload; } catch (e) {
+	print e == payload;
+	print e.code;
+	print @object.isError(e);
+}
+
+var array = [1, 2];
+try { throw array; } catch (e) {
+	print e == array;
+	@array.push(e, 3);
+}
+print @array.length(array);
+
+fun relay(value) { throw value; }
+try {
+	try { relay(payload); } catch (e) { throw e; }
+} catch (outer) {
+	print outer == payload;
+}

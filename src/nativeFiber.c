@@ -37,8 +37,8 @@ static LfxValue fiberStatusNative(LfxVM* vm, int argCount, LfxValue* args) {
 }
 
 //pure read: unlike resume, this never executes the fiber. a suspended fiber
-//reports its last yielded value, a settled one its return value, a failed one
-//nil (until error propagation stores real error values)
+//reports its last yielded value, a settled one its return value, and a failed
+//one the exception value stored during error propagation
 static LfxValue fiberResultNative(LfxVM* vm, int argCount, LfxValue* args) {
 	if (argCount >= 1 && IS_FIBER(args[0])) {
 		return AS_FIBER(args[0])->result;

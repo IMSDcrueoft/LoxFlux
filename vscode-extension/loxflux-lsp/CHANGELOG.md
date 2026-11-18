@@ -4,6 +4,13 @@ All notable changes to the LoxFlux Language Server extension will be documented 
 
 ## [Unreleased]
 
+## [0.1.8]
+
+- Add `try` / `catch` parsing, catch-binding scope analysis, keyword documentation and completion, plus `@object.isError` documentation.
+- Fix `foreach` key/value scope declaration, AST traversal and loop-body diagnostics.
+- Match JavaScript precedence for shifts, bitwise `&` / `^` / `|`, and relational `instanceof` / `in`.
+- Clarify that user-thrown values are delivered unchanged while runtime and native failures use error objects.
+
 ## [0.1.7]
 
 - Add LSP support for the `cede` keyword: lexing, parsing, diagnostics, keyword hover and completion.

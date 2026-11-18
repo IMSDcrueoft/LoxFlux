@@ -8,6 +8,7 @@ import * as assert from 'assert';
 import { lex, TokenType } from '../server/lexer';
 import { parse } from '../server/parser';
 import { Analyzer, DEFAULT_LINT_SETTINGS } from '../server/analyzer';
+import { BinaryExpr, Expr } from '../server/ast';
 
 let passed = 0;
 let failed = 0;
@@ -30,6 +31,22 @@ function analyzeOf(source: string) {
 	script.comments = lexed.comments;
 	const analysis = new Analyzer(script, source, DEFAULT_LINT_SETTINGS).analyze();
 	return { lexed, script, analysis };
+}
+
+function expectBinary(expr: Expr | undefined, op: string): BinaryExpr {
+	assert.strictEqual(expr?.kind, 'Binary');
+	if (expr?.kind !== 'Binary') throw new Error('expected a binary expression');
+	assert.strictEqual(expr.op.text, op);
+	return expr;
+}
+
+function binaryInitializer(source: string, op: string): BinaryExpr {
+	const { script } = analyzeOf(`var x = ${source};`);
+	assert.strictEqual(script.errors.length, 0);
+	const statement = script.statements[0];
+	assert.strictEqual(statement.kind, 'VarDecl');
+	if (statement.kind !== 'VarDecl') throw new Error('expected a variable declaration');
+	return expectBinary(statement.declarators[0].initializer, op);
 }
 
 // ---- lexer -------------------------------------------------------------
@@ -85,6 +102,11 @@ test('tracks line numbers', () => {
 	assert.strictEqual(tokens[2].line, 2);
 });
 
+test('tokenizes try/catch keywords', () => {
+	const { tokens } = lex('try catch');
+	assert.deepStrictEqual(tokens.slice(0, 2).map((t) => t.type), [TokenType.Try, TokenType.Catch]);
+});
+
 // ---- parser ------------------------------------------------------------
 
 console.log('parser:');
@@ -138,9 +160,37 @@ test('parses cede statement', () => {
 	assert.strictEqual(script.statements[0].kind, 'Cede');
 });
 
+test('parses try/catch statement', () => {
+	const { script } = analyzeOf('try { throw "x"; } catch (e) { print e; }');
+	assert.strictEqual(script.errors.length, 0);
+	assert.strictEqual(script.statements[0].kind, 'TryCatch');
+});
+
+test('rejects a bare catch without binding', () => {
+	const { script } = analyzeOf('try { } catch { }');
+	assert.ok(script.errors.length > 0);
+});
+
 test('parses bitwise operations', () => {
 	const { script } = analyzeOf('var x = 0b1010 & 0b1100 | 0x1 ^ 5 << 2 >> 1 >>> 3;');
 	assert.strictEqual(script.errors.length, 0);
+});
+
+test('uses JavaScript bitwise and shift precedence', () => {
+	const or = binaryInitializer('1 | 2 ^ 3 & 4 << 5', '|');
+	const xor = expectBinary(or.right, '^');
+	const and = expectBinary(xor.right, '&');
+	expectBinary(and.right, '<<');
+
+	const equality = binaryInitializer('1 << 2 == 4', '==');
+	expectBinary(equality.left, '<<');
+});
+
+test('shares relational precedence for instanceof and in', () => {
+	const instance = binaryInitializer('a instanceof B < c', '<');
+	expectBinary(instance.left, 'instanceof');
+	const membership = binaryInitializer('a in b < c', '<');
+	expectBinary(membership.left, 'in');
 });
 
 test('reports errors with recovery', () => {
@@ -226,6 +276,42 @@ test('does not treat code after cede as unreachable', () => {
 	const { analysis } = analyzeOf('cede;\nprint 1;');
 	const unreachable = analysis.diagnostics.filter((d) => d.code === 'unreachable');
 	assert.strictEqual(unreachable.length, 0);
+});
+
+test('declares catch binding in the catch scope', () => {
+	const { analysis } = analyzeOf('try { throw "x"; } catch (e) { print e; }');
+	assert.strictEqual(analysis.diagnostics.length, 0);
+	assert.ok(analysis.symbols.some((s) => s.nameToken.text === 'e'));
+});
+
+test('catch binding does not leak out of the catch scope', () => {
+	const { analysis } = analyzeOf('try { throw "x"; } catch (e) { print e; } print e;');
+	const undeclared = analysis.diagnostics.filter((d) => d.code === 'undeclared');
+	assert.strictEqual(undeclared.length, 1);
+});
+
+test('declares foreach k/v in the loop scope', () => {
+	const { analysis } = analyzeOf('foreach (var k, v in [1, 2]) { print k; print v; }');
+	assert.strictEqual(analysis.diagnostics.length, 0);
+	assert.ok(analysis.symbols.some((s) => s.nameToken.text === 'k'));
+	assert.ok(analysis.symbols.some((s) => s.nameToken.text === 'v'));
+});
+
+test('foreach k/v do not leak out of the loop', () => {
+	const { analysis } = analyzeOf('foreach (var k, v in [1, 2]) { print v; } print k;');
+	const undeclared = analysis.diagnostics.filter((d) => d.code === 'undeclared');
+	assert.strictEqual(undeclared.length, 1);
+});
+
+test('foreach body validates break/continue and const-ness', () => {
+	const { analysis } = analyzeOf('foreach (const k, v in [1, 2]) { break; continue; }');
+	assert.strictEqual(analysis.diagnostics.filter((d) => d.code === 'break-outside' || d.code === 'continue-outside').length, 0);
+	assert.ok(analysis.symbols.find((s) => s.nameToken.text === 'k')?.isConst);
+});
+
+test('foreach iterable resolves in the enclosing scope', () => {
+	const { analysis } = analyzeOf('var arr = [1, 2]; foreach (var arr, v in arr) { print arr; }');
+	assert.strictEqual(analysis.diagnostics.length, 0);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

@@ -15,11 +15,11 @@ hexDigit      → digit | "a" … "f" | "A" … "F" ;
 comment       → "//" { anyCharacter − newline }
               | "/*" { anyCharacter − "*/" } "*/" ;            (* not nested *)
 
-keyword       → "and" | "break" | "branch" | "cede" | "class" | "const"
+keyword       → "and" | "break" | "branch" | "catch" | "cede" | "class" | "const"
               | "continue" | "do" | "else" | "export" | "false" | "for"
               | "foreach" | "fun" | "if" | "import" | "in" | "instanceof"
               | "lambda" | "nil" | "none" | "or" | "print" | "resume"
-              | "return" | "super" | "this" | "throw" | "true" | "typeof"
+              | "return" | "super" | "this" | "throw" | "true" | "try" | "typeof"
               | "var" | "while" | "yield" ;
 
 identifier    → letter { letter | digit } ;                    (* keywords match first *)
@@ -71,7 +71,7 @@ constInit    → identifier "=" expression ;
 ```ebnf
 statement    → printStmt | ifStmt | branchStmt | returnStmt | whileStmt
             | doWhileStmt | forStmt | foreachStmt | breakStmt | continueStmt
-            | block | throwStmt | exportStmt | cedeStmt | yieldStmt
+            | block | throwStmt | tryCatchStmt | exportStmt | cedeStmt | yieldStmt
             | exprStmt ;
 
 printStmt    → "print" expression { "," expression } ";" ;
@@ -90,6 +90,7 @@ foreachStmt  → "foreach" "(" ( "var" | "const" ) identifier "," identifier
 breakStmt    → "break" ";" ;                              (* inside loops only *)
 continueStmt → "continue" ";" ;                           (* inside loops only *)
 throwStmt    → "throw" expression ";" ;
+tryCatchStmt → "try" block "catch" "(" identifier ")" block ;     (* the binding is a local of the catch block scope *)
 exportStmt   → "export" [ expression ] ";" ;              (* module code only *)
 cedeStmt     → "cede" ";" ;
 yieldStmt    → "yield" [ expression ] ";" ;               (* not allowed in top-level script code *)
@@ -108,11 +109,13 @@ target        → identifier
               | postfix "[" expression "]" ;      (* any other left-hand side is rejected *)
 
 logicOr       → logicAnd { "or" logicAnd } ;
-logicAnd      → bitwise { "and" bitwise } ;
-bitwise       → equality { ( "&" | "|" | "^" | "<<" | ">>" | ">>>" ) equality } ;
+logicAnd      → bitwiseOr { "and" bitwiseOr } ;
+bitwiseOr     → bitwiseXor { "|" bitwiseXor } ;
+bitwiseXor    → bitwiseAnd { "^" bitwiseAnd } ;
+bitwiseAnd    → equality { "&" equality } ;
 equality      → relational { ( "==" | "!=" ) relational } ;
-relational    → comparison { ( "instanceof" | "in" ) comparison } ;
-comparison    → term { ( "<" | ">" | "<=" | ">=" ) term } ;
+relational    → shift { ( "<" | ">" | "<=" | ">=" | "instanceof" | "in" ) shift } ;
+shift         → term { ( "<<" | ">>" | ">>>" ) term } ;
 term          → factor { ( "+" | "-" ) factor } ;
 factor        → unary { ( "*" | "/" | "%" ) unary } ;
 unary         → ( "!" | "-" | "~" | "typeof" ) unary | postfix ;
@@ -147,21 +150,24 @@ arguments     → expression { "," expression } ;
 | 1 | `=` assignment | right |
 | 2 | `or` | right (parser structure) |
 | 3 | `and` | right (parser structure) |
-| 4 | `& \| ^ << >> >>>` | left |
-| 5 | `== !=` | left |
-| 6 | `instanceof` `in` | left |
-| 7 | `< > <= >=` | left |
-| 8 | `+ -` | left |
-| 9 | `* / %` | left |
-| 10 | `! - ~ typeof` (prefix) | right |
-| 11 | `. () []` (postfix) | chaining |
-| 12 | primaries | — |
+| 4 | `\|` | left |
+| 5 | `^` | left |
+| 6 | `&` | left |
+| 7 | `== !=` | left |
+| 8 | `< > <= >= instanceof in` | left |
+| 9 | `<< >> >>>` | left |
+| 10 | `+ -` | left |
+| 11 | `* / %` | left |
+| 12 | `! - ~ typeof` (prefix) | right |
+| 13 | `. () []` (postfix) | chaining |
+| 14 | primaries | — |
 
-Differences from C/Java:
+JavaScript-compatible precedence:
 
-- All six bitwise operators (`& | ^ << >> >>>`) share **one** precedence level, weaker than equality. C/Java bind the shift operators tighter than relational/equality and split `&`, `^`, `|` into three levels. Hence `a | b & c` parses as `(a | b) & c`, and `1 << x == y` parses as `1 << (x == y)`.
-- `instanceof` and `in` bind **weaker** than the comparison operators (`< > <= >=`); C/Java treat them as one relational level. Hence `a instanceof b < c` parses as `a instanceof (b < c)` (Java: `(a instanceof b) < c`).
-- `a & b == c` parses as `a & (b == c)` — the grouping C/Java also produce; listed here because it follows directly from the single bitwise level.
+- Shifts bind tighter than relational/equality operators and looser than addition: `1 << x == y` parses as `(1 << x) == y`.
+- Bitwise AND/XOR/OR form three descending levels: `a | b & c` parses as `a | (b & c)`, and `a & b == c` parses as `a & (b == c)`.
+- `instanceof` and `in` share the relational level with `< > <= >=`, all left-associative: `a instanceof b < c` parses as `(a instanceof b) < c`.
+- Only precedence and associativity follow JavaScript; LoxFlux retains its own operand type checks and 32-bit bitwise conversion semantics.
 
 ## 3. Builtin Modules
 
@@ -171,7 +177,7 @@ Builtin modules are primaries (`moduleLiteral`) whose members are reached throug
 |:---|:---|:---|
 | `@math` | `NaN` `Infinity` `EPSILON` `MAX_VALUE` `MIN_VALUE` `MAX_SAFE_INTEGER` `MIN_SAFE_INTEGER` `E` `LN2` `LN10` `LOG2E` `LOG10E` `PI` `SQRT1_2` `SQRT2` | `max` `min` `abs` `floor` `ceil` `round` `pow` `sqrt` `sin` `asin` `cos` `acos` `tan` `atan` `log` `log2` `log10` `exp` `isNaN` `isFinite` `random` `seed` |
 | `@array` | — | `resize` `length` `pop` `push` `slice` |
-| `@object` | — | `isNumber` `isString` `isStringBuilder` `isFunction` `isClass` `isObject` `isArray` `isTypedArray` `isArrayLike` `isBoolean` `isFiber` `getClass` `getGlobal` `keys` `hasOwn` `freeze` `isFrozen` |
+| `@object` | — | `isNumber` `isString` `isStringBuilder` `isFunction` `isClass` `isObject` `isArray` `isTypedArray` `isArrayLike` `isBoolean` `isFiber` `isError` `getClass` `getGlobal` `keys` `hasOwn` `freeze` `isFrozen` |
 | `@string` | — | `byteLen` `charAt` `utf8Len` `utf8At` `append` `intern` `equals` `slice` `parseInt` `parseFloat` |
 | `@time` | — | `nano` `micro` `milli` `second` `utc` |
 | `@ctor` | — | `Object` `Array` `F64Array` `F32Array` `U32Array` `I32Array` `U16Array` `I16Array` `U8Array` `I8Array` `StringBuilder` `Fiber` |
