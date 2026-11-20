@@ -1,5 +1,5 @@
 # LoxFlux
-![Version](https://img.shields.io/badge/version-0.15.0-blue)
+![Version](https://img.shields.io/badge/version-0.15.1-blue)
 
 LoxFlux is an independent reimplementation of the cLox interpreter described in "Crafting Interpreters"—a stack-based bytecode virtual machine. All code is written from scratch, following the book’s design principles. This project is still actively being developed and improved.
 
@@ -38,21 +38,21 @@ Lox is a programming language designed for learning purposes. It is conceived as
 #### Performance test
 
 _(AMD Ryzen7-5800X, Windows 11, Use ClangCL/LLVM 22.1.3 for loxflux & clox (loop 1e8: LLVM 19, see note) & Lua 5.5.1; LoxFlux benchmarks in `scripts/benchmark/lfx`, CPython in `scripts/benchmark/py`, Lua in `scripts/benchmark/lua`)_
-|program|LoxFlux - [0.15.0]|clox|NodeJS - [24.19.0] - jitless|Cpython3 - [3.14.7]|Lua - [5.5.1]|
+|program|LoxFlux - [0.15.1]|clox|NodeJS - [24.19.0] - jitless|Cpython3 - [3.14.7]|Lua - [5.5.1]|
 |---|---|---|---|---|---|
 |fib30|44ms|81ms|50ms|121ms|51ms|
-|fib35|489ms|880ms|570ms|1319ms|546ms|
-|fib40|5450ms|10365ms|6131ms|14593ms|6038ms|
-|loop 1e8|413ms (for: 660ms)|1109ms|583ms|2671ms|842ms (for: 213ms)|
-|global loop 1e8|720ms|2694ms|988ms|4462ms|2265ms|
-|binary_trees|868ms|2295ms|517ms|1247ms|2364ms|
-|instantiation|336ms|845ms|226ms|1020ms|1145ms|
-|invocation|140ms|244ms|203ms|312ms|286ms|
-|method_call|79ms|167ms|93ms|160ms|137ms|
-|properties|182ms|373ms|229ms|339ms|329ms|
-|trees|924ms|3884ms|1307ms|2002ms|3116ms|
-|zoo|143ms|288ms|169ms|292ms|251ms|
-|zoo_batch(10sec)|10932batch|5063batch|9049batch|5665batch|6569batch|
+|fib35|485ms|880ms|570ms|1319ms|546ms|
+|fib40|5411ms|10365ms|6131ms|14593ms|6038ms|
+|loop 1e8|416ms (for: 725ms)|1109ms|583ms|2671ms|842ms (for: 213ms)|
+|global loop 1e8|715ms|2694ms|988ms|4462ms|2265ms|
+|binary_trees|856ms|2295ms|517ms|1247ms|2364ms|
+|instantiation|326ms|845ms|226ms|1020ms|1145ms|
+|invocation|139ms|244ms|203ms|312ms|286ms|
+|method_call|78ms|167ms|93ms|160ms|137ms|
+|properties|178ms|373ms|229ms|339ms|329ms|
+|trees|1011ms|3884ms|1307ms|2002ms|3116ms|
+|zoo|141ms|288ms|169ms|292ms|251ms|
+|zoo_batch(10sec)|11340batch|5063batch|9049batch|5665batch|6569batch|
 
 ---
 

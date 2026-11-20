@@ -371,7 +371,11 @@ typedef struct ObjFiber {
 	switch (t) { \
 	case OBJ_STRING_BUILDER: out = NUMBER_VAL(ARRAY_ELEMENT(array, uint8_t, index)); break; \
 	case OBJ_ARRAY:          out = ARRAY_ELEMENT(array, LfxValue, index); break; \
-	case OBJ_ARRAY_F64:      out = NUMBER_VAL(ARRAY_ELEMENT(array, double, index)); break; \
+	case OBJ_ARRAY_F64: { \
+		double element = ARRAY_ELEMENT(array, double, index); \
+		out = isnan(element) ? NAN_VAL : NUMBER_VAL(element); \
+		break; \
+	} \
 	case OBJ_ARRAY_F32:      out = NUMBER_VAL(ARRAY_ELEMENT(array, float, index)); break; \
 	case OBJ_ARRAY_U32:      out = NUMBER_VAL(ARRAY_ELEMENT(array, uint32_t, index)); break; \
 	case OBJ_ARRAY_I32:      out = NUMBER_VAL(ARRAY_ELEMENT(array, int32_t, index)); break; \

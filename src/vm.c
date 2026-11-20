@@ -387,6 +387,13 @@ void vm_storeCacheToFiber(LfxVM* vm) {
 COLD_FUNCTION
 void vm_init(LfxVM* vm)
 {
+#if NAN_BOXING
+	if (!IS_NUMBER(NAN_VAL) || IS_OBJ(NAN_VAL)) {
+		fprintf(stderr, "Unsupported NaN boxing: NAN_VAL overlaps non-number tags.\n");
+		exit(1);
+	}
+#endif
+
 	vm->options.printBytecode = false;
 	vm->options.optimizationEnabled = true;
 	//zero the accounting books BEFORE any allocation: everything vm_init

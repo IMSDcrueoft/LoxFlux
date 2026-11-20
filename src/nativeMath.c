@@ -235,7 +235,7 @@ COLD_FUNCTION
 void importNative_math(LfxVM* vm) {
 	xoshiro256starstar_init(&vm->rng, get_utc_milliseconds());
 
-	defineNative_math_number(vm, "NaN", NAN);
+	defineNative_math_number(vm, "NaN", AS_NUMBER(NAN_VAL));
 	defineNative_math_number(vm, "Infinity", INFINITY);
 	defineNative_math_number(vm, "EPSILON", DBL_EPSILON);
 
